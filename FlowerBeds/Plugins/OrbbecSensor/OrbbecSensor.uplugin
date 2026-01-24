@@ -1,0 +1,18 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Orbbec Sensor",
+  "Description": "Orbbec SDK v2 wrapper.",
+  "Category": "Sensors",
+  "EnabledByDefault": false,
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Modules": [
+    {
+      "Name": "OrbbecSensor",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}
