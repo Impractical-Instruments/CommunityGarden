@@ -1,15 +1,10 @@
 #include "OrbbecSensor/OrbbecSensorModule.h"
-#include "Modules/ModuleManager.h"
 
-#if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
-#endif
+#include "Modules/ModuleManager.h"
 
 #include "libobsensor/ObSensor.hpp"
 
-#if PLATFORM_WINDOWS
-#include "Windows/HideWindowsPlatformTypes.h"
-#endif
+DEFINE_LOG_CATEGORY(LogOrbbecSensor);
 
 IMPLEMENT_MODULE(FOrbbecSensorModule, OrbbecSensor);
 

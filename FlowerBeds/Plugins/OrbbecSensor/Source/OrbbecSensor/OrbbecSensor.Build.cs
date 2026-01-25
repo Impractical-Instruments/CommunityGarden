@@ -31,6 +31,8 @@ public class OrbbecSensor : ModuleRules
             return;
         }
         
+        
+        
         var libDir = Path.Combine(thirdParty, "Lib");
         PublicAdditionalLibraries.Add(Path.Combine(libDir, "OrbbecSDK.lib"));
 

@@ -21,31 +21,66 @@ enum class EOrbbecFrameFormat : uint8
 	Unknown
 };
 
+UENUM()
+enum class EOrbbecSensorType : uint8
+{
+	IR,
+	Color,
+	Depth,
+	IRLeft,
+	IRRight,
+	ColorLeft,
+	ColorRight,
+	Unknown
+};
+
 USTRUCT(BlueprintType)
 struct ORBBECSENSOR_API FOrbbecVideoConfig
 {
 	GENERATED_BODY()
 
+	/**
+	 * Sensor type (IR, Color, Depth, etc.)
+	 */
+	UPROPERTY(editAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	EOrbbecSensorType SensorType = EOrbbecSensorType::Unknown;
+	
+	/**
+	 * Frame format to request.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	EOrbbecFrameFormat Format = EOrbbecFrameFormat::Unknown;
+	
+	/**
+	 * Camera video frame width. 0 means default/any
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
 	int32 Width = 0; // 0 means default/any
 
+	/**
+	 * Camera video frame width. 0 means default/any
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
 	int32 Height = 0;
 
+	/**
+	 * Camera video framerate. 0 means default/any
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	int32 FPS = 0;
+	int32 Framerate = 0;
 
+	/**
+	 * The texture to update
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	EOrbbecFrameFormat Format = EOrbbecFrameFormat::Unknown;
+	UTexture2D* Texture = nullptr;
 };
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnOrbbecFrameReceived, const TArray<uint8>&, Data, int32, Width, int32, Height, EOrbbecFrameFormat, Format);
 
 /**
  * Class to configure and get streams from an Orbbec camera.
  */
-UCLASS(BlueprintType)
-class ORBBECSENSOR_API UOrbbecCameraController : public UObject
+UCLASS(ClassGroup = (Orbbec), meta = (BlueprintSpawnableComponent))
+class ORBBECSENSOR_API UOrbbecCameraController : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -54,27 +89,34 @@ public:
 	virtual ~UOrbbecCameraController() override;
 	
 	// Required for UObject with pimpl pattern - must be defined in .cpp
-	UOrbbecCameraController(FVTableHelper& Helper);
+	explicit UOrbbecCameraController(FVTableHelper& Helper);
 
-	/** Starts the camera with the specified configuration. */
+	/** 
+	 * Starts the camera with the specified configuration. 
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Orbbec")
-	bool StartCamera(const FOrbbecVideoConfig& ColorConfig, const FOrbbecVideoConfig& DepthConfig, const FOrbbecVideoConfig& IRConfig);
+	bool StartCamera();
 
-	/** Stops the camera. */
+	/** 
+	 * Stops the camera.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "Orbbec")
 	void StopCamera();
 
-	UPROPERTY(BlueprintAssignable, Category = "Orbbec")
-	FOnOrbbecFrameReceived OnColorFrameReceived;
-
-	UPROPERTY(BlueprintAssignable, Category = "Orbbec")
-	FOnOrbbecFrameReceived OnDepthFrameReceived;
-
-	UPROPERTY(BlueprintAssignable, Category = "Orbbec")
-	FOnOrbbecFrameReceived OnIRFrameReceived;
+	/**
+	 * The serial number of the connected Orbbec camera device. Optional, but necessary to support multiple devices.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	FString DeviceSerialNumber;
+	
+	/**
+	 * The video stream configurations to use when calling StartCamera()
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	TArray<FOrbbecVideoConfig> VideoConfigs;
 
 private:
 	// Implementation details hidden in the cpp file to avoid SDK header pollution
-	struct FOrbbecImplementation;
+	class FOrbbecImplementation;
 	TUniquePtr<FOrbbecImplementation> Implementation;
 };

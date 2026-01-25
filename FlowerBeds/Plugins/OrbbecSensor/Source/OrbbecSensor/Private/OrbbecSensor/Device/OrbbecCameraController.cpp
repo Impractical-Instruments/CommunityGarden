@@ -1,18 +1,58 @@
 ﻿#include "OrbbecSensor/Device/OrbbecCameraController.h"
-#include "Async/Async.h"
 
+#include "RHI.h"
+#include "Async/Async.h"
+#include "Engine/Texture2D.h"
+
+#include "OrbbecSensor/OrbbecSensorModule.h"
+
+// Disable overzealous strncpy warnign
 #if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
+  #pragma warning(push)
+  #pragma warning(disable : 4996)
 #endif
 
-#include "libobsensor/ObSensor.hpp"
+#include <libobsensor/ObSensor.hpp>
 
-struct UOrbbecCameraController::FOrbbecImplementation
+#if PLATFORM_WINDOWS
+  #pragma warning(pop)
+#endif
+
+class UOrbbecCameraController::FOrbbecImplementation
 {
-	std::shared_ptr<ob::Pipeline> Pipeline;
-	std::shared_ptr<ob::Config> Config;
-
-	static OBFormat MapFormat(EOrbbecFrameFormat Format)
+public:
+	static TUniquePtr<FOrbbecImplementation> CreateAndStart(
+		const FString& DeviceSerialNumber, 
+		const TArray<FOrbbecVideoConfig>& VideoConfigs)
+	{
+		auto Device = PickDevice(DeviceSerialNumber);
+		
+		if (!Device)
+		{
+			return nullptr;
+		}
+		
+		TUniquePtr<FOrbbecImplementation> Implementation{ new FOrbbecImplementation(Device) };
+		
+		for (const FOrbbecVideoConfig& Config : VideoConfigs)
+		{
+			if (!Implementation->EnableStreamProfile(Config))
+			{
+				return nullptr;
+			}
+		}
+		
+		Implementation->Pipeline.start();
+		
+		return Implementation;
+	}
+	
+	~FOrbbecImplementation()
+	{
+		Pipeline.stop();
+	}
+	
+	static OBFormat MapFormat(const EOrbbecFrameFormat Format)
 	{
 		switch (Format)
 		{
@@ -27,7 +67,7 @@ struct UOrbbecCameraController::FOrbbecImplementation
 		}
 	}
 
-	static EOrbbecFrameFormat MapFormatBack(OBFormat Format)
+	static EOrbbecFrameFormat MapFormatBack(const OBFormat Format)
 	{
 		switch (Format)
 		{
@@ -41,10 +81,123 @@ struct UOrbbecCameraController::FOrbbecImplementation
 		default: return EOrbbecFrameFormat::Unknown;
 		}
 	}
+	
+	static OBSensorType MapSensorType(const EOrbbecSensorType StreamType)
+	{
+		switch (StreamType)
+		{
+		case EOrbbecSensorType::IR: return OB_SENSOR_IR;
+		case EOrbbecSensorType::Color: return OB_SENSOR_COLOR;
+		case EOrbbecSensorType::Depth: return OB_SENSOR_DEPTH;
+		case EOrbbecSensorType::IRLeft: return OB_SENSOR_IR_LEFT;
+		case EOrbbecSensorType::IRRight: return OB_SENSOR_IR_RIGHT;
+		case EOrbbecSensorType::ColorLeft: return OB_SENSOR_COLOR_LEFT;
+		case EOrbbecSensorType::ColorRight: return OB_SENSOR_COLOR_RIGHT;
+		default: return OB_SENSOR_UNKNOWN;
+		}
+	}
+	
+	static EOrbbecSensorType MapSensorTypeBack(const OBSensorType StreamType)
+	{
+		switch (StreamType)
+		{
+		case OB_SENSOR_IR: return EOrbbecSensorType::IR;
+		case OB_SENSOR_COLOR: return EOrbbecSensorType::Color;
+		case OB_SENSOR_DEPTH: return EOrbbecSensorType::Depth;
+		case OB_SENSOR_IR_LEFT: return EOrbbecSensorType::IRLeft;
+		case OB_SENSOR_IR_RIGHT: return EOrbbecSensorType::IRRight;
+		case OB_SENSOR_COLOR_LEFT: return EOrbbecSensorType::ColorLeft;
+		case OB_SENSOR_COLOR_RIGHT: return EOrbbecSensorType::ColorRight;
+		default: return EOrbbecSensorType::Unknown;
+		}
+	}
+	
+private:
+	ob::Pipeline Pipeline;
+	ob::Config Config;
+	
+	explicit FOrbbecImplementation(std::shared_ptr<ob::Device> Device) : Pipeline(Device) {}
+	
+	static std::shared_ptr<ob::Device> PickDevice(const FString& DeviceSerialNumber)
+	{
+		const ob::Context Ctx;
+		const auto DevList = Ctx.queryDeviceList();
+		const auto DevCount = DevList->deviceCount();
+		
+		if (DevCount <= 0) {
+			UE_LOG(LogOrbbecSensor, Warning, TEXT("No Orbbec devices detected (deviceCount == 0)."));
+			return nullptr;
+		}
+
+		// Default: first device
+		if (DeviceSerialNumber.IsEmpty()) {
+			return DevList->getDevice(0);
+		}
+		
+		// SN provided: find it if possible
+		for (uint32_t i = 0; i < DevCount; ++i)
+		{
+			auto Device = DevList->getDevice(i);
+			
+			if (const auto Info = Device->getDeviceInfo(); DeviceSerialNumber == Info->serialNumber())
+			{
+				return Device;
+			}
+		}
+		
+		// Help the user find the device by serial number
+		UE_LOG(
+			LogOrbbecSensor, 
+			Warning, 
+			TEXT("No Orbbec device with serial number '%s' detected. We see these devices:"), 
+			*DeviceSerialNumber);
+		
+		for (uint32_t i = 0; i < DevCount; ++i)
+		{
+			auto Device = DevList->getDevice(i);
+			
+			if (const auto Info = Device->getDeviceInfo(); Info->serialNumber())
+			{
+				UE_LOG(LogOrbbecSensor, Warning, TEXT("  [%d] %s"), i, ANSI_TO_TCHAR(Info->serialNumber()));
+			}
+		}
+		
+		return nullptr;
+	}
+	
+	bool EnableStreamProfile(const FOrbbecVideoConfig& VideoConfig) const
+	{
+		const auto StreamType = MapSensorType(VideoConfig.SensorType);
+		const auto Profiles = Pipeline.getStreamProfileList(StreamType);
+		
+		for (uint32_t i = 0; i < Profiles->count(); ++i)
+		{
+			const auto Profile = Profiles->getProfile(i);
+			const auto VideoProfile = Profile->as<ob::VideoStreamProfile>();
+			
+			if (!VideoProfile)
+			{
+				continue;
+			}
+			
+			const bool bIsSameFormat = VideoProfile->getFormat() == MapFormat(VideoConfig.Format);
+			const bool bIsSameResolution = 
+				VideoProfile->getWidth() == VideoConfig.Width 
+				&& VideoProfile->getHeight() == VideoConfig.Height;
+			const bool bIsSameFramerate = VideoProfile->getFps() == VideoConfig.Framerate;
+			
+			if (bIsSameFormat && bIsSameResolution && bIsSameFramerate)
+			{
+				Config.enableStream(Profile);
+				return true;
+			}
+		}
+		
+		return false;
+	}
 };
 
 UOrbbecCameraController::UOrbbecCameraController()
-	: Implementation(MakeUnique<FOrbbecImplementation>())
 {
 }
 
@@ -58,87 +211,44 @@ UOrbbecCameraController::UOrbbecCameraController(FVTableHelper& Helper)
 {
 }
 
-bool UOrbbecCameraController::StartCamera(const FOrbbecVideoConfig& ColorConfig, const FOrbbecVideoConfig& DepthConfig, const FOrbbecVideoConfig& IRConfig)
+bool UOrbbecCameraController::StartCamera()
 {
-	if (!Implementation) return false;
-
+	if (Implementation)
+	{
+		UE_LOG(LogOrbbecSensor, Display, TEXT("Camera already started. Stopping it first."));
+		StopCamera();
+	}
+	
 	try
 	{
-		Implementation->Pipeline = std::make_shared<ob::Pipeline>();
-		Implementation->Config = std::make_shared<ob::Config>();
-
-		auto SetupStream = [this](const FOrbbecVideoConfig& Config, OBStreamType StreamType) {
-			if (Config.Width > 0 || Config.Height > 0 || Config.FPS > 0 || Config.Format != EOrbbecFrameFormat::Unknown)
-			{
-				Implementation->Config->enableVideoStream(StreamType, 
-					Config.Width > 0 ? Config.Width : OB_WIDTH_ANY, 
-					Config.Height > 0 ? Config.Height : OB_HEIGHT_ANY, 
-					Config.FPS > 0 ? Config.FPS : OB_FPS_ANY, 
-					FOrbbecImplementation::MapFormat(Config.Format));
-			}
-		};
-
-		SetupStream(ColorConfig, OB_STREAM_COLOR);
-		SetupStream(DepthConfig, OB_STREAM_DEPTH);
-		SetupStream(IRConfig, OB_STREAM_IR);
-
-		Implementation->Pipeline->start(Implementation->Config, [this](std::shared_ptr<ob::FrameSet> FrameSet) {
-			if (!FrameSet) return;
-
-			auto ProcessFrame = [this](std::shared_ptr<ob::Frame> Frame, OBFrameType FrameType) {
-				if (Frame && Frame->dataSize() > 0)
-				{
-					auto VideoFrame = Frame->as<ob::VideoFrame>();
-					if (VideoFrame)
-					{
-						int32 Width = VideoFrame->width();
-						int32 Height = VideoFrame->height();
-						EOrbbecFrameFormat Format = FOrbbecImplementation::MapFormatBack(VideoFrame->getFormat());
-
-						TArray<uint8> Data;
-						Data.SetNumUninitialized(Frame->dataSize());
-						FMemory::Memcpy(Data.GetData(), Frame->data(), Frame->dataSize());
-
-						AsyncTask(ENamedThreads::GameThread, [this, Data = MoveTemp(Data), Width, Height, Format, FrameType]() {
-							// Check if the object is still valid before broadcasting
-							if (IsValid(this))
-							{
-								if (FrameType == OB_FRAME_COLOR) OnColorFrameReceived.Broadcast(Data, Width, Height, Format);
-								else if (FrameType == OB_FRAME_DEPTH) OnDepthFrameReceived.Broadcast(Data, Width, Height, Format);
-								else if (FrameType == OB_FRAME_IR) OnIRFrameReceived.Broadcast(Data, Width, Height, Format);
-							}
-						});
-					}
-				}
-			};
-
-			ProcessFrame(FrameSet->colorFrame(), OB_FRAME_COLOR);
-			ProcessFrame(FrameSet->depthFrame(), OB_FRAME_DEPTH);
-			ProcessFrame(FrameSet->irFrame(), OB_FRAME_IR);
-		});
-
+		Implementation = FOrbbecImplementation::CreateAndStart(DeviceSerialNumber, VideoConfigs);
+		
+		if (!Implementation)
+		{
+			return false;
+		}
+		
 		return true;
 	}
-	catch (ob::Error& e)
+	catch (const ob::Error& e)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OrbbecSDK Error: %s"), *FString(e.getMessage()));
+		UE_LOG(LogTemp, Error, TEXT("OrbbecSDK Error during StartCamera(): %s"), *FString(e.getMessage()));
 		return false;
 	}
 }
 
 void UOrbbecCameraController::StopCamera()
 {
-	if (Implementation && Implementation->Pipeline)
+	
+	if (Implementation)
 	{
 		try
 		{
-			Implementation->Pipeline->stop();
+			Implementation.Reset();
 		}
-		catch (ob::Error& e)
+		catch (const ob::Error& e)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("OrbbecSDK Error during stop: %s"), *FString(e.getMessage()));
+			UE_LOG(LogTemp, Warning, TEXT("OrbbecSDK Error during StopCamera(): %s"), *FString(e.getMessage()));
 		}
-		Implementation->Pipeline.reset();
-		Implementation->Config.reset();
 	}
 }
