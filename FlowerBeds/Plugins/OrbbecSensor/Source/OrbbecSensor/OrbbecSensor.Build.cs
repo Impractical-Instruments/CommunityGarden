@@ -6,6 +6,8 @@ public class OrbbecSensor : ModuleRules
     public OrbbecSensor(ReadOnlyTargetRules target) : base(target)
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+        
+        bUseRTTI = true;
 
         PublicDependencyModuleNames.AddRange([
             "Core",
