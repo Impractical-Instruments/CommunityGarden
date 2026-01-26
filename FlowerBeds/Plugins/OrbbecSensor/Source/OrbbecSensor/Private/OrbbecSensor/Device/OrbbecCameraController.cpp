@@ -21,9 +21,11 @@
 class UOrbbecCameraController::FOrbbecImplementation
 {
 public:
-	static TUniquePtr<FOrbbecImplementation> CreateAndStart(
+	static TSharedPtr<FOrbbecImplementation> CreateAndStart(
 		const FString& DeviceSerialNumber, 
-		const TArray<FOrbbecVideoConfig>& VideoConfigs)
+		const FOrbbecVideoConfig& ColorConfig,
+		const FOrbbecVideoConfig& DepthConfig,
+		const FOrbbecVideoConfig& IRConfig)
 	{
 		auto Device = PickDevice(DeviceSerialNumber);
 		
@@ -32,17 +34,21 @@ public:
 			return nullptr;
 		}
 		
-		TUniquePtr<FOrbbecImplementation> Implementation{ new FOrbbecImplementation(Device) };
+		TSharedPtr<FOrbbecImplementation> Implementation{ new FOrbbecImplementation(Device) };
 		
-		for (const FOrbbecVideoConfig& Config : VideoConfigs)
-		{
-			if (!Implementation->EnableStreamProfile(Config))
+		if (!Implementation->EnableStreamProfile(EOrbbecSensorType::Color, ColorConfig)) return nullptr;
+		if (!Implementation->EnableStreamProfile(EOrbbecSensorType::Depth, DepthConfig)) return nullptr;
+		if (!Implementation->EnableStreamProfile(EOrbbecSensorType::IR, IRConfig)) return nullptr;
+		
+		Implementation->Pipeline.start(
+			Implementation->Config, 
+			[WeakThis = Implementation.ToWeakPtr()](std::shared_ptr<ob::FrameSet> FrameSet)
 			{
-				return nullptr;
-			}
-		}
-		
-		Implementation->Pipeline.start();
+				if (const auto SharedThis = WeakThis.Pin())
+				{
+					SharedThis->HandleFrameSet(std::move(FrameSet));
+				}
+			});
 		
 		return Implementation;
 	}
@@ -89,10 +95,6 @@ public:
 		case EOrbbecSensorType::IR: return OB_SENSOR_IR;
 		case EOrbbecSensorType::Color: return OB_SENSOR_COLOR;
 		case EOrbbecSensorType::Depth: return OB_SENSOR_DEPTH;
-		case EOrbbecSensorType::IRLeft: return OB_SENSOR_IR_LEFT;
-		case EOrbbecSensorType::IRRight: return OB_SENSOR_IR_RIGHT;
-		case EOrbbecSensorType::ColorLeft: return OB_SENSOR_COLOR_LEFT;
-		case EOrbbecSensorType::ColorRight: return OB_SENSOR_COLOR_RIGHT;
 		default: return OB_SENSOR_UNKNOWN;
 		}
 	}
@@ -104,19 +106,63 @@ public:
 		case OB_SENSOR_IR: return EOrbbecSensorType::IR;
 		case OB_SENSOR_COLOR: return EOrbbecSensorType::Color;
 		case OB_SENSOR_DEPTH: return EOrbbecSensorType::Depth;
-		case OB_SENSOR_IR_LEFT: return EOrbbecSensorType::IRLeft;
-		case OB_SENSOR_IR_RIGHT: return EOrbbecSensorType::IRRight;
-		case OB_SENSOR_COLOR_LEFT: return EOrbbecSensorType::ColorLeft;
-		case OB_SENSOR_COLOR_RIGHT: return EOrbbecSensorType::ColorRight;
 		default: return EOrbbecSensorType::Unknown;
 		}
 	}
 	
+	bool TryConsumeLatestFrameSet(FOrbbecFrame& ColorFrame, FOrbbecFrame& DepthFrame, FOrbbecFrame& IRFrame)
+	{
+		std::shared_ptr<ob::FrameSet> OutFrameSet;
+		
+		// Get the latest frame set, if available
+		{
+			FScopeLock Lock(&LatestFrameSetGuard);
+		
+			if (!LatestFrameSet)
+			{
+				return false;
+			}
+		
+			OutFrameSet = LatestFrameSet;
+			LatestFrameSet.reset();
+		}
+		
+		if (ColorFrame.Config.bEnabled)
+		{
+			const auto Frame = OutFrameSet->getColorFrame();
+			ensure(ColorFrame.Config.Format == MapFormatBack(Frame->getFormat()));
+			const auto DataSize = Frame->getDataSize();
+			ColorFrame.Data.SetNumUninitialized(DataSize);
+			FMemory::Memcpy(ColorFrame.Data.GetData(), Frame->getData(), DataSize);
+		}
+		if (DepthFrame.Config.bEnabled)
+		{
+			const auto Frame = OutFrameSet->getDepthFrame();
+			ensure(DepthFrame.Config.Format == MapFormatBack(Frame->getFormat()));
+			const auto DataSize = Frame->getDataSize();
+			DepthFrame.Data.SetNumUninitialized(DataSize);
+			FMemory::Memcpy(DepthFrame.Data.GetData(), Frame->getData(), DataSize);
+		}
+		if (IRFrame.Config.bEnabled)
+		{
+			const auto Frame = OutFrameSet->getIrFrame();
+			ensure(IRFrame.Config.Format == MapFormatBack(Frame->getFormat()));
+			const auto DataSize = Frame->getDataSize();
+			IRFrame.Data.SetNumUninitialized(DataSize);
+			FMemory::Memcpy(IRFrame.Data.GetData(), Frame->getData(), DataSize);
+		}
+		
+		return true;
+	}
+	
 private:
 	ob::Pipeline Pipeline;
-	ob::Config Config;
+	std::shared_ptr<ob::Config> Config = std::make_shared<ob::Config>();
 	
-	explicit FOrbbecImplementation(std::shared_ptr<ob::Device> Device) : Pipeline(Device) {}
+	FCriticalSection LatestFrameSetGuard;
+	std::shared_ptr<ob::FrameSet> LatestFrameSet;
+	
+	explicit FOrbbecImplementation(std::shared_ptr<ob::Device> Device) : Pipeline(std::move(Device)) {}
 	
 	static std::shared_ptr<ob::Device> PickDevice(const FString& DeviceSerialNumber)
 	{
@@ -165,10 +211,16 @@ private:
 		return nullptr;
 	}
 	
-	bool EnableStreamProfile(const FOrbbecVideoConfig& VideoConfig) const
+	bool EnableStreamProfile(const EOrbbecSensorType SensorType, const FOrbbecVideoConfig& VideoConfig) const
 	{
-		const auto StreamType = MapSensorType(VideoConfig.SensorType);
-		const auto Profiles = Pipeline.getStreamProfileList(StreamType);
+		// Skip if not enabled
+		if (!VideoConfig.bEnabled)
+		{
+			return true;
+		}
+		
+		const auto ObSensorType = MapSensorType(SensorType);
+		const auto Profiles = Pipeline.getStreamProfileList(ObSensorType);
 		
 		for (uint32_t i = 0; i < Profiles->count(); ++i)
 		{
@@ -188,17 +240,24 @@ private:
 			
 			if (bIsSameFormat && bIsSameResolution && bIsSameFramerate)
 			{
-				Config.enableStream(Profile);
+				Config->enableStream(Profile);
 				return true;
 			}
 		}
 		
 		return false;
 	}
+	
+	void HandleFrameSet(std::shared_ptr<ob::FrameSet> FrameSet)
+	{
+		FScopeLock Lock(&LatestFrameSetGuard);
+		LatestFrameSet = std::move(FrameSet);
+	}
 };
 
 UOrbbecCameraController::UOrbbecCameraController()
 {
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 UOrbbecCameraController::~UOrbbecCameraController()
@@ -221,12 +280,20 @@ bool UOrbbecCameraController::StartCamera()
 	
 	try
 	{
-		Implementation = FOrbbecImplementation::CreateAndStart(DeviceSerialNumber, VideoConfigs);
+		Implementation = FOrbbecImplementation::CreateAndStart(DeviceSerialNumber, ColorConfig, DepthConfig, IRConfig);
 		
 		if (!Implementation)
 		{
 			return false;
 		}
+		
+		// Init the latest frames
+		LatestColorFrame.Config = ColorConfig;
+		LatestDepthFrame.Config = DepthConfig;
+		LatestIRFrame.Config = IRConfig;
+		
+		// Turn on ticks so we can receive frames
+		SetComponentTickEnabled(true);
 		
 		return true;
 	}
@@ -239,6 +306,7 @@ bool UOrbbecCameraController::StartCamera()
 
 void UOrbbecCameraController::StopCamera()
 {
+	SetComponentTickEnabled(false);
 	
 	if (Implementation)
 	{
@@ -249,6 +317,27 @@ void UOrbbecCameraController::StopCamera()
 		catch (const ob::Error& e)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("OrbbecSDK Error during StopCamera(): %s"), *FString(e.getMessage()));
+		}
+	}
+}
+
+void UOrbbecCameraController::TickComponent(
+	const float DeltaTime, 
+	const ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	
+	if (!Implementation)
+	{
+		return;
+	}
+	
+	if (OnFramesReceived.IsBound())
+	{
+		if (Implementation->TryConsumeLatestFrameSet(LatestColorFrame, LatestDepthFrame, LatestIRFrame))
+		{
+			OnFramesReceived.Broadcast(LatestColorFrame, LatestDepthFrame, LatestIRFrame);
 		}
 	}
 }
