@@ -9,7 +9,7 @@ struct FOrbbecFrame;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOrbbecDebugTextureInitialized, UTexture2D*, Texture);
 
 UCLASS(BlueprintType)
-class UOrbbecDebugTexture : public UObject
+class ORBBECSENSOR_API UOrbbecDebugTexture : public UObject
 {
 	GENERATED_BODY()
 public:
@@ -24,5 +24,5 @@ public:
 
 private:
 	void EnsureTexture(int32 W, int32 H, EPixelFormat PF, bool bSRGB);
-	static void UpdateTexture(UTexture2D* Tex, int32 W, int32 H, const TArray<uint8>& Data, int32 SrcStride, int32 TargetStride);
+	static void UpdateTexture(UTexture2D* Tex, int32 W, int32 H, const TSharedPtr<TArray<uint8>>& Data, int32 SrcStride, int32 TargetStride);
 };

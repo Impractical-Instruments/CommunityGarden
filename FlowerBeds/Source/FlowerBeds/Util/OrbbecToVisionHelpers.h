@@ -4,10 +4,10 @@ struct FOrbbecFrame;
 
 namespace II::Vision
 {
-	struct FDepthFrame;
+	struct FFramePacket;
 }
 
 namespace II::Util
 {
-	Vision::FDepthFrame OrbbecToVisionDepthFrame(const FOrbbecFrame& Frame);
+	Vision::FFramePacket OrbbecToVisionFrame(const FOrbbecFrame& Frame);
 }

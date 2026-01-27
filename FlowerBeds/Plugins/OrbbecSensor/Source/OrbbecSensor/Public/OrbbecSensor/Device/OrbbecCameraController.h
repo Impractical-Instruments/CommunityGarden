@@ -67,18 +67,16 @@ struct ORBBECSENSOR_API FOrbbecVideoConfig
 };
 
 USTRUCT(BlueprintType)
-struct FOrbbecFrame
+struct ORBBECSENSOR_API FOrbbecFrame
 {
 	GENERATED_BODY()
 	
 	UPROPERTY(BlueprintReadOnly)
 	FOrbbecVideoConfig Config{};
 	
-	UPROPERTY(BlueprintReadOnly)
-	TArray<uint8> Data{};
-	
-	UPROPERTY(BlueprintReadOnly)
 	uint64 TimestampUs = 0;
+	
+	TSharedPtr<TArray<uint8>> Data{};
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
@@ -145,6 +143,14 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "Orbbec")
 	FOrbbecFramesReceived OnFramesReceived;
+	
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(
+		FOnFramesReceivedNative,
+		const FOrbbecFrame& /* Color */,
+		const FOrbbecFrame& /* Depth */,
+		const FOrbbecFrame& /* IR */)
+	
+	FOnFramesReceivedNative OnFramesReceivedNative;
 
 private:
 	// Implementation details hidden in the cpp file to avoid SDK header pollution
@@ -154,4 +160,5 @@ private:
 	FOrbbecFrame LatestColorFrame;
 	FOrbbecFrame LatestDepthFrame;
 	FOrbbecFrame LatestIRFrame;
+	// TODO: IR Left/Right, Color Left/Right
 };

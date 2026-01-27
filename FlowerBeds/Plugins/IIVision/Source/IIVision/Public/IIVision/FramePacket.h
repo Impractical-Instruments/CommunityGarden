@@ -2,11 +2,11 @@
 
 namespace II::Vision
 {
-	struct FDepthFrame
+	struct IIVISION_API FFramePacket
 	{
 		int32 Width = 0;
 		int32 Height = 0;
-		TArray<uint16> DepthMm{};
 		uint64 TimestampUs = 0;
+		TSharedPtr<TArray<uint8>> Data{};
 	};
 }

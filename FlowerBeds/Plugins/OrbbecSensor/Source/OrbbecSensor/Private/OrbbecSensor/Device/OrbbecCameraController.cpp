@@ -132,8 +132,9 @@ public:
 			const auto Frame = FrameSet->getColorFrame();
 			ensure(ColorFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
-			ColorFrame.Data.SetNumUninitialized(DataSize);
-			FMemory::Memcpy(ColorFrame.Data.GetData(), Frame->getData(), DataSize);
+			ColorFrame.Data = MakeShared<TArray<uint8>>();
+			ColorFrame.Data->SetNumUninitialized(DataSize);
+			FMemory::Memcpy(ColorFrame.Data->GetData(), Frame->getData(), DataSize);
 			ColorFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		if (DepthFrame.Config.bEnabled)
@@ -141,8 +142,9 @@ public:
 			const auto Frame = FrameSet->getDepthFrame();
 			ensure(DepthFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
-			DepthFrame.Data.SetNumUninitialized(DataSize);
-			FMemory::Memcpy(DepthFrame.Data.GetData(), Frame->getData(), DataSize);
+			DepthFrame.Data = MakeShared<TArray<uint8>>();
+			DepthFrame.Data->SetNumUninitialized(DataSize);
+			FMemory::Memcpy(DepthFrame.Data->GetData(), Frame->getData(), DataSize);
 			DepthFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		if (IRFrame.Config.bEnabled)
@@ -150,8 +152,9 @@ public:
 			const auto Frame = FrameSet->getIrFrame();
 			ensure(IRFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
-			IRFrame.Data.SetNumUninitialized(DataSize);
-			FMemory::Memcpy(IRFrame.Data.GetData(), Frame->getData(), DataSize);
+			IRFrame.Data = MakeShared<TArray<uint8>>();
+			IRFrame.Data->SetNumUninitialized(DataSize);
+			FMemory::Memcpy(IRFrame.Data->GetData(), Frame->getData(), DataSize);
 			IRFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		
@@ -341,6 +344,7 @@ void UOrbbecCameraController::TickComponent(
 		if (Implementation->TryConsumeLatestFrameSet(LatestColorFrame, LatestDepthFrame, LatestIRFrame))
 		{
 			OnFramesReceived.Broadcast(LatestColorFrame, LatestDepthFrame, LatestIRFrame);
+			OnFramesReceivedNative.Broadcast(LatestColorFrame, LatestDepthFrame, LatestIRFrame);
 		}
 	}
 }

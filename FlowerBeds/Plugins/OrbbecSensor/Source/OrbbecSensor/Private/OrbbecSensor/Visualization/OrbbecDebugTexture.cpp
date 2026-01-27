@@ -7,7 +7,7 @@
 
 void UOrbbecDebugTexture::UpdateTexture(const FOrbbecFrame& Frame)
 {
-	if (Frame.Config.Width <= 0 || Frame.Config.Height <= 0 || Frame.Data.Num() <= 0)
+	if (Frame.Config.Width <= 0 || Frame.Config.Height <= 0 || Frame.Data->Num() <= 0)
 	{
 		return;
 	}
@@ -63,13 +63,13 @@ void UOrbbecDebugTexture::UpdateTexture(
 	UTexture2D* Tex, 
 	int32 W, 
 	int32 H, 
-	const TArray<uint8>& Data, 
+	const TSharedPtr<TArray<uint8>>& Data, 
 	int32 SrcStride,
 	int32 TargetStride)
 {
 	if (!Tex || !Tex->GetResource()) return;
 	
-	if (Data.Num() != W * H * SrcStride) return;
+	if (Data->Num() != W * H * SrcStride) return;
 
 	// Copy src into a buffer owned by the render command (lifetime safety)
 	TArray<uint8> Copy;
@@ -77,7 +77,7 @@ void UOrbbecDebugTexture::UpdateTexture(
 	
 	if (SrcStride == TargetStride)
 	{
-		FMemory::Memcpy(Copy.GetData(), Data.GetData(), Copy.Num());
+		FMemory::Memcpy(Copy.GetData(), Data->GetData(), Copy.Num());
 	}
 	else
 	{
@@ -85,7 +85,7 @@ void UOrbbecDebugTexture::UpdateTexture(
 		{
 			const auto SrcIndex = Pixel * SrcStride;
 			const auto TargetIndex = Pixel * TargetStride;
-			Copy[TargetIndex] = Data[SrcIndex];
+			Copy[TargetIndex] = (*Data)[SrcIndex];
 		}
 	}
 

@@ -1,20 +1,43 @@
 #pragma once
 
-#include "DepthFrame.h"
+#include "FramePacket.h"
 
 namespace II::Vision
 {
-	class FBlobTracker
+	class IIVISION_API FBlobTracker
 	{
 	public:
-		void BeginCalibration();
-		void PushCalibrationFrame(const FDepthFrame& Frame);
-		void EndCalibration();
+		void BeginCalibration(int32 NumCalibrationFrames, int32 InWidth, int32 InHeight);
+		void PushCalibrationFrame(const FFramePacket& Frame);
+		
+		enum class ECalibrationState : uint8
+		{
+			NotCalibrated,
+			CalibrationInProgress,
+			Calibrated
+		};
+		
+		ECalibrationState GetCalibrationState() const;
+		
+		TArray<uint16> GetBackgroundDepthMm() const;
+		TArray<bool> GetValidMask() const;
 		
 	private:
-		uint32 Width = 0;
-		uint32 Height = 0;
+		constexpr static int32 MaxCalibrationFrames = 128;
+		constexpr static int32 MinFramesValid = 10;
+		
+		// NB: CalibrationFrames is stored in contiguous memory for speed
+		TArray<uint16> CalibrationFrames{};
+		int32 Width = 0;
+		int32 Height = 0;
+		int32 NumCalibrationFramesRemaining = 0;
+		
 		TArray<uint16> BackgroundDepthMm{};
 		TArray<bool> ValidMask{};
+		
+		ECalibrationState CalibrationState = ECalibrationState::NotCalibrated;
+		
+		void EndCalibration();
+		void ComputeBackground();
 	};
 }
