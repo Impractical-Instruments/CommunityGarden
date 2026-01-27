@@ -1,11 +1,8 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 public class FlowerBedsTarget : TargetRules
 {
-	public FlowerBedsTarget(TargetInfo Target) : base(Target)
+	public FlowerBedsTarget(TargetInfo target) : base(target)
 	{
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
