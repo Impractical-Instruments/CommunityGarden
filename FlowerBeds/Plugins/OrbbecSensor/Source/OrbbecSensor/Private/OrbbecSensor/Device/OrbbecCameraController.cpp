@@ -112,7 +112,7 @@ public:
 	
 	bool TryConsumeLatestFrameSet(FOrbbecFrame& ColorFrame, FOrbbecFrame& DepthFrame, FOrbbecFrame& IRFrame)
 	{
-		std::shared_ptr<ob::FrameSet> OutFrameSet;
+		std::shared_ptr<ob::FrameSet> FrameSet;
 		
 		// Get the latest frame set, if available
 		{
@@ -123,33 +123,36 @@ public:
 				return false;
 			}
 		
-			OutFrameSet = LatestFrameSet;
+			FrameSet = LatestFrameSet;
 			LatestFrameSet.reset();
 		}
 		
 		if (ColorFrame.Config.bEnabled)
 		{
-			const auto Frame = OutFrameSet->getColorFrame();
+			const auto Frame = FrameSet->getColorFrame();
 			ensure(ColorFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
 			ColorFrame.Data.SetNumUninitialized(DataSize);
 			FMemory::Memcpy(ColorFrame.Data.GetData(), Frame->getData(), DataSize);
+			ColorFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		if (DepthFrame.Config.bEnabled)
 		{
-			const auto Frame = OutFrameSet->getDepthFrame();
+			const auto Frame = FrameSet->getDepthFrame();
 			ensure(DepthFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
 			DepthFrame.Data.SetNumUninitialized(DataSize);
 			FMemory::Memcpy(DepthFrame.Data.GetData(), Frame->getData(), DataSize);
+			DepthFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		if (IRFrame.Config.bEnabled)
 		{
-			const auto Frame = OutFrameSet->getIrFrame();
+			const auto Frame = FrameSet->getIrFrame();
 			ensure(IRFrame.Config.Format == MapFormatBack(Frame->getFormat()));
 			const auto DataSize = Frame->getDataSize();
 			IRFrame.Data.SetNumUninitialized(DataSize);
 			FMemory::Memcpy(IRFrame.Data.GetData(), Frame->getData(), DataSize);
+			IRFrame.TimestampUs = Frame->getTimeStampUs();
 		}
 		
 		return true;

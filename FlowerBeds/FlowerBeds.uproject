@@ -21,6 +21,10 @@
 		{
 			"Name": "OrbbecSensor",
 			"Enabled": true
+		},
+		{
+			"Name": "IIVision",
+			"Enabled": true
 		}
 	]
 }

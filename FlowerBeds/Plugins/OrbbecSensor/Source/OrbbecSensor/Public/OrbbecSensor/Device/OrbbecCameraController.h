@@ -76,6 +76,9 @@ struct FOrbbecFrame
 	
 	UPROPERTY(BlueprintReadOnly)
 	TArray<uint8> Data{};
+	
+	UPROPERTY(BlueprintReadOnly)
+	uint64 TimestampUs = 0;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(
