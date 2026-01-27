@@ -76,3 +76,4 @@ DerivedDataCache/*
 
 # Jetbrains
 .idea/
+*.DotSettings.user

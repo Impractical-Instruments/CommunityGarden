@@ -5,6 +5,7 @@
 
 #include "OrbbecBlobTracker.generated.h"
 
+class UBlobTrackerVisualizer;
 struct FOrbbecFrame;
 class UOrbbecCameraController;
 
@@ -14,8 +15,8 @@ class UOrbbecBlobTracker : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	UOrbbecCameraController* CameraController;
+	UPROPERTY(Transient, BlueprintReadOnly)
+	UBlobTrackerVisualizer* BlobTrackerVisualizer = nullptr;
 	
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -26,4 +27,6 @@ private:
 	FDelegateHandle OnFramesReceivedDelegateHandle;
 	
 	void OnFramesReceived(const FOrbbecFrame& ColorFrame, const FOrbbecFrame& DepthFrame, const FOrbbecFrame& IRFrame);
+	
+	UOrbbecCameraController* GetCameraController() const;
 };

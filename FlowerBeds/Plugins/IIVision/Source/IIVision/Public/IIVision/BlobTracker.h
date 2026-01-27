@@ -19,8 +19,10 @@ namespace II::Vision
 		
 		ECalibrationState GetCalibrationState() const;
 		
-		TArray<uint16> GetBackgroundDepthMm() const;
-		TArray<bool> GetValidMask() const;
+		int32 GetWidth() const;
+		int32 GetHeight() const;
+		const TArray<uint16>& GetBackgroundDepthMm() const;
+		const TArray<bool>& GetValidMask() const;
 		
 	private:
 		constexpr static int32 MaxCalibrationFrames = 128;

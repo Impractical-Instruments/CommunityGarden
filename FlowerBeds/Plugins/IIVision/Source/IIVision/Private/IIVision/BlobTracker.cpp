@@ -53,23 +53,23 @@ namespace II::Vision
 		return CalibrationState;
 	}
 
-	TArray<uint16> FBlobTracker::GetBackgroundDepthMm() const
+	int32 FBlobTracker::GetWidth() const
 	{
-		if (CalibrationState != ECalibrationState::Calibrated)
-		{
-			return {};
-		}
-		
+		return Width;
+	}
+
+	int32 FBlobTracker::GetHeight() const
+	{
+		return Height;
+	}
+
+	const TArray<uint16>& FBlobTracker::GetBackgroundDepthMm() const
+	{
 		return BackgroundDepthMm;
 	}
 	
-	TArray<bool> FBlobTracker::GetValidMask() const
+	const TArray<bool>& FBlobTracker::GetValidMask() const
 	{
-		if (CalibrationState != ECalibrationState::Calibrated)
-		{
-			return {};
-		}
-		
 		return ValidMask;
 	}
 	
