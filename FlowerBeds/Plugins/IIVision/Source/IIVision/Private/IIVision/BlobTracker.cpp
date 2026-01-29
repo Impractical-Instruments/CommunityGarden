@@ -72,7 +72,74 @@ namespace II::Vision
 	{
 		return ValidMask;
 	}
-	
+
+	void FBlobTracker::ConfigureDetection(FDetectionConfig Config)
+	{
+		DetectionConfig = MoveTemp(Config);
+	}
+
+	void FBlobTracker::Detect(const FFramePacket& Frame, FDetectionResult& OutResult)
+	{
+		if (CalibrationState != ECalibrationState::Calibrated)
+		{
+			UE_LOG(LogIIVision, Warning, TEXT("Blob detection called before calibration complete"));
+			return;
+		}
+		
+		const int32 NumPixels = Width * Height;
+		
+		// Ensure we're working with the same size frame
+		{
+			const bool bIsSameSize = Frame.Width == Width && Frame.Height == Height;
+			
+			if (!bIsSameSize)
+			{
+				UE_LOG(LogIIVision, Warning, TEXT("Frame size mismatch. Expected (%d, %d), got (%d, %d)"), Width, Height, Frame.Width, Frame.Height);
+				return;
+			}
+			
+			const bool bDataIsSameSize = Frame.Data->Num() == NumPixels * sizeof(uint16);
+			
+			if (!bDataIsSameSize)
+			{
+				UE_LOG(LogIIVision, Warning, TEXT("Frame data size mismatch. Expected %d bytes, got %d"), NumPixels * sizeof(uint16), Frame.Data->Num());
+				return;
+			}
+		}
+		
+		OutResult.Foreground.SetNumZeroed(NumPixels);
+		
+		for (int32 i = 0; i < NumPixels; ++i)
+		{
+			// Get the current depth for this pixel
+			const uint16 DepthMm = Frame.Data->GetData()[i];
+			
+			// Out of range or invalid, skip
+			if (DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
+			{
+				continue;
+			}
+			
+			// Get the depth for the background
+			const uint16 BgDepthMm = BackgroundDepthMm[i];
+			
+			// BG was valid, figure out if this pixel is foreground
+			if (BgDepthMm >= DetectionConfig.MinDepthMM && DepthMm <= DetectionConfig.MaxDepthMM)
+			{
+				const auto Delta = FMath::Abs(DepthMm - BgDepthMm);
+				if (Delta > DetectionConfig.DepthDeltaMM)
+				{
+					OutResult.Foreground[i] = UINT8_MAX;
+				}
+			}
+			// BG was invalid, so this pixel is probably foreground
+			else
+			{
+				OutResult.Foreground[i] = UINT8_MAX;
+			}
+		}
+	}
+
 	void FBlobTracker::EndCalibration()
 	{
 		ComputeBackground();

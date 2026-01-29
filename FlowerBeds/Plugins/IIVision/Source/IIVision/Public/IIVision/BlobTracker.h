@@ -24,6 +24,23 @@ namespace II::Vision
 		const TArray<uint16>& GetBackgroundDepthMm() const;
 		const TArray<bool>& GetValidMask() const;
 		
+		struct FDetectionConfig
+		{
+			uint16 MinDepthMM = 50;
+			uint16 MaxDepthMM = 6000;
+			int32 DepthDeltaMM = 80;
+			int32 MinBlobPixels = 500;
+		};
+		
+		void ConfigureDetection(FDetectionConfig Config);
+		
+		struct FDetectionResult
+		{
+			TArray<uint8> Foreground;
+		};
+		
+		void Detect(const FFramePacket& Frame, FDetectionResult& OutResult);
+		
 	private:
 		constexpr static int32 MaxCalibrationFrames = 128;
 		constexpr static int32 MinFramesValid = 10;
@@ -38,6 +55,8 @@ namespace II::Vision
 		TArray<bool> ValidMask{};
 		
 		ECalibrationState CalibrationState = ECalibrationState::NotCalibrated;
+		
+		FDetectionConfig DetectionConfig{};
 		
 		void EndCalibration();
 		void ComputeBackground();

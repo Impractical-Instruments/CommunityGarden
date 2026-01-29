@@ -58,7 +58,9 @@ void UOrbbecBlobTracker::OnFramesReceived(
 		}
 		break;
 	case II::Vision::FBlobTracker::ECalibrationState::Calibrated:
-		// TODO: actually do blob tracking
+		II::Vision::FBlobTracker::FDetectionResult DetectionResult;
+		BlobTracker.Detect(II::Util::OrbbecToVisionFrame(DepthFrame), DetectionResult);
+		BlobTrackerVisualizer->SetForegroundMask(DetectionResult.Foreground, BlobTracker.GetWidth(), BlobTracker.GetHeight());
 		break;
 	}
 }
