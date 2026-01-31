@@ -5,7 +5,9 @@
 
 #include "OrbbecBlobTracker.generated.h"
 
+class UArrayVisualizer;
 class UBlobTrackerVisualizer;
+
 struct FOrbbecFrame;
 class UOrbbecCameraController;
 
@@ -15,8 +17,14 @@ class UOrbbecBlobTracker : public UActorComponent
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(Transient, BlueprintReadOnly)
-	UBlobTrackerVisualizer* BlobTrackerVisualizer = nullptr;
+	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
+	UArrayVisualizer* DepthFeedVisualizer = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
+	UArrayVisualizer* BlobBgVisualizer = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
+	UArrayVisualizer* BlobFgVisualizer = nullptr;
 	
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

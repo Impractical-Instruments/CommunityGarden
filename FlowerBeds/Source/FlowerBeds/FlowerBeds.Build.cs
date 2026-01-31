@@ -10,6 +10,8 @@ public class FlowerBeds : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
+			"RenderCore",
+			"RHI",
 			"OrbbecSensor",
 			"IIVision"
 		]);

@@ -345,7 +345,7 @@ void UOrbbecCameraController::TickComponent(
 		return;
 	}
 	
-	if (OnFramesReceived.IsBound())
+	if (OnFramesReceived.IsBound() || OnFramesReceivedNative.IsBound())
 	{
 		if (Implementation->TryConsumeLatestFrameSet(LatestColorFrame, LatestDepthFrame, LatestIRFrame))
 		{

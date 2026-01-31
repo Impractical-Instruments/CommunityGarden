@@ -1,8 +1,8 @@
 ﻿#include "OrbbecBlobTracker.h"
 
+#include "ArrayVisualizer.h"
 #include "FlowerBeds/FlowerBeds.h"
 #include "FlowerBeds/Util/OrbbecToVisionHelpers.h"
-#include "IIVision/BlobTrackerVisualizer.h"
 #include "OrbbecSensor/Device/OrbbecCameraController.h"
 
 void UOrbbecBlobTracker::BeginPlay()
@@ -20,8 +20,6 @@ void UOrbbecBlobTracker::BeginPlay()
 	OnFramesReceivedDelegateHandle = 
 		CameraController->OnFramesReceivedNative.AddUObject(this, &UOrbbecBlobTracker::OnFramesReceived);
 	CameraController->StartCamera();
-	
-	BlobTrackerVisualizer = NewObject<UBlobTrackerVisualizer>(this);
 }
 
 void UOrbbecBlobTracker::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -39,6 +37,12 @@ void UOrbbecBlobTracker::OnFramesReceived(
 	const FOrbbecFrame& DepthFrame, 
 	const FOrbbecFrame& /* IRFrame */)
 {
+	if (DepthFeedVisualizer)
+	{
+		DepthFeedVisualizer->InitTexture(DepthFrame.Config.Width, DepthFrame.Config.Height, PF_G16, false);
+		DepthFeedVisualizer->UpdateTexture(DepthFrame.Data->GetData(), DepthFrame.Config.Width, DepthFrame.Config.Height, PF_G16);
+	}
+	
 	switch (BlobTracker.GetCalibrationState())
 	{
 	case II::Vision::FBlobTracker::ECalibrationState::NotCalibrated:
@@ -51,16 +55,26 @@ void UOrbbecBlobTracker::OnFramesReceived(
 		// If we just completed calibration, update the background depth map
 		if (BlobTracker.GetCalibrationState() == II::Vision::FBlobTracker::ECalibrationState::Calibrated)
 		{
-			BlobTrackerVisualizer->SetBackgroundDepthMap(
-				BlobTracker.GetBackgroundDepthMm(),
-				BlobTracker.GetWidth(),
-				BlobTracker.GetHeight());
+			if (BlobBgVisualizer)
+			{
+				BlobBgVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G16, false);
+				BlobBgVisualizer->UpdateTexture(
+					reinterpret_cast<const uint8*>(BlobTracker.GetBackgroundDepthMm().GetData()), 
+					BlobTracker.GetWidth(), 
+					BlobTracker.GetHeight(), 
+					PF_G16);
+			}
 		}
 		break;
 	case II::Vision::FBlobTracker::ECalibrationState::Calibrated:
 		II::Vision::FBlobTracker::FDetectionResult DetectionResult;
 		BlobTracker.Detect(II::Util::OrbbecToVisionFrame(DepthFrame), DetectionResult);
-		BlobTrackerVisualizer->SetForegroundMask(DetectionResult.Foreground, BlobTracker.GetWidth(), BlobTracker.GetHeight());
+		
+		if (BlobFgVisualizer)
+		{
+			BlobFgVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G8, false);
+			BlobFgVisualizer->UpdateTexture(DetectionResult.Foreground.GetData(), BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G8);
+		}
 		break;
 	}
 }

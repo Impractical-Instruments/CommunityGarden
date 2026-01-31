@@ -11,7 +11,7 @@ namespace II::Vision
 		ValidMask.Reset();
 		
 		// Reserve calibration frame space
-		NumCalibrationFramesRemaining = FMath::Clamp(1, NumCalibrationFrames, MaxCalibrationFrames);
+		NumCalibrationFramesRemaining = FMath::Max(1, NumCalibrationFrames);
 		this->Width = FMath::Max(1, InWidth);
 		this->Height = FMath::Max(1, InHeight);
 		CalibrationFrames.Reset(NumCalibrationFrames * InWidth * InHeight);
@@ -40,7 +40,11 @@ namespace II::Vision
 		}
 		
 		// Copy the frame data into the calibration buffer
-		CalibrationFrames.Append(*Frame.Data);
+		check(Frame.Data->Num() == Width * Height * sizeof(uint16));
+		const auto SrcPtr = Frame.Data->GetData();
+		const auto DstPtr = CalibrationFrames.GetData() + CalibrationFrames.Num();
+		CalibrationFrames.AddUninitialized(Width * Height);
+		FMemory::Memcpy(DstPtr, SrcPtr, Width * Height * sizeof(uint16));
 		
 		if (--NumCalibrationFramesRemaining <= 0)
 		{
@@ -112,7 +116,7 @@ namespace II::Vision
 		for (int32 i = 0; i < NumPixels; ++i)
 		{
 			// Get the current depth for this pixel
-			const uint16 DepthMm = Frame.Data->GetData()[i];
+			const uint16 DepthMm = reinterpret_cast<uint16*>(Frame.Data->GetData())[i];
 			
 			// Out of range or invalid, skip
 			if (DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
@@ -120,13 +124,13 @@ namespace II::Vision
 				continue;
 			}
 			
-			// Get the depth for the background
-			const uint16 BgDepthMm = BackgroundDepthMm[i];
-			
 			// BG was valid, figure out if this pixel is foreground
-			if (BgDepthMm >= DetectionConfig.MinDepthMM && DepthMm <= DetectionConfig.MaxDepthMM)
+			if (ValidMask[i])
 			{
-				const auto Delta = FMath::Abs(DepthMm - BgDepthMm);
+				// Get the depth for the background
+				const uint16 BgDepthMm = BackgroundDepthMm[i];
+				const uint16 Delta = FMath::Abs(DepthMm - BgDepthMm);
+				
 				if (Delta > DetectionConfig.DepthDeltaMM)
 				{
 					OutResult.Foreground[i] = UINT8_MAX;
@@ -150,31 +154,31 @@ namespace II::Vision
 	{
 		const int32 NumPixels = Width * Height;
 		const int32 NumCalibrationFrames = CalibrationFrames.Num() / NumPixels;
-		
+	
 		uint16 Samples[MaxCalibrationFrames];
-		
+	
 		BackgroundDepthMm.SetNumUninitialized(NumPixels);
 		ValidMask.SetNumUninitialized(NumPixels);
-		
+	
 		for (int32 PixelIdx = 0; PixelIdx < NumPixels; ++PixelIdx)
 		{
 			int32 NumValidSamples = 0;
-			
+		
 			for (int32 FrameIdx = 0; FrameIdx < NumCalibrationFrames; ++FrameIdx)
 			{
 				const int32 SampleIdx = PixelIdx + FrameIdx * NumPixels;
 				const uint16 DepthMm = CalibrationFrames[SampleIdx];
-				if (DepthMm > 0)
+				if (DepthMm >= CalibrationConfig.MinDepthMM && DepthMm <= CalibrationConfig.MaxDepthMM)
 				{
-					Samples[NumValidSamples++] = CalibrationFrames[SampleIdx];
+					Samples[NumValidSamples++] = DepthMm;
 				}
 			}
-			
+		
 			if (NumValidSamples >= MinFramesValid)
 			{
 				// Find the median of the valid samples
 				std::nth_element(Samples, Samples + NumValidSamples / 2, Samples + NumValidSamples);
-				BackgroundDepthMm[PixelIdx] = Samples[NumValidSamples / 2];
+				BackgroundDepthMm[PixelIdx] = Samples[NumValidSamples / 2]; 
 				ValidMask[PixelIdx] = true;
 			}
 			else

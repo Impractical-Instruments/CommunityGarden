@@ -7,6 +7,12 @@ namespace II::Vision
 	class IIVISION_API FBlobTracker
 	{
 	public:
+		struct FCalibrationConfig
+		{
+			uint16 MinDepthMM = 50;
+			uint16 MaxDepthMM = 6000;
+		};
+		
 		void BeginCalibration(int32 NumCalibrationFrames, int32 InWidth, int32 InHeight);
 		void PushCalibrationFrame(const FFramePacket& Frame);
 		
@@ -46,6 +52,7 @@ namespace II::Vision
 		constexpr static int32 MinFramesValid = 10;
 		
 		// NB: CalibrationFrames is stored in contiguous memory for speed
+		FCalibrationConfig CalibrationConfig{};
 		TArray<uint16> CalibrationFrames{};
 		int32 Width = 0;
 		int32 Height = 0;
