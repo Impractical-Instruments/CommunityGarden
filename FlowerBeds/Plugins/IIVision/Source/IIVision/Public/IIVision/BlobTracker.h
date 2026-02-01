@@ -110,8 +110,8 @@ namespace II::Vision
 		void MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const;
 		void ExtractBlobs(const TArray<uint8>& Foreground, TArray<FBlob2D>& OutBlobs) const;
 		void Compute3DBlobs(
+			const FFramePacket& Frame,
 			const TArray<FBlob2D>& ScreenSpaceBlobs, 
-			TArray<FBlob3D>& OutBlobs, 
-			const FCameraIntrinsics& CameraIntrinsics) const;
+			TArray<FBlob3D>& OutBlobs) const;
 	};
 }

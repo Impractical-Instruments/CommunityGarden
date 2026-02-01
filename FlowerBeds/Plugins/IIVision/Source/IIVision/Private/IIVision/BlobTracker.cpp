@@ -160,7 +160,7 @@ namespace II::Vision
 		
 		// Find blobs
 		ExtractBlobs(OutResult.Foreground, OutResult.ScreenSpaceBlobs);
-		Compute3DBlobs(OutResult.ScreenSpaceBlobs, OutResult.WorldSpaceBlobs, Frame.Intrinsics);
+		Compute3DBlobs(Frame, OutResult.ScreenSpaceBlobs, OutResult.WorldSpaceBlobs);
 	}
 
 	void FBlobTracker::EndCalibration()
@@ -357,9 +357,9 @@ namespace II::Vision
 	}
 
 	void FBlobTracker::Compute3DBlobs(
+		const FFramePacket& Frame,
 		const TArray<FBlob2D>& ScreenSpaceBlobs, 
-		TArray<FBlob3D>& OutBlobs,
-		const FCameraIntrinsics& CameraIntrinsics) const
+		TArray<FBlob3D>& OutBlobs) const
 	{
 		OutBlobs.Reserve(ScreenSpaceBlobs.Num());
 		
@@ -386,7 +386,7 @@ namespace II::Vision
 				for (int32 x = MinX; x <= MaxX; x += DetectionConfig.StridePixels)
 				{
 					const int32 Idx = Row + x;
-					const uint16 DepthMm = BackgroundDepthMm[Idx];
+					const uint16 DepthMm = reinterpret_cast<uint16*>(Frame.Data->GetData())[Idx];
 					
 					if (DepthMm >= DetectionConfig.MinDepthMM && DepthMm <= DetectionConfig.MaxDepthMM)
 					{
@@ -423,7 +423,7 @@ namespace II::Vision
 				for (int32 x = MinX; x <= MaxX; x += DetectionConfig.StridePixels)
 				{
 					const int32 Idx = Row + x;
-					const uint16 DepthMm = BackgroundDepthMm[Idx];
+					const uint16 DepthMm = reinterpret_cast<uint16*>(Frame.Data->GetData())[Idx];
 					
 					if (DepthMm < DepthMinMm || DepthMm > DepthMaxMm 
 						|| DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
@@ -433,8 +433,8 @@ namespace II::Vision
 					
 					const float Z = DepthMm * 0.001f;
 					const FVector P{
-						(static_cast<float>(x) - CameraIntrinsics.Cx) * Z / CameraIntrinsics.Fx,
-						(static_cast<float>(y) - CameraIntrinsics.Cy) * Z / CameraIntrinsics.Fy,
+						(static_cast<float>(x) - Frame.Intrinsics.Cx) * Z / Frame.Intrinsics.Fx,
+						(static_cast<float>(y) - Frame.Intrinsics.Cy) * Z / Frame.Intrinsics.Fy,
 						Z
 					};
 					
