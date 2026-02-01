@@ -58,14 +58,17 @@ namespace II::Vision
 		int32 Height = 0;
 		int32 NumCalibrationFramesRemaining = 0;
 		
+		void EndCalibration();
+		void ComputeBackground();
+		
 		TArray<uint16> BackgroundDepthMm{};
 		TArray<bool> ValidMask{};
 		
 		ECalibrationState CalibrationState = ECalibrationState::NotCalibrated;
 		
 		FDetectionConfig DetectionConfig{};
+		TArray<uint8> ForegroundScratchBuffer{};
 		
-		void EndCalibration();
-		void ComputeBackground();
+		void MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const;
 	};
 }

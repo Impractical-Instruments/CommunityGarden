@@ -106,7 +106,7 @@ namespace II::Vision
 			
 			if (!bDataIsSameSize)
 			{
-				UE_LOG(LogIIVision, Warning, TEXT("Frame data size mismatch. Expected %d bytes, got %d"), NumPixels * sizeof(uint16), Frame.Data->Num());
+				UE_LOG(LogIIVision, Warning, TEXT("Frame data size mismatch. Expected %llu bytes, got %d"), NumPixels * sizeof(uint16), Frame.Data->Num());
 				return;
 			}
 		}
@@ -133,15 +133,19 @@ namespace II::Vision
 				
 				if (Delta > DetectionConfig.DepthDeltaMM)
 				{
-					OutResult.Foreground[i] = UINT8_MAX;
+					OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
 				}
 			}
 			// BG was invalid, so this pixel is probably foreground
 			else
 			{
-				OutResult.Foreground[i] = UINT8_MAX;
+				OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
 			}
 		}
+		
+		ForegroundScratchBuffer.SetNumUninitialized(NumPixels);
+		MajorityFilter(OutResult.Foreground, ForegroundScratchBuffer);
+		MajorityFilter(ForegroundScratchBuffer, OutResult.Foreground);
 	}
 
 	void FBlobTracker::EndCalibration()
@@ -189,5 +193,37 @@ namespace II::Vision
 		}
 		
 		CalibrationState = ECalibrationState::Calibrated;
+	}
+
+	void FBlobTracker::MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const
+	{
+		for (int y = 0; y < Height; ++y)
+		{
+			for (int x = 0; x < Width; ++x)
+			{
+				int NumValid = 0;
+				
+				for (int dy = -1; dy <= 1; ++dy)
+				{
+					for (int dx = -1; dx <= 1; ++dx)
+					{
+						const int yTest = y + dy;
+						const int xTest = x + dx;
+						
+						if (yTest < 0 || yTest >= Height || xTest < 0 || xTest >= Width)
+						{
+							continue;
+						}
+						
+						if (Src[yTest * Width + xTest] > 0)
+						{
+							++NumValid;
+						}
+					}
+				}
+				
+				Dst[y * Width + x] = NumValid >= 5 ? TNumericLimits<uint8>::Max() : 0;
+			}
+		}
 	}
 }
