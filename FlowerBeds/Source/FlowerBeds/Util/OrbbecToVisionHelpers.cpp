@@ -12,6 +12,7 @@ namespace II::Util
 		DepthFrame.Height = Frame.Config.Height;
 		DepthFrame.TimestampUs = Frame.TimestampUs;
 		DepthFrame.Data = Frame.Data;
+		DepthFrame.Intrinsics = { Frame.Config.Fx, Frame.Config.Fy, Frame.Config.Cx, Frame.Config.Cy };
 		return DepthFrame;
 	}
 }

@@ -64,6 +64,9 @@ struct ORBBECSENSOR_API FOrbbecVideoConfig
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
 	int32 Framerate = 0;
+	
+	// Camera intrinsics, which we get when we enable a stream profile.
+	float Fx, Fy, Cx, Cy;
 };
 
 USTRUCT(BlueprintType)

@@ -82,6 +82,12 @@ void UOrbbecBlobTracker::OnFramesReceived(
 			BlobVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight());
 			BlobVisualizer->UpdateTexture(DetectionResult.ScreenSpaceBlobs);
 		}
+		
+		for (const auto& WorldSpaceBlob : DetectionResult.WorldSpaceBlobs)
+		{
+			DrawBlobDebug(WorldSpaceBlob);
+		}
+		
 		break;
 	}
 }
@@ -89,4 +95,25 @@ void UOrbbecBlobTracker::OnFramesReceived(
 UOrbbecCameraController* UOrbbecBlobTracker::GetCameraController() const
 {
 	return GetOwner()->FindComponentByClass<UOrbbecCameraController>();
+}
+
+void UOrbbecBlobTracker::DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& Blob) const
+{
+	const UWorld* World = GetWorld();
+	
+	if (!World)
+	{
+		return;
+	}
+	
+	DrawDebugSphere(
+		World, 
+		Blob.GetWorldPosCm(), 
+		10.0f, 
+		16, 
+		FColor::Cyan,
+		false,
+		0.1f,
+		0,
+		1.5f);
 }

@@ -40,4 +40,6 @@ private:
 	void OnFramesReceived(const FOrbbecFrame& ColorFrame, const FOrbbecFrame& DepthFrame, const FOrbbecFrame& IRFrame);
 	
 	UOrbbecCameraController* GetCameraController() const;
+	
+	void DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& Blob) const;
 };

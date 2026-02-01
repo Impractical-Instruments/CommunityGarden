@@ -23,9 +23,9 @@ class UOrbbecCameraController::FOrbbecImplementation
 public:
 	static TSharedPtr<FOrbbecImplementation> CreateAndStart(
 		const FString& DeviceSerialNumber, 
-		const FOrbbecVideoConfig& ColorConfig,
-		const FOrbbecVideoConfig& DepthConfig,
-		const FOrbbecVideoConfig& IRConfig)
+		FOrbbecVideoConfig& ColorConfig,
+		FOrbbecVideoConfig& DepthConfig,
+		FOrbbecVideoConfig& IRConfig)
 	{
 		auto Device = PickDevice(DeviceSerialNumber);
 		
@@ -127,40 +127,37 @@ public:
 			LatestFrameSet.reset();
 		}
 		
+		const auto HandleFrame = [](FOrbbecFrame& Frame, const std::shared_ptr<ob::VideoFrame>& ObFrame)
+		{
+			ensure(Frame.Config.Format == MapFormatBack(ObFrame->getFormat()));
+			
+			Frame.TimestampUs = ObFrame->getTimeStampUs();
+			
+			const auto DataSize = ObFrame->getDataSize();
+			Frame.Data = MakeShared<TArray<uint8>>();
+			Frame.Data->SetNumUninitialized(DataSize);
+			FMemory::Memcpy(Frame.Data->GetData(), ObFrame->getData(), DataSize);
+		};
+		
 		if (ColorFrame.Config.bEnabled)
 		{
 			if (const auto Frame = FrameSet->getColorFrame())
 			{
-				ensure(ColorFrame.Config.Format == MapFormatBack(Frame->getFormat()));
-				const auto DataSize = Frame->getDataSize();
-				ColorFrame.Data = MakeShared<TArray<uint8>>();
-				ColorFrame.Data->SetNumUninitialized(DataSize);
-				FMemory::Memcpy(ColorFrame.Data->GetData(), Frame->getData(), DataSize);
-				ColorFrame.TimestampUs = Frame->getTimeStampUs();
+				HandleFrame(ColorFrame, Frame);
 			}
 		}
 		if (DepthFrame.Config.bEnabled)
 		{
 			if (const auto Frame = FrameSet->getDepthFrame())
 			{
-				ensure(DepthFrame.Config.Format == MapFormatBack(Frame->getFormat()));
-				const auto DataSize = Frame->getDataSize();
-				DepthFrame.Data = MakeShared<TArray<uint8>>();
-				DepthFrame.Data->SetNumUninitialized(DataSize);
-				FMemory::Memcpy(DepthFrame.Data->GetData(), Frame->getData(), DataSize);
-				DepthFrame.TimestampUs = Frame->getTimeStampUs();
+				HandleFrame(DepthFrame, Frame);
 			}
 		}
 		if (IRFrame.Config.bEnabled)
 		{
 			if (const auto Frame = FrameSet->getIrFrame())
 			{
-				ensure(IRFrame.Config.Format == MapFormatBack(Frame->getFormat()));
-				const auto DataSize = Frame->getDataSize();
-				IRFrame.Data = MakeShared<TArray<uint8>>();
-				IRFrame.Data->SetNumUninitialized(DataSize);
-				FMemory::Memcpy(IRFrame.Data->GetData(), Frame->getData(), DataSize);
-				IRFrame.TimestampUs = Frame->getTimeStampUs();
+				HandleFrame(IRFrame, Frame);
 			}
 		}
 		
@@ -223,7 +220,7 @@ private:
 		return nullptr;
 	}
 	
-	bool EnableStreamProfile(const EOrbbecSensorType SensorType, const FOrbbecVideoConfig& VideoConfig) const
+	bool EnableStreamProfile(const EOrbbecSensorType SensorType, FOrbbecVideoConfig& VideoConfig) const
 	{
 		// Skip if not enabled
 		if (!VideoConfig.bEnabled)
@@ -253,6 +250,14 @@ private:
 			if (bIsSameFormat && bIsSameResolution && bIsSameFramerate)
 			{
 				Config->enableStream(Profile);
+				
+				// Set the cam intrinsics
+				const auto Intrinsics = VideoProfile->getIntrinsic();
+				VideoConfig.Fx = Intrinsics.fx;
+				VideoConfig.Fy = Intrinsics.fy;
+				VideoConfig.Cx = Intrinsics.cx;
+				VideoConfig.Cy = Intrinsics.cy;
+				
 				return true;
 			}
 		}

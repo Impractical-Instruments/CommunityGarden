@@ -82,6 +82,34 @@ namespace II::Vision
 		DetectionConfig = MoveTemp(Config);
 	}
 
+	void FBlobTracker::FBlob2D::AddPixel(const int32 X, const int32 Y)
+	{
+		++PixelCount;
+		MinX = FMath::Min(MinX, X);
+		MaxX = FMath::Max(MaxX, X);
+		MinY = FMath::Min(MinY, Y);
+		MaxY = FMath::Max(MaxY, Y);
+		SumX += X;
+		SumY += Y;
+	}
+
+	FVector2f FBlobTracker::FBlob2D::GetCentroid() const
+	{
+		const float Inv = PixelCount > 0 ? 1.0f / PixelCount : 0.0f;
+		return FVector2f(Inv * SumX, Inv * SumY);
+	}
+
+	FVector FBlobTracker::FBlob3D::GetWorldPosCm() const
+	{
+		// Convert from camera (right, down, forward basis, meters) 
+		// to Unreal (forward, right, up basis, centimeters)
+		return {
+			CamPosMeters.Z * 100,
+			CamPosMeters.X * 100,
+			-CamPosMeters.Y * 100
+		};
+	}
+
 	void FBlobTracker::Detect(const FFramePacket& Frame, FDetectionResult& OutResult)
 	{
 		if (CalibrationState != ECalibrationState::Calibrated)
@@ -111,37 +139,8 @@ namespace II::Vision
 			}
 		}
 		
-		OutResult.Foreground.SetNumZeroed(NumPixels);
-		
-		for (int32 i = 0; i < NumPixels; ++i)
-		{
-			// Get the current depth for this pixel
-			const uint16 DepthMm = reinterpret_cast<uint16*>(Frame.Data->GetData())[i];
-			
-			// Out of range or invalid, skip
-			if (DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
-			{
-				continue;
-			}
-			
-			// BG was valid, figure out if this pixel is foreground
-			if (ValidMask[i])
-			{
-				// Get the depth for the background
-				const uint16 BgDepthMm = BackgroundDepthMm[i];
-				const uint16 Delta = FMath::Abs(DepthMm - BgDepthMm);
-				
-				if (Delta > DetectionConfig.DepthDeltaMM)
-				{
-					OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
-				}
-			}
-			// BG was invalid, so this pixel is probably foreground
-			else
-			{
-				OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
-			}
-		}
+		// Subtract the background to get the valid foreground
+		SubtractBackground(Frame, OutResult);
 		
 		// Despeckle
 		ForegroundScratchBuffer.SetNumUninitialized(NumPixels);
@@ -150,6 +149,7 @@ namespace II::Vision
 		
 		// Find blobs
 		ExtractBlobs(OutResult.Foreground, OutResult.ScreenSpaceBlobs);
+		Compute3DBlobs(OutResult.ScreenSpaceBlobs, OutResult.WorldSpaceBlobs, Frame.Intrinsics);
 	}
 
 	void FBlobTracker::EndCalibration()
@@ -197,6 +197,50 @@ namespace II::Vision
 		}
 		
 		CalibrationState = ECalibrationState::Calibrated;
+	}
+
+	void FBlobTracker::SubtractBackground(const FFramePacket& Frame, FDetectionResult& OutResult) const
+	{
+		const int32 NumPixels = Width * Height;
+		
+		OutResult.Foreground.SetNumZeroed(NumPixels);
+		
+		for (int32 i = 0; i < NumPixels; ++i)
+		{
+			// Get the current depth for this pixel
+			const uint16 DepthMm = reinterpret_cast<uint16*>(Frame.Data->GetData())[i];
+			
+			// Out of range or invalid, skip
+			if (DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
+			{
+				continue;
+			}
+			
+			// BG was valid, figure out if this pixel is foreground
+			if (ValidMask[i])
+			{
+				// Get the depth for the background
+				const uint16 BgDepthMm = BackgroundDepthMm[i];
+				
+				// If the bg is closer, skip
+				if (BgDepthMm <= DepthMm)
+				{
+					continue;
+				}
+				
+				const uint16 Delta = BgDepthMm - DepthMm;
+				
+				if (Delta > DetectionConfig.DepthDeltaMM)
+				{
+					OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
+				}
+			}
+			// BG was invalid, so this pixel is probably foreground
+			else
+			{
+				OutResult.Foreground[i] = TNumericLimits<uint8>::Max();
+			}
+		}
 	}
 
 	void FBlobTracker::MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const
@@ -298,6 +342,114 @@ namespace II::Vision
 					OutBlobs.Emplace(MoveTemp(Blob));
 				}
 			}
+		}
+	}
+
+	void FBlobTracker::Compute3DBlobs(
+		const TArray<FBlob2D>& ScreenSpaceBlobs, 
+		TArray<FBlob3D>& OutBlobs,
+		const FCameraIntrinsics& CameraIntrinsics) const
+	{
+		OutBlobs.Reserve(ScreenSpaceBlobs.Num());
+		
+		for (const FBlob2D& ScreenSpaceBlob : ScreenSpaceBlobs)
+		{
+			FBlob3D WorldBlob;
+			WorldBlob.Id = ScreenSpaceBlob.Id;
+			
+			const int32 MinX = FMath::Clamp(ScreenSpaceBlob.MinX, 0, Width - 1);
+			const int32 MaxX = FMath::Clamp(ScreenSpaceBlob.MaxX, 0, Width - 1);
+			const int32 MinY = FMath::Clamp(ScreenSpaceBlob.MinY, 0, Height - 1);
+			const int32 MaxY = FMath::Clamp(ScreenSpaceBlob.MaxY, 0, Height - 1);
+			
+			// Gather depths, skipping some pixels for speed
+			TArray<uint16> Depths;
+			const int32 BlobWidth = MaxX - MinX + 1;
+			const int32 BlobHeight = MaxY - MinY + 1;
+			Depths.Reserve(BlobWidth / DetectionConfig.StridePixels * BlobHeight / DetectionConfig.StridePixels);
+			
+			for (int32 y = MinY; y <= MaxY; y += DetectionConfig.StridePixels)
+			{
+				const int32 Row = y * Width;
+				
+				for (int32 x = MinX; x <= MaxX; x += DetectionConfig.StridePixels)
+				{
+					const int32 Idx = Row + x;
+					const uint16 DepthMm = BackgroundDepthMm[Idx];
+					
+					if (DepthMm >= DetectionConfig.MinDepthMM && DepthMm <= DetectionConfig.MaxDepthMM)
+					{
+						Depths.Add(DepthMm);
+					}
+				}
+			}
+			
+			// Not enough samples in range
+			if (Depths.Num() < DetectionConfig.MinSamples)
+			{
+				continue;
+			}
+			
+			// Find the median depth
+			Depths.Sort();
+			const uint16 MedianDepthMm = Depths[Depths.Num() / 2];
+			WorldBlob.MedianZMeters = MedianDepthMm * 0.001f;
+			
+			// Find the 3D points within the depth window
+			const int32 DepthMinMm = static_cast<int32>(MedianDepthMm) - DetectionConfig.ZWindowMm;
+			const int32 DepthMaxMm = static_cast<int32>(MedianDepthMm) + DetectionConfig.ZWindowMm;
+			
+			FVector Sum(0, 0, 0);
+			int32 NumValidPoints = 0;
+			
+			FVector MinP(FLT_MAX, FLT_MAX, FLT_MAX);
+			FVector MaxP(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+			
+			for (int32 y = MinY; y <= MaxY; y += DetectionConfig.StridePixels)
+			{
+				const int32 Row = y * Width;
+				
+				for (int32 x = MinX; x <= MaxX; x += DetectionConfig.StridePixels)
+				{
+					const int32 Idx = Row + x;
+					const uint16 DepthMm = BackgroundDepthMm[Idx];
+					
+					if (DepthMm < DepthMinMm || DepthMm > DepthMaxMm 
+						|| DepthMm < DetectionConfig.MinDepthMM || DepthMm > DetectionConfig.MaxDepthMM)
+					{
+						continue;
+					}
+					
+					const float Z = DepthMm * 0.001f;
+					const FVector P{
+						(static_cast<float>(x) - CameraIntrinsics.Cx) * Z / CameraIntrinsics.Fx,
+						(static_cast<float>(y) - CameraIntrinsics.Cy) * Z / CameraIntrinsics.Fy,
+						Z
+					};
+					
+					Sum += P;
+					++NumValidPoints;
+					
+					MinP.X = FMath::Min(MinP.X, P.X);
+					MinP.Y = FMath::Min(MinP.Y, P.Y);
+					MinP.Z = FMath::Min(MinP.Z, P.Z);
+					MaxP.X = FMath::Max(MaxP.X, P.X);
+					MaxP.Y = FMath::Max(MaxP.Y, P.Y);
+					MaxP.Z = FMath::Max(MaxP.Z, P.Z);
+				}
+			}
+			
+			if (NumValidPoints < DetectionConfig.MinSamples / 2)
+			{
+				continue;
+			}
+			
+			WorldBlob.CamPosMeters = Sum / NumValidPoints;
+			WorldBlob.SampleCount = NumValidPoints;
+			WorldBlob.CamHalfExtentsMeters = (MaxP - MinP) * 0.5f;
+			WorldBlob.bValid = true;
+			
+			OutBlobs.Emplace(MoveTemp(WorldBlob));
 		}
 	}
 }

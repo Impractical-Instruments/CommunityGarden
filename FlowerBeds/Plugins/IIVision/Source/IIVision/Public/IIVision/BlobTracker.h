@@ -32,17 +32,20 @@ namespace II::Vision
 		
 		struct FDetectionConfig
 		{
-			uint16 MinDepthMM = 50;
+			uint16 MinDepthMM = 500;
 			uint16 MaxDepthMM = 6000;
 			int32 DepthDeltaMM = 80;
 			int32 MinBlobPixels = 500;
+			int32 StridePixels = 3;
+			int32 MinSamples = 40;
+			int32 ZWindowMm = 150;
 		};
 		
 		void ConfigureDetection(FDetectionConfig Config);
 		
 		struct FBlob2D
 		{
-			int32 Id;
+			int32 Id = -1;
 			int32 PixelCount = 0;
 			int32 MinX = TNumericLimits<int32>::Max();
 			int32 MaxX = 0;
@@ -51,28 +54,31 @@ namespace II::Vision
 			int64 SumX = 0;
 			int64 SumY = 0;
 			
-			FORCEINLINE void AddPixel(const int32 X, const int32 Y)
-			{
-				++PixelCount;
-				MinX = FMath::Min(MinX, X);
-				MaxX = FMath::Max(MaxX, X);
-				MinY = FMath::Min(MinY, Y);
-				MaxY = FMath::Max(MaxY, Y);
-				SumX += X;
-				SumY += Y;
-			}
+			void AddPixel(int32 X, int32 Y);
 			
-			FORCEINLINE FVector2f Centroid() const
-			{
-				const float Inv = PixelCount > 0 ? 1.0f / PixelCount : 0.0f;
-				return FVector2f(Inv * SumX, Inv * SumY);
-			}
+			FVector2f GetCentroid() const;
+		};
+		
+		struct IIVISION_API FBlob3D
+		{
+			bool bValid = false;
+			int32 Id = -1;
+			
+			// In camera coordinate space
+			FVector CamPosMeters = FVector::ZeroVector;
+			FVector CamHalfExtentsMeters = FVector::ZeroVector;
+			float MedianZMeters = 0.0f;
+			int32 SampleCount = 0;
+			
+			// In UE coordinate space
+			FVector GetWorldPosCm() const;
 		};
 		
 		struct FDetectionResult
 		{
 			TArray<uint8> Foreground;
 			TArray<FBlob2D> ScreenSpaceBlobs;
+			TArray<FBlob3D> WorldSpaceBlobs;
 		};
 		
 		void Detect(const FFramePacket& Frame, FDetectionResult& OutResult);
@@ -99,8 +105,12 @@ namespace II::Vision
 		FDetectionConfig DetectionConfig{};
 		TArray<uint8> ForegroundScratchBuffer{};
 		
+		void SubtractBackground(const FFramePacket& Frame, FDetectionResult& OutResult) const;
 		void MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const;
-		
 		void ExtractBlobs(const TArray<uint8>& Foreground, TArray<FBlob2D>& OutBlobs) const;
+		void Compute3DBlobs(
+			const TArray<FBlob2D>& ScreenSpaceBlobs, 
+			TArray<FBlob3D>& OutBlobs, 
+			const FCameraIntrinsics& CameraIntrinsics) const;
 	};
 }
