@@ -28,7 +28,6 @@ private:
 	TUniquePtr<FUpdateTextureRegion2D> UpdateRegion;
 	int32 Width, Height;
 	
-	void FillLabelOverlay(const TArray<int32>& LabelMap);
 	void PutPixel(int32 X, int32 Y, const FColor& Color);
 	void DrawBlobRect(const II::Vision::FBlobTracker::FBlob2D& Blob, const FColor& Color);
 };

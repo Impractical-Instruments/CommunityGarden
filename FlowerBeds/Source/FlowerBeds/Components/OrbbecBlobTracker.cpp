@@ -80,7 +80,7 @@ void UOrbbecBlobTracker::OnFramesReceived(
 		if (BlobVisualizer)
 		{
 			BlobVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight());
-			BlobVisualizer->UpdateTexture(DetectionResult.Blobs);
+			BlobVisualizer->UpdateTexture(DetectionResult.ScreenSpaceBlobs);
 		}
 		break;
 	}

@@ -24,28 +24,6 @@ void UBlobArrayVisualizer::InitTexture(const int32 InWidth, const int32 InHeight
 	}
 }
 
-void UBlobArrayVisualizer::UpdateTexture(const TArray<II::Vision::FBlobTracker::FBlob2D>& Blobs)
-{
-	// Set texture to transparent
-	for (FColor& Color : Data)
-	{
-		Color = FColor(0, 0, 0, 0);
-	}
-	
-	for (const auto& Blob : Blobs)
-	{
-		DrawBlobRect(Blob, FColor::Blue);
-	}
-	
-	Texture->UpdateTextureRegions(
-		0,
-		1, 
-		UpdateRegion.Get(), 
-		Width * sizeof(FColor), 
-		sizeof(FColor),
-		reinterpret_cast<uint8*>(Data.GetData()));
-}
-
 static FColor ColorForId(const uint32 Id)
 {
 	// Deterministic “random” color from id
@@ -57,16 +35,26 @@ static FColor ColorForId(const uint32 Id)
 	return FColor(FMath::Max<uint8>(r, 50), FMath::Max<uint8>(g, 50), FMath::Max<uint8>(b, 50), 255);
 }
 
-void UBlobArrayVisualizer::FillLabelOverlay(const TArray<int32>& LabelMap)
+void UBlobArrayVisualizer::UpdateTexture(const TArray<II::Vision::FBlobTracker::FBlob2D>& Blobs)
 {
-	for (int32 i = 0; i < Width * Height; ++i)
+	// Set texture to transparent
+	for (FColor& Color : Data)
 	{
-		if (LabelMap.IsValidIndex(i))
-		{
-			const int32 Id = LabelMap[i];
-			Data[i] = Id >= 0 ? ColorForId(Id) : FColor::Black;
-		}
+		Color = FColor(0, 0, 0, 0);
 	}
+	
+	for (const auto& Blob : Blobs)
+	{
+		DrawBlobRect(Blob, ColorForId(Blob.Id));
+	}
+	
+	Texture->UpdateTextureRegions(
+		0,
+		1, 
+		UpdateRegion.Get(), 
+		Width * sizeof(FColor), 
+		sizeof(FColor),
+		reinterpret_cast<uint8*>(Data.GetData()));
 }
 
 void UBlobArrayVisualizer::PutPixel(const int32 X, const int32 Y, const FColor& Color)

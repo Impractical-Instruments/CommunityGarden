@@ -42,6 +42,7 @@ namespace II::Vision
 		
 		struct FBlob2D
 		{
+			int32 Id;
 			int32 PixelCount = 0;
 			int32 MinX = TNumericLimits<int32>::Max();
 			int32 MaxX = 0;
@@ -71,7 +72,7 @@ namespace II::Vision
 		struct FDetectionResult
 		{
 			TArray<uint8> Foreground;
-			TArray<FBlob2D> Blobs;
+			TArray<FBlob2D> ScreenSpaceBlobs;
 		};
 		
 		void Detect(const FFramePacket& Frame, FDetectionResult& OutResult);

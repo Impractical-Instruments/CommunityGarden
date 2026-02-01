@@ -149,7 +149,7 @@ namespace II::Vision
 		MajorityFilter(ForegroundScratchBuffer, OutResult.Foreground);
 		
 		// Find blobs
-		ExtractBlobs(OutResult.Foreground, OutResult.Blobs);
+		ExtractBlobs(OutResult.Foreground, OutResult.ScreenSpaceBlobs);
 	}
 
 	void FBlobTracker::EndCalibration()
@@ -269,6 +269,7 @@ namespace II::Vision
 				
 				// New blob
 				FBlob2D Blob;
+				Blob.Id = OutBlobs.Num();
 				
 				Queue.Reset();
 				Queue.Add(StartIdx);
