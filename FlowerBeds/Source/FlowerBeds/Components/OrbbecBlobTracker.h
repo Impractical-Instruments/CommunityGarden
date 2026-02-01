@@ -6,7 +6,7 @@
 #include "OrbbecBlobTracker.generated.h"
 
 class UArrayVisualizer;
-class UBlobTrackerVisualizer;
+class UBlobArrayVisualizer;
 
 struct FOrbbecFrame;
 class UOrbbecCameraController;
@@ -25,6 +25,9 @@ public:
 	
 	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
 	UArrayVisualizer* BlobFgVisualizer = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
+	UBlobArrayVisualizer* BlobVisualizer = nullptr;
 	
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

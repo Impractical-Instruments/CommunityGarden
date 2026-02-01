@@ -40,9 +40,38 @@ namespace II::Vision
 		
 		void ConfigureDetection(FDetectionConfig Config);
 		
+		struct FBlob2D
+		{
+			int32 PixelCount = 0;
+			int32 MinX = TNumericLimits<int32>::Max();
+			int32 MaxX = 0;
+			int32 MinY = TNumericLimits<int32>::Max();
+			int32 MaxY = 0;
+			int64 SumX = 0;
+			int64 SumY = 0;
+			
+			FORCEINLINE void AddPixel(const int32 X, const int32 Y)
+			{
+				++PixelCount;
+				MinX = FMath::Min(MinX, X);
+				MaxX = FMath::Max(MaxX, X);
+				MinY = FMath::Min(MinY, Y);
+				MaxY = FMath::Max(MaxY, Y);
+				SumX += X;
+				SumY += Y;
+			}
+			
+			FORCEINLINE FVector2f Centroid() const
+			{
+				const float Inv = PixelCount > 0 ? 1.0f / PixelCount : 0.0f;
+				return FVector2f(Inv * SumX, Inv * SumY);
+			}
+		};
+		
 		struct FDetectionResult
 		{
 			TArray<uint8> Foreground;
+			TArray<FBlob2D> Blobs;
 		};
 		
 		void Detect(const FFramePacket& Frame, FDetectionResult& OutResult);
@@ -70,5 +99,7 @@ namespace II::Vision
 		TArray<uint8> ForegroundScratchBuffer{};
 		
 		void MajorityFilter(const TArray<uint8>& Src, TArray<uint8>& Dst) const;
+		
+		void ExtractBlobs(const TArray<uint8>& Foreground, TArray<FBlob2D>& OutBlobs) const;
 	};
 }

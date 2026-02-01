@@ -3,6 +3,7 @@
 #include "ArrayVisualizer.h"
 #include "FlowerBeds/FlowerBeds.h"
 #include "FlowerBeds/Util/OrbbecToVisionHelpers.h"
+#include "IIVision/BlobArrayVisualizer.h"
 #include "OrbbecSensor/Device/OrbbecCameraController.h"
 
 void UOrbbecBlobTracker::BeginPlay()
@@ -74,6 +75,12 @@ void UOrbbecBlobTracker::OnFramesReceived(
 		{
 			BlobFgVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G8, false);
 			BlobFgVisualizer->UpdateTexture(DetectionResult.Foreground.GetData(), BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G8);
+		}
+		
+		if (BlobVisualizer)
+		{
+			BlobVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight());
+			BlobVisualizer->UpdateTexture(DetectionResult.Blobs);
 		}
 		break;
 	}

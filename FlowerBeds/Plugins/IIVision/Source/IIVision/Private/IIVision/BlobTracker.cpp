@@ -143,9 +143,13 @@ namespace II::Vision
 			}
 		}
 		
+		// Despeckle
 		ForegroundScratchBuffer.SetNumUninitialized(NumPixels);
 		MajorityFilter(OutResult.Foreground, ForegroundScratchBuffer);
 		MajorityFilter(ForegroundScratchBuffer, OutResult.Foreground);
+		
+		// Find blobs
+		ExtractBlobs(OutResult.Foreground, OutResult.Blobs);
 	}
 
 	void FBlobTracker::EndCalibration()
@@ -223,6 +227,75 @@ namespace II::Vision
 				}
 				
 				Dst[y * Width + x] = NumValid >= 5 ? TNumericLimits<uint8>::Max() : 0;
+			}
+		}
+	}
+
+	void FBlobTracker::ExtractBlobs(const TArray<uint8>& Foreground, TArray<FBlob2D>& OutBlobs) const
+	{
+		TBitArray Visited(false, Width * Height);
+		TArray<int32> Queue;
+		Queue.Reserve(4096); // TODO: figure out max valid blob size
+		
+		const auto IsFg = [&Foreground](const int32 Idx)
+		{
+			return Foreground[Idx] > 0;
+		};
+		
+		const auto TryEnqueueNeighbor = [&Visited, &Queue, &IsFg, Width = Width, Height = Height](const int32 X, const int32 Y)
+		{
+			if (X < 0 || X >= Width || Y < 0 || Y >= Height)
+			{
+				return;
+			}
+
+			if (const int32 Idx = Y * Width + X; !Visited[Idx] && IsFg(Idx))
+			{
+				Visited[Idx] = true;
+				Queue.Add(Idx);
+			}
+		};
+		
+		for (int y = 1; y < Height - 1; ++y)
+		{
+			for (int x = 1; x < Width - 1; ++x)
+			{
+				const int32 StartIdx = y * Width + x;
+				
+				if (Visited[StartIdx] || !IsFg(StartIdx))
+				{
+					continue;
+				}
+				
+				// New blob
+				FBlob2D Blob;
+				
+				Queue.Reset();
+				Queue.Add(StartIdx);
+				Visited[StartIdx] = true;
+				
+				while (!Queue.IsEmpty())
+				{
+					const int32 Idx = Queue.Pop(EAllowShrinking::No);
+					const int32 Cy = Idx / Width;
+					const int32 Cx = Idx % Width;
+					
+					Blob.AddPixel(Cx, Cy);
+					
+					// Get the 8 neighbors and add them to the blob if valid
+					for (int32 Dy = -1; Dy <= 1; ++Dy)
+					{
+						for (int32 Dx = -1; Dx <= 1; ++Dx)
+						{
+							TryEnqueueNeighbor(Cx + Dx, Cy + Dy);
+						}
+					}
+				}
+				
+				if (Blob.PixelCount >= DetectionConfig.MinBlobPixels)
+				{
+					OutBlobs.Emplace(MoveTemp(Blob));
+				}
 			}
 		}
 	}
