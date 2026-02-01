@@ -106,13 +106,12 @@ void UOrbbecBlobTracker::DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& 
 		return;
 	}
 	
-	DrawDebugSphere(
+	DrawDebugBox(
 		World, 
-		Blob.GetWorldPosCm(), 
-		10.0f, 
-		16, 
+		Blob.GetWorldPosCm(),
+		Blob.GetWorldHalfExtentsCm(),
 		FColor::Cyan,
-		false,
+		false, 
 		0.1f,
 		0,
 		1.5f);

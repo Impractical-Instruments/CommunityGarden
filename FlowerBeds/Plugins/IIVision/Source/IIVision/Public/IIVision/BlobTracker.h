@@ -72,6 +72,7 @@ namespace II::Vision
 			
 			// In UE coordinate space
 			FVector GetWorldPosCm() const;
+			FVector GetWorldHalfExtentsCm() const;
 		};
 		
 		struct FDetectionResult

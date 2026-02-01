@@ -110,6 +110,17 @@ namespace II::Vision
 		};
 	}
 
+	FVector FBlobTracker::FBlob3D::GetWorldHalfExtentsCm() const
+	{
+		// Convert from camera (right, down, forward basis, meters) 
+		// to Unreal (forward, right, up basis, centimeters)
+		return {
+			CamHalfExtentsMeters.Z * 100,
+			CamHalfExtentsMeters.X * 100,
+			-CamHalfExtentsMeters.Y * 100
+		};
+	}
+
 	void FBlobTracker::Detect(const FFramePacket& Frame, FDetectionResult& OutResult)
 	{
 		if (CalibrationState != ECalibrationState::Calibrated)
