@@ -377,7 +377,7 @@ namespace II::Vision
 			TArray<uint16> Depths;
 			const int32 BlobWidth = MaxX - MinX + 1;
 			const int32 BlobHeight = MaxY - MinY + 1;
-			Depths.Reserve(BlobWidth / DetectionConfig.StridePixels * BlobHeight / DetectionConfig.StridePixels);
+			Depths.Reserve((BlobWidth / DetectionConfig.StridePixels) * (BlobHeight / DetectionConfig.StridePixels));
 			
 			for (int32 y = MinY; y <= MaxY; y += DetectionConfig.StridePixels)
 			{

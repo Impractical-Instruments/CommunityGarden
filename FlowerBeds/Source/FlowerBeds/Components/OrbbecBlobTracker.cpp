@@ -83,10 +83,7 @@ void UOrbbecBlobTracker::OnFramesReceived(
 			BlobVisualizer->UpdateTexture(DetectionResult.ScreenSpaceBlobs);
 		}
 		
-		for (const auto& WorldSpaceBlob : DetectionResult.WorldSpaceBlobs)
-		{
-			DrawBlobDebug(WorldSpaceBlob);
-		}
+		UpdateWorldBlobs(DetectionResult.WorldSpaceBlobs);
 		
 		break;
 	}
@@ -97,7 +94,44 @@ UOrbbecCameraController* UOrbbecBlobTracker::GetCameraController() const
 	return GetOwner()->FindComponentByClass<UOrbbecCameraController>();
 }
 
-void UOrbbecBlobTracker::DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& Blob) const
+void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker::FBlob3D>& Blobs)
+{
+	int32 BlobIdx = 0;
+	
+	for (const auto& Blob : Blobs)
+	{
+		// Transform to world space
+		const FTransform WorldTransform = GetOwner()->GetActorTransform();
+		const FVector WorldPos = WorldTransform.TransformPosition(Blob.GetWorldPosCm());
+		const FVector WorldHalfExtents = WorldTransform.TransformVector(Blob.GetWorldHalfExtentsCm());
+		
+		DrawBlobDebug(WorldPos, WorldHalfExtents);
+		
+		if (BlobIdx < BlobActors.Num())
+		{
+			BlobActors[BlobIdx]->SetActorLocation(WorldPos);
+		}
+		else
+		{
+			FActorSpawnParameters SpawnParams;
+			SpawnParams.Owner = GetOwner();
+			BlobActors.Emplace(
+				GetWorld()->SpawnActor<AActor>(BlobActorClass, WorldPos, FRotator::ZeroRotator, SpawnParams));
+		}
+		
+		++BlobIdx;
+	}
+	
+	// Clean up extras
+	// TODO: might want to just pool them
+	while (BlobActors.Num() > Blobs.Num())
+	{
+		BlobActors[BlobIdx]->Destroy();
+		BlobActors.RemoveAt(BlobIdx);
+	}
+}
+
+void UOrbbecBlobTracker::DrawBlobDebug(const FVector& WorldPos, const FVector& WorldHalfExtents) const
 {
 	const UWorld* World = GetWorld();
 	
@@ -106,15 +140,12 @@ void UOrbbecBlobTracker::DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& 
 		return;
 	}
 	
-	// Transform to world space
-	const FTransform WorldTransform = GetOwner()->GetActorTransform();
-	const FVector WorldPosCm = WorldTransform.TransformPosition(Blob.GetWorldPosCm());
-	const FVector WorldHalfExtentsCm = WorldTransform.TransformVector(Blob.GetWorldHalfExtentsCm());
+
 	
 	DrawDebugBox(
 		World, 
-		WorldPosCm,
-		WorldHalfExtentsCm,
+		WorldPos,
+		WorldHalfExtents,
 		FColor::Cyan,
 		false, 
 		0.1f,

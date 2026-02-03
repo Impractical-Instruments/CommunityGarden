@@ -29,6 +29,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
 	UBlobArrayVisualizer* BlobVisualizer = nullptr;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flower Beds")
+	TSubclassOf<AActor> BlobActorClass;
+	
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
@@ -41,5 +44,10 @@ private:
 	
 	UOrbbecCameraController* GetCameraController() const;
 	
-	void DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& Blob) const;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AActor>> BlobActors;
+	
+	void UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker::FBlob3D>& Blobs);
+	
+	void DrawBlobDebug(const FVector& WorldPos, const FVector& WorldHalfExtents) const;
 };
