@@ -109,6 +109,7 @@ void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker:
 		
 		if (BlobIdx < BlobActors.Num())
 		{
+			BlobActors[BlobIdx]->SetActorHiddenInGame(false);
 			BlobActors[BlobIdx]->SetActorLocation(WorldPos);
 		}
 		else
@@ -117,17 +118,17 @@ void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker:
 			SpawnParams.Owner = GetOwner();
 			BlobActors.Emplace(
 				GetWorld()->SpawnActor<AActor>(BlobActorClass, WorldPos, FRotator::ZeroRotator, SpawnParams));
+			
+			OnBlobActorSpawned.Broadcast(BlobActors.Last());
 		}
 		
 		++BlobIdx;
 	}
 	
-	// Clean up extras
-	// TODO: might want to just pool them
-	while (BlobActors.Num() > Blobs.Num())
+	// Disable any extras
+	for (; BlobIdx < BlobActors.Num(); ++BlobIdx)
 	{
-		BlobActors[BlobIdx]->Destroy();
-		BlobActors.RemoveAt(BlobIdx);
+		BlobActors[BlobIdx]->SetActorHiddenInGame(true);
 	}
 }
 
@@ -139,8 +140,6 @@ void UOrbbecBlobTracker::DrawBlobDebug(const FVector& WorldPos, const FVector& W
 	{
 		return;
 	}
-	
-
 	
 	DrawDebugBox(
 		World, 
