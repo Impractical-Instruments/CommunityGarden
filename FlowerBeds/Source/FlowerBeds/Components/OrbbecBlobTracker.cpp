@@ -106,10 +106,15 @@ void UOrbbecBlobTracker::DrawBlobDebug(const II::Vision::FBlobTracker::FBlob3D& 
 		return;
 	}
 	
+	// Transform to world space
+	const FTransform WorldTransform = GetOwner()->GetActorTransform();
+	const FVector WorldPosCm = WorldTransform.TransformPosition(Blob.GetWorldPosCm());
+	const FVector WorldHalfExtentsCm = WorldTransform.TransformVector(Blob.GetWorldHalfExtentsCm());
+	
 	DrawDebugBox(
 		World, 
-		Blob.GetWorldPosCm(),
-		Blob.GetWorldHalfExtentsCm(),
+		WorldPosCm,
+		WorldHalfExtentsCm,
 		FColor::Cyan,
 		false, 
 		0.1f,
