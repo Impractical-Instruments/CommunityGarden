@@ -12,6 +12,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "IIVision",
+			"Enabled": true
+		},
+		{
 			"Name": "ModelingToolsEditorMode",
 			"Enabled": true,
 			"TargetAllowList": [
@@ -23,7 +27,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "IIVision",
+			"Name": "OSC",
 			"Enabled": true
 		}
 	]

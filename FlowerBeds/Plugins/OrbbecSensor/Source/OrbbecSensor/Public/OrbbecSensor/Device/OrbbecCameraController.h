@@ -70,6 +70,36 @@ struct ORBBECSENSOR_API FOrbbecVideoConfig
 };
 
 USTRUCT(BlueprintType)
+struct FOrbbecCameraConfig
+{
+	GENERATED_BODY()
+	
+	/**
+	 * The serial number of the connected Orbbec camera device. Optional, but necessary to support multiple devices.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	FString DeviceSerialNumber;
+	
+	/**
+	 * The color video stream config, if desired
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	FOrbbecVideoConfig ColorConfig;
+
+	/**
+	 * The depth video stream config, if desired
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	FOrbbecVideoConfig DepthConfig;
+
+	/**
+	 * The IR video stream config, if desired
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	FOrbbecVideoConfig IRConfig;
+};
+
+USTRUCT(BlueprintType)
 struct ORBBECSENSOR_API FOrbbecFrame
 {
 	GENERATED_BODY()
@@ -116,30 +146,9 @@ public:
 	void StopCamera();
 	
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-	/**
-	 * The serial number of the connected Orbbec camera device. Optional, but necessary to support multiple devices.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	FString DeviceSerialNumber;
 	
-	/**
-	 * The color video stream config, if desired
-	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	FOrbbecVideoConfig ColorConfig;
-
-	/**
-	 * The depth video stream config, if desired
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	FOrbbecVideoConfig DepthConfig;
-
-	/**
-	 * The IR video stream config, if desired
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
-	FOrbbecVideoConfig IRConfig;
+	FOrbbecCameraConfig CameraConfig;
 
 	/**
 	 * This gets called when new frames are received from the camera

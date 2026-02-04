@@ -297,7 +297,11 @@ bool UOrbbecCameraController::StartCamera()
 	
 	try
 	{
-		Implementation = FOrbbecImplementation::CreateAndStart(DeviceSerialNumber, ColorConfig, DepthConfig, IRConfig);
+		Implementation = FOrbbecImplementation::CreateAndStart(
+			CameraConfig.DeviceSerialNumber, 
+			CameraConfig.ColorConfig, 
+			CameraConfig.DepthConfig, 
+			CameraConfig.IRConfig);
 		
 		if (!Implementation)
 		{
@@ -305,9 +309,9 @@ bool UOrbbecCameraController::StartCamera()
 		}
 		
 		// Init the latest frames
-		LatestColorFrame.Config = ColorConfig;
-		LatestDepthFrame.Config = DepthConfig;
-		LatestIRFrame.Config = IRConfig;
+		LatestColorFrame.Config = CameraConfig.ColorConfig;
+		LatestDepthFrame.Config = CameraConfig.DepthConfig;
+		LatestIRFrame.Config = CameraConfig.IRConfig;
 		
 		// Turn on ticks so we can receive frames
 		SetComponentTickEnabled(true);
