@@ -1,8 +1,5 @@
 ﻿#include "LookCoordinator.h"
 
-#include "FlowerBedsWorldSettings.h"
-#include "LookCoordinatorConfig.h"
-
 void ULookCoordinator::RegisterLooker(AActor* Looker)
 {
 	if (LookerStates.ContainsByPredicate(
@@ -57,23 +54,6 @@ void ULookCoordinator::Tick(const float DeltaTime)
 	
 	UpdateAttractors();
 	UpdateLookers();
-}
-
-const ULookCoordinatorConfig* ULookCoordinator::GetConfig() const
-{
-	const UWorld* World = GetWorld();
-	
-	if (!World)
-	{
-		return nullptr;
-	}
-	
-	if (const AFlowerBedsWorldSettings* WorldSettings = Cast<AFlowerBedsWorldSettings>(World->GetWorldSettings()))
-	{
-		return WorldSettings->LookCoordinatorConfig;
-	}
-	
-	return nullptr;
 }
 
 void ULookCoordinator::UpdateAttractors()

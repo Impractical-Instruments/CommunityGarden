@@ -29,8 +29,6 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	
 private:
-	const ULookCoordinatorConfig* GetConfig() const;
-	
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> Attractors{};
 	
