@@ -9,7 +9,9 @@ public class FlowerBeds : ModuleRules
 		PublicDependencyModuleNames.AddRange([
 			"Core",
 			"CoreUObject",
+			"DeveloperSettings",
 			"Engine",
+			"OSC",
 			"RenderCore",
 			"RHI",
 			"OrbbecSensor",

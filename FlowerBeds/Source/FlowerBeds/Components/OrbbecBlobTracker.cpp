@@ -1,31 +1,53 @@
 ﻿#include "OrbbecBlobTracker.h"
 
 #include "ArrayVisualizer.h"
+#include "FlowerBeds/BlobTrackerSettings.h"
 #include "FlowerBeds/FlowerBeds.h"
 #include "FlowerBeds/Util/OrbbecToVisionHelpers.h"
 #include "IIVision/BlobArrayVisualizer.h"
 #include "OrbbecSensor/Device/OrbbecCameraController.h"
 
-void UOrbbecBlobTracker::BeginPlay()
+AOrbbecBlobTracker::AOrbbecBlobTracker()
+{
+	CameraController = CreateDefaultSubobject<UOrbbecCameraController>("CameraController");
+}
+
+void AOrbbecBlobTracker::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	UOrbbecCameraController* CameraController = GetCameraController();
+	// Find the config for this blob tracker and apply it
+	const UBlobTrackerSettings* BlobTrackerSettings = GetDefault<UBlobTrackerSettings>();
 	
-	if (!CameraController)
+	if (!BlobTrackerSettings)
 	{
-		UE_LOG(LogFlowerBeds, Error, TEXT("UOrbbecBlobTracker: A camera controller (UOrbbecCameraController) is required."));
+		UE_LOG(LogFlowerBeds, Error, TEXT("UOrbbecBlobTracker: Failed to retrieve blob tracker settings."));
 		return;
 	}
 	
+	if (const FBlobTrackerConfig* FoundConfig = BlobTrackerSettings->BlobTrackers.FindByPredicate(
+		[Name = BlobTrackerName](const FBlobTrackerConfig& Config)
+		{
+			return Config.Name == Name;
+		}))
+	{
+		// Set position
+		SetActorLocation(FoundConfig->PosCm);
+		SetActorRotation(FoundConfig->Rotation);
+		
+		// Set the camera config
+		CameraController->CameraConfig = FoundConfig->CameraConfig;
+	}
+	
+	check(CameraController);
 	OnFramesReceivedDelegateHandle = 
-		CameraController->OnFramesReceivedNative.AddUObject(this, &UOrbbecBlobTracker::OnFramesReceived);
+		CameraController->OnFramesReceivedNative.AddUObject(this, &AOrbbecBlobTracker::OnFramesReceived);
 	CameraController->StartCamera();
 }
 
-void UOrbbecBlobTracker::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void AOrbbecBlobTracker::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	if (UOrbbecCameraController* CameraController = GetCameraController())
+	if (CameraController)
 	{
 		CameraController->OnFramesReceivedNative.Remove(OnFramesReceivedDelegateHandle);
 	}
@@ -33,7 +55,7 @@ void UOrbbecBlobTracker::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void UOrbbecBlobTracker::OnFramesReceived(
+void AOrbbecBlobTracker::OnFramesReceived(
 	const FOrbbecFrame& /* ColorFrame */, 
 	const FOrbbecFrame& DepthFrame, 
 	const FOrbbecFrame& /* IRFrame */)
@@ -89,19 +111,14 @@ void UOrbbecBlobTracker::OnFramesReceived(
 	}
 }
 
-UOrbbecCameraController* UOrbbecBlobTracker::GetCameraController() const
-{
-	return GetOwner()->FindComponentByClass<UOrbbecCameraController>();
-}
-
-void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker::FBlob3D>& Blobs)
+void AOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker::FBlob3D>& Blobs)
 {
 	int32 BlobIdx = 0;
 	
 	for (const auto& Blob : Blobs)
 	{
 		// Transform to world space
-		const FTransform WorldTransform = GetOwner()->GetActorTransform();
+		const FTransform WorldTransform = GetActorTransform();
 		const FVector WorldPos = WorldTransform.TransformPosition(Blob.GetWorldPosCm());
 		const FVector WorldHalfExtents = WorldTransform.TransformVector(Blob.GetWorldHalfExtentsCm());
 		
@@ -115,7 +132,7 @@ void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker:
 		else
 		{
 			FActorSpawnParameters SpawnParams;
-			SpawnParams.Owner = GetOwner();
+			SpawnParams.Owner = this;
 			BlobActors.Emplace(
 				GetWorld()->SpawnActor<AActor>(BlobActorClass, WorldPos, FRotator::ZeroRotator, SpawnParams));
 			
@@ -132,7 +149,7 @@ void UOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker:
 	}
 }
 
-void UOrbbecBlobTracker::DrawBlobDebug(const FVector& WorldPos, const FVector& WorldHalfExtents) const
+void AOrbbecBlobTracker::DrawBlobDebug(const FVector& WorldPos, const FVector& WorldHalfExtents) const
 {
 	const UWorld* World = GetWorld();
 	

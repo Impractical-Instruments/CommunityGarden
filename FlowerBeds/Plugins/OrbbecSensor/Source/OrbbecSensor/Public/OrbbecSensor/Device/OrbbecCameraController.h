@@ -70,7 +70,7 @@ struct ORBBECSENSOR_API FOrbbecVideoConfig
 };
 
 USTRUCT(BlueprintType)
-struct FOrbbecCameraConfig
+struct ORBBECSENSOR_API FOrbbecCameraConfig
 {
 	GENERATED_BODY()
 	

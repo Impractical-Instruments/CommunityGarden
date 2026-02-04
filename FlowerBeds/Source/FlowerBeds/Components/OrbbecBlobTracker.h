@@ -14,12 +14,15 @@ class UOrbbecCameraController;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBlobActorSpawned, AActor*, Actor);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBlobActorDestroyed,AActor*, Actor);
 
-UCLASS(ClassGroup = (FlowerBeds), meta = (BlueprintSpawnableComponent))
-class UOrbbecBlobTracker : public UActorComponent
+UCLASS(ClassGroup = (FlowerBeds))
+class AOrbbecBlobTracker : public AActor
 {
 	GENERATED_BODY()
 
 public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
+	FName BlobTrackerName = NAME_None;
+	
 	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
 	TObjectPtr<UArrayVisualizer> DepthFeedVisualizer = nullptr;
 	
@@ -32,7 +35,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Flower Beds")
 	TObjectPtr<UBlobArrayVisualizer> BlobVisualizer = nullptr;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Flower Beds")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
 	TSubclassOf<AActor> BlobActorClass;
 	
 	UPROPERTY(BlueprintAssignable) 
@@ -41,17 +44,19 @@ public:
 	UPROPERTY(BlueprintAssignable) 
 	FBlobActorDestroyed OnBlobActorDestroyed;
 	
+	AOrbbecBlobTracker();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
 	II::Vision::FBlobTracker BlobTracker;
 	
+	UPROPERTY(Transient)
+	TObjectPtr<UOrbbecCameraController> CameraController;
+	
 	FDelegateHandle OnFramesReceivedDelegateHandle;
 	
 	void OnFramesReceived(const FOrbbecFrame& ColorFrame, const FOrbbecFrame& DepthFrame, const FOrbbecFrame& IRFrame);
-	
-	UOrbbecCameraController* GetCameraController() const;
 	
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AActor>> BlobActors;
