@@ -38,31 +38,31 @@ struct ORBBECSENSOR_API FOrbbecVideoConfig
 	/**
 	 * Whether this stream should be enabled
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	bool bEnabled = false;
 	
 	/**
 	 * Frame format to request.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	EOrbbecFrameFormat Format = EOrbbecFrameFormat::Unknown;
 	
 	/**
 	 * Camera video frame width.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	int32 Width = 0;
 
 	/**
 	 * Camera video frame width.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	int32 Height = 0;
 
 	/**
 	 * Camera video framerate.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	int32 Framerate = 0;
 	
 	// Camera intrinsics, which we get when we enable a stream profile.
@@ -77,25 +77,25 @@ struct ORBBECSENSOR_API FOrbbecCameraConfig
 	/**
 	 * The serial number of the connected Orbbec camera device. Optional, but necessary to support multiple devices.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	FString DeviceSerialNumber;
 	
 	/**
 	 * The color video stream config, if desired
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	FOrbbecVideoConfig ColorConfig;
 
 	/**
 	 * The depth video stream config, if desired
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	FOrbbecVideoConfig DepthConfig;
 
 	/**
 	 * The IR video stream config, if desired
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Orbbec")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Orbbec")
 	FOrbbecVideoConfig IRConfig;
 };
 

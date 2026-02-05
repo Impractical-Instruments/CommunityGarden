@@ -10,16 +10,16 @@ struct FBlobTrackerConfig
 {
 	GENERATED_BODY()
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlobTracker")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "BlobTracker")
 	FName Name = NAME_None;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlobTracker")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "BlobTracker")
 	FVector PosCm = FVector::ZeroVector;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlobTracker")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "BlobTracker")
 	FRotator Rotation = FRotator::ZeroRotator;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlobTracker")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "BlobTracker")
 	FOrbbecCameraConfig CameraConfig;
 };
 

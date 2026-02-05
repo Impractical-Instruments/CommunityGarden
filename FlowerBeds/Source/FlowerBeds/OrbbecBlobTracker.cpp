@@ -3,7 +3,7 @@
 #include "ArrayVisualizer.h"
 #include "FlowerBeds/BlobTrackerSettings.h"
 #include "FlowerBeds/FlowerBeds.h"
-#include "FlowerBeds/Util/OrbbecToVisionHelpers.h"
+#include "FlowerBeds/OrbbecToVisionHelpers.h"
 #include "IIVision/BlobArrayVisualizer.h"
 #include "OrbbecSensor/Device/OrbbecCameraController.h"
 
@@ -21,7 +21,7 @@ void AOrbbecBlobTracker::BeginPlay()
 	
 	if (!BlobTrackerSettings)
 	{
-		UE_LOG(LogFlowerBeds, Error, TEXT("UOrbbecBlobTracker: Failed to retrieve blob tracker settings."));
+		UE_LOG(LogFlowerBeds, Error, TEXT("Failed to retrieve blob tracker settings."));
 		return;
 	}
 	
@@ -93,6 +93,8 @@ void AOrbbecBlobTracker::OnFramesReceived(
 		II::Vision::FBlobTracker::FDetectionResult DetectionResult;
 		BlobTracker.Detect(II::Util::OrbbecToVisionFrame(DepthFrame), DetectionResult);
 		
+		OnBlobDetectionResult.Broadcast(this, DetectionResult);
+		
 		if (BlobFgVisualizer)
 		{
 			BlobFgVisualizer->InitTexture(BlobTracker.GetWidth(), BlobTracker.GetHeight(), PF_G8, false);
@@ -123,6 +125,11 @@ void AOrbbecBlobTracker::UpdateWorldBlobs(const TArray<II::Vision::FBlobTracker:
 		const FVector WorldHalfExtents = WorldTransform.TransformVector(Blob.GetWorldHalfExtentsCm());
 		
 		DrawBlobDebug(WorldPos, WorldHalfExtents);
+		
+		if (!BlobActorClass)
+		{
+			continue;
+		}
 		
 		if (BlobIdx < BlobActors.Num())
 		{

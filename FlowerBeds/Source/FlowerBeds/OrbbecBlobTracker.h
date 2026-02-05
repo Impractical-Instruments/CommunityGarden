@@ -44,6 +44,13 @@ public:
 	UPROPERTY(BlueprintAssignable) 
 	FBlobActorDestroyed OnBlobActorDestroyed;
 	
+	DECLARE_MULTICAST_DELEGATE_TwoParams(
+		FOnBlobDetectionResult, 
+		const AOrbbecBlobTracker*, 
+		const II::Vision::FBlobTracker::FDetectionResult&);
+	
+	FOnBlobDetectionResult OnBlobDetectionResult;
+	
 	AOrbbecBlobTracker();
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;

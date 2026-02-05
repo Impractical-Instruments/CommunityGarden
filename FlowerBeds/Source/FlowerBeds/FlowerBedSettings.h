@@ -1,61 +1,28 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "OSCAddress.h"
+#include "FlowerController.h"
+#include "FlowerModule.h"
 
 #include "FlowerBedSettings.generated.h"
-
-USTRUCT(BlueprintType)
-struct FFlowerClusterConfig
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FVector ModuleRelativePosCm = FVector::ZeroVector;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FOSCAddress OscAddress;
-};
-
-USTRUCT(BlueprintType)
-struct FFollowerModuleConfig
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FVector LeaderRelativePosCm = FVector::ZeroVector;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	TArray<FFlowerClusterConfig> FlowerClusters;
-};
-
-USTRUCT(BlueprintType)
-struct FLeaderModuleConfig
-{
-	GENERATED_BODY()
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FString IPAddress;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	int32 Port = 0;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FVector PosCm = FVector::ZeroVector;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	TArray<FFlowerClusterConfig> FlowerClusters;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	TArray<FFollowerModuleConfig> Followers;
-};
 
 UCLASS(Config = Game, DefaultConfig, meta = (DisplayName = "Flower Bed Settings"))
 class FLOWERBEDS_API UFlowerBedSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 	
-	public:
-		UPROPERTY(EditAnywhere, Config, Category = "Flower Beds")
-		TArray<FLeaderModuleConfig> LeaderModules;
+public:
+	/**
+	 * The motor control units that control the modules.
+	 * NB: Physically, these may be part of a module, but we treat them as logically separate so we can change
+	 * construction and wiring as necessary.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category = "Flower Beds")
+	TArray<FFlowerControllerConfig> FlowerControllers;
+
+	/**
+	 * The modules, which contain some number of flower clusters.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category = "Flower Beds")
+	TArray<FFlowerModuleConfig> FlowerModules;
 };
