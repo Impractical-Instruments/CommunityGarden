@@ -3,6 +3,10 @@ Follow Flower Controller
 Scans for servos, then dispatches OSC messages targeted at those servos.
 */
 #include <Dynamixel2Arduino.h>
+#include <Ethernet.h>
+#include <EthernetUdp.h>
+#include <OSCMessage.h>
+#include <SPI.h>
 
 //OpenRB does not require the DIR control pin.
 #define DXL_SERIAL Serial1
@@ -17,22 +21,55 @@ const int32_t baud[MAX_BAUD] = {57600, 115200, 1000000, 2000000, 3000000};
 
 bool activeServos[DXL_BROADCAST_ID];
 
+// --- Network config ---
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x15, 0x00 };
+IPAddress ip(192, 168, 1, 50);     // set for your LAN
+const uint16_t localPort = 9000;   // the port you will SEND OSC TO
+
+EthernetUDP Udp;
+const int ETH_CS_PIN = 5;
+
 void setup() {
   scanForServos();
+  setUpOsc();
 }
 
 void loop() {
-  for (uint8_t i = 0; i < DXL_BROADCAST_ID; ++i) {
-    setRotationDeg(i, 300);
+  int packetSize = Udp.parsePacket();
+  if (packetSize <= 0) return;
+
+  // Keep buffers small-ish; OpenRB-150 (SAMD21) has limited RAM.
+  // 512 is usually fine for typical OSC messages.
+  uint8_t buf[512];
+  int len = Udp.read(buf, sizeof(buf));
+  if (len <= 0) return;
+
+  OSCMessage msg;
+  msg.fill(buf, len);
+
+  if (!msg.hasError()) {
+    msg.route("/cg/ff/rot", onFlowerRot);
+  } 
+  else {
+    // Optional: print parse errors
+    OSCErrorCode e = msg.getError();
+    DEBUG_SERIAL.print("OSC error: ");
+    DEBUG_SERIAL.println((int)e);
   }
+}
 
-  delay(5000);
+void setUpOsc() {
+  Ethernet.init(ETH_CS_PIN);
 
-  for (uint8_t i = 0; i < DXL_BROADCAST_ID; ++i) {
-    setRotationDeg(i, 400);
-  }
+  // Start Ethernet (static IP; you can use DHCP with Ethernet.begin(mac) if you prefer)
+  Ethernet.begin(mac, ip);
 
-  delay(5000);
+  Udp.begin(localPort);
+
+  DEBUG_SERIAL.print("Listening for OSC on ");
+  DEBUG_SERIAL.print(Ethernet.localIP());
+  DEBUG_SERIAL.print(":");
+  DEBUG_SERIAL.println(localPort);
 }
 
 void scanForServos() {
@@ -84,7 +121,17 @@ void scanForServos() {
   DEBUG_SERIAL.println(" DYNAMIXEL(s) found!");
 }
 
-void setRotationDeg(uint8_t id, float rotationDeg) {
+void onFlowerRot(OSCMessage& msg, int addressOffset) {
+  DEBUG_SERIAL.print("Rotating ");
+  const int id = msg.getInt(0);
+  DEBUG_SERIAL.print(id);
+  DEBUG_SERIAL.print(", ");
+  const float rot = msg.getFloat(1);
+  DEBUG_SERIAL.println(rot);
+  setRotDeg(id, rot);
+}
+
+void setRotDeg(uint8_t id, float rotationDeg) {
   if (activeServos[id]) {
     dxl.writeControlTableItem(ControlTableItem::PROFILE_ACCELERATION, id, 1);
     dxl.writeControlTableItem(ControlTableItem::PROFILE_VELOCITY, id, 50);
