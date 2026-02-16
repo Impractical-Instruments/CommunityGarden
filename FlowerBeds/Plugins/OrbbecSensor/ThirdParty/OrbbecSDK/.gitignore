@@ -1,0 +1,3 @@
+# un-ignore Orbbec SDK binaries
+!*.lib
+!*.dll
