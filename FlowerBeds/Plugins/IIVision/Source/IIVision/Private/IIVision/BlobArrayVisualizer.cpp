@@ -1,5 +1,7 @@
 ﻿#include "IIVision/BlobArrayVisualizer.h"
 
+#include "Engine/Texture2D.h"
+
 void UBlobArrayVisualizer::InitTexture(const int32 InWidth, const int32 InHeight)
 {
 	if (!Texture || Texture->GetSizeX() != InWidth || Texture->GetSizeY() != InHeight)
@@ -10,7 +12,6 @@ void UBlobArrayVisualizer::InitTexture(const int32 InWidth, const int32 InHeight
 		Texture = UTexture2D::CreateTransient(Width, Height, PF_B8G8R8A8);
 		Texture->SRGB = false;
 		Texture->Filter = TF_Nearest;
-		Texture->MipGenSettings = TMGS_NoMipmaps;
 		Texture->NeverStream = true;
 		Texture->UpdateResource();
 

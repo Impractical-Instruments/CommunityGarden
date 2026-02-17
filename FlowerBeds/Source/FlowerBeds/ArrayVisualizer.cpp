@@ -1,5 +1,6 @@
 ﻿#include "ArrayVisualizer.h"
 
+#include "Engine/Texture2D.h"
 #include "Rendering/Texture2DResource.h"
 
 void UArrayVisualizer::InitTexture(int32 Width, int32 Height, EPixelFormat PF, bool bSRGB)
@@ -11,7 +12,6 @@ void UArrayVisualizer::InitTexture(int32 Width, int32 Height, EPixelFormat PF, b
 		Texture->Filter = TF_Nearest;
 		Texture->AddressX = TA_Clamp;
 		Texture->AddressY = TA_Clamp;
-		Texture->MipGenSettings = TMGS_NoMipmaps;
 		Texture->NeverStream = true;
 		Texture->UpdateResource();
 		

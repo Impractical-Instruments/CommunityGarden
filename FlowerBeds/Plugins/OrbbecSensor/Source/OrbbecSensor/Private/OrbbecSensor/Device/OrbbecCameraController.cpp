@@ -27,7 +27,7 @@ public:
 		FOrbbecVideoConfig& DepthConfig,
 		FOrbbecVideoConfig& IRConfig)
 	{
-		auto Device = PickDevice(DeviceSerialNumber);
+		const std::shared_ptr<ob::Device> Device = PickDevice(DeviceSerialNumber);
 		
 		if (!Device)
 		{
@@ -295,51 +295,33 @@ bool UOrbbecCameraController::StartCamera()
 		StopCamera();
 	}
 	
-	try
+	Implementation = FOrbbecImplementation::CreateAndStart(
+		CameraConfig.DeviceSerialNumber, 
+		CameraConfig.ColorConfig, 
+		CameraConfig.DepthConfig, 
+		CameraConfig.IRConfig);
+	
+	if (!Implementation)
 	{
-		Implementation = FOrbbecImplementation::CreateAndStart(
-			CameraConfig.DeviceSerialNumber, 
-			CameraConfig.ColorConfig, 
-			CameraConfig.DepthConfig, 
-			CameraConfig.IRConfig);
-		
-		if (!Implementation)
-		{
-			return false;
-		}
-		
-		// Init the latest frames
-		LatestColorFrame.Config = CameraConfig.ColorConfig;
-		LatestDepthFrame.Config = CameraConfig.DepthConfig;
-		LatestIRFrame.Config = CameraConfig.IRConfig;
-		
-		// Turn on ticks so we can receive frames
-		SetComponentTickEnabled(true);
-		
-		return true;
-	}
-	catch (const ob::Error& e)
-	{
-		UE_LOG(LogTemp, Error, TEXT("OrbbecSDK Error during StartCamera(): %s"), *FString(e.getMessage()));
 		return false;
 	}
+	
+	// Init the latest frames
+	LatestColorFrame.Config = CameraConfig.ColorConfig;
+	LatestDepthFrame.Config = CameraConfig.DepthConfig;
+	LatestIRFrame.Config = CameraConfig.IRConfig;
+	
+	// Turn on ticks so we can receive frames
+	SetComponentTickEnabled(true);
+	
+	return true;
 }
 
 void UOrbbecCameraController::StopCamera()
 {
 	SetComponentTickEnabled(false);
 	
-	if (Implementation)
-	{
-		try
-		{
-			Implementation.Reset();
-		}
-		catch (const ob::Error& e)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("OrbbecSDK Error during StopCamera(): %s"), *FString(e.getMessage()));
-		}
-	}
+	Implementation.Reset();
 }
 
 void UOrbbecCameraController::TickComponent(
