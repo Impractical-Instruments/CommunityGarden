@@ -35,7 +35,7 @@ public:
 	void Init(const FFlowerControllerConfig& Config);
 	
 	UFUNCTION(BlueprintCallable)
-	void SendFlowerRotation(const FOSCAddress& Address, float Rotation) const;
+	void SendFlowerRotation(uint8 MotorId, float Rotation) const;
 	
 private:
 	UPROPERTY(Transient)

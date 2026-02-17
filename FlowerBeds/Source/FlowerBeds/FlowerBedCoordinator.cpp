@@ -77,7 +77,7 @@ void AFlowerBedCoordinator::OnBlobDetectionResult(
 	{
 		for (UFlowerController* FlowerController : FlowerControllers)
 		{
-			FlowerController->SendFlowerRotation(UpdateResult.OscAddress, UpdateResult.Rotation);
+			FlowerController->SendFlowerRotation(UpdateResult.MotorId, UpdateResult.Rotation);
 		}
 	}
 }

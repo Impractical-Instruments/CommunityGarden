@@ -23,10 +23,10 @@ struct FFlowerClusterConfig
 	FRotator RotationOffset = FRotator::ZeroRotator;
 
 	/**
-	 * The OSC address to use for this cluster. (e.g. "/followflower/1/")
+	 * The id of the motor that this cluster drives
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Config, Category = "Flower Beds")
-	FString OscAddress = "";
+	uint8 MotorId = 0;
 };
 
 UCLASS(ClassGroup = (FlowerBeds))
@@ -36,7 +36,7 @@ class AFlowerCluster : public AActor
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flower Beds")
-	FOSCAddress OscAddress;
+	uint8 MotorId;
 	
 	UFUNCTION(BlueprintCallable)
 	void Init(const FFlowerClusterConfig& Config);
@@ -44,7 +44,7 @@ public:
 	struct FUpdateTargetResult
 	{
 		bool HasTarget = false;
-		FOSCAddress OscAddress;
+		uint8 MotorId;
 		float Rotation;
 	};
 	

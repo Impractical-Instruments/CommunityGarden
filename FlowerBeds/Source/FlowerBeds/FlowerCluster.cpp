@@ -5,7 +5,7 @@ void AFlowerCluster::Init(const FFlowerClusterConfig& Config)
 	SetActorRelativeLocation(Config.PosOffsetCm);
 	SetActorRelativeRotation(Config.RotationOffset);
 	
-	OscAddress = Config.OscAddress;
+	MotorId = Config.MotorId;
 }
 
 static FRotator GetLookRotation(const FVector& From, const FVector& To)
@@ -39,7 +39,7 @@ AFlowerCluster::FUpdateTargetResult AFlowerCluster::UpdateClusterTargets(const T
 	}
 	
 	FUpdateTargetResult Result;
-	Result.OscAddress = OscAddress;
+	Result.MotorId = MotorId;
 	Result.HasTarget = true;
 	
 	const FRotator LookRotation = GetLookRotation(GetActorLocation(), ClosestTarget);

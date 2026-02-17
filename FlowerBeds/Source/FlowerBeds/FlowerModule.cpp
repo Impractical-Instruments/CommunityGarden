@@ -26,6 +26,9 @@ void AFlowerModule::UpdateClusterTargets(
 {
 	for (const auto& Cluster : FlowerClusters)
 	{
-		Results.Add(Cluster->UpdateClusterTargets(Targets));
+		if (auto Res = Cluster->UpdateClusterTargets(Targets); Res.HasTarget)
+		{
+			Results.Emplace(MoveTemp(Res));
+		}
 	}
 }
