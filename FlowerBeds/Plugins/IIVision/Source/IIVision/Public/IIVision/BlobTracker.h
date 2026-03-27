@@ -63,7 +63,10 @@ namespace II::Vision
 		{
 			bool bValid = false;
 			int32 Id = -1;
-			
+			// Stable identity across frames, assigned by the consumer (e.g. AOrbbecBlobTracker).
+			// Defaults to 0; only meaningful after temporal matching has been applied.
+			uint32 StableId = 0;
+
 			// In camera coordinate space
 			FVector CamPosMeters = FVector::ZeroVector;
 			FVector CamHalfExtentsMeters = FVector::ZeroVector;
