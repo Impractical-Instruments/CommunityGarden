@@ -14,7 +14,7 @@ void UFlowerController::Init(const FFlowerControllerConfig& Config)
 
 void UFlowerController::SendFlowerRotation(const uint8 MotorId, float Rotation) const
 {
-	const FOSCAddress FlowerRotationAddress("/cg/ff/rot");
+	const FOSCAddress FlowerRotationAddress(FlowerRotationOSCAddress);
 	UE::OSC::FOSCData MotorIdData(MotorId);
 	UE::OSC::FOSCData RotationData(Rotation);
 	FOSCMessage Message(FlowerRotationAddress, { MotorIdData, RotationData });

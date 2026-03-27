@@ -25,6 +25,11 @@ struct FFlowerControllerConfig
 	int32 Port = 0;
 };
 
+// OSC address used to command a flower rotation.
+// Must match OSC_FLOWER_ROTATION in the Arduino firmware
+// (Firmware/FlowerBeds_Follow_ServoController/FlowerBeds_Follow_ServoController.ino).
+inline constexpr const TCHAR* FlowerRotationOSCAddress = TEXT("/cg/ff/rot");
+
 UCLASS(BlueprintType)
 class UFlowerController : public UObject
 {

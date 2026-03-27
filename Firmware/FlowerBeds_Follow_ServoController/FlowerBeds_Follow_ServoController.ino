@@ -21,6 +21,11 @@ const int32_t baud[MAX_BAUD] = {57600, 115200, 1000000, 2000000, 3000000};
 
 bool activeServos[DXL_BROADCAST_ID];
 
+// OSC address used to receive flower rotation commands.
+// Must match FlowerRotationOSCAddress in the Unreal project
+// (Source/FlowerBeds/FlowerController.h).
+static const char* OSC_FLOWER_ROTATION = "/cg/ff/rot";
+
 // --- Network config ---
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x15, 0x00 };
 IPAddress ip(192, 168, 1, 50);     // set for your LAN
@@ -48,7 +53,7 @@ void loop() {
   msg.fill(buf, len);
 
   if (!msg.hasError()) {
-    msg.route("/cg/ff/rot", onFlowerRot);
+    msg.route(OSC_FLOWER_ROTATION, onFlowerRot);
   } 
   else {
     // Optional: print parse errors
