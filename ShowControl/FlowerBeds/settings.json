@@ -3,6 +3,14 @@
 
   "calibration_frames": 60,
 
+  "stabilizer": {
+    "_comment": "Cross-frame blob ID tracking and EMA de-jittering",
+    "max_match_dist_cm": 80.0,
+    "smoothing_alpha": 0.3,
+    "max_miss_frames": 8,
+    "min_confirm_frames": 2
+  },
+
   "controllers": [
     {
       "ip": "192.168.1.50",
