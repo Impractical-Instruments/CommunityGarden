@@ -171,16 +171,25 @@ class Coordinator:
         """
         from transforms import transform_position
 
-        world_positions: list[np.ndarray] = []
-        for blob in blobs_3d:
-            cam_local = blob.world_pos_cm()          # UE space, camera-local cm
-            world_pos = transform_position(camera_transform, cam_local)
-            world_positions.append(world_pos)
+        world_positions = [
+            transform_position(camera_transform, blob.world_pos_cm())
+            for blob in blobs_3d
+        ]
+        return self.process_world_positions(world_positions)
 
+    def process_world_positions(
+        self,
+        world_positions: list[np.ndarray],
+    ) -> list[MotorCommand]:
+        """
+        Dispatch pre-transformed world-space positions to all modules.
+
+        Use this instead of process_blobs when positions have already been
+        transformed (e.g. after running through BlobStabilizer).
+        """
         commands: list[MotorCommand] = []
         for module in self.modules:
             commands.extend(module.update(world_positions))
-
         return commands
 
     def snapshot(self) -> list[dict]:

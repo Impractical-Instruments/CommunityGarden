@@ -24,11 +24,12 @@ from pathlib import Path
 
 import numpy as np
 
+from blob_stabilizer import BlobStabilizer, StabilizerConfig
 from blob_tracker import BlobTracker, CalibrationState
 from camera import MockCamera, OrbbecCamera
 from flower_beds import CameraConfig, ClusterConfig, Coordinator, ControllerConfig, ModuleConfig
 from flower_controller import FlowerController
-from transforms import UERotator, UETransform
+from transforms import UERotator, UETransform, transform_position
 
 log = logging.getLogger("flower_beds")
 
@@ -75,6 +76,15 @@ def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
 
 def parse_controller_configs(raw_controllers: list[dict]) -> list[ControllerConfig]:
     return [ControllerConfig(ip=rc["ip"], port=rc["port"]) for rc in raw_controllers]
+
+
+def parse_stabilizer_config(raw: dict) -> StabilizerConfig:
+    return StabilizerConfig(
+        max_match_dist_cm=raw.get("max_match_dist_cm", 80.0),
+        smoothing_alpha=raw.get("smoothing_alpha", 0.3),
+        max_miss_frames=raw.get("max_miss_frames", 8),
+        min_confirm_frames=raw.get("min_confirm_frames", 2),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +146,16 @@ def run(args: argparse.Namespace) -> None:
     tracker = BlobTracker()
     calib_frames = settings.get("calibration_frames", 60)
 
+    # --- blob stabilizer ---
+    stabilizer = BlobStabilizer(parse_stabilizer_config(settings.get("stabilizer", {})))
+    log.info(
+        "Blob stabilizer: max_match_dist=%.0fcm alpha=%.2f miss=%d confirm=%d",
+        stabilizer.config.max_match_dist_cm,
+        stabilizer.config.smoothing_alpha,
+        stabilizer.config.max_miss_frames,
+        stabilizer.config.min_confirm_frames,
+    )
+
     # --- graceful shutdown ---
     _running = [True]
 
@@ -148,6 +168,7 @@ def run(args: argparse.Namespace) -> None:
 
     frame_count = 0
     t_last_log = time.monotonic()
+    tracked = []
 
     with camera:
         for frame in camera.frames():
@@ -165,7 +186,17 @@ def run(args: argparse.Namespace) -> None:
             else:  # CALIBRATED
                 result = tracker.detect(frame)
 
-                commands = coordinator.process_blobs(camera_transform, result.world_blobs)
+                # Transform raw detections to world space, then stabilize.
+                raw_world_positions = [
+                    transform_position(camera_transform, blob.world_pos_cm())
+                    for blob in result.world_blobs
+                    if blob.valid
+                ]
+                tracked = stabilizer.update(raw_world_positions)
+
+                commands = coordinator.process_world_positions(
+                    [t.world_pos_cm for t in tracked]
+                )
 
                 for ctrl in controllers:
                     ctrl.send_all(commands)
@@ -178,12 +209,11 @@ def run(args: argparse.Namespace) -> None:
                     "calibration_state": tracker.state.value,
                     "blobs": [
                         {
-                            "id": b.id,
-                            "x": float(b.world_pos_cm()[0]),
-                            "y": float(b.world_pos_cm()[1]),
+                            "id": t.stable_id,
+                            "x": float(t.world_pos_cm[0]),
+                            "y": float(t.world_pos_cm[1]),
                         }
-                        for b in result.world_blobs
-                        if b.valid
+                        for t in tracked
                     ],
                     "clusters": coordinator.snapshot(),
                     "cameras": [
@@ -199,9 +229,9 @@ def run(args: argparse.Namespace) -> None:
             # Periodic log
             now = time.monotonic()
             if now - t_last_log >= 5.0:
-                n_blobs = len(result.world_blobs) if tracker.state == CalibrationState.CALIBRATED else 0
-                log.info("frame %d | %s | blobs=%d",
-                         frame_count, tracker.state.value, n_blobs)
+                n_tracked = len(tracked) if tracker.state == CalibrationState.CALIBRATED else 0
+                log.info("frame %d | %s | tracked_blobs=%d",
+                         frame_count, tracker.state.value, n_tracked)
                 t_last_log = now
 
 
