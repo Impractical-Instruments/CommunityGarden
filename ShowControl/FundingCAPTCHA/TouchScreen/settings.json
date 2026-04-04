@@ -1,0 +1,44 @@
+{
+  "_comment": "FundingCAPTCHA touch-screen detector config",
+
+  "camera": {
+    "serial": "",
+    "width": 640,
+    "height": 400,
+    "framerate": 30
+  },
+
+  "calibration": {
+    "_comment": "background_frames: number of frames to capture for background model",
+    "background_frames": 90,
+    "calibration_file": "calibration.json",
+    "_comment2": "corner_inset: fraction Godot insets calibration markers from the screen edge (0.05 = 5%)",
+    "corner_inset": 0.05
+  },
+
+  "detection": {
+    "_comment": "touch_threshold_mm: how much closer than background a pixel must be to count as a touch",
+    "touch_threshold_mm": 25,
+    "min_touch_pixels": 30,
+    "max_touch_pixels": 8000
+  },
+
+  "tracker": {
+    "_comment": "confirm_frames: consecutive frames before a cell fires DOWN",
+    "confirm_frames": 3,
+    "_comment2": "release_frames: consecutive absent frames before a cell fires UP",
+    "release_frames": 8
+  },
+
+  "grid": {
+    "_comment": "Default grid size — Godot can override at runtime via /captcha/grid_size",
+    "cols": 4,
+    "rows": 4
+  },
+
+  "osc": {
+    "target_ip": "127.0.0.1",
+    "target_port": 9001,
+    "listen_port": 9002
+  }
+}

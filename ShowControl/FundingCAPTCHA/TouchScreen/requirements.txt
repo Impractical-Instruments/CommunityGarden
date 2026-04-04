@@ -1,0 +1,9 @@
+numpy>=1.24
+scipy>=1.10
+python-osc>=1.8
+fastapi>=0.100
+uvicorn[standard]>=0.23
+websockets>=11
+
+# Orbbec camera SDK
+pyorbbecsdk2
