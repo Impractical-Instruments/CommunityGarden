@@ -1,0 +1,43 @@
+{
+  "_comment": "Python port config — mirrors FlowerBeds/Config/DefaultGame.ini",
+
+  "calibration_frames": 60,
+
+  "controllers": [
+    {
+      "ip": "192.168.1.50",
+      "port": 9000
+    }
+  ],
+
+  "modules": [
+    {
+      "registration_point_cm": [-200.0, 100.0, 0.0],
+      "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
+      "clusters": [
+        {
+          "motor_id": 1,
+          "pos_offset_cm": [0.0, 40.0, 0.0],
+          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0}
+        },
+        {
+          "motor_id": 2,
+          "pos_offset_cm": [40.0, 0.0, 0.0],
+          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0}
+        }
+      ]
+    }
+  ],
+
+  "cameras": [
+    {
+      "name": "Entrance",
+      "pos_cm": [-300.0, 0.0, 200.0],
+      "rotation": {"pitch": -30.0, "yaw": 0.0, "roll": 0.0},
+      "serial": "CPCG85300095",
+      "width": 640,
+      "height": 400,
+      "framerate": 30
+    }
+  ]
+}
