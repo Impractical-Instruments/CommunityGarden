@@ -60,7 +60,7 @@ class OrbbecCamera(BaseCamera):
         fps: int = 30,
     ) -> None:
         try:
-            from pyorbbecsdk2 import (  # type: ignore[import]
+            from pyorbbecsdk import (  # type: ignore[import]
                 Config,
                 Context,
                 OBAlignMode,
@@ -80,19 +80,27 @@ class OrbbecCamera(BaseCamera):
 
         self._Pipeline = Pipeline
         self._Config = Config
+        self._Context = Context
         self._OBSensorType = OBSensorType
         self._OBFormat = OBFormat
 
         self._pipeline: object | None = None
+        self._context: object | None = None
 
     def __enter__(self) -> "OrbbecCamera":
-        config = self._Config()
-        config.enable_stream(
-            self._OBSensorType.DEPTH, 0,
-            self._width, self._height,
-            self._OBFormat.Y16, self._fps,
+        if self._serial:
+            self._context = self._Context()
+            device_list = self._context.query_devices()
+            device = device_list.get_device_by_serial_number(self._serial)
+            self._pipeline = self._Pipeline(device)
+        else:
+            self._pipeline = self._Pipeline()
+        profile_list = self._pipeline.get_stream_profile_list(self._OBSensorType.DEPTH_SENSOR)
+        profile = profile_list.get_video_stream_profile(
+            self._width, self._height, self._OBFormat.Y16, self._fps,
         )
-        self._pipeline = self._Pipeline(self._serial) if self._serial else self._Pipeline()
+        config = self._Config()
+        config.enable_stream(profile)
         self._pipeline.start(config)
         return self
 
@@ -100,10 +108,11 @@ class OrbbecCamera(BaseCamera):
         if self._pipeline is not None:
             self._pipeline.stop()
             self._pipeline = None
+        self._context = None
 
     def frames(self) -> Iterator[FramePacket]:
         while True:
-            frame_set = self._pipeline.wait_for_frames(timeout_ms=100)
+            frame_set = self._pipeline.wait_for_frames(100)
             if frame_set is None:
                 continue
 

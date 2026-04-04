@@ -34,10 +34,10 @@
       "name": "Entrance",
       "pos_cm": [-300.0, 0.0, 200.0],
       "rotation": {"pitch": -30.0, "yaw": 0.0, "roll": 0.0},
-      "serial": "CPCG85300095",
+      "serial": "CPCG853000CB",
       "width": 640,
       "height": 400,
-      "framerate": 30
+      "framerate": 10
     }
   ]
 }

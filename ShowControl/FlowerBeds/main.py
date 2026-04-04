@@ -3,13 +3,13 @@ Flower Beds — standalone Python show-control entry point.
 
 Usage:
   # Run with real Orbbec camera, send OSC to Arduino, serve visualizer
-  python main.py --config settings.json
+  ShowControl main.py --config settings.json
 
   # Mock mode (no hardware) + visualizer only, no OSC
-  python main.py --config settings.json --mock --no-osc
+  ShowControl main.py --config settings.json --mock --no-osc
 
   # Disable visualizer (headless show-computer mode)
-  python main.py --config settings.json --no-visualizer
+  ShowControl main.py --config settings.json --no-visualizer
 """
 
 from __future__ import annotations

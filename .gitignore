@@ -1,0 +1,14 @@
+# Claude Code
+.claude/
+
+# JetBrains IDEs
+.idea/
+
+# UE / runtime logs
+Log/
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.venv/
