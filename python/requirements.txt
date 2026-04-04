@@ -5,6 +5,5 @@ fastapi>=0.100
 uvicorn[standard]>=0.23
 websockets>=11
 
-# Orbbec camera SDK — install separately from source or wheel:
-#   https://github.com/orbbec/pyorbbecsdk
-# pyorbbecsdk
+# Orbbec camera SDK
+pyorbbecsdk2

@@ -60,7 +60,7 @@ class OrbbecCamera(BaseCamera):
         fps: int = 30,
     ) -> None:
         try:
-            from pyorbbecsdk import (  # type: ignore[import]
+            from pyorbbecsdk2 import (  # type: ignore[import]
                 Config,
                 Context,
                 OBAlignMode,
@@ -70,8 +70,7 @@ class OrbbecCamera(BaseCamera):
             )
         except ImportError as exc:
             raise ImportError(
-                "pyorbbecsdk is not installed. "
-                "See https://github.com/orbbec/pyorbbecsdk for installation instructions."
+                "pyorbbecsdk2 is not installed. Run: pip install pyorbbecsdk2"
             ) from exc
 
         self._serial = serial
