@@ -26,12 +26,30 @@
         {
           "motor_id": 1,
           "pos_offset_cm": [0.0, 40.0, 0.0],
-          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0}
+          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0},
+          "attraction": {
+            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
+            "influence_radius_cm": 300.0,
+            "distance_weight": 1.0,
+            "distance_falloff_cm": 150.0,
+            "dwell_weight": 0.5,
+            "dwell_halflife_frames": 30,
+            "inertia_weight": 0.3
+          }
         },
         {
           "motor_id": 2,
           "pos_offset_cm": [40.0, 0.0, 0.0],
-          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0}
+          "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0},
+          "attraction": {
+            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
+            "influence_radius_cm": 300.0,
+            "distance_weight": 1.0,
+            "distance_falloff_cm": 150.0,
+            "dwell_weight": 0.5,
+            "dwell_halflife_frames": 30,
+            "inertia_weight": 0.3
+          }
         }
       ]
     }

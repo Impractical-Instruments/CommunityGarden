@@ -27,7 +27,14 @@ import numpy as np
 from blob_stabilizer import BlobStabilizer, StabilizerConfig
 from blob_tracker import BlobTracker, CalibrationState
 from camera import MockCamera, OrbbecCamera
-from flower_beds import CameraConfig, ClusterConfig, Coordinator, ControllerConfig, ModuleConfig
+from flower_beds import (
+    AttractionConfig,
+    CameraConfig,
+    ClusterConfig,
+    Coordinator,
+    ControllerConfig,
+    ModuleConfig,
+)
 from flower_controller import FlowerController
 from transforms import UERotator, UETransform, transform_position
 
@@ -55,6 +62,17 @@ def parse_camera_config(raw: dict) -> CameraConfig:
     )
 
 
+def parse_attraction_config(raw: dict) -> AttractionConfig:
+    return AttractionConfig(
+        influence_radius_cm=raw.get("influence_radius_cm", 300.0),
+        distance_weight=raw.get("distance_weight", 1.0),
+        distance_falloff_cm=raw.get("distance_falloff_cm", 150.0),
+        dwell_weight=raw.get("dwell_weight", 0.5),
+        dwell_halflife_frames=raw.get("dwell_halflife_frames", 30),
+        inertia_weight=raw.get("inertia_weight", 0.3),
+    )
+
+
 def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
     modules = []
     for rm in raw_modules:
@@ -63,6 +81,7 @@ def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
                 motor_id=rc["motor_id"],
                 pos_offset_cm=rc.get("pos_offset_cm", [0, 0, 0]),
                 rotation_offset=rc.get("rotation_offset", {"pitch": 0, "yaw": 0, "roll": 0}),
+                attraction=parse_attraction_config(rc.get("attraction", {})),
             )
             for rc in rm.get("clusters", [])
         ]
@@ -194,9 +213,7 @@ def run(args: argparse.Namespace) -> None:
                 ]
                 tracked = stabilizer.update(raw_world_positions)
 
-                commands = coordinator.process_world_positions(
-                    [t.world_pos_cm for t in tracked]
-                )
+                commands = coordinator.process_tracked_blobs(tracked)
 
                 for ctrl in controllers:
                     ctrl.send_all(commands)
