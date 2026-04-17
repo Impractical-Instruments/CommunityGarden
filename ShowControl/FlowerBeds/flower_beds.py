@@ -11,11 +11,16 @@ All positions are in UE world space (X=forward, Y=right, Z=up, centimetres).
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from transforms import UERotator, UETransform, look_yaw_degrees, rotator_to_matrix
+
+if TYPE_CHECKING:
+    from blob_stabilizer import TrackedBlob
 
 
 # ---------------------------------------------------------------------------
@@ -24,10 +29,45 @@ from transforms import UERotator, UETransform, look_yaw_degrees, rotator_to_matr
 # ---------------------------------------------------------------------------
 
 @dataclass
+class AttractionConfig:
+    """
+    Utility-based blob attraction weights for a FlowerCluster.
+
+    Each frame, every in-range blob receives a utility score:
+
+        U = distance_weight * exp(-dist_cm / distance_falloff_cm)
+          + dwell_weight    * (1 - exp(-dwell_frames / dwell_halflife_frames))
+          + inertia_weight  * (1.0 if blob is the current target else 0.0)
+
+    The blob with the highest total utility is selected as the look target.
+
+    Tuning guide:
+      - Raise distance_weight / lower distance_falloff_cm  → strongly prefer closer blobs.
+      - Raise dwell_weight / lower dwell_halflife_frames   → faster warm-up to lingering visitors.
+      - Raise inertia_weight                               → stickier tracking, less switching.
+      - Set dwell_weight=0 and inertia_weight=0            → pure soft nearest-neighbour (legacy).
+    """
+    # Blobs farther than this are ignored entirely (hard gate).
+    influence_radius_cm: float = 300.0
+    # Distance score contribution.  Higher → closer blobs dominate more strongly.
+    distance_weight: float = 1.0
+    # Exponential falloff scale.  At this distance the distance score is ~37% of max.
+    distance_falloff_cm: float = 150.0
+    # Dwell score contribution.  Higher → flowers prefer visitors who linger.
+    dwell_weight: float = 0.5
+    # Frames for dwell score to reach ~63% of max (1 − 1/e).
+    # At 10 fps a halflife of 30 ≈ 3 seconds.
+    dwell_halflife_frames: int = 30
+    # Inertia bonus for the currently-tracked blob.  Prevents jittery target-switching.
+    inertia_weight: float = 0.3
+
+
+@dataclass
 class ClusterConfig:
     motor_id: int = 0
     pos_offset_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation_offset: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
+    attraction: AttractionConfig = field(default_factory=AttractionConfig)
 
 
 @dataclass
@@ -69,35 +109,84 @@ class MotorCommand:
 # ---------------------------------------------------------------------------
 
 class FlowerCluster:
-    """One servo cluster at a fixed world position, rotates to face the nearest blob."""
+    """
+    One servo cluster at a fixed world position.
 
-    def __init__(self, motor_id: int, world_pos_cm: np.ndarray) -> None:
+    Each frame, scores every in-range blob with a utility function that weighs
+    proximity, how long the visitor has been present, and continuity with the
+    previous target.  The highest-scoring blob becomes the look target.
+    """
+
+    def __init__(
+        self,
+        motor_id: int,
+        world_pos_cm: np.ndarray,
+        attraction: AttractionConfig | None = None,
+    ) -> None:
         self.motor_id = motor_id
         self.world_pos_cm = world_pos_cm.copy()
         self.current_yaw_deg: float = 0.0
         self.has_target: bool = False
+        self.attraction = attraction or AttractionConfig()
 
-    def update(self, blob_world_positions: list[np.ndarray]) -> MotorCommand | None:
-        """
-        Find the nearest blob and return the motor command needed to face it.
-        Returns None if there are no blobs.
+        # Consecutive frames each blob has been within influence_radius_cm.
+        self._blob_dwell: dict[int, int] = {}
+        # stable_id of the blob targeted last frame (drives inertia bonus).
+        self._current_target_id: int | None = None
 
-        Mirrors AFlowerCluster::UpdateClusterTargets.
+    def update(self, blobs: list[TrackedBlob]) -> MotorCommand | None:
         """
-        if not blob_world_positions:
+        Score in-range blobs with the utility function and return a motor command
+        for the best target.  Returns None when no blobs are in range.
+        """
+        cfg = self.attraction
+        radius_sq = cfg.influence_radius_cm ** 2
+
+        # Collect blobs that fall within the influence radius.
+        in_range: list[tuple[int, np.ndarray, float]] = []  # (id, pos, dist_cm)
+        for blob in blobs:
+            diff = blob.world_pos_cm - self.world_pos_cm
+            dist_sq = float(np.dot(diff, diff))
+            if dist_sq <= radius_sq:
+                in_range.append((blob.stable_id, blob.world_pos_cm, math.sqrt(dist_sq)))
+
+        # Maintain dwell counters: increment blobs in range, evict those that left.
+        in_range_ids = {bid for bid, _, _ in in_range}
+        for bid in list(self._blob_dwell):
+            if bid not in in_range_ids:
+                del self._blob_dwell[bid]
+        for bid, _, _ in in_range:
+            self._blob_dwell[bid] = self._blob_dwell.get(bid, 0) + 1
+
+        if not in_range:
             self.has_target = False
+            self._current_target_id = None
             return None
 
-        best_dist_sq = float("inf")
+        # Score every in-range blob and select the highest utility target.
+        best_score = -1.0
+        best_id: int | None = None
         best_pos: np.ndarray | None = None
 
-        for pos in blob_world_positions:
-            diff = pos - self.world_pos_cm
-            dist_sq = float(np.dot(diff, diff))
-            if dist_sq < best_dist_sq:
-                best_dist_sq = dist_sq
+        for bid, pos, dist_cm in in_range:
+            distance_score = math.exp(-dist_cm / cfg.distance_falloff_cm)
+            dwell_score = 1.0 - math.exp(
+                -self._blob_dwell.get(bid, 0) / cfg.dwell_halflife_frames
+            )
+            inertia_score = 1.0 if bid == self._current_target_id else 0.0
+
+            utility = (
+                cfg.distance_weight * distance_score
+                + cfg.dwell_weight * dwell_score
+                + cfg.inertia_weight * inertia_score
+            )
+
+            if utility > best_score:
+                best_score = utility
+                best_id = bid
                 best_pos = pos
 
+        self._current_target_id = best_id
         yaw = look_yaw_degrees(self.world_pos_cm, best_pos)
         self.current_yaw_deg = yaw
         self.has_target = True
@@ -127,12 +216,18 @@ class FlowerModule:
         for cc in config.clusters:
             offset = np.array(cc.pos_offset_cm, dtype=float)
             world_pos = rot_matrix @ offset + self.transform.translation
-            self.clusters.append(FlowerCluster(motor_id=cc.motor_id, world_pos_cm=world_pos))
+            self.clusters.append(
+                FlowerCluster(
+                    motor_id=cc.motor_id,
+                    world_pos_cm=world_pos,
+                    attraction=cc.attraction,
+                )
+            )
 
-    def update(self, blob_world_positions: list[np.ndarray]) -> list[MotorCommand]:
+    def update(self, blobs: list[TrackedBlob]) -> list[MotorCommand]:
         commands: list[MotorCommand] = []
         for cluster in self.clusters:
-            cmd = cluster.update(blob_world_positions)
+            cmd = cluster.update(blobs)
             if cmd is not None:
                 commands.append(cmd)
         return commands
@@ -148,7 +243,7 @@ class Coordinator:
 
     Usage:
         coordinator = Coordinator.from_config(settings)
-        commands = coordinator.process_blobs(camera_transform, blobs_3d)
+        commands = coordinator.process_tracked_blobs(tracked)
         for cmd in commands:
             controller.send(cmd)
     """
@@ -167,29 +262,31 @@ class Coordinator:
     ) -> list[MotorCommand]:
         """
         Transform blobs from camera-local UE space to world space, then
-        dispatch to all modules.
+        dispatch to all modules.  Uses synthetic per-frame IDs so dwell and
+        inertia bonuses are unavailable on this path — prefer process_tracked_blobs.
         """
+        from blob_stabilizer import TrackedBlob as TB
         from transforms import transform_position
 
-        world_positions = [
-            transform_position(camera_transform, blob.world_pos_cm())
+        tracked = [
+            TB(stable_id=blob.id, world_pos_cm=transform_position(camera_transform, blob.world_pos_cm()))
             for blob in blobs_3d
         ]
-        return self.process_world_positions(world_positions)
+        return self.process_tracked_blobs(tracked)
 
-    def process_world_positions(
+    def process_tracked_blobs(
         self,
-        world_positions: list[np.ndarray],
+        blobs: list[TrackedBlob],
     ) -> list[MotorCommand]:
         """
-        Dispatch pre-transformed world-space positions to all modules.
+        Dispatch stabilized, world-space TrackedBlob objects to all modules.
 
-        Use this instead of process_blobs when positions have already been
-        transformed (e.g. after running through BlobStabilizer).
+        This is the primary call path when using BlobStabilizer — blob IDs are
+        stable across frames so dwell and inertia scores work correctly.
         """
         commands: list[MotorCommand] = []
         for module in self.modules:
-            commands.extend(module.update(world_positions))
+            commands.extend(module.update(blobs))
         return commands
 
     def snapshot(self) -> list[dict]:
@@ -203,5 +300,6 @@ class Coordinator:
                     "y": float(cluster.world_pos_cm[1]),
                     "yaw_deg": float(cluster.current_yaw_deg),
                     "has_target": cluster.has_target,
+                    "target_id": cluster._current_target_id,
                 })
         return result
