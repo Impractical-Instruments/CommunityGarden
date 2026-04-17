@@ -37,8 +37,10 @@ class UETransform:
 
 def rotator_to_matrix(r: UERotator) -> np.ndarray:
     """Return a 3×3 rotation matrix for a UE FRotator."""
-    # Intrinsic XYZ ≡ extrinsic ZYX
-    rot = Rotation.from_euler("XYZ", [r.roll, r.pitch, r.yaw], degrees=True)
+    # Intrinsic XYZ ≡ extrinsic ZYX.
+    # UE pitch is left-handed (positive = nose up rotates +X toward +Z), which
+    # is the opposite sense to scipy's right-handed R_y, so pitch is negated.
+    rot = Rotation.from_euler("XYZ", [r.roll, -r.pitch, r.yaw], degrees=True)
     return rot.as_matrix()
 
 
