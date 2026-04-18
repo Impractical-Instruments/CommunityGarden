@@ -21,8 +21,11 @@ class FlowerController:
         self._client = SimpleUDPClient(config.ip, config.port)
 
     def send(self, cmd: MotorCommand) -> None:
-        """Send a single motor rotation command."""
-        self._client.send_message(_OSC_ADDRESS, [cmd.motor_id, cmd.rotation_deg])
+        """Send a single motor rotation command.
+        Negate yaw: software convention (CCW positive from above) is opposite
+        to the Dynamixel convention (CW positive from above).
+        """
+        self._client.send_message(_OSC_ADDRESS, [cmd.motor_id, -cmd.rotation_deg])
 
     def send_all(self, commands: list[MotorCommand]) -> None:
         for cmd in commands:

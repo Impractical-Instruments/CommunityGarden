@@ -34,6 +34,7 @@ from flower_beds import (
     Coordinator,
     ControllerConfig,
     ModuleConfig,
+    MotorCommand,
 )
 from flower_controller import FlowerController
 from transforms import UERotator, UETransform, transform_position
@@ -81,7 +82,6 @@ def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
                 motor_id=rc["motor_id"],
                 pos_offset_cm=rc.get("pos_offset_cm", [0, 0, 0]),
                 rotation_offset=rc.get("rotation_offset", {"pitch": 0, "yaw": 0, "roll": 0}),
-                attraction=parse_attraction_config(rc.get("attraction", {})),
             )
             for rc in rm.get("clusters", [])
         ]
@@ -139,7 +139,9 @@ def run(args: argparse.Namespace) -> None:
 
     # --- coordinator ---
     module_configs = parse_module_configs(settings.get("modules", []))
-    coordinator = Coordinator.from_config(module_configs)
+    attraction = parse_attraction_config(settings.get("attraction", {}))
+    coordinator = Coordinator.from_config(module_configs, attraction)
+    exclusion_radius_cm: float = settings.get("cluster_exclusion_radius_cm", 0.0)
     log.info("Loaded %d module(s), %d cluster(s) total",
              len(coordinator.modules),
              sum(len(m.clusters) for m in coordinator.modules))
@@ -211,6 +213,20 @@ def run(args: argparse.Namespace) -> None:
                     for blob in result.world_blobs
                     if blob.valid
                 ]
+
+                # Discard any detections that fall inside a flower cluster's
+                # exclusion zone (XY only — flowers are solid objects).
+                if exclusion_radius_cm > 0:
+                    excl_sq = exclusion_radius_cm ** 2
+                    cluster_positions = coordinator.cluster_world_positions()
+                    raw_world_positions = [
+                        pos for pos in raw_world_positions
+                        if not any(
+                            float(np.dot(pos[:2] - cp[:2], pos[:2] - cp[:2])) < excl_sq
+                            for cp in cluster_positions
+                        )
+                    ]
+
                 tracked = stabilizer.update(raw_world_positions)
 
                 commands = coordinator.process_tracked_blobs(tracked)
@@ -256,6 +272,52 @@ def run(args: argparse.Namespace) -> None:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def run_calibrate(args: argparse.Namespace) -> None:
+    """
+    Calibration mode: command every motor to a fixed yaw so the physical
+    flowers can be rotated to a known reference orientation.
+
+    All motors are held at --calibrate-yaw degrees (default 0) until Ctrl+C.
+    0° = forward (+X world axis), 90° = right (+Y), -90° = left.
+    """
+    settings = load_settings(args.config)
+    yaw = args.calibrate_yaw
+
+    # Collect every motor_id from config.
+    motor_ids: list[int] = [
+        cc["motor_id"]
+        for rm in settings.get("modules", [])
+        for cc in rm.get("clusters", [])
+    ]
+    if not motor_ids:
+        log.error("No motors found in config")
+        return
+
+    commands = [MotorCommand(motor_id=mid, rotation_deg=yaw) for mid in motor_ids]
+
+    controllers: list[FlowerController] = []
+    if not args.no_osc:
+        for ctrl_cfg in parse_controller_configs(settings.get("controllers", [])):
+            controllers.append(FlowerController(ctrl_cfg))
+
+    log.info(
+        "Calibration mode — holding %d motor(s) at %.1f° (Ctrl+C to exit)",
+        len(motor_ids), yaw,
+    )
+    log.info("Motor IDs: %s", motor_ids)
+    if not controllers:
+        log.info("(OSC disabled — no commands will be sent)")
+
+    _running = [True]
+    signal.signal(signal.SIGINT, lambda *_: _running.__setitem__(0, False))
+    signal.signal(signal.SIGTERM, lambda *_: _running.__setitem__(0, False))
+
+    while _running[0]:
+        for ctrl in controllers:
+            ctrl.send_all(commands)
+        time.sleep(0.5)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Flower Beds standalone show control")
     ap.add_argument("--config", default="settings.json", help="Path to settings JSON")
@@ -264,6 +326,11 @@ def main() -> None:
     ap.add_argument("--no-visualizer", action="store_true", help="Disable remote visualizer")
     ap.add_argument("--visualizer-port", type=int, default=8765, help="Visualizer HTTP port")
     ap.add_argument("--verbose", "-v", action="store_true")
+    ap.add_argument(
+        "--calibrate-yaw", type=float, metavar="DEG", default=None,
+        help="Calibration mode: hold all motors at this yaw (degrees) and exit when done. "
+             "0=forward, 90=right, -90=left. No camera needed.",
+    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -271,7 +338,10 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    run(args)
+    if args.calibrate_yaw is not None:
+        run_calibrate(args)
+    else:
+        run(args)
 
 
 if __name__ == "__main__":
