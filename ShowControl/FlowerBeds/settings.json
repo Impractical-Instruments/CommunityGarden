@@ -8,6 +8,15 @@
     "max_miss_frames": 8,
     "min_confirm_frames": 2
   },
+  "attraction": {
+    "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
+    "influence_radius_cm": 300.0,
+    "distance_weight": 1.0,
+    "distance_falloff_cm": 150.0,
+    "dwell_weight": 0.5,
+    "dwell_halflife_frames": 30,
+    "inertia_weight": 0.3
+  },
   "controllers": [
     {
       "ip": "192.168.1.50",
@@ -17,8 +26,8 @@
   "modules": [
     {
       "registration_point_cm": [
-        0,
-        0,
+        -84,
+        -40,
         0
       ],
       "rotation": {
@@ -30,7 +39,7 @@
         {
           "motor_id": 14,
           "pos_offset_cm": [
-            30.0,
+            -30.0,
             40.0,
             0.0
           ],
@@ -38,21 +47,12 @@
             "pitch": 0,
             "yaw": 0,
             "roll": 0
-          },
-          "attraction": {
-            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
-            "influence_radius_cm": 300.0,
-            "distance_weight": 1.0,
-            "distance_falloff_cm": 150.0,
-            "dwell_weight": 0.5,
-            "dwell_halflife_frames": 30,
-            "inertia_weight": 0.3
           }
         },
         {
           "motor_id": 22,
           "pos_offset_cm": [
-            75.0,
+            -75.0,
             40.0,
             0.0
           ],
@@ -60,21 +60,12 @@
             "pitch": 0,
             "yaw": 0,
             "roll": 0
-          },
-          "attraction": {
-            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
-            "influence_radius_cm": 300.0,
-            "distance_weight": 1.0,
-            "distance_falloff_cm": 150.0,
-            "dwell_weight": 0.5,
-            "dwell_halflife_frames": 30,
-            "inertia_weight": 0.3
           }
         },
         {
           "motor_id": 16,
           "pos_offset_cm": [
-            25.0,
+            -25.0,
             100.0,
             0.0
           ],
@@ -82,21 +73,12 @@
             "pitch": 0,
             "yaw": 0,
             "roll": 0
-          },
-          "attraction": {
-            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
-            "influence_radius_cm": 300.0,
-            "distance_weight": 1.0,
-            "distance_falloff_cm": 150.0,
-            "dwell_weight": 0.5,
-            "dwell_halflife_frames": 30,
-            "inertia_weight": 0.3
           }
         },
         {
           "motor_id": 6,
           "pos_offset_cm": [
-            70.0,
+            -70.0,
             95.0,
             0.0
           ],
@@ -104,15 +86,6 @@
             "pitch": 0,
             "yaw": 0,
             "roll": 0
-          },
-          "attraction": {
-            "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
-            "influence_radius_cm": 300.0,
-            "distance_weight": 1.0,
-            "distance_falloff_cm": 150.0,
-            "dwell_weight": 0.5,
-            "dwell_halflife_frames": 30,
-            "inertia_weight": 0.3
           }
         }
       ]
@@ -120,7 +93,7 @@
   ],
   "cameras": [
     {
-      "name": "Entrance",
+      "name": "Camera",
       "pos_cm": [
         0,
         0.0,
@@ -128,8 +101,8 @@
       ],
       "rotation": {
         "pitch": -90.0,
-        "yaw": 0.0,
-        "roll": 0.0
+        "yaw": 0,
+        "roll": 180.0
       },
       "serial": "CPCG85300095",
       "width": 640,

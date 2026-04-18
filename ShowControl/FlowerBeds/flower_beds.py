@@ -67,7 +67,6 @@ class ClusterConfig:
     motor_id: int = 0
     pos_offset_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation_offset: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
-    attraction: AttractionConfig = field(default_factory=AttractionConfig)
 
 
 @dataclass
@@ -145,7 +144,7 @@ class FlowerCluster:
         # Collect blobs that fall within the influence radius.
         in_range: list[tuple[int, np.ndarray, float]] = []  # (id, pos, dist_cm)
         for blob in blobs:
-            diff = blob.world_pos_cm - self.world_pos_cm
+            diff = blob.world_pos_cm[:2] - self.world_pos_cm[:2]  # XY only — ignore height
             dist_sq = float(np.dot(diff, diff))
             if dist_sq <= radius_sq:
                 in_range.append((blob.stable_id, blob.world_pos_cm, math.sqrt(dist_sq)))
@@ -204,7 +203,7 @@ class FlowerModule:
     Mirrors AFlowerModule::Init + UpdateClusterTargets.
     """
 
-    def __init__(self, config: ModuleConfig) -> None:
+    def __init__(self, config: ModuleConfig, attraction: AttractionConfig) -> None:
         rot = UERotator(**config.rotation)
         self.transform = UETransform(
             translation=np.array(config.registration_point_cm, dtype=float),
@@ -220,7 +219,7 @@ class FlowerModule:
                 FlowerCluster(
                     motor_id=cc.motor_id,
                     world_pos_cm=world_pos,
-                    attraction=cc.attraction,
+                    attraction=attraction,
                 )
             )
 
@@ -252,8 +251,9 @@ class Coordinator:
         self.modules = modules
 
     @classmethod
-    def from_config(cls, module_configs: list[ModuleConfig]) -> "Coordinator":
-        return cls([FlowerModule(mc) for mc in module_configs])
+    def from_config(cls, module_configs: list[ModuleConfig], attraction: AttractionConfig | None = None) -> "Coordinator":
+        att = attraction or AttractionConfig()
+        return cls([FlowerModule(mc, att) for mc in module_configs])
 
     def process_blobs(
         self,
