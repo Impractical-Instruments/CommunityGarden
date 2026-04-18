@@ -141,6 +141,7 @@ def run(args: argparse.Namespace) -> None:
     module_configs = parse_module_configs(settings.get("modules", []))
     attraction = parse_attraction_config(settings.get("attraction", {}))
     coordinator = Coordinator.from_config(module_configs, attraction)
+    exclusion_radius_cm: float = settings.get("cluster_exclusion_radius_cm", 0.0)
     log.info("Loaded %d module(s), %d cluster(s) total",
              len(coordinator.modules),
              sum(len(m.clusters) for m in coordinator.modules))
@@ -212,6 +213,20 @@ def run(args: argparse.Namespace) -> None:
                     for blob in result.world_blobs
                     if blob.valid
                 ]
+
+                # Discard any detections that fall inside a flower cluster's
+                # exclusion zone (XY only — flowers are solid objects).
+                if exclusion_radius_cm > 0:
+                    excl_sq = exclusion_radius_cm ** 2
+                    cluster_positions = coordinator.cluster_world_positions()
+                    raw_world_positions = [
+                        pos for pos in raw_world_positions
+                        if not any(
+                            float(np.dot(pos[:2] - cp[:2], pos[:2] - cp[:2])) < excl_sq
+                            for cp in cluster_positions
+                        )
+                    ]
+
                 tracked = stabilizer.update(raw_world_positions)
 
                 commands = coordinator.process_tracked_blobs(tracked)

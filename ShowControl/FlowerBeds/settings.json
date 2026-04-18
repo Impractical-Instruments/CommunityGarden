@@ -8,6 +8,7 @@
     "max_miss_frames": 8,
     "min_confirm_frames": 2
   },
+  "cluster_exclusion_radius_cm": 40.0,
   "attraction": {
     "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
     "influence_radius_cm": 300.0,

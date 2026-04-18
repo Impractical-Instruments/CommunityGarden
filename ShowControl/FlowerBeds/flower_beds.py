@@ -289,6 +289,10 @@ class Coordinator:
             commands.extend(module.update(blobs))
         return commands
 
+    def cluster_world_positions(self) -> list[np.ndarray]:
+        """Return the world position of every cluster (for exclusion-zone filtering)."""
+        return [cluster.world_pos_cm for module in self.modules for cluster in module.clusters]
+
     def snapshot(self) -> list[dict]:
         """Return a JSON-serialisable snapshot of all cluster states for the visualizer."""
         result = []
