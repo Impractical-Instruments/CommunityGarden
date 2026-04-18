@@ -183,9 +183,11 @@ function draw(state) {
     ctx.lineWidth   = 2;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke();
 
-    // Motor ID
+    // Motor ID and current yaw
     ctx.fillStyle = '#fff'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
     ctx.fillText('M' + cl.motor_id, cx, cy - 11);
+    ctx.fillStyle = hasTarget ? '#51cf66' : '#888';
+    ctx.fillText((cl.yaw_deg || 0).toFixed(1) + '°', cx, cy + 20);
   });
 
   // ---- blobs ----
