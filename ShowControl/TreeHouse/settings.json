@@ -1,0 +1,59 @@
+{
+  "dioramas": [
+    {
+      "name": "House Swarming",
+      "brightness": 1.0,
+      "color": [255, 255, 255],
+      "pattern": "solid"
+    },
+    {
+      "name": "Mycellium",
+      "brightness": 1.0,
+      "color": [80, 255, 120],
+      "pattern": "breathe"
+    },
+    {
+      "name": "Club",
+      "brightness": 1.0,
+      "color": [255, 50, 200],
+      "pattern": "chase"
+    }
+  ],
+
+  "garage_windows": {
+    "looking_glass": {
+      "name": "Looking Glass",
+      "scene": "bloom",
+      "speed": 1.0,
+      "mirror_depth": 6
+    },
+    "forge_and_flora": {
+      "name": "Forge & Flora",
+      "blend": 0.0,
+      "transition_speed": 0.1,
+      "flicker_intensity": 0.3
+    }
+  },
+
+  "gable_windows": {
+    "front": {
+      "name": "Front Gable",
+      "brightness": 1.0,
+      "color": [255, 255, 255],
+      "pattern": "solid"
+    },
+    "back": {
+      "name": "Back Gable",
+      "brightness": 1.0,
+      "color": [255, 255, 255],
+      "pattern": "solid"
+    }
+  },
+
+  "dormer": {
+    "name": "Dormer",
+    "brightness": 1.0,
+    "color": [255, 255, 255],
+    "pattern": "solid"
+  }
+}

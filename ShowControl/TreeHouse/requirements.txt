@@ -1,0 +1,7 @@
+# No runtime dependencies yet — add as hardware integrations are wired up.
+#
+# Likely candidates:
+#   python-osc      — OSC messaging to Arduino LED controllers
+#   sacn            — sACN / E1.31 for DMX lighting
+#   pyserial        — direct serial to LED strips
+#   opencv-python   — generative video / computer vision for Looking Glass
