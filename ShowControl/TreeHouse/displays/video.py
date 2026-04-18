@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 
-from .base import Display, DisplayState
+from .base import ChannelFrame, Display, DisplayState
 
 log = logging.getLogger("treehouse")
 
@@ -66,6 +66,9 @@ class LookingGlassDisplay(Display):
         self._time += dt * self.speed
         # TODO: push {scene, time, mirror_depth} to video renderer each frame
         # (e.g. via OSC, shared-memory texture, or socket to a TouchDesigner patch)
+
+    def get_frames(self) -> list[ChannelFrame]:
+        return []  # HDMI output — no Pico channel
 
     def get_state(self) -> DisplayState:
         return DisplayState(
