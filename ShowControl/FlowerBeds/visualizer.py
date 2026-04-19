@@ -94,11 +94,11 @@ function draw(state) {
   const scaleY = (H - pad*2) / (maxY - minY || 1);
   const scale  = Math.min(scaleX, scaleY);
 
-  // UE world → canvas  (X=forward→down, Y=right→right)
+  // world → canvas  (X=right, Y=forward→down)
   function toCanvas(wx, wy) {
     return [
-      pad + (wy - minY) * scale,            // world Y → canvas X (right)
-      pad + (wx - minX) * scale,            // world X → canvas Y (down)
+      pad + (wx - minX) * scale,            // world X (right) → canvas X (right)
+      pad + (wy - minY) * scale,            // world Y (forward) → canvas Y (down)
     ];
   }
 
@@ -124,24 +124,24 @@ function draw(state) {
 
   // ---- axis indicator (fixed top-left corner) ----
   const axOriginX = 52, axOriginY = 52, axLen = 36;
-  // +X axis: world X → canvas down (+Y)
+  // +X axis: world X (right) → canvas right
   ctx.strokeStyle = '#e05252'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(axOriginX, axOriginY); ctx.lineTo(axOriginX, axOriginY + axLen); ctx.stroke();
-  // arrowhead
-  ctx.beginPath(); ctx.moveTo(axOriginX, axOriginY + axLen);
-  ctx.lineTo(axOriginX - 4, axOriginY + axLen - 8); ctx.lineTo(axOriginX + 4, axOriginY + axLen - 8); ctx.closePath();
-  ctx.fillStyle = '#e05252'; ctx.fill();
-  ctx.fillStyle = '#e05252'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
-  ctx.fillText('+X (fwd)', axOriginX, axOriginY + axLen + 12);
-  // +Y axis: world Y → canvas right (+X)
-  ctx.strokeStyle = '#52e07a'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(axOriginX, axOriginY); ctx.lineTo(axOriginX + axLen, axOriginY); ctx.stroke();
   // arrowhead
   ctx.beginPath(); ctx.moveTo(axOriginX + axLen, axOriginY);
   ctx.lineTo(axOriginX + axLen - 8, axOriginY - 4); ctx.lineTo(axOriginX + axLen - 8, axOriginY + 4); ctx.closePath();
+  ctx.fillStyle = '#e05252'; ctx.fill();
+  ctx.fillStyle = '#e05252'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+  ctx.fillText('+X (right)', axOriginX + axLen + 4, axOriginY + 4);
+  // +Y axis: world Y (forward) → canvas down
+  ctx.strokeStyle = '#52e07a'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(axOriginX, axOriginY); ctx.lineTo(axOriginX, axOriginY + axLen); ctx.stroke();
+  // arrowhead
+  ctx.beginPath(); ctx.moveTo(axOriginX, axOriginY + axLen);
+  ctx.lineTo(axOriginX - 4, axOriginY + axLen - 8); ctx.lineTo(axOriginX + 4, axOriginY + axLen - 8); ctx.closePath();
   ctx.fillStyle = '#52e07a'; ctx.fill();
-  ctx.fillStyle = '#52e07a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('+Y (right)', axOriginX + axLen + 5, axOriginY + 4);
+  ctx.fillStyle = '#52e07a'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
+  ctx.fillText('+Y (fwd)', axOriginX, axOriginY + axLen + 12);
 
 
   // ---- cameras ----

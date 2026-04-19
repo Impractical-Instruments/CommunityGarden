@@ -37,7 +37,7 @@ from flower_beds import (
     MotorCommand,
 )
 from flower_controller import FlowerController
-from transforms import UERotator, UETransform, transform_position
+from transforms import Rotator, Transform, transform_position
 
 log = logging.getLogger("flower_beds")
 
@@ -118,11 +118,10 @@ def run(args: argparse.Namespace) -> None:
     if not raw_cameras:
         log.error("No cameras defined in settings")
         sys.exit(1)
-    # Currently supporting one camera (same as the single-tracker UE setup)
     cam_cfg = parse_camera_config(raw_cameras[0])
-    camera_transform = UETransform(
+    camera_transform = Transform(
         translation=np.array(cam_cfg.pos_cm, dtype=float),
-        rotation=UERotator(**cam_cfg.rotation),
+        rotation=Rotator(**cam_cfg.rotation),
     )
 
     if args.mock:
@@ -196,7 +195,7 @@ def run(args: argparse.Namespace) -> None:
             if not _running[0]:
                 break
 
-            # Drive calibration state machine (mirrors OrbbecBlobTracker::OnFramesReceived)
+            # Drive calibration state machine
             if tracker.state == CalibrationState.NOT_CALIBRATED:
                 tracker.begin_calibration(calib_frames, frame.width, frame.height)
                 tracker.push_calibration_frame(frame)
@@ -278,7 +277,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
     flowers can be rotated to a known reference orientation.
 
     All motors are held at --calibrate-yaw degrees (default 0) until Ctrl+C.
-    0° = forward (+X world axis), 90° = right (+Y), -90° = left.
+    0° = forward (+Y world axis), 90° = right (+X), -90° = left.
     """
     settings = load_settings(args.config)
     yaw = args.calibrate_yaw

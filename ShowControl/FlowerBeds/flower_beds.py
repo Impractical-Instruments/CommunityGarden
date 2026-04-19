@@ -1,12 +1,7 @@
 """
 Core flower-bed logic: cluster assignment and look-angle calculation.
 
-Mirrors the C++ classes:
-  AFlowerCluster  → FlowerCluster
-  AFlowerModule   → FlowerModule
-  (coordinator loop lives in main.py / Coordinator)
-
-All positions are in UE world space (X=forward, Y=right, Z=up, centimetres).
+All positions are in world space (X=right, Y=forward, Z=up, centimetres).
 """
 
 from __future__ import annotations
@@ -17,15 +12,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from transforms import UERotator, UETransform, look_yaw_degrees, rotator_to_matrix
+from transforms import Rotator, Transform, look_yaw_degrees, rotator_to_matrix
 
 if TYPE_CHECKING:
     from blob_stabilizer import TrackedBlob
 
 
 # ---------------------------------------------------------------------------
-# Config types  (mirror FFlowerClusterConfig / FFlowerModuleConfig /
-#                FFlowerControllerConfig from FlowerBedSettings.h)
+# Config types
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -197,15 +191,11 @@ class FlowerCluster:
 # ---------------------------------------------------------------------------
 
 class FlowerModule:
-    """
-    A physical module containing several clusters.
-
-    Mirrors AFlowerModule::Init + UpdateClusterTargets.
-    """
+    """A physical module containing several clusters."""
 
     def __init__(self, config: ModuleConfig, attraction: AttractionConfig) -> None:
-        rot = UERotator(**config.rotation)
-        self.transform = UETransform(
+        rot = Rotator(**config.rotation)
+        self.transform = Transform(
             translation=np.array(config.registration_point_cm, dtype=float),
             rotation=rot,
         )
@@ -238,7 +228,7 @@ class FlowerModule:
 
 class Coordinator:
     """
-    Top-level orchestrator.  Mirrors AFlowerBedCoordinator::OnBlobDetectionResult.
+    Top-level orchestrator.
 
     Usage:
         coordinator = Coordinator.from_config(settings)
@@ -257,13 +247,13 @@ class Coordinator:
 
     def process_blobs(
         self,
-        camera_transform: UETransform,
+        camera_transform: Transform,
         blobs_3d: list,  # list[blob_tracker.Blob3D]
     ) -> list[MotorCommand]:
         """
-        Transform blobs from camera-local UE space to world space, then
-        dispatch to all modules.  Uses synthetic per-frame IDs so dwell and
-        inertia bonuses are unavailable on this path — prefer process_tracked_blobs.
+        Transform blobs from camera-local space to world space, then dispatch
+        to all modules.  Uses synthetic per-frame IDs so dwell and inertia
+        bonuses are unavailable on this path — prefer process_tracked_blobs.
         """
         from blob_stabilizer import TrackedBlob as TB
         from transforms import transform_position
