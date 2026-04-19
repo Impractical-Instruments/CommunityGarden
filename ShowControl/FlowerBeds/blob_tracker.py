@@ -1,5 +1,5 @@
 """
-Port of IIVision FBlobTracker to Python/numpy.
+Depth-frame blob tracker.
 
 Pipeline per frame:
   1. SubtractBackground  — depth delta threshold
@@ -81,20 +81,20 @@ class Blob3D:
     sample_count: int = 0
 
     def world_pos_cm(self) -> np.ndarray:
-        """Convert to UE world space (X=forward, Y=right, Z=up), centimetres."""
+        """Convert to world space (X=right, Y=forward, Z=up), centimetres."""
         # camera: X=right, Y=down, Z=forward
-        # UE:     X=forward, Y=right, Z=up
+        # world:  X=right, Y=forward, Z=up
         return np.array([
-            self.cam_pos_m[2] * 100.0,   # UE X ← cam Z
-            self.cam_pos_m[0] * 100.0,   # UE Y ← cam X
-            -self.cam_pos_m[1] * 100.0,  # UE Z ← -cam Y
+            self.cam_pos_m[0] * 100.0,   # world X ← cam X (right)
+            self.cam_pos_m[2] * 100.0,   # world Y ← cam Z (forward)
+            -self.cam_pos_m[1] * 100.0,  # world Z ← -cam Y (up = -down)
         ])
 
     def world_half_extents_cm(self) -> np.ndarray:
         return np.array([
-            self.cam_half_extents_m[2] * 100.0,
             self.cam_half_extents_m[0] * 100.0,
-            -self.cam_half_extents_m[1] * 100.0,
+            self.cam_half_extents_m[2] * 100.0,
+            self.cam_half_extents_m[1] * 100.0,
         ])
 
 

@@ -1,17 +1,26 @@
 """
-Minimal UE coordinate-system helpers.
+Coordinate-system helpers for the CommunityGarden show control.
 
-UE world space:
-  X = Forward
-  Y = Right
+World space (installation frame):
+  X = Right
+  Y = Forward (depth direction from the camera)
   Z = Up
   Units: centimetres
 
-Rotation convention (FRotator):
-  Pitch = rotation around Y axis
-  Yaw   = rotation around Z axis
-  Roll  = rotation around X axis
-  Application order: Roll first, then Pitch, then Yaw (intrinsic XYZ).
+This is a right-handed system and aligns naturally with the Orbbec depth
+camera's output axes (X=right, Y=down, Z=forward in camera space).
+
+Camera space (Orbbec native output):
+  X = Right
+  Y = Down
+  Z = Forward
+  Units: metres
+
+Rotation convention (Rotator):
+  Pitch = rotation around X axis (right); positive = nose up
+  Yaw   = rotation around Z axis (up);   positive = rotate from forward toward right
+  Roll  = rotation around Y axis (forward)
+  Application order: Roll first, then Pitch, then Yaw (intrinsic YXZ).
 """
 
 from __future__ import annotations
@@ -23,29 +32,29 @@ from scipy.spatial.transform import Rotation
 
 
 @dataclass
-class UERotator:
+class Rotator:
     pitch: float = 0.0
     yaw: float = 0.0
     roll: float = 0.0
 
 
 @dataclass
-class UETransform:
+class Transform:
     translation: np.ndarray  # shape (3,), centimetres
-    rotation: UERotator
+    rotation: Rotator
 
 
-def rotator_to_matrix(r: UERotator) -> np.ndarray:
-    """Return a 3×3 rotation matrix for a UE FRotator."""
-    # Intrinsic XYZ ≡ extrinsic ZYX.
-    # UE pitch is left-handed (positive = nose up rotates +X toward +Z), which
-    # is the opposite sense to scipy's right-handed R_y, so pitch is negated.
-    rot = Rotation.from_euler("XYZ", [r.roll, -r.pitch, r.yaw], degrees=True)
+def rotator_to_matrix(r: Rotator) -> np.ndarray:
+    """Return a 3×3 rotation matrix for a Rotator."""
+    # Intrinsic yxz: roll around Y, then pitch around body X, then yaw around body Z.
+    # Yaw is negated because positive yaw (from +Y toward +X) is clockwise
+    # when viewed from +Z, which is -R_Z in scipy's right-handed convention.
+    rot = Rotation.from_euler("yxz", [r.roll, r.pitch, -r.yaw], degrees=True)
     return rot.as_matrix()
 
 
-def transform_position(transform: UETransform, point: np.ndarray) -> np.ndarray:
-    """Apply a UE transform to a point (no scale)."""
+def transform_position(transform: Transform, point: np.ndarray) -> np.ndarray:
+    """Apply a Transform to a point (no scale)."""
     m = rotator_to_matrix(transform.rotation)
     return m @ point + transform.translation
 
@@ -55,7 +64,8 @@ def look_yaw_degrees(from_pos: np.ndarray, to_pos: np.ndarray) -> float:
     Return the yaw angle (degrees) that faces from_pos toward to_pos,
     ignoring elevation (projects onto the XY plane).
 
-    Matches FBlobTracker::GetLookRotation / FlowerCluster::UpdateClusterTargets.
+    Yaw = 0 means facing +Y (forward).
+    Positive yaw rotates from +Y (forward) toward +X (right).
     """
     direction = to_pos - from_pos
     direction = direction.copy()
@@ -64,5 +74,5 @@ def look_yaw_degrees(from_pos: np.ndarray, to_pos: np.ndarray) -> float:
     if norm < 1e-6:
         return 0.0
     direction /= norm
-    # UE yaw: atan2(Y, X)  (rotation from X-forward toward Y-right)
-    return float(np.degrees(np.arctan2(direction[1], direction[0])))
+    # atan2(X, Y): angle from +Y (forward) toward +X (right)
+    return float(np.degrees(np.arctan2(direction[0], direction[1])))

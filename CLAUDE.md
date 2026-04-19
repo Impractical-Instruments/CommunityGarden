@@ -29,7 +29,7 @@ CommunityGarden/
 │       ├── blob_tracker.py    # Depth-frame blob detection (background subtraction + 3D unproject)
 │       ├── blob_stabilizer.py # Cross-frame tracking with EMA smoothing
 │       ├── camera.py          # Orbbec camera + MockCamera abstraction
-│       ├── transforms.py      # UE-style coordinate math (UETransform, UERotator, etc.)
+│       ├── transforms.py      # World-space coordinate helpers (Transform, Rotator, etc.)
 │       ├── visualizer.py      # FastAPI/WebSocket live top-down debug view
 │       ├── settings.json      # Runtime configuration (cameras, modules, controllers)
 │       └── requirements.txt   # Python dependencies
@@ -70,27 +70,29 @@ CommunityGarden/
 | `blob_tracker.py` | `BlobTracker` — stateful per-camera blob detection; `Blob2D`, `Blob3D`, `FramePacket` |
 | `blob_stabilizer.py` | `BlobStabilizer` — cross-frame ID assignment and EMA de-jittering |
 | `camera.py` | `OrbbecCamera`, `MockCamera` — frame iterator abstraction |
-| `transforms.py` | `UETransform`, `UERotator`, coordinate conversion helpers |
+| `transforms.py` | `Transform`, `Rotator`, coordinate conversion helpers |
 | `visualizer.py` | FastAPI WebSocket server; `broadcast(state)` called each frame |
 
 ### Coordinate System
 
-All world positions use UE-style coordinates: **X=forward, Y=right, Z=up, centimetres**.
+**World space** (installation frame): **X=right, Y=forward, Z=up, centimetres** — right-handed, matching the Orbbec camera's axis conventions.
 
-Camera-space coordinates (from the depth sensor) use: **X=right, Y=down, Z=forward, metres**.
+**Camera space** (Orbbec native output): **X=right, Y=down, Z=forward, metres**.
 
-`Blob3D.world_pos_cm()` handles the conversion between these spaces.
+`Blob3D.world_pos_cm()` converts from camera space to world space:
+- World X ← Camera X (right → right)
+- World Y ← Camera Z (forward → forward)
+- World Z ← −Camera Y (up = −down)
 
-### Config Types
+### Rotation Convention
 
-Config dataclasses in `flower_beds.py` mirror the former C++ settings structs:
+`Rotator` stores pitch/yaw/roll in degrees:
+- **Pitch** — rotation around X (right) axis; positive = nose up
+- **Yaw** — rotation around Z (up) axis; positive = rotate from forward toward right
+- **Roll** — rotation around Y (forward) axis
+- Applied intrinsically in order: Roll → Pitch → Yaw
 
-| Python class | Former C++ struct |
-|---|---|
-| `ClusterConfig` | `FFlowerClusterConfig` |
-| `ModuleConfig` | `FFlowerModuleConfig` |
-| `ControllerConfig` | `FFlowerControllerConfig` |
-| `CameraConfig` | (formerly in `UBlobTrackerSettings`) |
+Yaw of 0° means facing +Y (forward). Yaw of 90° means facing +X (right).
 
 ### Logging
 
@@ -117,7 +119,7 @@ camera.frames()
   → BlobTracker.detect(frame)          # background subtraction + 3D unproject
   → transform_position(camera_transform, blob.world_pos_cm())   # camera → world space
   → BlobStabilizer.update(raw_positions)  # ID assignment + EMA smoothing
-  → Coordinator.process_world_positions(tracked_positions)       # cluster assignment
+  → Coordinator.process_tracked_blobs(tracked_positions)        # cluster assignment
   → FlowerController.send_all(commands)   # OSC → Arduino
   → visualizer.broadcast(state)           # WebSocket → browser
 ```
@@ -129,7 +131,7 @@ camera.frames()
 1. **Background subtraction** — per-pixel depth delta vs median background
 2. **Majority filter ×2** — 3×3 neighbourhood despeckle
 3. **Connected components** — 8-connected blobs via `scipy.ndimage.label`
-4. **3D unproject** — pinhole model, median-Z windowing, camera → UE coordinate conversion
+4. **3D unproject** — pinhole model, median-Z windowing, camera → world coordinate conversion
 
 Calibration collects `N` frames (configurable via `calibration_frames` in `settings.json`) to build a per-pixel median background and validity mask.
 
@@ -144,9 +146,9 @@ Calibration collects `N` frames (configurable via `calibration_frames` in `setti
 ### Coordinator Pattern
 
 `Coordinator` holds a list of `FlowerModule` objects. Each `FlowerModule` holds a list of `FlowerCluster` objects. Each frame:
-1. `Coordinator.process_world_positions(positions)` fans out to all modules
-2. `FlowerModule.update(positions)` fans out to all clusters
-3. `FlowerCluster.update(positions)` finds nearest blob, computes yaw, returns `MotorCommand`
+1. `Coordinator.process_tracked_blobs(blobs)` fans out to all modules
+2. `FlowerModule.update(blobs)` fans out to all clusters
+3. `FlowerCluster.update(blobs)` finds nearest blob, computes yaw, returns `MotorCommand`
 
 ### OSC Communication Flow
 
@@ -185,12 +187,12 @@ The Arduino firmware listens on `/cg/ff/rot` and calls `setRotDeg()` to drive th
 
   "modules": [
     {
-      "registration_point_cm": [-200.0, 100.0, 0.0],
+      "registration_point_cm": [100.0, -200.0, 0.0],
       "rotation": {"pitch": 0, "yaw": 0, "roll": 0},
       "clusters": [
         {
           "motor_id": 1,
-          "pos_offset_cm": [0.0, 40.0, 0.0],
+          "pos_offset_cm": [40.0, 0.0, 0.0],
           "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0}
         }
       ]
@@ -200,7 +202,7 @@ The Arduino firmware listens on `/cg/ff/rot` and calls `setRotDeg()` to drive th
   "cameras": [
     {
       "name": "Entrance",
-      "pos_cm": [-300.0, 0.0, 200.0],
+      "pos_cm": [0.0, -300.0, 200.0],
       "rotation": {"pitch": -30.0, "yaw": 0.0, "roll": 0.0},
       "serial": "CPCG853000CB",
       "width": 640,
@@ -213,7 +215,8 @@ The Arduino firmware listens on `/cg/ff/rot` and calls `setRotDeg()` to drive th
 
 - `motor_id` must match the Dynamixel servo ID configured via the `Dynamixel_Config` firmware.
 - `serial` must match the serial printed on the Orbbec device. Leave empty to use the first detected camera.
-- `registration_point_cm` is the physical anchor of each module in world space (centimetres).
+- `registration_point_cm` is the physical anchor of each module in world space (centimetres). X=right, Y=forward, Z=up.
+- All position vectors use the world coordinate system: **[X_right, Y_forward, Z_up]** in centimetres.
 
 ### Network Setup
 
@@ -308,7 +311,7 @@ git push -u origin <branch-name>
 ## Key Things to Know Before Making Changes
 
 1. **OSC address is `/cg/ff/rot`.** `flower_controller.py` and the Arduino firmware (`FlowerBeds_Follow_ServoController.ino`) must agree on this address — change it in both places if needed.
-2. **Coordinate system is UE-style.** World space uses X=forward, Y=right, Z=up in centimetres. Camera space uses X=right, Y=down, Z=forward in metres. `Blob3D.world_pos_cm()` converts between them.
+2. **World coordinate system: X=right, Y=forward, Z=up, centimetres.** Camera space (Orbbec native) is X=right, Y=down, Z=forward in metres. `Blob3D.world_pos_cm()` converts between them.
 3. **Dynamixel motor IDs must match config.** `ClusterConfig.motor_id` in `settings.json` must match the ID programmed into the servo hardware.
 4. **Do not hardcode network addresses, positions, or motor IDs** — they all belong in `settings.json`.
 5. **Mock mode** (`--mock`) works without any hardware and is the fastest way to test logic changes.

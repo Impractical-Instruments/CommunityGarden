@@ -1,5 +1,4 @@
 {
-  "_comment": "Python port config — mirrors FlowerBeds/Config/DefaultGame.ini",
   "calibration_frames": 60,
   "stabilizer": {
     "_comment": "Cross-frame blob ID tracking and EMA de-jittering",
@@ -27,8 +26,8 @@
   "modules": [
     {
       "registration_point_cm": [
-        -84,
         -40,
+        -84,
         0
       ],
       "rotation": {
@@ -40,8 +39,8 @@
         {
           "motor_id": 14,
           "pos_offset_cm": [
-            -30.0,
             40.0,
+            -30.0,
             0.0
           ],
           "rotation_offset": {
@@ -53,8 +52,8 @@
         {
           "motor_id": 22,
           "pos_offset_cm": [
-            -75.0,
             40.0,
+            -75.0,
             0.0
           ],
           "rotation_offset": {
@@ -66,8 +65,8 @@
         {
           "motor_id": 16,
           "pos_offset_cm": [
-            -25.0,
             100.0,
+            -25.0,
             0.0
           ],
           "rotation_offset": {
@@ -79,8 +78,8 @@
         {
           "motor_id": 6,
           "pos_offset_cm": [
-            -70.0,
             95.0,
+            -70.0,
             0.0
           ],
           "rotation_offset": {
