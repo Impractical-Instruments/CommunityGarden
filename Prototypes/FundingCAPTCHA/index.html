@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FundingCAPTCHA</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <div id="lobby">
+    <h1>Prove You're Human</h1>
+    <p class="subtitle">Complete a challenge to continue</p>
+    <div class="game-cards">
+      <div class="game-card" data-game="keepaway">
+        <div class="game-icon">🏈</div>
+        <h2>Football Keepaway</h2>
+        <p>Pass the ball to keep it away from defenders. Keep it moving to win!</p>
+        <button class="play-btn">Play</button>
+      </div>
+      <div class="game-card" data-game="rhythm">
+        <div class="game-icon">🎵</div>
+        <h2>Music Rhythm</h2>
+        <p>Tap the grid in time to recreate the song. Match the melody to win!</p>
+        <button class="play-btn">Play</button>
+      </div>
+      <div class="game-card" data-game="upsidedown">
+        <div class="game-icon">🔄</div>
+        <h2>Upside Down</h2>
+        <p>Everything's topsy-turvy! Match broken pieces before the vortex takes them!</p>
+        <button class="play-btn">Play</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-screen" class="hidden">
+    <div id="game-header">
+      <button id="back-btn">← Back</button>
+      <div id="game-title"></div>
+      <div id="game-status"></div>
+    </div>
+    <div id="game-area">
+      <div id="grid-container"></div>
+      <div id="game-hud"></div>
+    </div>
+    <div id="game-message" class="hidden"></div>
+  </div>
+</div>
+
+<script src="grid.js"></script>
+<script src="games/keepaway.js"></script>
+<script src="games/rhythm.js"></script>
+<script src="games/upsidedown.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
