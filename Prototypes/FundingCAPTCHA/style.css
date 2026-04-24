@@ -36,7 +36,17 @@ body {
   background-clip: text;
   margin-bottom: 8px;
 }
-.subtitle { text-align: center; color: var(--muted); margin-bottom: 36px; }
+.subtitle { text-align: center; color: var(--muted); margin-bottom: 16px; }
+
+.admin-bar {
+  text-align: center;
+  margin-bottom: 28px;
+  font-size: .85rem;
+  color: var(--muted);
+}
+.admin-bar a { color: var(--accent2); text-decoration: none; }
+.admin-bar a:hover { text-decoration: underline; }
+.admin-bar span { margin: 0 8px; }
 
 .game-cards {
   display: grid;
