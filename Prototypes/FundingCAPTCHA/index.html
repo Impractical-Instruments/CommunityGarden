@@ -7,6 +7,10 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<!-- WebGL background canvas — sits behind everything via z-index -->
+<canvas id="bg-canvas"></canvas>
+
 <div id="app">
   <div id="lobby">
     <h1>Prove You're Human</h1>
@@ -52,6 +56,8 @@
   </div>
 </div>
 
+<!-- background-renderer.js must load before main.js so backgroundRenderer global exists -->
+<script src="background-renderer.js"></script>
 <script src="grid.js"></script>
 <script src="games/keepaway.js"></script>
 <script src="games/rhythm.js"></script>

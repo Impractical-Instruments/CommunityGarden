@@ -1,0 +1,32 @@
+{
+  "_comment": "FundingCAPTCHA runtime config. Edit floor_rect to match your physical install.",
+
+  "floor_rect": {
+    "_comment": "World-space region (cm) that maps to the full game grid. X=right, Y=forward.",
+    "x0": -150,
+    "y0":  100,
+    "x1":  150,
+    "y1":  400
+  },
+
+  "blob_dwell_frames": 3,
+
+  "calibration_frames": 60,
+
+  "stabilizer": {
+    "max_match_dist_cm":  80,
+    "smoothing_alpha":     0.3,
+    "max_miss_frames":     8,
+    "min_confirm_frames":  2
+  },
+
+  "camera": {
+    "_comment": "Used when running with --camera. Leave serial blank for first detected device.",
+    "serial":  "",
+    "width":   640,
+    "height":  400,
+    "fps":     10,
+    "pos_cm":  [0.0, -300.0, 200.0],
+    "rotation": { "pitch": -30.0, "yaw": 0.0, "roll": 0.0 }
+  }
+}
