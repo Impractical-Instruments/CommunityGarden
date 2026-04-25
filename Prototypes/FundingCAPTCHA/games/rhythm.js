@@ -1,27 +1,54 @@
 /**
  * Music Rhythm Game
  *
- * Grid: 4 columns (notes C D E G) × 4 rows (octaves/instruments, only top row used as trigger lane).
- * A short melody scrolls as beat indicators. Player taps the correct column when the beat
- * indicator is in the trigger row. Correct = points, wrong = penalty.
- * Score ≥ WIN_SCORE wins; score ≤ 0 loses and resets.
+ * Grid: 4 columns (notes C D E G) × 5 rows.
+ * Notes fall from the top; tap the correct column when the indicator
+ * hits the bottom trigger row. Correct = points, wrong = penalty.
+ * Score ≥ WIN_SCORE wins; hitting 0 resets the song.
  *
- * Uses the Web Audio API for sound.
+ * If photos are uploaded via upload.html, each column gets one kid's face.
+ * Falling notes show a circular crop of that face; the closer to the
+ * trigger row, the brighter the glow ring.
  */
 class RhythmGame {
   static get META() {
     return { id: 'rhythm', title: '🎵 Music Rhythm', cols: 4, rows: 5 };
   }
 
+  static NOTES  = [261.6, 293.7, 329.6, 392.0]; // C D E G
+  static LABELS = ['C', 'D', 'E', 'G'];
+  static EMOJIS = ['🎹', '🥁', '🎸', '🎺'];
+
   constructor(grid, hud, onWin, onLose) {
-    this.grid   = grid;
-    this.hud    = hud;
-    this.onWin  = onWin;
-    this.onLose = onLose;
-    this.alive  = true;
+    this.grid         = grid;
+    this.hud          = hud;
+    this.onWin        = onWin;
+    this.onLose       = onLose;
+    this.alive        = false; // set true after async init
+    this.columnPhotos = null;  // array of 4 urls, or null
+    this._destroyed   = false;
 
     this._audioCtx = null;
     this._initAudio();
+    this._loadPhotosAndInit();
+  }
+
+  async _loadPhotosAndInit() {
+    try {
+      const res    = await fetch('/api/photos');
+      const photos = await res.json();
+      if (Array.isArray(photos) && photos.length > 0) {
+        const shuffled = [...photos].sort(() => Math.random() - .5);
+        // Assign one photo per column, cycling if fewer than 4 uploaded
+        this.columnPhotos = Array.from({ length: this.grid.cols },
+          (_, i) => shuffled[i % shuffled.length].url);
+      }
+    } catch (_) { /* no server / no photos — emoji fallback */ }
+    if (!this._destroyed) this._start();
+  }
+
+  _start() {
+    this.alive = true;
     this._initSong();
     this._startLoop();
     this._renderStatic();
@@ -31,7 +58,7 @@ class RhythmGame {
   _initAudio() {
     try {
       this._audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    } catch (e) { /* no audio */ }
+    } catch (e) {}
   }
 
   _playNote(freq, dur = 0.18) {
@@ -52,38 +79,30 @@ class RhythmGame {
     } catch (e) {}
   }
 
-  // Column → note frequency mapping (C D E G)
-  static NOTES  = [261.6, 293.7, 329.6, 392.0];
-  static LABELS = ['C', 'D', 'E', 'G'];
-  static EMOJIS = ['🎹', '🥁', '🎸', '🎺'];
-
   _initSong() {
-    // Simple melody: each entry is column index (0-3) or -1 for rest
-    // "Mary Had a Little Lamb" fragment in C D E G
+    // "Mary Had a Little Lamb" in columns 0-3 (C D E G), -1 = rest
     this.song = [
       2,1,0,1, 2,2,2,-1, 1,1,1,-1, 2,3,3,-1,
       2,1,0,1, 2,2,2, 2, 1,1,2,1,  0,-1,-1,-1,
     ];
-    this.songPos    = 0;
-    this.beatMs     = 420;
-    this.tolerance  = 0.38; // fraction of beatMs for timing window
-    this.score      = 0;
-    this.WIN_SCORE  = 18;
-    this.noteQueue  = []; // falling beats: { col, row, born }
-
-    // Spawn initial queue
+    this.songPos   = 0;
+    this.beatMs    = 420;
+    this.tolerance = 0.38;
+    this.score     = 0;
+    this.WIN_SCORE = 18;
+    this.noteQueue = [];
     for (let i = 0; i < 3; i++) this._spawnNext();
   }
 
   _spawnNext() {
     if (this.songPos >= this.song.length) return;
     const col = this.song[this.songPos++];
-    this.noteQueue.push({ col, row: -1, born: performance.now(), advance: 0, rest: col < 0 });
+    this.noteQueue.push({ col, row: -1, advance: 0, rest: col < 0 });
   }
 
   _startLoop() {
     let last = performance.now();
-    const ROWS = this.grid.rows;
+    const ROWS        = this.grid.rows;
     const TRIGGER_ROW = ROWS - 1;
 
     const tick = (now) => {
@@ -91,16 +110,13 @@ class RhythmGame {
       const dt = now - last;
       last = now;
 
-      // Advance notes
       this.noteQueue.forEach(n => { n.advance += dt; });
 
-      // How far each note has traveled (0 → 1 over beatMs * rows)
       const rowTravelMs = this.beatMs * 0.85;
       this.noteQueue.forEach(n => {
         n.row = Math.floor((n.advance / rowTravelMs) * ROWS);
       });
 
-      // Remove notes that passed the trigger row un-hit
       const toRemove = this.noteQueue.filter(n => n.row > TRIGGER_ROW && !n.hit);
       toRemove.forEach(n => {
         if (!n.rest && !n.penalised) {
@@ -111,19 +127,12 @@ class RhythmGame {
       });
       this.noteQueue = this.noteQueue.filter(n => n.row <= TRIGGER_ROW + 1);
 
-      // Spawn next note when last one is far enough
-      const last_note = this.noteQueue[this.noteQueue.length - 1];
-      if (!last_note || last_note.advance > this.beatMs * 0.7) {
+      const lastNote = this.noteQueue[this.noteQueue.length - 1];
+      if (!lastNote || lastNote.advance > this.beatMs * 0.7) {
         this._spawnNext();
         if (this.songPos > this.song.length && this.noteQueue.length === 0) {
-          // Song complete — check win
-          if (this.score >= this.WIN_SCORE) {
-            this._stop(); this.onWin(); return;
-          } else {
-            // Loop song
-            this.songPos = 0;
-            this._spawnNext();
-          }
+          if (this.score >= this.WIN_SCORE) { this._stop(); this.onWin(); return; }
+          else { this.songPos = 0; this._spawnNext(); }
         }
       }
 
@@ -145,40 +154,64 @@ class RhythmGame {
     this.grid.flash(col, this.grid.rows - 1, 'note-miss', 300);
   }
 
+  // Build the HTML for one column's icon in the trigger row
+  _columnIconHTML(col) {
+    const photo = this.columnPhotos?.[col];
+    if (photo) {
+      return `<img src="${photo}" style="width:76%;height:76%;object-fit:cover;border-radius:50%;">
+              <span class="cell-label">${RhythmGame.LABELS[col]}</span>`;
+    }
+    return `<span style="font-size:1.4rem">${RhythmGame.EMOJIS[col]}</span>
+            <span class="cell-label">${RhythmGame.LABELS[col]}</span>`;
+  }
+
+  // Build the HTML for a falling note in a given column
+  _noteHTML(col, nearTrigger) {
+    const photo = this.columnPhotos?.[col];
+    if (photo) {
+      const ring = nearTrigger
+        ? '3px solid #f59e0b'
+        : '2px solid rgba(255,255,255,0.25)';
+      const glow = nearTrigger
+        ? 'filter:drop-shadow(0 0 6px #f59e0b);'
+        : '';
+      return `<img src="${photo}"
+        style="width:62%;height:62%;object-fit:cover;border-radius:50%;border:${ring};${glow}">`;
+    }
+    return nearTrigger ? '🟡' : '⚪';
+  }
+
   _renderStatic() {
-    // Label bottom row buttons
     for (let c = 0; c < this.grid.cols; c++) {
-      this.grid.setContent(c, this.grid.rows - 1,
-        `<span style="font-size:1.4rem">${RhythmGame.EMOJIS[c]}</span><span class="cell-label">${RhythmGame.LABELS[c]}</span>`
-      );
+      this.grid.setContent(c, this.grid.rows - 1, this._columnIconHTML(c));
       this.grid.addClass(c, this.grid.rows - 1, 'highlight');
     }
   }
 
   _renderNotes() {
-    const ROWS = this.grid.rows;
+    const ROWS        = this.grid.rows;
     const TRIGGER_ROW = ROWS - 1;
 
-    // Clear non-trigger rows
     for (let r = 0; r < TRIGGER_ROW; r++)
       for (let c = 0; c < this.grid.cols; c++) {
         this.grid.cell(c, r).innerHTML = '';
         this.grid.setClass(c, r, '');
       }
 
-    // Draw falling notes
     this.noteQueue.forEach(n => {
       if (n.col < 0 || n.hit) return;
-      const r = Math.max(0, Math.min(TRIGGER_ROW - 1, n.row));
+      const r           = Math.max(0, Math.min(TRIGGER_ROW - 1, n.row));
       const nearTrigger = n.row >= TRIGGER_ROW - 1;
-      const icon = nearTrigger ? '🟡' : '⚪';
-      this.grid.setContent(n.col, r, icon);
+      this.grid.setContent(n.col, r, this._noteHTML(n.col, nearTrigger));
       this.grid.addClass(n.col, r, nearTrigger ? 'warn' : 'dim');
     });
   }
 
   _updateHud() {
-    const pct = Math.min(100, (this.score / this.WIN_SCORE) * 100);
+    const pct        = Math.min(100, (this.score / this.WIN_SCORE) * 100);
+    const hasPhotos  = !!this.columnPhotos;
+    const tapHint    = hasPhotos ? 'Tap the face when<br>it reaches the bottom' : 'Tap the column<br>when 🟡 reaches<br>the bottom row';
+
     this.hud.innerHTML = `
       <div class="hud-box">
         <div class="hud-label">Score</div>
@@ -193,30 +226,23 @@ class RhythmGame {
       </div>
       <div class="hud-box">
         <div class="hud-label">How to play</div>
-        <div style="font-size:.8rem; color:var(--muted); margin-top:4px; line-height:1.5">
-          Tap the column<br>when 🟡 reaches<br>the bottom row
-        </div>
+        <div style="font-size:.8rem; color:var(--muted); margin-top:4px; line-height:1.6">${tapHint}</div>
       </div>
+      ${hasPhotos ? `<div class="hud-box"><div class="hud-label">Stars</div><div style="font-size:.75rem;color:var(--accent2);margin-top:4px">📸 Your faces!</div></div>` : ''}
     `;
   }
 
   onTap(col, row) {
     if (!this.alive) return;
     const TRIGGER_ROW = this.grid.rows - 1;
-
-    // Only trigger-row taps count as note plays
     if (row !== TRIGGER_ROW) return;
 
-    // Play the sound regardless
     this._playNote(RhythmGame.NOTES[col]);
 
-    // Find the nearest note in this column that's in the tolerance window
-    const rowTravelMs = this.grid.rows * this.grid.rows * 10; // same formula
     let best = null, bestDist = Infinity;
-
     this.noteQueue.forEach(n => {
       if (n.col !== col || n.hit || n.rest) return;
-      const rowFrac = n.advance / (this.beatMs * 0.85);
+      const rowFrac        = n.advance / (this.beatMs * 0.85);
       const distFromTrigger = Math.abs(rowFrac - 1.0);
       if (distFromTrigger < bestDist) { bestDist = distFromTrigger; best = n; }
     });
@@ -225,30 +251,23 @@ class RhythmGame {
       best.hit = true;
       this.score++;
       this.grid.flash(col, TRIGGER_ROW, 'note-hit', 350);
-      if (this.score >= this.WIN_SCORE) {
-        this._stop(); this.onWin(); return;
-      }
+      if (this.score >= this.WIN_SCORE) { this._stop(); this.onWin(); return; }
     } else {
       this.score = Math.max(0, this.score - 1);
       this.grid.flash(col, TRIGGER_ROW, 'note-miss', 300);
-      if (this.score === 0) {
-        // reset song
-        this.noteQueue = [];
-        this.songPos = 0;
-        this._spawnNext();
-      }
+      if (this.score === 0) { this.noteQueue = []; this.songPos = 0; this._spawnNext(); }
     }
     this._updateHud();
   }
 
-  destroy() { this._stop(); }
+  destroy() { this._destroyed = true; this._stop(); }
 
   nextLevel() {
-    this.beatMs = Math.max(260, this.beatMs - 40);
+    this.beatMs    = Math.max(260, this.beatMs - 40);
     this.WIN_SCORE += 6;
-    this.score = 0;
+    this.score     = 0;
     this.noteQueue = [];
-    this.songPos = 0;
+    this.songPos   = 0;
     this._spawnNext();
     this.alive = true;
     this._startLoop();
