@@ -316,3 +316,19 @@ git push -u origin <branch-name>
 4. **Do not hardcode network addresses, positions, or motor IDs** — they all belong in `settings.json`.
 5. **Mock mode** (`--mock`) works without any hardware and is the fastest way to test logic changes.
 6. **`pyorbbecsdk2`** is only needed for real camera operation; mock mode runs without it installed.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`Impractical-Instruments/CommunityGarden`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
