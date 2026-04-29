@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photo Gallery — FundingCAPTCHA</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #14141e;
+  --surface2: #1e1e2e;
+  --border: #2a2a3e;
+  --accent: #7c3aed;
+  --accent2: #06b6d4;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warn: #f59e0b;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+  padding: 24px 20px 60px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.page-header h1 {
+  font-size: 1.7rem;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.page-header .sub { color: var(--muted); font-size: .9rem; margin-top: 3px; }
+
+.header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: .9rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:hover { opacity: .85; }
+.btn-primary   { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.btn-danger    { background: #ef444422; border: 1px solid var(--danger); color: var(--danger); }
+
+/* Instruction banner */
+.instruction {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  font-size: .9rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.instruction strong { color: var(--text); }
+
+/* Section headers */
+h2 {
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  margin-bottom: 14px;
+  margin-top: 32px;
+}
+h2:first-of-type { margin-top: 0; }
+
+/* Photo grid */
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.photo-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, transform .1s;
+  position: relative;
+}
+.photo-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.photo-card.selecting-a { border-color: var(--accent); box-shadow: 0 0 0 3px #7c3aed40; }
+.photo-card.selecting-b { border-color: var(--accent2); box-shadow: 0 0 0 3px #06b6d440; }
+.photo-card.paired       { border-color: var(--success); opacity: .55; }
+.photo-card.paired:hover { opacity: .8; transform: none; }
+
+.photo-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.photo-meta {
+  padding: 6px 8px 8px;
+}
+.photo-label {
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.photo-who {
+  font-size: .7rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.paired-badge {
+  position: absolute;
+  top: 6px; right: 6px;
+  background: var(--success);
+  color: #000;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+/* Selection indicator at top */
+.selection-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sel-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 180px;
+}
+.sel-thumb {
+  width: 52px; height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+}
+.sel-thumb.empty { opacity: .3; }
+.sel-label { font-size: .85rem; color: var(--muted); }
+.sel-label strong { display: block; color: var(--text); font-size: .95rem; }
+
+.sel-arrow { font-size: 1.4rem; color: var(--muted); }
+
+.sel-pair-label input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: .9rem;
+  padding: 8px 12px;
+  outline: none;
+  width: 160px;
+}
+.sel-pair-label input:focus { border-color: var(--accent); }
+
+/* Pairs list */
+.pairs-list { display: flex; flex-direction: column; gap: 10px; }
+
+.pair-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pair-thumbs { display: flex; gap: 8px; align-items: center; }
+.pair-thumb {
+  width: 56px; height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid var(--success);
+}
+.pair-name { flex: 1; font-size: .9rem; }
+.pair-name small { color: var(--muted); font-size: .75rem; display: block; }
+.pair-plus { font-size: 1.1rem; color: var(--muted); }
+
+/* Notification toast */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 20px;
+  font-size: .9rem;
+  z-index: 200;
+  transition: transform .3s ease;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok   { border-color: var(--success); color: var(--success); }
+.toast.err  { border-color: var(--danger);  color: var(--danger);  }
+
+.empty-state { color: var(--muted); font-size: .9rem; padding: 20px 0; }
+
+.delete-btn {
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: #ef444499;
+  color: #fff;
+  font-size: .7rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+  z-index: 2;
+}
+.photo-card:hover .delete-btn { opacity: 1; }
+.delete-btn:hover { background: var(--danger); }
+
+.save-row { margin-top: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.save-row .note { font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <h1>📸 Photo Gallery</h1>
+    <div class="sub">Pair photos together for the Upside Down game</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn btn-secondary" onclick="loadPhotos()">↻ Refresh</button>
+    <a href="/" class="btn btn-secondary">← Back to Games</a>
+  </div>
+</div>
+
+<div class="instruction">
+  <strong>How to use:</strong>
+  Click a photo to select it as <strong>Piece A</strong>, then click another as <strong>Piece B</strong>.
+  Name the pair, then click <strong>Add Pair</strong>. When you're happy with your pairs,
+  hit <strong>Save to Game</strong> — the Upside Down game will use your photos automatically.
+</div>
+
+<!-- Selection bar -->
+<div class="selection-bar" id="selection-bar">
+  <div class="sel-slot">
+    <img class="sel-thumb empty" id="sel-thumb-a" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="">
+    <div class="sel-label"><strong id="sel-label-a">— select piece A</strong><span style="font-size:.7rem;color:var(--accent)">first tap</span></div>
+  </div>
+  <div class="sel-arrow">↔</div>
+  <div class="sel-slot">
+    <img class="sel-thumb empty" id="sel-thumb-b" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" alt="">
+    <div class="sel-label"><strong id="sel-label-b">— select piece B</strong><span style="font-size:.7rem;color:var(--accent2)">second tap</span></div>
+  </div>
+  <div class="sel-pair-label">
+    <label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:4px">PAIR NAME</label>
+    <input type="text" id="pair-name-input" placeholder="e.g. Bus + Wheel">
+  </div>
+  <button class="btn btn-primary" id="btn-add-pair" disabled>Add Pair ＋</button>
+</div>
+
+<!-- Photos -->
+<h2>All Photos (<span id="photo-count">0</span>)</h2>
+<div class="photo-grid" id="photo-grid">
+  <div class="empty-state">Loading photos…</div>
+</div>
+
+<!-- Pairs -->
+<h2>Pairs (<span id="pair-count">0</span>)</h2>
+<div class="pairs-list" id="pairs-list">
+  <div class="empty-state">No pairs yet — select two photos above to create one.</div>
+</div>
+
+<div class="save-row">
+  <button class="btn btn-primary" id="btn-save">💾 Save to Game</button>
+  <button class="btn btn-danger"  id="btn-clear-pairs">Clear All Pairs</button>
+  <span class="note" id="save-note"></span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let photos = [];   // [{filename, url, label, who}]
+let pairs  = [];   // [{label, a:{url,label,who}, b:{url,label,who}}]
+let selA   = null; // photo object
+let selB   = null;
+
+// ── Boot ──────────────────────────────────────────────────────────────
+async function loadPhotos() {
+  try {
+    const [photosRes, pairsRes] = await Promise.all([
+      fetch('/api/photos'),
+      fetch('/api/pairs'),
+    ]);
+    photos = await photosRes.json();
+    pairs  = await pairsRes.json();
+    renderPhotos();
+    renderPairs();
+    document.getElementById('photo-count').textContent = photos.length;
+  } catch (e) {
+    toast('Failed to load: ' + e.message, 'err');
+  }
+}
+
+// ── Render photos ──────────────────────────────────────────────────────
+function pairedUrls() {
+  const s = new Set();
+  pairs.forEach(p => { s.add(p.a.url); s.add(p.b.url); });
+  return s;
+}
+
+function renderPhotos() {
+  const grid = document.getElementById('photo-grid');
+  if (!photos.length) {
+    grid.innerHTML = '<div class="empty-state">No photos yet — share the upload page with kids!</div>';
+    return;
+  }
+  const paired = pairedUrls();
+  grid.innerHTML = '';
+  photos.forEach(ph => {
+    const isPaired = paired.has(ph.url);
+    const isA = selA?.url === ph.url;
+    const isB = selB?.url === ph.url;
+    const card = document.createElement('div');
+    card.className = 'photo-card' + (isPaired ? ' paired' : '') + (isA ? ' selecting-a' : '') + (isB ? ' selecting-b' : '');
+    card.innerHTML = `
+      ${isPaired ? '<div class="paired-badge">✓ paired</div>' : ''}
+      <button class="delete-btn" title="Delete photo">✕</button>
+      <img src="${ph.url}" alt="${ph.label}" loading="lazy">
+      <div class="photo-meta">
+        <div class="photo-label">${ph.label || '(unlabelled)'}</div>
+        ${ph.who ? `<div class="photo-who">by ${ph.who}</div>` : ''}
+      </div>`;
+    card.querySelector('.delete-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePhoto(ph);
+    });
+    card.addEventListener('click', () => onPhotoClick(ph));
+    grid.appendChild(card);
+  });
+}
+
+// ── Delete photo ───────────────────────────────────────────────────────
+async function deletePhoto(ph) {
+  if (!confirm(`Delete "${ph.label || ph.filename}"? This cannot be undone.`)) return;
+  try {
+    const res  = await fetch(`/upload/${encodeURIComponent(ph.filename)}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    // Remove from local state and drop any pairs that used this photo
+    photos = photos.filter(p => p.url !== ph.url);
+    pairs  = pairs.filter(p => p.a.url !== ph.url && p.b.url !== ph.url);
+    if (selA?.url === ph.url) { selA = null; }
+    if (selB?.url === ph.url) { selB = null; }
+    updateSelectionBar();
+    renderPhotos();
+    renderPairs();
+    document.getElementById('photo-count').textContent = photos.length;
+    toast(`🗑 Deleted "${ph.label || ph.filename}"`, 'ok');
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'err');
+  }
+}
+
+// ── Selection logic ────────────────────────────────────────────────────
+function onPhotoClick(ph) {
+  if (!selA) {
+    selA = ph;
+  } else if (selA.url === ph.url) {
+    selA = null; selB = null;
+  } else if (!selB) {
+    if (ph.url === selA.url) return;
+    selB = ph;
+    // Auto-fill pair name
+    const input = document.getElementById('pair-name-input');
+    if (!input.value.trim()) {
+      input.value = `${selA.label} + ${selB.label}`;
+    }
+  } else {
+    // Reset and start over
+    selA = ph; selB = null;
+    document.getElementById('pair-name-input').value = '';
+  }
+  updateSelectionBar();
+  renderPhotos();
+  document.getElementById('btn-add-pair').disabled = !(selA && selB);
+}
+
+function updateSelectionBar() {
+  const thumbA  = document.getElementById('sel-thumb-a');
+  const thumbB  = document.getElementById('sel-thumb-b');
+  const labelA  = document.getElementById('sel-label-a');
+  const labelB  = document.getElementById('sel-label-b');
+
+  if (selA) {
+    thumbA.src = selA.url; thumbA.classList.remove('empty');
+    labelA.textContent = selA.label || '(unlabelled)';
+  } else {
+    thumbA.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
+    thumbA.classList.add('empty');
+    labelA.textContent = '— select piece A';
+  }
+  if (selB) {
+    thumbB.src = selB.url; thumbB.classList.remove('empty');
+    labelB.textContent = selB.label || '(unlabelled)';
+  } else {
+    thumbB.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
+    thumbB.classList.add('empty');
+    labelB.textContent = '— select piece B';
+  }
+}
+
+// ── Add pair ───────────────────────────────────────────────────────────
+document.getElementById('btn-add-pair').addEventListener('click', () => {
+  if (!selA || !selB) return;
+  const name = document.getElementById('pair-name-input').value.trim() || `${selA.label} + ${selB.label}`;
+  pairs.push({ label: name, a: { url: selA.url, label: selA.label, who: selA.who }, b: { url: selB.url, label: selB.label, who: selB.who } });
+  selA = null; selB = null;
+  document.getElementById('pair-name-input').value = '';
+  document.getElementById('btn-add-pair').disabled = true;
+  updateSelectionBar();
+  renderPhotos();
+  renderPairs();
+  document.getElementById('pair-count').textContent = pairs.length;
+});
+
+// ── Render pairs ───────────────────────────────────────────────────────
+function renderPairs() {
+  const list = document.getElementById('pairs-list');
+  document.getElementById('pair-count').textContent = pairs.length;
+  if (!pairs.length) {
+    list.innerHTML = '<div class="empty-state">No pairs yet — select two photos above to create one.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  pairs.forEach((pair, i) => {
+    const row = document.createElement('div');
+    row.className = 'pair-row';
+    row.innerHTML = `
+      <div class="pair-thumbs">
+        <img class="pair-thumb" src="${pair.a.url}" alt="${pair.a.label}" loading="lazy">
+        <span class="pair-plus">↔</span>
+        <img class="pair-thumb" src="${pair.b.url}" alt="${pair.b.label}" loading="lazy">
+      </div>
+      <div class="pair-name">
+        ${pair.label}
+        <small>${pair.a.label} ↔ ${pair.b.label}</small>
+      </div>
+      <button class="btn btn-danger" style="padding:6px 12px;font-size:.8rem" data-idx="${i}">Remove</button>`;
+    row.querySelector('button').addEventListener('click', () => {
+      pairs.splice(i, 1);
+      renderPhotos();
+      renderPairs();
+    });
+    list.appendChild(row);
+  });
+}
+
+// ── Save to server ─────────────────────────────────────────────────────
+document.getElementById('btn-save').addEventListener('click', async () => {
+  const note = document.getElementById('save-note');
+  note.textContent = 'Saving…';
+  try {
+    const res  = await fetch('/api/pairs', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(pairs),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      note.textContent = '';
+      toast(`✅ Saved ${json.count} pair${json.count !== 1 ? 's' : ''} — game updated!`, 'ok');
+    } else {
+      throw new Error(json.error);
+    }
+  } catch (e) {
+    note.textContent = '';
+    toast('Error: ' + e.message, 'err');
+  }
+});
+
+// ── Clear pairs ────────────────────────────────────────────────────────
+document.getElementById('btn-clear-pairs').addEventListener('click', () => {
+  if (!pairs.length) return;
+  if (!confirm('Remove all pairs? (You can re-pair them.)')) return;
+  pairs = [];
+  renderPhotos();
+  renderPairs();
+});
+
+// ── Toast ──────────────────────────────────────────────────────────────
+let _toastTimer = null;
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+loadPhotos();
+setInterval(loadPhotos, 15000); // auto-refresh every 15s so new uploads appear
+</script>
+</body>
+</html>

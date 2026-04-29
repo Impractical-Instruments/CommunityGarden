@@ -1,0 +1,16 @@
+# FundingCAPTCHA server dependencies
+# Install with: pip install -r requirements.txt
+#
+# On Raspberry Pi, prefer system packages for numpy/scipy (faster ARM builds):
+#   sudo apt-get install python3-numpy python3-scipy
+
+# ── Core server (always required) ─────────────────────────────────────────────
+fastapi>=0.100
+uvicorn[standard]>=0.23
+websockets>=11
+
+# ── CV pipeline (required only for --camera or --mock-camera) ─────────────────
+numpy>=1.24
+scipy>=1.10
+# pyorbbecsdk2 is not on PyPI — install from the Orbbec SDK release:
+#   pip install pyorbbecsdk2  (or build from source)

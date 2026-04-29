@@ -1,0 +1,17 @@
+[Unit]
+Description=FundingCAPTCHA Game Server
+After=network.target
+# Remove the --camera flag if you're not using the Orbbec camera on this install.
+# Use --mock-camera to emit fake blobs for testing without hardware.
+
+[Service]
+WorkingDirectory=/home/pi/CommunityGarden/Prototypes/FundingCAPTCHA
+ExecStart=/usr/bin/python3 server.py 8080 --camera
+Restart=on-failure
+RestartSec=3
+User=pi
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
