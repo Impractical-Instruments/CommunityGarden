@@ -76,11 +76,11 @@ class RhythmGame {
     } catch (e) {}
   }
 
-  _playNote(freq, dur = 0.18) {
+  async _playNote(freq, dur = 0.18) {
     if (!this._audioCtx) return;
     try {
       const ctx = this._audioCtx;
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'suspended') await ctx.resume();
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);

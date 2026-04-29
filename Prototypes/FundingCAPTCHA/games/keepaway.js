@@ -20,10 +20,10 @@ class KeepawayGame {
   static TUNING = {
     initialTime:  12,  // seconds to survive on first round
     timePerLevel:  5,  // extra seconds added each level
-    tickBase:    800,  // defender tick at difficulty 1 (ms; higher = slower)
+    tickBase:    1000,  // defender tick at difficulty 1 (ms; higher = slower)
     tickScale:    80,  // ms subtracted per difficulty level
     tickMin:     300,  // fastest possible defender tick (ms)
-    easeInFactor:  1.4,  // defenders start this many times slower at round start
+    easeInFactor:  1.6,  // defenders start this many times slower at round start
   };
 
   constructor(grid, hud, onWin, onLose) {

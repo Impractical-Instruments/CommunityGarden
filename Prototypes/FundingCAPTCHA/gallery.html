@@ -231,6 +231,24 @@ h2:first-of-type { margin-top: 0; }
 
 .empty-state { color: var(--muted); font-size: .9rem; padding: 20px 0; }
 
+.delete-btn {
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: #ef444499;
+  color: #fff;
+  font-size: .7rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .15s, background .15s;
+  z-index: 2;
+}
+.photo-card:hover .delete-btn { opacity: 1; }
+.delete-btn:hover { background: var(--danger); }
+
 .save-row { margin-top: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .save-row .note { font-size: .8rem; color: var(--muted); }
 </style>
@@ -340,14 +358,41 @@ function renderPhotos() {
     card.className = 'photo-card' + (isPaired ? ' paired' : '') + (isA ? ' selecting-a' : '') + (isB ? ' selecting-b' : '');
     card.innerHTML = `
       ${isPaired ? '<div class="paired-badge">✓ paired</div>' : ''}
+      <button class="delete-btn" title="Delete photo">✕</button>
       <img src="${ph.url}" alt="${ph.label}" loading="lazy">
       <div class="photo-meta">
         <div class="photo-label">${ph.label || '(unlabelled)'}</div>
         ${ph.who ? `<div class="photo-who">by ${ph.who}</div>` : ''}
       </div>`;
+    card.querySelector('.delete-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePhoto(ph);
+    });
     card.addEventListener('click', () => onPhotoClick(ph));
     grid.appendChild(card);
   });
+}
+
+// ── Delete photo ───────────────────────────────────────────────────────
+async function deletePhoto(ph) {
+  if (!confirm(`Delete "${ph.label || ph.filename}"? This cannot be undone.`)) return;
+  try {
+    const res  = await fetch(`/upload/${encodeURIComponent(ph.filename)}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    // Remove from local state and drop any pairs that used this photo
+    photos = photos.filter(p => p.url !== ph.url);
+    pairs  = pairs.filter(p => p.a.url !== ph.url && p.b.url !== ph.url);
+    if (selA?.url === ph.url) { selA = null; }
+    if (selB?.url === ph.url) { selB = null; }
+    updateSelectionBar();
+    renderPhotos();
+    renderPairs();
+    document.getElementById('photo-count').textContent = photos.length;
+    toast(`🗑 Deleted "${ph.label || ph.filename}"`, 'ok');
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'err');
+  }
 }
 
 // ── Selection logic ────────────────────────────────────────────────────

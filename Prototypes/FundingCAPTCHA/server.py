@@ -107,6 +107,22 @@ async def post_upload(request: Request):
         return {"ok": False, "error": str(e)}
 
 
+@app.delete("/upload/{filename}")
+async def delete_upload(filename: str):
+    # Reject any path traversal attempts
+    target = (UPLOADS / filename).resolve()
+    if target.parent != UPLOADS.resolve():
+        return {"ok": False, "error": "Invalid filename"}
+    try:
+        target.unlink()
+        print(f"  DELETE  {filename}")
+        return {"ok": True}
+    except FileNotFoundError:
+        return {"ok": False, "error": "Not found"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @app.get("/api/photos")
 async def get_photos():
     photos = []
