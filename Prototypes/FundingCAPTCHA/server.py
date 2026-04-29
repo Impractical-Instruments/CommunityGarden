@@ -151,7 +151,7 @@ async def ws_endpoint(websocket: WebSocket):
     try:
         while True:
             await asyncio.sleep(10)
-    except (WebSocketDisconnect, Exception):
+    except (WebSocketDisconnect, asyncio.CancelledError, Exception):
         pass
     finally:
         _connections.discard(websocket)

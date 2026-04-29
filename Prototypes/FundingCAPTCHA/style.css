@@ -272,6 +272,15 @@ body {
 .timer-ring svg { overflow: visible; }
 
 @media (max-width: 600px) {
+  /* Allow scrolling on phones — kiosk runs on a large display, not here */
+  html, body { overflow: auto; }
+  body { align-items: flex-start; }
+
+  #lobby h1 { font-size: 1.5rem; }
+
+  /* Bigger touch targets for the play buttons */
+  .play-btn { padding: 14px 28px; font-size: 1.05rem; width: 100%; }
+
   #game-area { flex-direction: column; }
   #game-hud { width: 100%; flex-direction: row; flex-wrap: wrap; }
   .hud-box { flex: 1; min-width: 100px; }

@@ -17,13 +17,22 @@ class KeepawayGame {
     return { id: 'keepaway', title: '🏈 Football Keepaway', cols: 5, rows: 5 };
   }
 
+  static TUNING = {
+    initialTime:  12,  // seconds to survive on first round
+    timePerLevel:  5,  // extra seconds added each level
+    tickBase:    800,  // defender tick at difficulty 1 (ms; higher = slower)
+    tickScale:    80,  // ms subtracted per difficulty level
+    tickMin:     300,  // fastest possible defender tick (ms)
+    easeInFactor:  1.4,  // defenders start this many times slower at round start
+  };
+
   constructor(grid, hud, onWin, onLose) {
     this.grid       = grid;
     this.hud        = hud;
     this.onWin      = onWin;
     this.onLose     = onLose;
     this.difficulty = 1;
-    this.targetTime = 12;
+    this.targetTime = KeepawayGame.TUNING.initialTime;
     this.playerPhotos = null; // set after async load
     this._destroyed   = false;
 
@@ -60,7 +69,9 @@ class KeepawayGame {
       { c: 4, r: 0 }, { c: 0, r: 4 }, { c: 4, r: 4 }, { c: 2, r: 2 },
     ];
 
-    this._tickMs  = Math.max(600 - this.difficulty * 60, 250);
+    const { tickBase, tickScale, tickMin, easeInFactor } = KeepawayGame.TUNING;
+    this._baseTickMs = Math.max(tickBase - this.difficulty * tickScale, tickMin);
+    this._tickMs     = this._baseTickMs * easeInFactor;
     this._tickId  = null;
     this._timerId = null;
 
@@ -85,9 +96,23 @@ class KeepawayGame {
     this._timerId = setInterval(() => {
       if (!this.alive) return;
       this.elapsed++;
+      this._updateTickSpeed();
       this._updateHud();
       if (this.elapsed >= this.targetTime) { this._stop(); this.onWin(); }
     }, 1000);
+  }
+
+  // Ramp defender speed from 2× slow at round start down to 1× by round end
+  _updateTickSpeed() {
+    const { easeInFactor } = KeepawayGame.TUNING;
+    const progress = Math.min(this.elapsed / this.targetTime, 1);
+    const factor   = easeInFactor - (easeInFactor - 1) * progress;
+    const newMs    = Math.round(this._baseTickMs * factor);
+    if (newMs !== this._tickMs) {
+      this._tickMs = newMs;
+      clearInterval(this._tickId);
+      this._tickId = setInterval(() => this._tick(), this._tickMs);
+    }
   }
 
   _stop() {
@@ -250,7 +275,7 @@ class KeepawayGame {
 
   nextLevel() {
     this.difficulty++;
-    this.targetTime += 5;
+    this.targetTime += KeepawayGame.TUNING.timePerLevel;
     this._init(); // playerPhotos already loaded
   }
 }

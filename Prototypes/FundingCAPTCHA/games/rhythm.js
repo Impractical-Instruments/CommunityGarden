@@ -19,6 +19,21 @@ class RhythmGame {
   static LABELS = ['C', 'D', 'E', 'G'];
   static EMOJIS = ['🎹', '🥁', '🎸', '🎺'];
 
+  static TUNING = {
+    beatMs:          420,  // ms per beat at game start (higher = slower notes)
+    beatMsMin:       260,  // fastest beatMs can reach via nextLevel
+    beatMsPerLevel:   40,  // beatMs reduction per level
+    easeInFactor:      2,  // notes start this many times slower at song start
+    rowTravelFrac:  0.85,  // fraction of beatMs for a note to cross the full grid
+    spawnFrac:       0.7,  // fraction of beatMs before queuing the next note
+    tolerance:      0.38,  // ±fraction of travel time counted as a valid tap
+    winScore:         18,  // score needed to win
+    winScorePerLevel:  6,  // score target added per level
+    missPenalty:       2,  // score lost when a note scrolls off the bottom
+    wrongPenalty:      1,  // score lost for tapping the wrong column
+    noteLookahead:     3,  // notes pre-seeded into the queue at song start
+  };
+
   constructor(grid, hud, onWin, onLose) {
     this.grid         = grid;
     this.hud          = hud;
@@ -85,13 +100,14 @@ class RhythmGame {
       2,1,0,1, 2,2,2,-1, 1,1,1,-1, 2,3,3,-1,
       2,1,0,1, 2,2,2, 2, 1,1,2,1,  0,-1,-1,-1,
     ];
+    const { beatMs, tolerance, winScore, noteLookahead } = RhythmGame.TUNING;
     this.songPos   = 0;
-    this.beatMs    = 420;
-    this.tolerance = 0.38;
+    this.beatMs    = beatMs;
+    this.tolerance = tolerance;
     this.score     = 0;
-    this.WIN_SCORE = 18;
+    this.WIN_SCORE = winScore;
     this.noteQueue = [];
-    for (let i = 0; i < 3; i++) this._spawnNext();
+    for (let i = 0; i < noteLookahead; i++) this._spawnNext();
   }
 
   _spawnNext() {
@@ -101,6 +117,10 @@ class RhythmGame {
   }
 
   _startLoop() {
+    const { easeInFactor, rowTravelFrac, spawnFrac, missPenalty } = RhythmGame.TUNING;
+    const baseBeatMs = this.beatMs; // ease in: notes start slow, reach full speed by song end
+    this.beatMs = baseBeatMs * easeInFactor;
+
     let last = performance.now();
     const ROWS        = this.grid.rows;
     const TRIGGER_ROW = ROWS - 1;
@@ -110,9 +130,12 @@ class RhythmGame {
       const dt = now - last;
       last = now;
 
+      const progress = Math.min(this.songPos / this.song.length, 1);
+      this.beatMs = Math.round(baseBeatMs * (easeInFactor - (easeInFactor - 1) * progress));
+
       this.noteQueue.forEach(n => { n.advance += dt; });
 
-      const rowTravelMs = this.beatMs * 0.85;
+      const rowTravelMs = this.beatMs * rowTravelFrac;
       this.noteQueue.forEach(n => {
         n.row = Math.floor((n.advance / rowTravelMs) * ROWS);
       });
@@ -121,14 +144,14 @@ class RhythmGame {
       toRemove.forEach(n => {
         if (!n.rest && !n.penalised) {
           n.penalised = true;
-          this.score = Math.max(0, this.score - 2);
+          this.score = Math.max(0, this.score - missPenalty);
           this._flashMiss(n.col);
         }
       });
       this.noteQueue = this.noteQueue.filter(n => n.row <= TRIGGER_ROW + 1);
 
       const lastNote = this.noteQueue[this.noteQueue.length - 1];
-      if (!lastNote || lastNote.advance > this.beatMs * 0.7) {
+      if (!lastNote || lastNote.advance > this.beatMs * spawnFrac) {
         this._spawnNext();
         if (this.songPos > this.song.length && this.noteQueue.length === 0) {
           if (this.score >= this.WIN_SCORE) { this._stop(); this.onWin(); return; }
@@ -242,7 +265,7 @@ class RhythmGame {
     let best = null, bestDist = Infinity;
     this.noteQueue.forEach(n => {
       if (n.col !== col || n.hit || n.rest) return;
-      const rowFrac        = n.advance / (this.beatMs * 0.85);
+      const rowFrac        = n.advance / (this.beatMs * RhythmGame.TUNING.rowTravelFrac);
       const distFromTrigger = Math.abs(rowFrac - 1.0);
       if (distFromTrigger < bestDist) { bestDist = distFromTrigger; best = n; }
     });
@@ -253,7 +276,7 @@ class RhythmGame {
       this.grid.flash(col, TRIGGER_ROW, 'note-hit', 350);
       if (this.score >= this.WIN_SCORE) { this._stop(); this.onWin(); return; }
     } else {
-      this.score = Math.max(0, this.score - 1);
+      this.score = Math.max(0, this.score - RhythmGame.TUNING.wrongPenalty);
       this.grid.flash(col, TRIGGER_ROW, 'note-miss', 300);
       if (this.score === 0) { this.noteQueue = []; this.songPos = 0; this._spawnNext(); }
     }
@@ -263,8 +286,9 @@ class RhythmGame {
   destroy() { this._destroyed = true; this._stop(); }
 
   nextLevel() {
-    this.beatMs    = Math.max(260, this.beatMs - 40);
-    this.WIN_SCORE += 6;
+    const { beatMsMin, beatMsPerLevel, winScorePerLevel } = RhythmGame.TUNING;
+    this.beatMs    = Math.max(beatMsMin, this.beatMs - beatMsPerLevel);
+    this.WIN_SCORE += winScorePerLevel;
     this.score     = 0;
     this.noteQueue = [];
     this.songPos   = 0;

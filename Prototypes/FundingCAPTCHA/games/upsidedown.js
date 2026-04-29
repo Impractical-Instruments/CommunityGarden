@@ -29,13 +29,19 @@ class UpsideDownGame {
     ['🔑', '🔒', 'locks'],
   ];
 
+  static TUNING = {
+    initialTime:  45,  // seconds to match all pairs on first round
+    timeMin:      20,  // minimum time (seconds) in later rounds
+    timePerLevel:  8,  // seconds removed from timer each level
+  };
+
   constructor(grid, hud, onWin, onLose) {
     this.grid   = grid;
     this.hud    = hud;
     this.onWin  = onWin;
     this.onLose = onLose;
     this.alive  = true;
-    this.TIME   = 45;
+    this.TIME   = UpsideDownGame.TUNING.initialTime;
 
     // Try to load photo pairs; fall back to emoji if unavailable or empty.
     this._loadPairsAndInit();
@@ -233,7 +239,7 @@ class UpsideDownGame {
   destroy() { this._stop(); }
 
   nextLevel() {
-    this.TIME = Math.max(20, this.TIME - 8);
+    this.TIME = Math.max(UpsideDownGame.TUNING.timeMin, this.TIME - UpsideDownGame.TUNING.timePerLevel);
     this._init();
   }
 }

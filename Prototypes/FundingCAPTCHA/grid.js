@@ -24,9 +24,11 @@ class Grid {
     container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
 
-    // Compute cell size so grid fits nicely in viewport
-    const maxW = Math.min(window.innerWidth - 240, 620);
-    const maxH = window.innerHeight - 180;
+    // Compute cell size so grid fits nicely in viewport.
+    // On mobile the HUD stacks below the grid, so don't subtract its width.
+    const isMobile = window.innerWidth <= 600;
+    const maxW = isMobile ? window.innerWidth - 32 : Math.min(window.innerWidth - 240, 620);
+    const maxH = isMobile ? Math.round(window.innerHeight * 0.55) : window.innerHeight - 180;
     const cellPx = Math.floor(Math.min(maxW / cols, maxH / rows, 110));
     container.style.width = `${cellPx * cols + 4 * (cols - 1)}px`;
 
