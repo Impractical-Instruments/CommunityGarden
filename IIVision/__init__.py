@@ -2,28 +2,32 @@
 IIVision — shared computer-vision pipeline for Impractical Instruments installations.
 
 Public API:
-    run_pipeline(camera, camera_transform, calib_frames, stabilizer_config,
+    build_calibration(camera, num_frames) -> Calibration
+    run_pipeline(camera, camera_transform, calibration, stabilizer_config,
                  pre_stabilize_filter=None) -> Iterator[list[TrackedBlob]]
 
-    Camera classes:    MockCamera, OrbbecCamera
-    Config types:      StabilizerConfig, Transform, Rotator
-    Output type:       TrackedBlob
+    Calibration classes: Calibration, Calibrator
+    Camera classes:      MockCamera, OrbbecCamera
+    Config types:        StabilizerConfig, Transform, Rotator
+    Output type:         TrackedBlob
 """
 
-from .pipeline import PreStabilizeFilter, run_pipeline
+from .pipeline import PreStabilizeFilter, build_calibration, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
-from .blob_tracker import BlobTracker, CalibrationState
+from .blob_tracker import BlobTracker, Calibration, Calibrator
 from .camera import MockCamera, OrbbecCamera
 from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
 
 __all__ = [
+    "build_calibration",
     "run_pipeline",
     "PreStabilizeFilter",
     "BlobStabilizer",
     "StabilizerConfig",
     "TrackedBlob",
     "BlobTracker",
-    "CalibrationState",
+    "Calibration",
+    "Calibrator",
     "MockCamera",
     "OrbbecCamera",
     "Rotator",

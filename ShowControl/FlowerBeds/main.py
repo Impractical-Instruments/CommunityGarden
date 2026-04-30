@@ -27,7 +27,10 @@ import numpy as np
 # IIVision lives at the repo root — two levels above ShowControl/FlowerBeds/
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, run_pipeline
+from IIVision import (
+    MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator,
+    Calibration, build_calibration, run_pipeline,
+)
 
 from flower_beds import (
     Attraction,
@@ -182,6 +185,21 @@ def run(args: argparse.Namespace) -> None:
 
     excl_filter = coordinator.make_exclusion_filter()
 
+    # --- calibration ---
+    calib_path = Path(args.config).with_suffix(".calibration.npz")
+    calibration: Calibration | None = None
+    if not args.recalibrate and calib_path.exists():
+        try:
+            calibration = Calibration.load(calib_path)
+            log.info("Loaded calibration from %s", calib_path)
+        except Exception as exc:
+            log.warning("Calibration load failed (%s) — recalibrating", exc)
+
+    if calibration is None:
+        calibration = build_calibration(camera, calib_frames)
+        calibration.save(calib_path)
+        log.info("Calibration saved to %s", calib_path)
+
     # --- graceful shutdown ---
     _running = [True]
 
@@ -195,7 +213,7 @@ def run(args: argparse.Namespace) -> None:
     frame_count = 0
     t_last_log = time.monotonic()
 
-    for tracked in run_pipeline(camera, camera_transform, calib_frames, stab_cfg, excl_filter):
+    for tracked in run_pipeline(camera, camera_transform, calibration, stab_cfg, excl_filter):
         if not _running[0]:
             break
 
@@ -288,6 +306,8 @@ def main() -> None:
     ap.add_argument("--no-osc", action="store_true", help="Disable OSC output")
     ap.add_argument("--no-visualizer", action="store_true", help="Disable remote visualizer")
     ap.add_argument("--visualizer-port", type=int, default=8765, help="Visualizer HTTP port")
+    ap.add_argument("--recalibrate", action="store_true",
+                    help="Ignore saved calibration and recalibrate from scratch")
     ap.add_argument("--verbose", "-v", action="store_true")
     ap.add_argument(
         "--calibrate-yaw", type=float, metavar="DEG", default=None,
