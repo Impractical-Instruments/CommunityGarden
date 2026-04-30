@@ -80,22 +80,6 @@ class Blob3D:
     median_z_m: float = 0.0
     sample_count: int = 0
 
-    def world_pos_cm(self) -> np.ndarray:
-        """Convert to world space (X=right, Y=forward, Z=up), centimetres."""
-        # camera: X=right, Y=down, Z=forward
-        # world:  X=right, Y=forward, Z=up
-        return np.array([
-            self.cam_pos_m[0] * 100.0,   # world X ← cam X (right)
-            self.cam_pos_m[2] * 100.0,   # world Y ← cam Z (forward)
-            -self.cam_pos_m[1] * 100.0,  # world Z ← -cam Y (up = -down)
-        ])
-
-    def world_half_extents_cm(self) -> np.ndarray:
-        return np.array([
-            self.cam_half_extents_m[0] * 100.0,
-            self.cam_half_extents_m[2] * 100.0,
-            self.cam_half_extents_m[1] * 100.0,
-        ])
 
 
 @dataclass

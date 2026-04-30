@@ -15,7 +15,7 @@ import numpy as np
 
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
 from .blob_tracker import BlobTracker, CalibrationState
-from .transforms import Transform, transform_position
+from .transforms import Transform, orbbec_to_world, transform_position
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def run_pipeline(
             else:
                 result = tracker.detect(frame)
                 raw_positions = [
-                    transform_position(camera_transform, blob.world_pos_cm())
+                    transform_position(camera_transform, orbbec_to_world(blob.cam_pos_m))
                     for blob in result.world_blobs
                     if blob.valid
                 ]

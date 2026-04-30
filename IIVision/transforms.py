@@ -59,6 +59,20 @@ def transform_position(transform: Transform, point: np.ndarray) -> np.ndarray:
     return m @ point + transform.translation
 
 
+def orbbec_to_world(cam_pos_m: np.ndarray) -> np.ndarray:
+    """
+    Convert an Orbbec camera-space position to world space.
+
+    Camera space (Orbbec native): X=right, Y=down, Z=forward, metres.
+    World space (installation):   X=right, Y=forward, Z=up, centimetres.
+    """
+    return np.array([
+        cam_pos_m[0] * 100.0,    # world X ← cam X  (right → right)
+        cam_pos_m[2] * 100.0,    # world Y ← cam Z  (forward → forward)
+        -cam_pos_m[1] * 100.0,   # world Z ← -cam Y (up = -down)
+    ])
+
+
 def look_yaw_degrees(from_pos: np.ndarray, to_pos: np.ndarray) -> float:
     """
     Return the yaw angle (degrees) that faces from_pos toward to_pos,
