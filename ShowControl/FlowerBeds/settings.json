@@ -7,88 +7,90 @@
     "max_miss_frames": 8,
     "min_confirm_frames": 2
   },
-  "cluster_exclusion_radius_cm": 40.0,
-  "attraction": {
-    "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
-    "influence_radius_cm": 300.0,
-    "distance_weight": 1.0,
-    "distance_falloff_cm": 150.0,
-    "dwell_weight": 0.5,
-    "dwell_halflife_frames": 30,
-    "inertia_weight": 0.3
+  "coordinator": {
+    "cluster_exclusion_radius_cm": 40.0,
+    "attraction": {
+      "_comment": "Utility = distance_weight*exp(-d/falloff) + dwell_weight*(1-exp(-dwell/halflife)) + inertia_weight*(1 if current target)",
+      "influence_radius_cm": 300.0,
+      "distance_weight": 1.0,
+      "distance_falloff_cm": 150.0,
+      "dwell_weight": 0.5,
+      "dwell_halflife_frames": 30,
+      "inertia_weight": 0.3
+    },
+    "modules": [
+      {
+        "registration_point_cm": [
+          -40,
+          -84,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 14,
+            "pos_offset_cm": [
+              40.0,
+              -30.0,
+              0.0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 22,
+            "pos_offset_cm": [
+              40.0,
+              -75.0,
+              0.0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 16,
+            "pos_offset_cm": [
+              100.0,
+              -25.0,
+              0.0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 6,
+            "pos_offset_cm": [
+              95.0,
+              -70.0,
+              0.0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      }
+    ]
   },
   "controllers": [
     {
       "ip": "192.168.1.50",
       "port": 9000
-    }
-  ],
-  "modules": [
-    {
-      "registration_point_cm": [
-        -40,
-        -84,
-        0
-      ],
-      "rotation": {
-        "pitch": 0,
-        "yaw": 0,
-        "roll": 0
-      },
-      "clusters": [
-        {
-          "motor_id": 14,
-          "pos_offset_cm": [
-            40.0,
-            -30.0,
-            0.0
-          ],
-          "rotation_offset": {
-            "pitch": 0,
-            "yaw": 0,
-            "roll": 0
-          }
-        },
-        {
-          "motor_id": 22,
-          "pos_offset_cm": [
-            40.0,
-            -75.0,
-            0.0
-          ],
-          "rotation_offset": {
-            "pitch": 0,
-            "yaw": 0,
-            "roll": 0
-          }
-        },
-        {
-          "motor_id": 16,
-          "pos_offset_cm": [
-            100.0,
-            -25.0,
-            0.0
-          ],
-          "rotation_offset": {
-            "pitch": 0,
-            "yaw": 0,
-            "roll": 0
-          }
-        },
-        {
-          "motor_id": 6,
-          "pos_offset_cm": [
-            95.0,
-            -70.0,
-            0.0
-          ],
-          "rotation_offset": {
-            "pitch": 0,
-            "yaw": 0,
-            "roll": 0
-          }
-        }
-      ]
     }
   ],
   "cameras": [
