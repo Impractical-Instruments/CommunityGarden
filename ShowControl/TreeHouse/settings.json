@@ -1,0 +1,87 @@
+{
+  "pico": {
+    "port": "/dev/ttyACM0",
+    "baud": 115200
+  },
+
+  "osc": {
+    "listen_port": 9001
+  },
+
+  "show": {
+    "fps": 30,
+    "dim_level": 0.25
+  },
+
+  "dioramas": [
+    {
+      "name": "House Swarming",
+      "pico_pin": 0,
+      "led_count": 146,
+      "brightness": 1.0,
+      "color": [255, 180, 80, 255],
+      "pattern": "incandescent"
+    },
+    {
+      "name": "Club",
+      "pico_pin": 1,
+      "led_count": 24,
+      "brightness": 1.0,
+      "color": [180, 0, 255, 0],
+      "pattern": "chase"
+    }
+  ],
+
+  "_shelved": {
+    "mycellium": {
+      "note": "Pending prototype. When ready: add to dioramas[], pico_pin: 2, pattern: breathe.",
+      "color": [80, 255, 120, 50]
+    }
+  },
+
+  "garage_windows": {
+    "looking_glass": {
+      "name": "Looking Glass",
+      "scene": "bloom",
+      "speed": 1.0,
+      "mirror_depth": 6
+    },
+    "forge_and_flora": {
+      "name": "Forge & Flora",
+      "arc_pin": 2,
+      "bloom_pin": 3,
+      "led_count": 48,
+      "blend": 0.0,
+      "transition_speed": 0.1,
+      "flicker_intensity": 0.3
+    }
+  },
+
+  "gable_windows": {
+    "front": {
+      "name": "Front Gable",
+      "pico_pin": 4,
+      "led_count": 46,
+      "brightness": 0.8,
+      "color": [0, 0, 0, 255],
+      "pattern": "solid"
+    },
+    "back": {
+      "name": "Back Gable",
+      "pico_pin": 5,
+      "led_count": 46,
+      "brightness": 0.8,
+      "color": [0, 0, 0, 255],
+      "pattern": "solid"
+    }
+  },
+
+  "dormer": {
+    "name": "Dormer",
+    "pico_pin": 6,
+    "led_count": 90,
+    "brightness": 0.8,
+    "color": [0, 0, 0, 255],
+    "pattern": "solid"
+  }
+}
