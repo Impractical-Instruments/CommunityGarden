@@ -24,9 +24,9 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 @dataclass
-class AttractionConfig:
+class Attraction:
     """
-    Utility-based blob attraction weights for a FlowerCluster.
+    The policy that governs which visitor a FlowerCluster looks at.
 
     Each frame, every in-range blob receives a utility score:
 
@@ -56,6 +56,17 @@ class AttractionConfig:
     # Inertia bonus for the currently-tracked blob.  Prevents jittery target-switching.
     inertia_weight: float = 0.3
 
+    def score(self, dist_cm: float, dwell_frames: int, is_current_target: bool) -> float:
+        """Compute the utility score for a single candidate blob."""
+        distance_score = math.exp(-dist_cm / self.distance_falloff_cm)
+        dwell_score = 1.0 - math.exp(-dwell_frames / self.dwell_halflife_frames)
+        inertia_score = 1.0 if is_current_target else 0.0
+        return (
+            self.distance_weight * distance_score
+            + self.dwell_weight * dwell_score
+            + self.inertia_weight * inertia_score
+        )
+
 
 @dataclass
 class ClusterConfig:
@@ -74,7 +85,7 @@ class ModuleConfig:
 @dataclass
 class CoordinatorConfig:
     modules: list[ModuleConfig] = field(default_factory=list)
-    attraction: AttractionConfig = field(default_factory=AttractionConfig)
+    attraction: Attraction = field(default_factory=Attraction)
     exclusion_radius_cm: float = 0.0
 
 
@@ -122,13 +133,13 @@ class FlowerCluster:
         self,
         motor_id: int,
         world_pos_cm: np.ndarray,
-        attraction: AttractionConfig | None = None,
+        attraction: Attraction | None = None,
     ) -> None:
         self.motor_id = motor_id
         self.world_pos_cm = world_pos_cm.copy()
         self.current_yaw_deg: float = 0.0
         self.has_target: bool = False
-        self.attraction = attraction or AttractionConfig()
+        self.attraction = attraction or Attraction()
 
         # Consecutive frames each blob has been within influence_radius_cm.
         self._blob_dwell: dict[int, int] = {}
@@ -170,18 +181,11 @@ class FlowerCluster:
         best_pos: np.ndarray | None = None
 
         for bid, pos, dist_cm in in_range:
-            distance_score = math.exp(-dist_cm / cfg.distance_falloff_cm)
-            dwell_score = 1.0 - math.exp(
-                -self._blob_dwell.get(bid, 0) / cfg.dwell_halflife_frames
+            utility = cfg.score(
+                dist_cm=dist_cm,
+                dwell_frames=self._blob_dwell.get(bid, 0),
+                is_current_target=(bid == self._current_target_id),
             )
-            inertia_score = 1.0 if bid == self._current_target_id else 0.0
-
-            utility = (
-                cfg.distance_weight * distance_score
-                + cfg.dwell_weight * dwell_score
-                + cfg.inertia_weight * inertia_score
-            )
-
             if utility > best_score:
                 best_score = utility
                 best_id = bid
@@ -201,7 +205,7 @@ class FlowerCluster:
 class FlowerModule:
     """A physical module containing several clusters."""
 
-    def __init__(self, config: ModuleConfig, attraction: AttractionConfig) -> None:
+    def __init__(self, config: ModuleConfig, attraction: Attraction) -> None:
         rot = Rotator(**config.rotation)
         self.transform = Transform(
             translation=np.array(config.registration_point_cm, dtype=float),

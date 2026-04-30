@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, run_pipeline
 
 from flower_beds import (
-    AttractionConfig,
+    Attraction,
     CameraConfig,
     ClusterConfig,
     Coordinator,
@@ -65,8 +65,8 @@ def parse_camera_config(raw: dict) -> CameraConfig:
     )
 
 
-def parse_attraction_config(raw: dict) -> AttractionConfig:
-    return AttractionConfig(
+def parse_attraction_config(raw: dict) -> Attraction:
+    return Attraction(
         influence_radius_cm=raw.get("influence_radius_cm", 300.0),
         distance_weight=raw.get("distance_weight", 1.0),
         distance_falloff_cm=raw.get("distance_falloff_cm", 150.0),
