@@ -6,7 +6,7 @@ Usage:
   ShowControl main.py --config settings.json
 
   # Mock mode (no hardware) + visualizer only, no OSC
-  ShowControl main.py --config settings.json --mock --no-osc
+  ShowControl main.py --config settings.json --mock-camera --no-osc
 
   # Disable visualizer (headless show-computer mode)
   ShowControl main.py --config settings.json --no-visualizer
@@ -24,9 +24,11 @@ from pathlib import Path
 
 import numpy as np
 
-from blob_stabilizer import BlobStabilizer, StabilizerConfig
-from blob_tracker import BlobTracker, CalibrationState
-from camera import MockCamera, OrbbecCamera
+# IIVision lives at the repo root — two levels above ShowControl/FlowerBeds/
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, run_pipeline
+
 from flower_beds import (
     AttractionConfig,
     CameraConfig,
@@ -37,7 +39,6 @@ from flower_beds import (
     MotorCommand,
 )
 from flower_controller import FlowerController
-from transforms import Rotator, Transform, transform_position
 
 log = logging.getLogger("flower_beds")
 
@@ -124,7 +125,7 @@ def run(args: argparse.Namespace) -> None:
         rotation=Rotator(**cam_cfg.rotation),
     )
 
-    if args.mock:
+    if args.mock_camera:
         camera = MockCamera(width=cam_cfg.width, height=cam_cfg.height, fps=cam_cfg.framerate)
         log.info("Using mock camera")
     else:
@@ -162,19 +163,30 @@ def run(args: argparse.Namespace) -> None:
         def broadcast(_state):  # noqa: F811
             pass
 
-    # --- blob tracker ---
-    tracker = BlobTracker()
+    # --- pipeline config ---
     calib_frames = settings.get("calibration_frames", 60)
-
-    # --- blob stabilizer ---
-    stabilizer = BlobStabilizer(parse_stabilizer_config(settings.get("stabilizer", {})))
+    stab_cfg = parse_stabilizer_config(settings.get("stabilizer", {}))
     log.info(
         "Blob stabilizer: max_match_dist=%.0fcm alpha=%.2f miss=%d confirm=%d",
-        stabilizer.config.max_match_dist_cm,
-        stabilizer.config.smoothing_alpha,
-        stabilizer.config.max_miss_frames,
-        stabilizer.config.min_confirm_frames,
+        stab_cfg.max_match_dist_cm,
+        stab_cfg.smoothing_alpha,
+        stab_cfg.max_miss_frames,
+        stab_cfg.min_confirm_frames,
     )
+
+    # --- exclusion filter (applied before stabilizer sees positions) ---
+    excl_filter = None
+    if exclusion_radius_cm > 0:
+        excl_sq = exclusion_radius_cm ** 2
+        cluster_positions = coordinator.cluster_world_positions()
+        def excl_filter(positions: list) -> list:  # noqa: E306
+            return [
+                p for p in positions
+                if not any(
+                    float(np.dot(p[:2] - cp[:2], p[:2] - cp[:2])) < excl_sq
+                    for cp in cluster_positions
+                )
+            ]
 
     # --- graceful shutdown ---
     _running = [True]
@@ -188,83 +200,41 @@ def run(args: argparse.Namespace) -> None:
 
     frame_count = 0
     t_last_log = time.monotonic()
-    tracked = []
 
-    with camera:
-        for frame in camera.frames():
-            if not _running[0]:
-                break
+    for tracked in run_pipeline(camera, camera_transform, calib_frames, stab_cfg, excl_filter):
+        if not _running[0]:
+            break
 
-            # Drive calibration state machine
-            if tracker.state == CalibrationState.NOT_CALIBRATED:
-                tracker.begin_calibration(calib_frames, frame.width, frame.height)
-                tracker.push_calibration_frame(frame)
+        commands = coordinator.process_tracked_blobs(tracked)
+        for ctrl in controllers:
+            ctrl.send_all(commands)
 
-            elif tracker.state == CalibrationState.IN_PROGRESS:
-                tracker.push_calibration_frame(frame)
+        frame_count += 1
+        broadcast({
+            "frame": frame_count,
+            "blobs": [
+                {
+                    "id": t.stable_id,
+                    "x": float(t.world_pos_cm[0]),
+                    "y": float(t.world_pos_cm[1]),
+                }
+                for t in tracked
+            ],
+            "clusters": coordinator.snapshot(),
+            "cameras": [
+                {
+                    "name": cam_cfg.name,
+                    "x": float(cam_cfg.pos_cm[0]),
+                    "y": float(cam_cfg.pos_cm[1]),
+                    "yaw_deg": float(cam_cfg.rotation.get("yaw", 0)),
+                }
+            ],
+        })
 
-            else:  # CALIBRATED
-                result = tracker.detect(frame)
-
-                # Transform raw detections to world space, then stabilize.
-                raw_world_positions = [
-                    transform_position(camera_transform, blob.world_pos_cm())
-                    for blob in result.world_blobs
-                    if blob.valid
-                ]
-
-                # Discard any detections that fall inside a flower cluster's
-                # exclusion zone (XY only — flowers are solid objects).
-                if exclusion_radius_cm > 0:
-                    excl_sq = exclusion_radius_cm ** 2
-                    cluster_positions = coordinator.cluster_world_positions()
-                    raw_world_positions = [
-                        pos for pos in raw_world_positions
-                        if not any(
-                            float(np.dot(pos[:2] - cp[:2], pos[:2] - cp[:2])) < excl_sq
-                            for cp in cluster_positions
-                        )
-                    ]
-
-                tracked = stabilizer.update(raw_world_positions)
-
-                commands = coordinator.process_tracked_blobs(tracked)
-
-                for ctrl in controllers:
-                    ctrl.send_all(commands)
-
-                frame_count += 1
-
-                # Build visualizer state
-                broadcast({
-                    "frame": frame_count,
-                    "calibration_state": tracker.state.value,
-                    "blobs": [
-                        {
-                            "id": t.stable_id,
-                            "x": float(t.world_pos_cm[0]),
-                            "y": float(t.world_pos_cm[1]),
-                        }
-                        for t in tracked
-                    ],
-                    "clusters": coordinator.snapshot(),
-                    "cameras": [
-                        {
-                            "name": cam_cfg.name,
-                            "x": float(cam_cfg.pos_cm[0]),
-                            "y": float(cam_cfg.pos_cm[1]),
-                            "yaw_deg": float(cam_cfg.rotation.get("yaw", 0)),
-                        }
-                    ],
-                })
-
-            # Periodic log
-            now = time.monotonic()
-            if now - t_last_log >= 5.0:
-                n_tracked = len(tracked) if tracker.state == CalibrationState.CALIBRATED else 0
-                log.info("frame %d | %s | tracked_blobs=%d",
-                         frame_count, tracker.state.value, n_tracked)
-                t_last_log = now
+        now = time.monotonic()
+        if now - t_last_log >= 5.0:
+            log.info("frame %d | tracked_blobs=%d", frame_count, len(tracked))
+            t_last_log = now
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +290,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description="Flower Beds standalone show control")
     ap.add_argument("--config", default="settings.json", help="Path to settings JSON")
-    ap.add_argument("--mock", action="store_true", help="Use mock camera (no hardware)")
+    ap.add_argument("--mock-camera", action="store_true", help="Use mock camera (no hardware)")
     ap.add_argument("--no-osc", action="store_true", help="Disable OSC output")
     ap.add_argument("--no-visualizer", action="store_true", help="Disable remote visualizer")
     ap.add_argument("--visualizer-port", type=int, default=8765, help="Visualizer HTTP port")
