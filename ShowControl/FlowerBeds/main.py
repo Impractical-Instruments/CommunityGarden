@@ -56,67 +56,6 @@ def load_settings(path: str) -> dict:
         return json.load(f)
 
 
-def parse_camera_config(raw: dict) -> CameraConfig:
-    return CameraConfig(
-        name=raw.get("name", ""),
-        pos_cm=raw.get("pos_cm", [0, 0, 0]),
-        rotation=raw.get("rotation", {"pitch": 0, "yaw": 0, "roll": 0}),
-        serial=raw.get("serial", ""),
-        width=raw.get("width", 640),
-        height=raw.get("height", 400),
-        framerate=raw.get("framerate", 30),
-    )
-
-
-def parse_attraction_config(raw: dict) -> Attraction:
-    return Attraction(
-        influence_radius_cm=raw.get("influence_radius_cm", 300.0),
-        distance_weight=raw.get("distance_weight", 1.0),
-        distance_falloff_cm=raw.get("distance_falloff_cm", 150.0),
-        dwell_weight=raw.get("dwell_weight", 0.5),
-        dwell_halflife_frames=raw.get("dwell_halflife_frames", 30),
-        inertia_weight=raw.get("inertia_weight", 0.3),
-    )
-
-
-def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
-    modules = []
-    for rm in raw_modules:
-        clusters = [
-            ClusterConfig(
-                motor_id=rc["motor_id"],
-                pos_offset_cm=rc.get("pos_offset_cm", [0, 0, 0]),
-                rotation_offset=rc.get("rotation_offset", {"pitch": 0, "yaw": 0, "roll": 0}),
-            )
-            for rc in rm.get("clusters", [])
-        ]
-        modules.append(ModuleConfig(
-            registration_point_cm=rm.get("registration_point_cm", [0, 0, 0]),
-            rotation=rm.get("rotation", {"pitch": 0, "yaw": 0, "roll": 0}),
-            clusters=clusters,
-        ))
-    return modules
-
-
-def parse_coordinator_config(raw: dict) -> CoordinatorConfig:
-    return CoordinatorConfig(
-        modules=parse_module_configs(raw.get("modules", [])),
-        attraction=parse_attraction_config(raw.get("attraction", {})),
-        exclusion_radius_cm=raw.get("cluster_exclusion_radius_cm", 0.0),
-    )
-
-
-def parse_controller_configs(raw_controllers: list[dict]) -> list[ControllerConfig]:
-    return [ControllerConfig(ip=rc["ip"], port=rc["port"]) for rc in raw_controllers]
-
-
-def parse_stabilizer_config(raw: dict) -> StabilizerConfig:
-    return StabilizerConfig(
-        max_match_dist_cm=raw.get("max_match_dist_cm", 80.0),
-        smoothing_alpha=raw.get("smoothing_alpha", 0.3),
-        max_miss_frames=raw.get("max_miss_frames", 8),
-        min_confirm_frames=raw.get("min_confirm_frames", 2),
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +70,7 @@ def run(args: argparse.Namespace) -> None:
     if not raw_cameras:
         log.error("No cameras defined in settings")
         sys.exit(1)
-    cam_cfg = parse_camera_config(raw_cameras[0])
+    cam_cfg = CameraConfig.from_dict(raw_cameras[0])
     camera_transform = Transform(
         translation=np.array(cam_cfg.pos_cm, dtype=float),
         rotation=Rotator(**cam_cfg.rotation),
@@ -150,7 +89,7 @@ def run(args: argparse.Namespace) -> None:
         log.info("Using Orbbec camera serial=%s", cam_cfg.serial)
 
     # --- coordinator ---
-    coordinator = Coordinator.from_config(parse_coordinator_config(settings.get("coordinator", {})))
+    coordinator = Coordinator.from_config(CoordinatorConfig.from_dict(settings.get("coordinator", {})))
     log.info("Loaded %d module(s), %d cluster(s) total",
              len(coordinator.modules),
              sum(len(m.clusters) for m in coordinator.modules))
@@ -158,7 +97,7 @@ def run(args: argparse.Namespace) -> None:
     # --- OSC controllers ---
     controllers: list[FlowerController] = []
     if not args.no_osc:
-        for ctrl_cfg in parse_controller_configs(settings.get("controllers", [])):
+        for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
             controllers.append(FlowerController(ctrl_cfg))
         log.info("OSC output → %d controller(s)", len(controllers))
     else:
@@ -174,7 +113,7 @@ def run(args: argparse.Namespace) -> None:
 
     # --- pipeline config ---
     calib_frames = settings.get("calibration_frames", 60)
-    stab_cfg = parse_stabilizer_config(settings.get("stabilizer", {}))
+    stab_cfg = StabilizerConfig.from_dict(settings.get("stabilizer", {}))
     log.info(
         "Blob stabilizer: max_match_dist=%.0fcm alpha=%.2f miss=%d confirm=%d",
         stab_cfg.max_match_dist_cm,
@@ -265,10 +204,11 @@ def run_calibrate(args: argparse.Namespace) -> None:
     yaw = args.calibrate_yaw
 
     # Collect every motor_id from config.
+    coordinator_cfg = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
     motor_ids: list[int] = [
-        cc["motor_id"]
-        for rm in settings.get("modules", [])
-        for cc in rm.get("clusters", [])
+        cluster.motor_id
+        for module in coordinator_cfg.modules
+        for cluster in module.clusters
     ]
     if not motor_ids:
         log.error("No motors found in config")
@@ -278,7 +218,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
 
     controllers: list[FlowerController] = []
     if not args.no_osc:
-        for ctrl_cfg in parse_controller_configs(settings.get("controllers", [])):
+        for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
             controllers.append(FlowerController(ctrl_cfg))
 
     log.info(
