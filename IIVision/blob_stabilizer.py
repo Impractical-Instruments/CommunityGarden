@@ -11,7 +11,7 @@ Smoothing uses exponential moving average (EMA).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields as _dc_fields
 
 import numpy as np
 
@@ -30,6 +30,11 @@ class StabilizerConfig:
     # Frames a new track must be seen consecutively before it appears in output.
     # Filters one-shot phantom detections.
     min_confirm_frames: int = 2
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "StabilizerConfig":
+        known = {f.name for f in _dc_fields(cls)}
+        return cls(**{k: v for k, v in raw.items() if k in known})
 
 
 @dataclass

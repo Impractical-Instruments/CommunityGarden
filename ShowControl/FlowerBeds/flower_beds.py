@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields as _dc_fields
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,6 +17,12 @@ from IIVision.transforms import Rotator, Transform, look_yaw_degrees, rotator_to
 
 if TYPE_CHECKING:
     from IIVision.blob_stabilizer import TrackedBlob
+
+
+def _kwargs_from_dict(cls, raw: dict) -> dict:
+    """Return a kwargs dict for cls, keeping only keys that match field names."""
+    known = {f.name for f in _dc_fields(cls)}
+    return {k: v for k, v in raw.items() if k in known}
 
 
 # ---------------------------------------------------------------------------
@@ -67,12 +73,22 @@ class Attraction:
             + self.inertia_weight * inertia_score
         )
 
+    @classmethod
+    def from_dict(cls, raw: dict) -> "Attraction":
+        return cls(**_kwargs_from_dict(cls, raw))
+
 
 @dataclass
 class ClusterConfig:
     motor_id: int = 0
     pos_offset_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation_offset: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "ClusterConfig":
+        if "motor_id" not in raw:
+            raise ValueError(f"cluster config missing required 'motor_id': {raw}")
+        return cls(**_kwargs_from_dict(cls, raw))
 
 
 @dataclass
@@ -81,6 +97,12 @@ class ModuleConfig:
     rotation: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
     clusters: list[ClusterConfig] = field(default_factory=list)
 
+    @classmethod
+    def from_dict(cls, raw: dict) -> "ModuleConfig":
+        kwargs = _kwargs_from_dict(cls, raw)
+        kwargs["clusters"] = [ClusterConfig.from_dict(c) for c in raw.get("clusters", [])]
+        return cls(**kwargs)
+
 
 @dataclass
 class CoordinatorConfig:
@@ -88,11 +110,25 @@ class CoordinatorConfig:
     attraction: Attraction = field(default_factory=Attraction)
     exclusion_radius_cm: float = 0.0
 
+    @classmethod
+    def from_dict(cls, raw: dict) -> "CoordinatorConfig":
+        kwargs = _kwargs_from_dict(cls, raw)
+        kwargs["modules"] = [ModuleConfig.from_dict(m) for m in raw.get("modules", [])]
+        kwargs["attraction"] = Attraction.from_dict(raw.get("attraction", {}))
+        # Accept legacy key name from older settings files
+        if "exclusion_radius_cm" not in kwargs and "cluster_exclusion_radius_cm" in raw:
+            kwargs["exclusion_radius_cm"] = raw["cluster_exclusion_radius_cm"]
+        return cls(**kwargs)
+
 
 @dataclass
 class ControllerConfig:
     ip: str = "192.168.1.50"
     port: int = 9000
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "ControllerConfig":
+        return cls(**_kwargs_from_dict(cls, raw))
 
 
 @dataclass
@@ -104,6 +140,10 @@ class CameraConfig:
     width: int = 640
     height: int = 400
     framerate: int = 30
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> "CameraConfig":
+        return cls(**_kwargs_from_dict(cls, raw))
 
 
 # ---------------------------------------------------------------------------
