@@ -7,6 +7,7 @@ All positions are in world space (X=right, Y=forward, Z=up, centimetres).
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -68,6 +69,13 @@ class ModuleConfig:
     registration_point_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
     clusters: list[ClusterConfig] = field(default_factory=list)
+
+
+@dataclass
+class CoordinatorConfig:
+    modules: list[ModuleConfig] = field(default_factory=list)
+    attraction: AttractionConfig = field(default_factory=AttractionConfig)
+    exclusion_radius_cm: float = 0.0
 
 
 @dataclass
@@ -231,19 +239,20 @@ class Coordinator:
     Top-level orchestrator.
 
     Usage:
-        coordinator = Coordinator.from_config(settings)
+        coordinator = Coordinator.from_config(coordinator_config)
         commands = coordinator.process_tracked_blobs(tracked)
         for cmd in commands:
             controller.send(cmd)
     """
 
-    def __init__(self, modules: list[FlowerModule]) -> None:
+    def __init__(self, modules: list[FlowerModule], exclusion_radius_cm: float = 0.0) -> None:
         self.modules = modules
+        self._exclusion_radius_cm = exclusion_radius_cm
 
     @classmethod
-    def from_config(cls, module_configs: list[ModuleConfig], attraction: AttractionConfig | None = None) -> "Coordinator":
-        att = attraction or AttractionConfig()
-        return cls([FlowerModule(mc, att) for mc in module_configs])
+    def from_config(cls, config: CoordinatorConfig) -> "Coordinator":
+        modules = [FlowerModule(mc, config.attraction) for mc in config.modules]
+        return cls(modules, config.exclusion_radius_cm)
 
     def process_tracked_blobs(
         self,
@@ -261,8 +270,29 @@ class Coordinator:
         return commands
 
     def cluster_world_positions(self) -> list[np.ndarray]:
-        """Return the world position of every cluster (for exclusion-zone filtering)."""
+        """Return the world position of every cluster."""
         return [cluster.world_pos_cm for module in self.modules for cluster in module.clusters]
+
+    def make_exclusion_filter(self) -> Callable[[list[np.ndarray]], list[np.ndarray]] | None:
+        """
+        Return a pre-stabilizer filter that suppresses blob positions too close
+        to any physical cluster.  Returns None when no exclusion radius is set.
+        """
+        if self._exclusion_radius_cm <= 0:
+            return None
+        excl_sq = self._exclusion_radius_cm ** 2
+        cluster_positions = self.cluster_world_positions()
+
+        def _filter(positions: list[np.ndarray]) -> list[np.ndarray]:
+            return [
+                p for p in positions
+                if not any(
+                    float(np.dot(p[:2] - cp[:2], p[:2] - cp[:2])) < excl_sq
+                    for cp in cluster_positions
+                )
+            ]
+
+        return _filter
 
     def snapshot(self) -> list[dict]:
         """Return a JSON-serialisable snapshot of all cluster states for the visualizer."""

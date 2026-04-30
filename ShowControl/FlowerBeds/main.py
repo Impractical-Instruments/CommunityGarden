@@ -34,6 +34,7 @@ from flower_beds import (
     CameraConfig,
     ClusterConfig,
     Coordinator,
+    CoordinatorConfig,
     ControllerConfig,
     ModuleConfig,
     MotorCommand,
@@ -94,6 +95,14 @@ def parse_module_configs(raw_modules: list[dict]) -> list[ModuleConfig]:
     return modules
 
 
+def parse_coordinator_config(raw: dict) -> CoordinatorConfig:
+    return CoordinatorConfig(
+        modules=parse_module_configs(raw.get("modules", [])),
+        attraction=parse_attraction_config(raw.get("attraction", {})),
+        exclusion_radius_cm=raw.get("cluster_exclusion_radius_cm", 0.0),
+    )
+
+
 def parse_controller_configs(raw_controllers: list[dict]) -> list[ControllerConfig]:
     return [ControllerConfig(ip=rc["ip"], port=rc["port"]) for rc in raw_controllers]
 
@@ -138,10 +147,7 @@ def run(args: argparse.Namespace) -> None:
         log.info("Using Orbbec camera serial=%s", cam_cfg.serial)
 
     # --- coordinator ---
-    module_configs = parse_module_configs(settings.get("modules", []))
-    attraction = parse_attraction_config(settings.get("attraction", {}))
-    coordinator = Coordinator.from_config(module_configs, attraction)
-    exclusion_radius_cm: float = settings.get("cluster_exclusion_radius_cm", 0.0)
+    coordinator = Coordinator.from_config(parse_coordinator_config(settings.get("coordinator", {})))
     log.info("Loaded %d module(s), %d cluster(s) total",
              len(coordinator.modules),
              sum(len(m.clusters) for m in coordinator.modules))
@@ -174,19 +180,7 @@ def run(args: argparse.Namespace) -> None:
         stab_cfg.min_confirm_frames,
     )
 
-    # --- exclusion filter (applied before stabilizer sees positions) ---
-    excl_filter = None
-    if exclusion_radius_cm > 0:
-        excl_sq = exclusion_radius_cm ** 2
-        cluster_positions = coordinator.cluster_world_positions()
-        def excl_filter(positions: list) -> list:  # noqa: E306
-            return [
-                p for p in positions
-                if not any(
-                    float(np.dot(p[:2] - cp[:2], p[:2] - cp[:2])) < excl_sq
-                    for cp in cluster_positions
-                )
-            ]
+    excl_filter = coordinator.make_exclusion_filter()
 
     # --- graceful shutdown ---
     _running = [True]
