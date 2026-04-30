@@ -14,7 +14,7 @@ from .pipeline import PreStabilizeFilter, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
 from .blob_tracker import BlobTracker, CalibrationState
 from .camera import MockCamera, OrbbecCamera
-from .transforms import Rotator, Transform, look_yaw_degrees, rotator_to_matrix, transform_position
+from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
 
 __all__ = [
     "run_pipeline",
@@ -29,6 +29,7 @@ __all__ = [
     "Rotator",
     "Transform",
     "look_yaw_degrees",
+    "orbbec_to_world",
     "rotator_to_matrix",
     "transform_position",
 ]
