@@ -40,6 +40,21 @@ _Avoid_: "playing music", "triggering notes" — visitors *steer* the music, the
 **FundingCAPTCHA**:
 The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor, running a browser-based suite of increasingly frustrating CAPTCHA-inspired games on a touch screen. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
 
+### FlowerBeds Domain
+
+**Attraction**:
+The policy that governs which Visitor a FlowerCluster looks at. Combines three weighted scores — proximity, dwell time, and inertia — to pick the best target each frame. Both the tuning parameters and the scoring computation live here.
+_Avoid_: AttractionConfig, attraction config, scoring weights
+
+**FlowerCluster**:
+A single servo motor at a fixed world position. Each frame it consults its Attraction policy to select a target Visitor and returns a motor command pointing toward them.
+
+**Dwell**:
+The number of consecutive frames a Visitor has been within a FlowerCluster's influence radius. Higher dwell increases that Visitor's attraction score, causing flowers to prefer lingering visitors over passing ones.
+
+**Inertia**:
+The bonus score applied to the Visitor a FlowerCluster targeted last frame. Prevents jittery switching between nearby visitors of similar distance.
+
 ### Control Model
 
 **Tiller Control**:
