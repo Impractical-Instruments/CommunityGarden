@@ -51,7 +51,7 @@ _REPO = (DIR / "../..").resolve()
 sys.path.insert(0, str(_REPO))
 try:
     import numpy as np
-    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, run_pipeline
+    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, build_calibration, run_pipeline
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -214,8 +214,9 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     )
 
     calib_frames = settings.get("calibration_frames", 60)
+    calibration = build_calibration(camera, calib_frames)
 
-    for tracked in run_pipeline(camera, cam_tf, calib_frames, stabilizer_config):
+    for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config):
         broadcast({
             "blobs": [
                 {"id":  int(t.stable_id),
