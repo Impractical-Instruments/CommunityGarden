@@ -23,7 +23,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
-from blob_tracker import CameraIntrinsics, FramePacket
+from .blob_tracker import CameraIntrinsics, FramePacket
 
 
 class BaseCamera(ABC):

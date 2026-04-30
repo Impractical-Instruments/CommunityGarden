@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from transforms import Rotator, Transform, look_yaw_degrees, rotator_to_matrix
+from IIVision.transforms import Rotator, Transform, look_yaw_degrees, rotator_to_matrix
 
 if TYPE_CHECKING:
-    from blob_stabilizer import TrackedBlob
+    from IIVision.blob_stabilizer import TrackedBlob
 
 
 # ---------------------------------------------------------------------------

@@ -46,15 +46,12 @@ UPLOADS.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
 
-# ── ShowControl CV imports — optional ──────────────────────────────────────────
-_SC = (DIR / "../../ShowControl/FlowerBeds").resolve()
-sys.path.insert(0, str(_SC))
+# ── IIVision CV imports — optional ────────────────────────────────────────────
+_REPO = (DIR / "../..").resolve()
+sys.path.insert(0, str(_REPO))
 try:
     import numpy as np
-    from blob_tracker import BlobTracker, CalibrationState
-    from blob_stabilizer import BlobStabilizer, StabilizerConfig
-    from camera import MockCamera, OrbbecCamera
-    from transforms import Rotator, Transform, transform_position
+    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, run_pipeline
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -194,21 +191,16 @@ def broadcast(state: dict[str, Any]) -> None:
 # ── CV thread ──────────────────────────────────────────────────────────────────
 
 def _cv_thread(camera: Any, settings: dict) -> None:
-    """
-    Runs blob detection in a daemon thread; publishes positions via broadcast().
-    Follows the same pattern as ShowControl/FlowerBeds/main.py.
-    """
-    calib_frames = settings.get("calibration_frames", 60)
-    stab_cfg     = settings.get("stabilizer", {})
-    cam_cfg      = settings.get("camera", {})
+    """Runs blob detection in a daemon thread; publishes positions via broadcast()."""
+    stab_cfg = settings.get("stabilizer", {})
+    cam_cfg  = settings.get("camera", {})
 
-    stabilizer = BlobStabilizer(StabilizerConfig(
+    stabilizer_config = StabilizerConfig(
         max_match_dist_cm  = stab_cfg.get("max_match_dist_cm",  80.0),
         smoothing_alpha    = stab_cfg.get("smoothing_alpha",     0.3),
         max_miss_frames    = stab_cfg.get("max_miss_frames",     8),
         min_confirm_frames = stab_cfg.get("min_confirm_frames",  2),
-    ))
-    tracker = BlobTracker()
+    )
 
     pos_cm = cam_cfg.get("pos_cm", [0.0, 0.0, 200.0])
     rot    = cam_cfg.get("rotation", {})
@@ -221,29 +213,17 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         ),
     )
 
-    with camera:
-        for frame in camera.frames():
-            state = tracker._state
-            if state == CalibrationState.NOT_CALIBRATED:
-                tracker.begin_calibration(calib_frames, frame.width, frame.height)
-                tracker.push_calibration_frame(frame)
-            elif state == CalibrationState.IN_PROGRESS:
-                tracker.push_calibration_frame(frame)
-            else:
-                result  = tracker.detect(frame)
-                raw_pos = [
-                    transform_position(cam_tf, b.world_pos_cm())
-                    for b in result.world_blobs if b.valid
-                ]
-                tracked = stabilizer.update(raw_pos)
-                broadcast({
-                    "blobs": [
-                        {"id":  int(t.stable_id),
-                         "x":   float(t.world_pos_cm[0]),
-                         "y":   float(t.world_pos_cm[1])}
-                        for t in tracked
-                    ]
-                })
+    calib_frames = settings.get("calibration_frames", 60)
+
+    for tracked in run_pipeline(camera, cam_tf, calib_frames, stabilizer_config):
+        broadcast({
+            "blobs": [
+                {"id":  int(t.stable_id),
+                 "x":   float(t.world_pos_cm[0]),
+                 "y":   float(t.world_pos_cm[1])}
+                for t in tracked
+            ]
+        })
 
 
 # ── Static files (catch-all — must be registered last) ────────────────────────
