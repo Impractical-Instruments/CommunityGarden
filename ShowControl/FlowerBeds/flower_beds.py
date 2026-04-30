@@ -245,25 +245,6 @@ class Coordinator:
         att = attraction or AttractionConfig()
         return cls([FlowerModule(mc, att) for mc in module_configs])
 
-    def process_blobs(
-        self,
-        camera_transform: Transform,
-        blobs_3d: list,  # list[blob_tracker.Blob3D]
-    ) -> list[MotorCommand]:
-        """
-        Transform blobs from camera-local space to world space, then dispatch
-        to all modules.  Uses synthetic per-frame IDs so dwell and inertia
-        bonuses are unavailable on this path — prefer process_tracked_blobs.
-        """
-        from blob_stabilizer import TrackedBlob as TB
-        from transforms import transform_position
-
-        tracked = [
-            TB(stable_id=blob.id, world_pos_cm=transform_position(camera_transform, blob.world_pos_cm()))
-            for blob in blobs_3d
-        ]
-        return self.process_tracked_blobs(tracked)
-
     def process_tracked_blobs(
         self,
         blobs: list[TrackedBlob],
