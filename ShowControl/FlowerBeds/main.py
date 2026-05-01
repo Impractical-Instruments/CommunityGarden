@@ -65,6 +65,19 @@ def load_settings(path: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _build_controllers(settings: dict, no_osc: bool) -> list[SimpleUDPClient]:
+    if no_osc:
+        return []
+    return [
+        SimpleUDPClient(cfg.ip, cfg.port)
+        for cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -101,10 +114,8 @@ def run(args: argparse.Namespace) -> None:
              sum(len(m.clusters) for m in coordinator.modules))
 
     # --- OSC controllers ---
-    controllers: list[SimpleUDPClient] = []
-    if not args.no_osc:
-        for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
-            controllers.append(SimpleUDPClient(ctrl_cfg.ip, ctrl_cfg.port))
+    controllers = _build_controllers(settings, args.no_osc)
+    if controllers:
         log.info("OSC output → %d controller(s)", len(controllers))
     else:
         log.info("OSC output disabled (--no-osc)")
@@ -148,11 +159,12 @@ def run(args: argparse.Namespace) -> None:
     calibration_state = "calibrated"
 
     # --- graceful shutdown ---
-    _running = [True]
+    _running = True
 
     def _stop(sig, frame):
+        nonlocal _running
         log.info("Shutting down…")
-        _running[0] = False
+        _running = False
 
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
@@ -161,7 +173,7 @@ def run(args: argparse.Namespace) -> None:
     t_last_log = time.monotonic()
 
     for tracked in run_pipeline(camera, camera_transform, calibration, stab_cfg, excl_filter):
-        if not _running[0]:
+        if not _running:
             break
 
         commands = coordinator.process_tracked_blobs(tracked)
@@ -227,10 +239,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
 
     commands = [MotorCommand(motor_id=mid, rotation_deg=yaw) for mid in motor_ids]
 
-    controllers: list[SimpleUDPClient] = []
-    if not args.no_osc:
-        for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
-            controllers.append(SimpleUDPClient(ctrl_cfg.ip, ctrl_cfg.port))
+    controllers = _build_controllers(settings, args.no_osc)
 
     log.info(
         "Calibration mode — holding %d motor(s) at %.1f° (Ctrl+C to exit)",
@@ -240,11 +249,16 @@ def run_calibrate(args: argparse.Namespace) -> None:
     if not controllers:
         log.info("(OSC disabled — no commands will be sent)")
 
-    _running = [True]
-    signal.signal(signal.SIGINT, lambda *_: _running.__setitem__(0, False))
-    signal.signal(signal.SIGTERM, lambda *_: _running.__setitem__(0, False))
+    _running = True
 
-    while _running[0]:
+    def _stop(*_):
+        nonlocal _running
+        _running = False
+
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+
+    while _running:
         for ctrl in controllers:
             for cmd in commands:
                 ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
