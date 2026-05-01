@@ -13,11 +13,45 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from typing import Any
+from typing import Any, TypedDict
 
 import uvicorn  # type: ignore[import]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from fastapi.responses import HTMLResponse  # type: ignore[import]
+
+
+# ---------------------------------------------------------------------------
+# State schema
+# ---------------------------------------------------------------------------
+
+class BlobState(TypedDict):
+    id: int
+    x: float
+    y: float
+
+
+class ClusterState(TypedDict):
+    motor_id: int
+    x: float
+    y: float
+    yaw_deg: float
+    has_target: bool
+    target_id: int | None
+
+
+class CameraState(TypedDict):
+    name: str
+    x: float
+    y: float
+    yaw_deg: float
+
+
+class VisualizerState(TypedDict):
+    frame: int
+    blobs: list[BlobState]
+    clusters: list[ClusterState]
+    cameras: list[CameraState]
+    calibration_state: str
 
 # ---------------------------------------------------------------------------
 # Embedded HTML/JS client
@@ -279,7 +313,7 @@ def _get_loop() -> asyncio.AbstractEventLoop:
     return _loop
 
 
-def broadcast(state: dict[str, Any]) -> None:
+def broadcast(state: VisualizerState) -> None:
     """
     Thread-safe: push a state snapshot to all connected browsers.
     Call this from the main (non-async) processing loop.

@@ -21,6 +21,10 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from visualizer import VisualizerState
 
 import numpy as np
 
@@ -141,6 +145,8 @@ def run(args: argparse.Namespace) -> None:
         calibration.save(calib_path)
         log.info("Calibration saved to %s", calib_path)
 
+    calibration_state = "calibrated"
+
     # --- graceful shutdown ---
     _running = [True]
 
@@ -164,7 +170,7 @@ def run(args: argparse.Namespace) -> None:
                 ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
 
         frame_count += 1
-        broadcast({
+        state: VisualizerState = {
             "frame": frame_count,
             "blobs": [
                 {
@@ -183,7 +189,9 @@ def run(args: argparse.Namespace) -> None:
                     "yaw_deg": float(cam_cfg.rotation.get("yaw", 0)),
                 }
             ],
-        })
+            "calibration_state": calibration_state,
+        }
+        broadcast(state)
 
         now = time.monotonic()
         if now - t_last_log >= 5.0:
