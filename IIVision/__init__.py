@@ -12,7 +12,7 @@ Public API:
     Output type:         TrackedBlob
 """
 
-from .pipeline import PreStabilizeFilter, build_calibration, run_pipeline
+from .pipeline import PreStabilizeFilter, build_calibration, filter_positions_near_points, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
 from .blob_tracker import BlobTracker, Calibration, Calibrator
 from .camera import MockCamera, OrbbecCamera
@@ -20,6 +20,7 @@ from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, r
 
 __all__ = [
     "build_calibration",
+    "filter_positions_near_points",
     "run_pipeline",
     "PreStabilizeFilter",
     "BlobStabilizer",

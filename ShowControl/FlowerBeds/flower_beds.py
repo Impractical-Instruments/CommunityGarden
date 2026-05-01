@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from IIVision.pipeline import filter_positions_near_points
 from IIVision.transforms import Rotator, Transform, look_yaw_degrees, rotator_to_matrix
 
 if TYPE_CHECKING:
@@ -329,19 +330,9 @@ class Coordinator:
         """
         if self._exclusion_radius_cm <= 0:
             return None
-        excl_sq = self._exclusion_radius_cm ** 2
         cluster_positions = self.cluster_world_positions()
-
-        def _filter(positions: list[np.ndarray]) -> list[np.ndarray]:
-            return [
-                p for p in positions
-                if not any(
-                    float(np.dot(p[:2] - cp[:2], p[:2] - cp[:2])) < excl_sq
-                    for cp in cluster_positions
-                )
-            ]
-
-        return _filter
+        radius_cm = self._exclusion_radius_cm
+        return lambda positions: filter_positions_near_points(positions, cluster_positions, radius_cm)
 
     def snapshot(self) -> list[dict]:
         """Return a JSON-serialisable snapshot of all cluster states for the visualizer."""
