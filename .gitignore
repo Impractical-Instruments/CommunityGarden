@@ -12,3 +12,4 @@ Log/
 **/*.pyc
 **/*.pyo
 .venv/
+*.calibration.npz

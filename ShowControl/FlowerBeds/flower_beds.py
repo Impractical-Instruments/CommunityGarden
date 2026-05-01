@@ -155,6 +155,11 @@ class MotorCommand:
     motor_id: int
     rotation_deg: float
 
+    def to_osc_args(self) -> list:
+        # Negate yaw: software convention (CCW positive from above) is opposite
+        # to the Dynamixel convention (CW positive from above).
+        return [self.motor_id, -self.rotation_deg]
+
 
 # ---------------------------------------------------------------------------
 # FlowerCluster

@@ -42,7 +42,9 @@ from flower_beds import (
     ModuleConfig,
     MotorCommand,
 )
-from flower_controller import FlowerController
+from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
+
+_OSC_ADDRESS = "/cg/ff/rot"
 
 log = logging.getLogger("flower_beds")
 
@@ -95,10 +97,10 @@ def run(args: argparse.Namespace) -> None:
              sum(len(m.clusters) for m in coordinator.modules))
 
     # --- OSC controllers ---
-    controllers: list[FlowerController] = []
+    controllers: list[SimpleUDPClient] = []
     if not args.no_osc:
         for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
-            controllers.append(FlowerController(ctrl_cfg))
+            controllers.append(SimpleUDPClient(ctrl_cfg.ip, ctrl_cfg.port))
         log.info("OSC output → %d controller(s)", len(controllers))
     else:
         log.info("OSC output disabled (--no-osc)")
@@ -158,7 +160,8 @@ def run(args: argparse.Namespace) -> None:
 
         commands = coordinator.process_tracked_blobs(tracked)
         for ctrl in controllers:
-            ctrl.send_all(commands)
+            for cmd in commands:
+                ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
 
         frame_count += 1
         broadcast({
@@ -216,10 +219,10 @@ def run_calibrate(args: argparse.Namespace) -> None:
 
     commands = [MotorCommand(motor_id=mid, rotation_deg=yaw) for mid in motor_ids]
 
-    controllers: list[FlowerController] = []
+    controllers: list[SimpleUDPClient] = []
     if not args.no_osc:
         for ctrl_cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]:
-            controllers.append(FlowerController(ctrl_cfg))
+            controllers.append(SimpleUDPClient(ctrl_cfg.ip, ctrl_cfg.port))
 
     log.info(
         "Calibration mode — holding %d motor(s) at %.1f° (Ctrl+C to exit)",
@@ -235,7 +238,8 @@ def run_calibrate(args: argparse.Namespace) -> None:
 
     while _running[0]:
         for ctrl in controllers:
-            ctrl.send_all(commands)
+            for cmd in commands:
+                ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
         time.sleep(0.5)
 
 
