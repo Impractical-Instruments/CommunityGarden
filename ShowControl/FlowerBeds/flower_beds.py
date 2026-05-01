@@ -18,6 +18,7 @@ from IIVision.transforms import Rotator, Transform, look_yaw_degrees, rotator_to
 
 if TYPE_CHECKING:
     from IIVision.blob_stabilizer import TrackedBlob
+    from visualizer import ClusterState
 
 
 def _kwargs_from_dict(cls, raw: dict) -> dict:
@@ -334,9 +335,9 @@ class Coordinator:
         radius_cm = self._exclusion_radius_cm
         return lambda positions: filter_positions_near_points(positions, cluster_positions, radius_cm)
 
-    def snapshot(self) -> list[dict]:
+    def snapshot(self) -> list[ClusterState]:
         """Return a JSON-serialisable snapshot of all cluster states for the visualizer."""
-        result = []
+        result: list[ClusterState] = []
         for module in self.modules:
             for cluster in module.clusters:
                 result.append({
