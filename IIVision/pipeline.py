@@ -34,6 +34,27 @@ log = logging.getLogger(__name__)
 PreStabilizeFilter = Callable[[list[np.ndarray]], list[np.ndarray]]
 
 
+def filter_positions_near_points(
+    positions: list[np.ndarray],
+    points: list[np.ndarray],
+    radius_cm: float,
+) -> list[np.ndarray]:
+    """
+    Remove positions that fall within radius_cm of any point (XY plane only).
+
+    Useful for building a PreStabilizeFilter that suppresses blob detections
+    inside physical obstacles — e.g. flower clusters detecting themselves.
+    """
+    radius_sq = radius_cm ** 2
+    return [
+        p for p in positions
+        if not any(
+            float(np.dot(p[:2] - q[:2], p[:2] - q[:2])) < radius_sq
+            for q in points
+        )
+    ]
+
+
 def build_calibration(camera: Any, num_frames: int) -> Calibration:
     """
     Open camera, collect num_frames depth frames, and return a Calibration.
