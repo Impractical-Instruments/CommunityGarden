@@ -221,7 +221,8 @@ def _cv_thread(camera: Any, settings: dict) -> None:
             "blobs": [
                 {"id":  int(t.stable_id),
                  "x":   float(t.world_pos_cm[0]),
-                 "y":   float(t.world_pos_cm[1])}
+                 "y":   float(t.world_pos_cm[1]),
+                 "z":   float(t.world_pos_cm[2])}
                 for t in tracked
             ]
         })
@@ -283,8 +284,9 @@ def main() -> None:
 
     print(f"FundingCAPTCHA  port {args.port}")
     print(f"  Games:    http://{local_ip}:{args.port}/")
-    print(f"  Upload:   http://{local_ip}:{args.port}/upload.html   ← share with kids")
-    print(f"  Gallery:  http://{local_ip}:{args.port}/gallery.html  ← organiser tool")
+    print(f"  Upload:   http://{local_ip}:{args.port}/upload.html        ← share with kids")
+    print(f"  Gallery:  http://{local_ip}:{args.port}/gallery.html       ← organiser tool")
+    print(f"  Touch:    http://{local_ip}:{args.port}/touch-test.html    ← camera touch tester")
     print("Press Ctrl+C to stop.\n")
 
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")

@@ -1,12 +1,12 @@
 {
-  "_comment": "FundingCAPTCHA runtime config. Edit floor_rect to match your physical install.",
+  "_comment": "FundingCAPTCHA runtime config. Edit screen_rect to match your physical install.",
 
-  "floor_rect": {
-    "_comment": "World-space region (cm) that maps to the full game grid. X=right, Y=forward.",
+  "screen_rect": {
+    "_comment": "World-space region (cm) that maps to the full game grid. X=right (horizontal on screen), Z=up (height on screen). Calibrate z0/z1 on-site to match screen bottom and top.",
     "x0": -150,
-    "y0":  100,
     "x1":  150,
-    "y1":  400
+    "z0":   50,
+    "z1":  200
   },
 
   "blob_dwell_frames": 3,

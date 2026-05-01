@@ -59,6 +59,8 @@ function startGame(id) {
     backgroundRenderer?.update({ game: currentGameId, event: 'tap' });
   });
 
+  touchInput.resize(meta.cols, meta.rows);
+
   activeGame = new GameClass(
     grid,
     gameHud,
@@ -123,75 +125,36 @@ function showMessage(title, body, btn1Text, btn1Fn, btn2Text, btn2Fn) {
   document.getElementById('msg-btn2')?.addEventListener('click', btn2Fn);
 }
 
-// ── WebSocket blob input ───────────────────────────────────────────────────────
-// When the server runs with --camera or --mock-camera it pushes
-// { blobs: [{id, x, y}] } in world-space centimetres each frame.
-// We normalise these to grid (col, row) using the floor rect from captcha-settings.json.
+// ── Camera blob input ──────────────────────────────────────────────────────────
+// TouchInput maps world-space blob positions (x=right, z=up) to grid cells.
+// BlobWS receives {blobs:[{id,x,y,z}]} frames from the server WebSocket.
+// Settings (screenRect, dwellFrames) are loaded from /api/captcha-settings.
 
-let floorRect       = { x0: -150, y0: 100, x1: 150, y1: 400 };
-let blobDwellFrames = 3; // frames a blob must dwell in a cell before triggering a tap
-
-// Map { blobId → { col, row, frames } }
-const _blobDwell = new Map();
+const touchInput = new TouchInput({
+  cols: 1, rows: 1, // placeholder — resized in startGame()
+  screenRect:  { x0: -150, x1: 150, z0: 50, z1: 200 },
+  dwellFrames: 3,
+  onTap: (col, row) => {
+    activeGame?.onTap(col, row);
+    backgroundRenderer?.update({ game: currentGameId, event: 'tap' });
+  },
+});
 
 (async function loadSettings() {
   try {
     const res = await fetch('/api/captcha-settings');
     const s   = await res.json();
-    if (s.floor_rect)        floorRect       = s.floor_rect;
-    if (s.blob_dwell_frames) blobDwellFrames = s.blob_dwell_frames;
+    touchInput.configure({
+      screenRect:  s.screen_rect        || undefined,
+      dwellFrames: s.blob_dwell_frames  || undefined,
+    });
   } catch (_) { /* use defaults — server may not be FastAPI yet */ }
 })();
 
-function _blobToCell(x, y, cols, rows) {
-  const { x0, y0, x1, y1 } = floorRect;
-  const col = Math.floor((x - x0) / (x1 - x0) * cols);
-  const row = Math.floor((y - y0) / (y1 - y0) * rows);
-  return {
-    col: Math.max(0, Math.min(cols - 1, col)),
-    row: Math.max(0, Math.min(rows - 1, row)),
-  };
-}
-
-function _connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws    = new WebSocket(`${proto}://${location.host}/ws`);
-
-  ws.onmessage = (ev) => {
-    let msg;
-    try { msg = JSON.parse(ev.data); } catch (_) { return; }
-    const blobs = msg.blobs;
-    if (!Array.isArray(blobs) || !activeGame || !grid) return;
-
-    const cols = grid.cols, rows = grid.rows;
-    const liveIds = new Set(blobs.map(b => b.id));
-
-    // Evict stale blob tracks
-    for (const id of _blobDwell.keys()) {
-      if (!liveIds.has(id)) _blobDwell.delete(id);
-    }
-
-    // Process each blob: dwell-debounce → virtual tap
-    blobs.forEach(b => {
-      const { col, row } = _blobToCell(b.x, b.y, cols, rows);
-      const prev = _blobDwell.get(b.id);
-      if (!prev || prev.col !== col || prev.row !== row) {
-        _blobDwell.set(b.id, { col, row, frames: 1 });
-      } else {
-        prev.frames++;
-        if (prev.frames === blobDwellFrames) {
-          // Dwell threshold reached — fire exactly once until blob moves
-          activeGame.onTap(col, row);
-          backgroundRenderer?.update({ game: currentGameId, event: 'tap' });
-        }
-      }
-    });
-
+new BlobWS({
+  url: BlobWS.wsUrl(),
+  onBlobs: blobs => {
+    touchInput.update(blobs);
     backgroundRenderer?.update({ game: currentGameId, blobCount: blobs.length });
-  };
-
-  ws.onclose = () => setTimeout(_connectWS, 2000);
-  ws.onerror = () => ws.close();
-}
-
-_connectWS();
+  },
+});
