@@ -23,7 +23,15 @@ The TreeHouse's role in the installation — it receives state signals from all 
 _Avoid_: "controller", "master", "server"
 
 **Garden State**:
-The aggregate picture of visitor activity across all Elements at a given moment. The TreeHouse uses Garden State to drive its reactive displays (branch growth, diorama states, etc.).
+The complete set of live signals from all Elements and show-control inputs, collected by the TreeHouse Coordinator from incoming OSC messages and passed to every Controllable each frame. Contains raw per-Element values — not a pre-computed aggregate. Each Controllable reads whichever fields it cares about and applies its own weighting/response logic internally.
+
+Fields:
+- `flowerbeds_activity` (float 0–1) — normalised visitor activity from FlowerBeds
+- `captcha_intensity` (float 0–1) — Arc progress toward Blow-Up from FundingCAPTCHA
+- `captcha_blowup` (bool) — one-shot flag, true on the frame a Blow-Up fires
+- `pipes_activity` (float 0–1) — normalised music engagement from Playing the Pipes
+- `show_mode` (enum: full/dim/off) — global show control state
+- `brightness` (float 0–1) — global brightness override
 
 ### Elements
 
@@ -72,7 +80,7 @@ A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each fram
 _Avoid_: "difficulty", "score", "engagement level"
 
 **Blow-Up Signal**:
-A one-shot OSC message sent to the TreeHouse when a Blow-Up occurs, triggering a reactive moment in the TreeHouse displays and animations. Distinct from Intensity — it is an event, not a continuous value.
+A one-shot OSC message sent to the TreeHouse when a Blow-Up occurs, triggering a reactive moment in the TreeHouse displays and animations. Distinct from Intensity — it is an event, not a continuous value. The TreeHouse reacts with a **Blow-Up Reaction**: attic lights spike to full brightness then decay along an exponential curve back to the Garden-State-driven level. Decay shape (time constant, optional tail flicker) is configurable.
 
 ### FlowerBeds Domain
 
@@ -88,6 +96,51 @@ The number of consecutive frames a Visitor has been within a FlowerCluster's inf
 
 **Inertia**:
 The bonus score applied to the Visitor a FlowerCluster targeted last frame. Prevents jittery switching between nearby visitors of similar distance.
+
+### TreeHouse Domain
+
+**Diorama**:
+A self-contained miniature room visible through a TreeHouse window. Three dioramas exist: House Swarming (ground floor), Club (second floor), and Mycelium (second floor). Each is its own LEDControllable with distinct Garden-State-reactive animation.
+
+**House Swarming**:
+Ground floor diorama. Lit with SK6812 RGBW strips using an incandescent-style pattern.
+
+**Club**:
+Second floor diorama. Lit with SK6812 strips using a chase/strobe pattern.
+
+**Mycelium**:
+Second floor diorama. Contains clay mushrooms and edge-lit acrylic panels masked so the glow traces mycelium network patterns. LED light enters through acrylic edges and illuminates the masked paths. Animation logic pulses or propagates along the mycelium paths in response to Garden State rather than applying uniform brightness.
+
+**Attic**:
+The interior space at the top of the TreeHouse, behind the gable windows and dormer. Functionally houses branch motors, wiring, and rigging. Visually dressed as an upside-down TV den — furniture and lamps mounted to the ceiling, a TV mounted so it faces the floor (ceiling from the visitor's perspective). Visitors see only ambient glow through the clear acrylic gable windows: the TV glow and warm lamp light. The TV is not directly visible from the front.
+
+**Attic TV**:
+A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. Visible to visitors only as indirect glow through the gable windows. Driven as a standard Pico LED channel; "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker).
+
+**Controllable**:
+The base abstraction for everything the TreeHouse controls. Two methods: `update(dt, state)` advances internal state by `dt` seconds given the current `GardenState`; `get_state()` returns a serialisable snapshot for monitoring. Every display, motor controller, and video output in the TreeHouse is a Controllable.
+_Avoid_: "Display" (the old name — being replaced)
+
+**LEDControllable**:
+A Controllable subclass for anything that drives SK6812 RGBW LED strips via the Pico. Adds `get_pixels()` returning a list of `ChannelFrame` objects (one per Pico GPIO pin). The `PicoDriver` collects pixels from all LEDControllables each frame and sends them in a single batch. Each room/space is its own LEDControllable subclass with its own Garden-State-reactive animation logic.
+_Avoid_: "LEDDisplay" (the old name — being replaced), conflating with `Controllable`
+
+**GardenState**:
+A dataclass passed to every `Controllable.update()` each frame. Fields: `bloom` (0.0–1.0 Branch extension target), `intensity` (0.0–1.0 aggregate visitor activity), `blowup_triggered` (bool, one-shot per Blow-Up event). Each Controllable reads only the fields relevant to it.
+
+**Attic Lamps**:
+One or two physical lamp props (floor or table lamps) mounted upside-down in the Attic, each containing a single LED. Provide warm ambient fill light visible through the gable windows. Simple point sources — low LED count (1–2 per lamp).
+
+**Exterior Lights**:
+Lights by the front door of the TreeHouse, styled to look like typical house exterior lighting (warm, domestic). Driven as a dedicated LEDControllable class on the same Pi Pico as all other LED strips. Separate class for independent animation/reactivity logic.
+
+**Branch**:
+One of 4–6 motorised branches mounted on the TreeHouse roof. Each Branch extends (blooms) or retracts (withers) independently via a Dynamixel servo driving a lead screw that pushes a wire with leaves/blooms through a PVC housing dressed as a tree branch. The aggregate extension state follows a 0.0–1.0 Bloom value: 0.0 = fully retracted/dead, 1.0 = fully extended/bloomed.
+_Avoid_: "arm", "limb", "antenna"
+
+**Bloom**:
+A 0.0–1.0 continuous value representing the aggregate extension state of all Branches. Driven by Garden State. Individual Branches track Bloom with per-branch configurable phase offsets, max-extension speed, and noise — all tunable in `settings.json` — so branches stagger organically rather than moving in lockstep.
+_Avoid_: "position", "extension level", "growth"
 
 ### Control Model
 
@@ -109,8 +162,25 @@ The shared computer-vision library (depth camera abstraction, blob detection, bl
 **OSC Fabric**:
 The UDP/OSC network that connects Elements when co-located. Any Element may send or receive OSC messages from any other Element. The TreeHouse is the primary consumer of cross-element messages, but the fabric is intentionally open.
 
+Established OSC addresses (inbound to TreeHouse):
+
+| Address | Type | Sender | Meaning |
+|---|---|---|---|
+| `/treehouse/mode` | string | operator | `"full"` / `"dim"` / `"off"` — show mode override |
+| `/treehouse/brightness` | float 0–1 | operator | dim level override |
+| `/captcha/intensity` | float 0–1 | FundingCAPTCHA | Arc progress toward Blow-Up |
+| `/captcha/blowup` | (no args) | FundingCAPTCHA | one-shot Blow-Up event |
+| `/flowerbeds/activity` | float 0–1 | FlowerBeds | normalised visitor activity |
+| `/pipes/activity` | float 0–1 | Playing the Pipes | normalised music engagement |
+
+**Signal Bag**:
+A pattern used inside individual Controllable implementations (not at the Coordinator level) to combine a subset of Garden State fields into a single 0–1 drive value. Each Controllable that uses this pattern holds a configurable dict of `{field_name: weight}` pairs, computes a weighted sum, normalises, and EMA-smooths the result each frame. New fields can be added to the bag via config without code changes. Not all Controllables need a Signal Bag — some may respond to individual fields directly (e.g. `captcha_blowup` triggering a one-shot effect).
+
 **Show Network**:
-The isolated Ethernet LAN that connects all show computers during installation. All OSC communication travels over the Show Network. May be extended with an internet uplink for remote monitoring.
+The isolated Ethernet LAN that connects all show computers during installation. All OSC communication travels over the Show Network. Internet uplink deliberately omitted to keep the network simple and stable.
+
+**Show Dashboard**:
+A browser-based monitoring interface accessible on the Show Network. Operator connects their laptop to the Show Network to access it. Custom pages per Element, fed by each Element's FastAPI/WebSocket server (the same `get_state()` snapshots that Controllables already produce). No internet access required.
 
 ## Relationships
 
