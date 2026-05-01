@@ -38,7 +38,41 @@ The Element growing out of the base of the TreeHouse — a Dr. Seuss/Rube Goldbe
 _Avoid_: "playing music", "triggering notes" — visitors *steer* the music, they do not play it directly
 
 **FundingCAPTCHA**:
-The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor, running a browser-based suite of increasingly frustrating CAPTCHA-inspired games on a touch screen. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
+The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor. A short-throw laser projector (mounted overhead, ~3 feet from the Screen) projects the game interface onto a vertical projection surface; an Orbbec depth camera co-mounted with the projector detects hands touching or approaching the Screen. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
+
+**Screen** (FundingCAPTCHA):
+The vertical projection surface on the front of the FundingCAPTCHA kiosk. Visitors interact by physically touching the Screen; the depth camera detects contact (and near-contact within a configurable depth threshold) and converts it to tap-down and tap-up events on a grid. One to three Players can touch the Screen simultaneously.
+_Avoid_: "touch screen" (implies a capacitive panel), "canvas", "display"
+
+**Player** (FundingCAPTCHA):
+A Visitor who is actively touching or about to touch the Screen. FundingCAPTCHA is the only Element where "Player" is appropriate; elsewhere use Visitor. Play is drop-in/drop-out — there is no formal join or leave event.
+
+**Arc**:
+The lifecycle of a single game in FundingCAPTCHA. Difficulty ramps from easy to unmanageable as Players succeed; the Arc always ends in a spectacular inevitable failure (the Blow-Up) rather than a clean win. Winning a round only advances the difficulty — there is no overall victory condition. Every game type must guarantee a loss after sustained inactivity — either through a literal countdown timer, or through mechanics that ensure failure without Player input (e.g. defenders eventually catching the ball carrier in Keepaway).
+_Avoid_: "session", "run", "level" (a level is one stage within an Arc, not the Arc itself)
+
+**Blow-Up**:
+The spectacular end-of-Arc failure state when difficulty has ramped beyond what Players can manage. Intentionally rewarding — lots of visual and audio fanfare — so that failing after a long Arc feels like a payoff, not a punishment. After a Blow-Up the kiosk cycles to the next game.
+
+**Show Mode**:
+The operational mode for live installation. Game selection is automated: the kiosk cycles through game types as each Arc ends using a shuffle-bag algorithm (all game types are played in random order before any repeats). The game selection screen is hidden.
+_Avoid_: "production mode", "performance mode"
+
+**Screensaver**:
+The idle state displayed when no Players have touched the Screen for a configurable period after a game has ended. Because every Arc is guaranteed to end in a loss on its own, the Screensaver only needs to monitor the between-game state — it never interrupts an active Arc. Touching the Screen exits the Screensaver and starts a game. Multiple screensavers available, inspired by classic procedural screensavers (e.g. the Windows pipes screensaver).
+_Avoid_: "attract screen", "idle animation", "lobby"
+
+### FundingCAPTCHA Domain
+
+**Round**:
+One complete level within an Arc. A Round ends in either a win (difficulty increases, next Round begins) or a loss (Blow-Up, Arc ends). Each game type defines its own win and loss conditions per Round.
+
+**Intensity**:
+A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each frame, representing how far the current Arc has progressed toward its Blow-Up. Derived from the current difficulty level normalised against the maximum. Resets to 0.0 at the start of each new Arc.
+_Avoid_: "difficulty", "score", "engagement level"
+
+**Blow-Up Signal**:
+A one-shot OSC message sent to the TreeHouse when a Blow-Up occurs, triggering a reactive moment in the TreeHouse displays and animations. Distinct from Intensity — it is an event, not a continuous value.
 
 ### FlowerBeds Domain
 
