@@ -230,6 +230,92 @@ body {
 
 .th-display.disabled { opacity: .35; }
 
+/* ── Controls panel ──────────────────────────────────────────────────────── */
+
+.ctrl-section {
+    flex-shrink: 0;
+    border-bottom: 1px solid #2a2a2a;
+    overflow-y: auto;
+    max-height: 280px;
+}
+
+.ctrl-header {
+    padding: .25em .8em;
+    background: #161616;
+    border-bottom: 1px solid #222;
+    font-size: .7em;
+    color: #666;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+}
+
+.ctrl-rows {
+    padding: .4em .8em .5em;
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+}
+
+.ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: .8em;
+    min-height: 1.8em;
+}
+
+.ctrl-label {
+    font-size: .65em;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    min-width: 108px;
+    flex-shrink: 0;
+}
+
+.ctrl-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25em;
+}
+
+.ctrl-btn {
+    background: #161616;
+    border: 1px solid #2a2a2a;
+    color: #666;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: .7em;
+    padding: .2em .55em;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background .1s, color .1s, border-color .1s;
+    line-height: 1.4;
+}
+
+.ctrl-btn:hover {
+    background: #1e1e1e;
+    color: #aaa;
+    border-color: #444;
+}
+
+.ctrl-btn.active {
+    background: #0d2035;
+    border-color: #4dabf7;
+    color: #74c0fc;
+}
+
+.ctrl-btn.trigger {
+    border-color: #3a1a1a;
+    color: #555;
+}
+
+.ctrl-btn.trigger:hover {
+    background: #1f0f0f;
+    border-color: #f03e3e;
+    color: #ff6b6b;
+}
+
 /* ── Coming soon ──────────────────────────────────────────────────────────── */
 
 .coming-soon {

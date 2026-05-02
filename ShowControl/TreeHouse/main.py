@@ -67,7 +67,7 @@ async def _run(args: argparse.Namespace) -> None:
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
-        tasks.append(asyncio.create_task(visualizer.serve(port=args.visualizer_port)))
+        tasks.append(asyncio.create_task(visualizer.serve(coordinator=coordinator, port=args.visualizer_port)))
 
     try:
         await asyncio.gather(*tasks)

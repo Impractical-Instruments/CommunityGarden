@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 import uvicorn  # type: ignore[import]
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 from fastapi.responses import JSONResponse  # type: ignore[import]
 
@@ -35,6 +35,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"])
 _connections: set[WebSocket] = set()
 _log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
+_coordinator: "Coordinator | None" = None
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,64 @@ class WebSocketLogHandler(logging.Handler):
 @app.get("/health")
 async def health():
     return JSONResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Control endpoints — test dashboard → coordinator
+# ---------------------------------------------------------------------------
+
+@app.post("/control/show/mode")
+async def ctrl_show_mode(req: Request):
+    body = await req.json()
+    if _coordinator:
+        _coordinator.set_mode(body["mode"])
+    return {"ok": True}
+
+
+@app.post("/control/show/brightness")
+async def ctrl_show_brightness(req: Request):
+    body = await req.json()
+    if _coordinator:
+        _coordinator.set_dim_level(float(body["level"]))
+    return {"ok": True}
+
+
+@app.post("/control/led-pattern")
+async def ctrl_led_pattern(req: Request):
+    body = await req.json()
+    if _coordinator:
+        _coordinator.set_display_pattern(body["display"], body["pattern"])
+    return {"ok": True}
+
+
+@app.post("/control/looking-glass")
+async def ctrl_looking_glass(req: Request):
+    body = await req.json()
+    if _coordinator:
+        _coordinator.set_looking_glass_scene(body["scene"])
+    return {"ok": True}
+
+
+@app.post("/control/forge-mode")
+async def ctrl_forge_mode(req: Request):
+    body = await req.json()
+    if _coordinator:
+        _coordinator.set_forge_mode(body["mode"])
+    return {"ok": True}
+
+
+@app.post("/control/porch-blowup")
+async def ctrl_porch_blowup():
+    if _coordinator:
+        _coordinator.trigger_captcha_blowup()
+    return {"ok": True}
+
+
+@app.post("/control/porch-reset")
+async def ctrl_porch_reset():
+    if _coordinator:
+        _coordinator.reset_porch_lights()
+    return {"ok": True}
 
 
 @app.websocket("/ws")
@@ -126,9 +185,10 @@ async def broadcast_state(coordinator: Coordinator) -> None:
 # Server lifecycle
 # ---------------------------------------------------------------------------
 
-async def serve(host: str = "0.0.0.0", port: int = 8766) -> None:
+async def serve(coordinator: "Coordinator | None" = None, host: str = "0.0.0.0", port: int = 8766) -> None:
     """Run the FastAPI server as an asyncio task in the caller's event loop."""
-    global _loop
+    global _coordinator, _loop
+    _coordinator = coordinator
     _loop = asyncio.get_running_loop()
     handler = WebSocketLogHandler()
     logging.getLogger("treehouse").addHandler(handler)

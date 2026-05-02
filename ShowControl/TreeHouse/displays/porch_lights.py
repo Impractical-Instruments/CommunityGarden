@@ -53,6 +53,11 @@ class PorchLightsDisplay(Display):
         self._state = _State.BLOWUP
         self._state_time = 0.0
 
+    def reset(self) -> None:
+        log.info("Porch Lights: reset to normal")
+        self._state = _State.NORMAL
+        self._state_time = 0.0
+
     def update(self, dt: float) -> None:
         if not self.enabled:
             return

@@ -277,10 +277,32 @@ class Coordinator:
         self._dim_level = max(0.0, min(1.0, level))
         log.info("Dim level → %.2f", self._dim_level)
 
+    def set_display_pattern(self, display_name: str, pattern: str) -> None:
+        display = self._displays.get(display_name)
+        if isinstance(display, LEDDisplay):
+            display.set_pattern(pattern)
+        else:
+            log.warning("set_display_pattern: %r not found or not an LEDDisplay", display_name)
+
+    def set_looking_glass_scene(self, scene: str) -> None:
+        display = self._displays.get("Looking Glass")
+        if isinstance(display, LookingGlassDisplay):
+            display.set_scene(scene)
+
+    def set_forge_mode(self, mode: str) -> None:
+        display = self._displays.get("Forge & Flora")
+        if isinstance(display, ForgeAndFloraDisplay):
+            display.set_mode(mode)
+
     def trigger_captcha_blowup(self) -> None:
         display = self._displays.get("Porch Lights")
         if isinstance(display, PorchLightsDisplay):
             display.trigger_blowup()
+
+    def reset_porch_lights(self) -> None:
+        display = self._displays.get("Porch Lights")
+        if isinstance(display, PorchLightsDisplay):
+            display.reset()
 
     def get(self, name: str) -> Display:
         return self._displays[name]

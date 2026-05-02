@@ -34,6 +34,52 @@
     </div>
   </div>
 
+  <!-- Controls panel -->
+  <div class="ctrl-section">
+    <div class="ctrl-header"><span>Controls</span></div>
+    <div class="ctrl-rows">
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Show</span>
+        <div class="ctrl-btns">
+          <button class="ctrl-btn" data-show-mode="full"     onclick="ctrlBtn(this)">full</button>
+          <button class="ctrl-btn" data-show-mode="dim"      onclick="ctrlBtn(this)">dim</button>
+          <button class="ctrl-btn" data-show-mode="off"      onclick="ctrlBtn(this)">off</button>
+        </div>
+      </div>
+
+      <!-- LED pattern rows — injected from first WebSocket state -->
+      <div id="led-ctrl-rows"></div>
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Looking Glass</span>
+        <div class="ctrl-btns">
+          <button class="ctrl-btn" data-scene="bloom"    onclick="ctrlBtn(this)">bloom</button>
+          <button class="ctrl-btn" data-scene="fractal"  onclick="ctrlBtn(this)">fractal</button>
+          <button class="ctrl-btn" data-scene="mycelium" onclick="ctrlBtn(this)">mycelium</button>
+          <button class="ctrl-btn" data-scene="cosmos"   onclick="ctrlBtn(this)">cosmos</button>
+        </div>
+      </div>
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Forge &amp; Flora</span>
+        <div class="ctrl-btns">
+          <button class="ctrl-btn" data-forge-mode="welding"   onclick="ctrlBtn(this)">welding</button>
+          <button class="ctrl-btn" data-forge-mode="gardening" onclick="ctrlBtn(this)">gardening</button>
+        </div>
+      </div>
+
+      <div class="ctrl-row">
+        <span class="ctrl-label">Porch Lights</span>
+        <div class="ctrl-btns">
+          <button class="ctrl-btn trigger" data-action="porch-blowup" onclick="ctrlBtn(this)">blowup</button>
+          <button class="ctrl-btn"         data-action="porch-reset"  onclick="ctrlBtn(this)">reset</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Log section fills remaining space -->
   <div class="log-section log-section-fill">
     <div class="log-header">
@@ -49,6 +95,93 @@
 <script>
 const HOST = window.location.hostname || 'localhost';
 const PORT = 8766;
+const LED_PATTERNS = ['solid', 'breathe', 'strobe', 'chase', 'incandescent', 'mycelium'];
+
+// ── Control helpers ──────────────────────────────────────────────────────────
+
+async function ctrlPost(url, body = {}) {
+  try {
+    await fetch(`http://${HOST}:${PORT}${url}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.error('Control POST failed:', url, e);
+  }
+}
+
+function ctrlBtn(btn) {
+  const d = btn.dataset;
+  if      (d.showMode)       ctrlPost('/control/show/mode',    {mode: d.showMode});
+  else if (d.displayPattern) ctrlPost('/control/led-pattern',  {display: d.displayPattern, pattern: d.pattern});
+  else if (d.scene)          ctrlPost('/control/looking-glass', {scene: d.scene});
+  else if (d.forgeMode)      ctrlPost('/control/forge-mode',   {mode: d.forgeMode});
+  else if (d.action === 'porch-blowup') ctrlPost('/control/porch-blowup');
+  else if (d.action === 'porch-reset')  ctrlPost('/control/porch-reset');
+}
+
+// ── LED control rows — built once from first state message ───────────────────
+
+let ledControlsBuilt = false;
+function buildLEDControls(displays) {
+  if (ledControlsBuilt) return;
+  const container = document.getElementById('led-ctrl-rows');
+  displays.forEach(d => {
+    if (!('pattern' in (d.params || {}))) return;
+    const row = document.createElement('div');
+    row.className = 'ctrl-row';
+    const lbl = document.createElement('span');
+    lbl.className = 'ctrl-label';
+    lbl.textContent = d.name;
+    const btns = document.createElement('div');
+    btns.className = 'ctrl-btns';
+    LED_PATTERNS.forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'ctrl-btn';
+      btn.dataset.displayPattern = d.name;
+      btn.dataset.pattern = p;
+      btn.textContent = p;
+      btn.onclick = () => ctrlBtn(btn);
+      btns.appendChild(btn);
+    });
+    row.appendChild(lbl);
+    row.appendChild(btns);
+    container.appendChild(row);
+  });
+  ledControlsBuilt = true;
+}
+
+// ── Active state highlighting ────────────────────────────────────────────────
+
+function updateActiveStates(s) {
+  // Show mode
+  document.querySelectorAll('[data-show-mode]').forEach(btn =>
+    btn.classList.toggle('active', btn.dataset.showMode === s.mode));
+
+  const dm = {};
+  (s.displays || []).forEach(d => { dm[d.name] = d; });
+
+  // LED patterns
+  document.querySelectorAll('[data-display-pattern][data-pattern]').forEach(btn => {
+    const d = dm[btn.dataset.displayPattern];
+    btn.classList.toggle('active', d?.params?.pattern === btn.dataset.pattern);
+  });
+
+  // Looking Glass scenes
+  const lg = dm['Looking Glass'];
+  document.querySelectorAll('[data-scene]').forEach(btn =>
+    btn.classList.toggle('active', lg?.params?.scene === btn.dataset.scene));
+
+  // Forge & Flora — highlight only at exact endpoints
+  const ff = dm['Forge & Flora'];
+  document.querySelectorAll('[data-forge-mode]').forEach(btn => {
+    const tb = ff?.params?.target_blend;
+    btn.classList.toggle('active',
+      (btn.dataset.forgeMode === 'welding'   && tb === 0) ||
+      (btn.dataset.forgeMode === 'gardening' && tb === 1));
+  });
+}
 
 // ── State WebSocket ──────────────────────────────────────────────────────────
 
@@ -81,6 +214,9 @@ function connectState() {
         el.appendChild(document.createTextNode(d.name));
         container.appendChild(el);
       });
+
+      buildLEDControls(s.displays || []);
+      updateActiveStates(s);
     } catch (_) {}
   };
 }
