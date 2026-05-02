@@ -29,15 +29,18 @@
       "brightness": 1.0,
       "color": [180, 0, 255, 0],
       "pattern": "chase"
+    },
+    {
+      "name": "Mycelium",
+      "pico_pin": 2,
+      "led_count": 40,
+      "brightness": 1.0,
+      "color": [80, 255, 120, 50],
+      "pattern": "mycelium",
+      "pulse_period": 20.0,
+      "pulse_min": 0.5
     }
   ],
-
-  "_shelved": {
-    "mycellium": {
-      "note": "Pending prototype. When ready: add to dioramas[], pico_pin: 2, pattern: breathe.",
-      "color": [80, 255, 120, 50]
-    }
-  },
 
   "garage_windows": {
     "looking_glass": {

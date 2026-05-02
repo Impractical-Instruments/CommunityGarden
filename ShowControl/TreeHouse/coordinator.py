@@ -48,6 +48,8 @@ class DioramaConfig:
     brightness: float = 1.0
     color: Color = (0, 0, 0, 255)
     pattern: str = "solid"
+    pulse_period: float = 20.0
+    pulse_min: float = 0.5
 
 
 @dataclass
@@ -109,6 +111,8 @@ def load_config(path: str) -> TreehouseConfig:
             brightness=d.get("brightness", 1.0),
             color=_color(d.get("color", [0, 0, 0, 255])),
             pattern=d.get("pattern", "solid"),
+            pulse_period=d.get("pulse_period", 20.0),
+            pulse_min=d.get("pulse_min", 0.5),
         )
         for d in raw.get("dioramas", [])
     ]
@@ -198,6 +202,8 @@ def build_displays(config: TreehouseConfig) -> list[Display]:
             brightness=d.brightness,
             color=d.color,
             pattern=d.pattern,
+            pulse_period=d.pulse_period,
+            pulse_min=d.pulse_min,
         )))
 
     displays.append(LookingGlassDisplay(config.looking_glass))

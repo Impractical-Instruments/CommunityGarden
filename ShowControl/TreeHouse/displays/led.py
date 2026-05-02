@@ -15,6 +15,8 @@ class LEDConfig:
     brightness: float = 1.0
     color: Color = (0, 0, 0, 255)  # pure white via the W channel
     pattern: str = "solid"
+    pulse_period: float = 20.0   # seconds per cycle (mycelium pattern)
+    pulse_min: float = 0.5       # minimum brightness fraction (mycelium pattern)
 
 
 class LEDDisplay(Display):
@@ -28,9 +30,10 @@ class LEDDisplay(Display):
     strobe       – 10 Hz on/off flash
     chase        – lit head travels the strip with a fading 6-pixel trail
     incandescent – barely-perceptible flicker simulating a warm bulb
+    mycelium     – very slow pulse between pulse_min and 1.0 (default 20 s, 50–100%)
     """
 
-    PATTERNS = ("solid", "breathe", "strobe", "chase", "incandescent")
+    PATTERNS = ("solid", "breathe", "strobe", "chase", "incandescent", "mycelium")
 
     def __init__(self, config: LEDConfig) -> None:
         super().__init__(config.name)
@@ -39,6 +42,8 @@ class LEDDisplay(Display):
         self.brightness = config.brightness
         self.color: Color = config.color
         self.pattern = config.pattern
+        self.pulse_period = config.pulse_period
+        self.pulse_min = config.pulse_min
         self._time = 0.0
 
     def set_color(self, color: Color) -> None:
@@ -84,6 +89,11 @@ class LEDDisplay(Display):
             # Two inharmonic sines produce irregular flicker without obvious periodicity
             noise = (math.sin(self._time * 7.3) + math.sin(self._time * 13.7)) / 2.0
             factor = 1.0 - 0.015 * (noise + 1.0) / 2.0
+            return [scale_color(base, factor)] * self.led_count
+
+        if self.pattern == "mycelium":
+            phase = (math.sin(self._time * 2 * math.pi / self.pulse_period) + 1.0) / 2.0
+            factor = self.pulse_min + (1.0 - self.pulse_min) * phase
             return [scale_color(base, factor)] * self.led_count
 
         return [base] * self.led_count  # solid
