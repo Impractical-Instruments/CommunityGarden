@@ -5,11 +5,13 @@ from dataclasses import dataclass
 from displays import (
     ChannelFrame,
     Color,
-    Display,
-    DisplayState,
+    Controllable,
+    ControllableState,
     ForgeAndFloraConfig,
     ForgeAndFloraDisplay,
+    GardenState,
     LEDConfig,
+    LEDControllable,
     LEDDisplay,
     LookingGlassConfig,
     LookingGlassDisplay,
@@ -204,8 +206,8 @@ def load_config(path: str) -> TreehouseConfig:
 # Display factory
 # ---------------------------------------------------------------------------
 
-def build_displays(config: TreehouseConfig) -> list[Display]:
-    displays: list[Display] = []
+def build_displays(config: TreehouseConfig) -> list[Controllable]:
+    displays: list[Controllable] = []
 
     for d in config.dioramas:
         displays.append(LEDDisplay(LEDConfig(
@@ -251,12 +253,16 @@ def build_displays(config: TreehouseConfig) -> list[Display]:
 # ---------------------------------------------------------------------------
 
 class Coordinator:
-    """Owns all Display instances, drives the frame loop, manages show state."""
+    """Owns all Controllable instances, drives the frame loop, manages show state."""
 
-    def __init__(self, displays: list[Display]) -> None:
-        self._displays: dict[str, Display] = {d.name: d for d in displays}
+    def __init__(self, displays: list[Controllable]) -> None:
+        self._displays: dict[str, Controllable] = {d.name: d for d in displays}
         self.mode = ShowMode.FULL
         self._dim_level = 0.25
+        self._captcha_blowup_pending = False
+        self._flowerbeds_activity = 0.0
+        self._captcha_intensity = 0.0
+        self._pipes_activity = 0.0
 
     @property
     def brightness(self) -> float:
@@ -295,29 +301,47 @@ class Coordinator:
             display.set_mode(mode)
 
     def trigger_captcha_blowup(self) -> None:
-        display = self._displays.get("Porch Lights")
-        if isinstance(display, PorchLightsDisplay):
-            display.trigger_blowup()
+        log.info("Captcha blowup signalled")
+        self._captcha_blowup_pending = True
+
+    def set_flowerbeds_activity(self, value: float) -> None:
+        self._flowerbeds_activity = max(0.0, min(1.0, value))
+
+    def set_captcha_intensity(self, value: float) -> None:
+        self._captcha_intensity = max(0.0, min(1.0, value))
+
+    def set_pipes_activity(self, value: float) -> None:
+        self._pipes_activity = max(0.0, min(1.0, value))
 
     def reset_porch_lights(self) -> None:
         display = self._displays.get("Porch Lights")
         if isinstance(display, PorchLightsDisplay):
             display.reset()
 
-    def get(self, name: str) -> Display:
+    def get(self, name: str) -> Controllable:
         return self._displays[name]
 
     def update(self, dt: float) -> None:
-        for display in self._displays.values():
-            display.update(dt)
+        state = GardenState(
+            flowerbeds_activity=self._flowerbeds_activity,
+            captcha_intensity=self._captcha_intensity,
+            captcha_blowup=self._captcha_blowup_pending,
+            pipes_activity=self._pipes_activity,
+            show_mode=self.mode,
+            brightness=self.brightness,
+        )
+        self._captcha_blowup_pending = False
+        for controllable in self._displays.values():
+            controllable.update(dt, state)
 
     def get_all_frames(self) -> list[ChannelFrame]:
         frames: list[ChannelFrame] = []
-        for display in self._displays.values():
-            frames.extend(display.get_frames())
+        for controllable in self._displays.values():
+            if isinstance(controllable, LEDControllable):
+                frames.extend(controllable.get_pixels())
         return frames
 
-    def get_all_states(self) -> list[DisplayState]:
+    def get_all_states(self) -> list[ControllableState]:
         return [d.get_state() for d in self._displays.values()]
 
     @property

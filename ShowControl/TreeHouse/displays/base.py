@@ -30,15 +30,26 @@ class ChannelFrame:
 
 
 @dataclass
-class DisplayState:
-    """Serialisable snapshot of one display's current state."""
+class GardenState:
+    """Live signals from all Elements, assembled by the Coordinator each frame."""
+    flowerbeds_activity: float = 0.0
+    captcha_intensity: float = 0.0
+    captcha_blowup: bool = False
+    pipes_activity: float = 0.0
+    show_mode: ShowMode = ShowMode.FULL
+    brightness: float = 1.0
+
+
+@dataclass
+class ControllableState:
+    """Serialisable snapshot of one Controllable's current state."""
     name: str
     enabled: bool
     params: dict[str, Any] = field(default_factory=dict)
 
 
-class Display(ABC):
-    """Abstract base for every controllable element in the TreeHouse."""
+class Controllable(ABC):
+    """Abstract base for every output in the TreeHouse."""
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -51,14 +62,17 @@ class Display(ABC):
         self.enabled = False
 
     @abstractmethod
-    def update(self, dt: float) -> None:
-        """Advance internal state by *dt* seconds."""
+    def update(self, dt: float, state: GardenState) -> None:
+        """Advance internal state by *dt* seconds given the current GardenState."""
 
     @abstractmethod
-    def get_frames(self) -> list[ChannelFrame]:
-        """Return pixel data for all LED channels owned by this display.
-        Returns an empty list for non-LED displays (e.g. HDMI video)."""
-
-    @abstractmethod
-    def get_state(self) -> DisplayState:
+    def get_state(self) -> ControllableState:
         """Return a serialisable snapshot for logging / visualiser."""
+
+
+class LEDControllable(Controllable):
+    """Controllable subclass for anything that drives SK6812 RGBW LED strips via the Pico."""
+
+    @abstractmethod
+    def get_pixels(self) -> list[ChannelFrame]:
+        """Return pixel data for all LED channels owned by this Controllable."""

@@ -2,7 +2,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from .base import ChannelFrame, Color, Display, DisplayState, scale_color
+from .base import ChannelFrame, Color, ControllableState, GardenState, LEDControllable, scale_color
 
 log = logging.getLogger("treehouse")
 
@@ -18,7 +18,7 @@ class ForgeAndFloraConfig:
     flicker_intensity: float = 0.3
 
 
-class ForgeAndFloraDisplay(Display):
+class ForgeAndFloraDisplay(LEDControllable):
     """
     Two-strip LED effect transitioning between welding arc and magical gardening.
 
@@ -67,7 +67,7 @@ class ForgeAndFloraDisplay(Display):
         """Occasional sharp orange burst riding on top of the arc."""
         return max(0.0, math.sin(self._time * 29.0) ** 8)
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, state: GardenState) -> None:
         if not self.enabled:
             return
         self._time += dt
@@ -78,7 +78,7 @@ class ForgeAndFloraDisplay(Display):
         else:
             self.blend += step * (1.0 if delta > 0 else -1.0)
 
-    def get_frames(self) -> list[ChannelFrame]:
+    def get_pixels(self) -> list[ChannelFrame]:
         empty: list[Color] = [(0, 0, 0, 0)] * self.led_count
         if not self.enabled:
             return [
@@ -105,8 +105,8 @@ class ForgeAndFloraDisplay(Display):
             ChannelFrame(pin=self.bloom_pin, pixels=[bloom_color]  * self.led_count),
         ]
 
-    def get_state(self) -> DisplayState:
-        return DisplayState(
+    def get_state(self) -> ControllableState:
+        return ControllableState(
             name=self.name,
             enabled=self.enabled,
             params={

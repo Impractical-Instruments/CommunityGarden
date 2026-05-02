@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 
-from .base import ChannelFrame, Display, DisplayState
+from .base import Controllable, ControllableState, GardenState
 
 log = logging.getLogger("treehouse")
 
@@ -15,7 +15,7 @@ class LookingGlassConfig:
     mirror_depth: int = 6
 
 
-class LookingGlassDisplay(Display):
+class LookingGlassDisplay(Controllable):
     """
     Generative video inside a physical mirrored box ('Looking Glass' garage window).
 
@@ -60,18 +60,15 @@ class LookingGlassDisplay(Display):
     # Display lifecycle
     # ------------------------------------------------------------------
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, state: GardenState) -> None:
         if not self.enabled:
             return
         self._time += dt * self.speed
         # TODO: push {scene, time, mirror_depth} to video renderer each frame
         # (e.g. via OSC, shared-memory texture, or socket to a TouchDesigner patch)
 
-    def get_frames(self) -> list[ChannelFrame]:
-        return []  # HDMI output — no Pico channel
-
-    def get_state(self) -> DisplayState:
-        return DisplayState(
+    def get_state(self) -> ControllableState:
+        return ControllableState(
             name=self.name,
             enabled=self.enabled,
             params={

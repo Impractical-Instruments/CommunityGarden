@@ -2,7 +2,7 @@ import logging
 import math
 from dataclasses import dataclass
 
-from .base import ChannelFrame, Color, Display, DisplayState, scale_color
+from .base import ChannelFrame, Color, ControllableState, GardenState, LEDControllable, scale_color
 
 log = logging.getLogger("treehouse")
 
@@ -19,7 +19,7 @@ class LEDConfig:
     pulse_min: float = 0.5       # minimum brightness fraction (mycelium pattern)
 
 
-class LEDDisplay(Display):
+class LEDDisplay(LEDControllable):
     """
     Generic SK6812 LED strip — diorama boxes, gable windows, dormer.
 
@@ -57,7 +57,7 @@ class LEDDisplay(Display):
             raise ValueError(f"Unknown pattern {pattern!r}; choices: {self.PATTERNS}")
         self.pattern = pattern
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, state: GardenState) -> None:
         if not self.enabled:
             return
         self._time += dt
@@ -98,14 +98,14 @@ class LEDDisplay(Display):
 
         return [base] * self.led_count  # solid
 
-    def get_frames(self) -> list[ChannelFrame]:
+    def get_pixels(self) -> list[ChannelFrame]:
         off: list[Color] = [(0, 0, 0, 0)] * self.led_count
         if not self.enabled:
             return [ChannelFrame(pin=self.pico_pin, pixels=off)]
         return [ChannelFrame(pin=self.pico_pin, pixels=self._compute_pixels())]
 
-    def get_state(self) -> DisplayState:
-        return DisplayState(
+    def get_state(self) -> ControllableState:
+        return ControllableState(
             name=self.name,
             enabled=self.enabled,
             params={

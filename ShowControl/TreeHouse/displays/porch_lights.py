@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 from enum import Enum
 
-from .base import ChannelFrame, Color, Display, DisplayState, scale_color
+from .base import ChannelFrame, Color, ControllableState, GardenState, LEDControllable, scale_color
 
 log = logging.getLogger("treehouse")
 
@@ -23,12 +23,12 @@ class PorchLightsConfig:
     aftermath_duration: float = 10.0
 
 
-class PorchLightsDisplay(Display):
+class PorchLightsDisplay(LEDControllable):
     """
     Two warm exterior light fixtures outside the front door.
 
     Normal:    warm incandescent glow.
-    Triggered by FundingCAPTCHA blow-up (trigger_blowup()):
+    Triggered by FundingCAPTCHA blow-up (captcha_blowup in GardenState):
       1. Sickly blue flicker for blowup_duration seconds
       2. Dim orange smoulder for aftermath_duration seconds
       3. Fade back to normal
@@ -48,19 +48,18 @@ class PorchLightsDisplay(Display):
         self._state_time = 0.0
         self._time = 0.0
 
-    def trigger_blowup(self) -> None:
-        log.info("Porch Lights: blowup triggered")
-        self._state = _State.BLOWUP
-        self._state_time = 0.0
-
     def reset(self) -> None:
         log.info("Porch Lights: reset to normal")
         self._state = _State.NORMAL
         self._state_time = 0.0
 
-    def update(self, dt: float) -> None:
+    def update(self, dt: float, state: GardenState) -> None:
         if not self.enabled:
             return
+        if state.captcha_blowup and self._state == _State.NORMAL:
+            log.info("Porch Lights: blowup triggered")
+            self._state = _State.BLOWUP
+            self._state_time = 0.0
         self._time += dt
         self._state_time += dt
         if self._state == _State.BLOWUP and self._state_time >= self.blowup_duration:
@@ -87,15 +86,15 @@ class PorchLightsDisplay(Display):
         # AFTERMATH: dim static orange
         return scale_color(self._AFTERMATH_COLOR, 0.35)
 
-    def get_frames(self) -> list[ChannelFrame]:
+    def get_pixels(self) -> list[ChannelFrame]:
         off: list[Color] = [(0, 0, 0, 0)] * self.led_count
         if not self.enabled:
             return [ChannelFrame(pin=self.pico_pin, pixels=off)]
         color = self._compute_color()
         return [ChannelFrame(pin=self.pico_pin, pixels=[color] * self.led_count)]
 
-    def get_state(self) -> DisplayState:
-        return DisplayState(
+    def get_state(self) -> ControllableState:
+        return ControllableState(
             name=self.name,
             enabled=self.enabled,
             params={
