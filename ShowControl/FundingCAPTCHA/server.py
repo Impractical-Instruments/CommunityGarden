@@ -25,16 +25,20 @@ import argparse
 import asyncio
 import base64
 import json
+import logging
 import os
 import sys
 import threading
 import uuid
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
@@ -45,6 +49,7 @@ SETTINGS   = DIR / "captcha-settings.json"
 UPLOADS.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
+log = logging.getLogger("captcha")
 
 # ── IIVision CV imports — optional ────────────────────────────────────────────
 _REPO = (DIR / "../..").resolve()
@@ -58,7 +63,26 @@ except ImportError:
 
 # ── WebSocket state ─────────────────────────────────────────────────────────────
 _connections: set[WebSocket] = set()
+_log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
+
+
+class WebSocketLogHandler(logging.Handler):
+    """Streams log records to all connected /logs WebSocket clients."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if _loop is None or not _log_queues:
+            return
+        msg = json.dumps({
+            "ts": datetime.fromtimestamp(record.created).strftime("%H:%M:%S"),
+            "level": record.levelname,
+            "msg": record.getMessage(),
+        })
+        for q in list(_log_queues):
+            try:
+                _loop.call_soon_threadsafe(q.put_nowait, msg)
+            except Exception:
+                pass
 
 
 # ── App lifecycle ───────────────────────────────────────────────────────────────
@@ -66,10 +90,13 @@ _loop: asyncio.AbstractEventLoop | None = None
 async def lifespan(app: FastAPI):
     global _loop
     _loop = asyncio.get_running_loop()
+    handler = WebSocketLogHandler()
+    logging.getLogger("captcha").addHandler(handler)
     yield
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"])
 
 
 # ── REST routes ────────────────────────────────────────────────────────────────
@@ -98,7 +125,7 @@ async def post_upload(request: Request):
         prefix   = f"{_safe(who)}__" if who else ""
         filename = f"{uuid.uuid4().hex[:8]}__{prefix}{_safe(label)}.{ext}"
         (UPLOADS / filename).write_bytes(base64.b64decode(b64))
-        print(f"  UPLOAD  {filename}  ({len(b64) // 1024} kB)")
+        log.info("upload %s (%d kB)", filename, len(b64) // 1024)
         return {"ok": True, "filename": filename, "url": f"/uploads/{filename}"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -112,7 +139,7 @@ async def delete_upload(filename: str):
         return {"ok": False, "error": "Invalid filename"}
     try:
         target.unlink()
-        print(f"  DELETE  {filename}")
+        log.info("delete %s", filename)
         return {"ok": True}
     except FileNotFoundError:
         return {"ok": False, "error": "Not found"}
@@ -144,7 +171,7 @@ async def post_pairs(request: Request):
     try:
         pairs = json.loads(await request.body())
         PAIRS_FILE.write_text(json.dumps(pairs, indent=2))
-        print(f"  PAIRS   saved {len(pairs)} pair(s)")
+        log.info("pairs saved %d pair(s)", len(pairs))
         return {"ok": True, "count": len(pairs)}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -228,6 +255,29 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         })
 
 
+# ── Dashboard endpoints ────────────────────────────────────────────────────────
+
+@app.get("/health")
+async def health():
+    return JSONResponse({"ok": True})
+
+
+@app.websocket("/logs")
+async def logs_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    q: asyncio.Queue[str] = asyncio.Queue(maxsize=500)
+    _log_queues.append(q)
+    try:
+        while True:
+            msg = await q.get()
+            await websocket.send_text(msg)
+    except (WebSocketDisconnect, asyncio.CancelledError, Exception):
+        pass
+    finally:
+        if q in _log_queues:
+            _log_queues.remove(q)
+
+
 # ── Static files (catch-all — must be registered last) ────────────────────────
 app.mount("/", StaticFiles(directory=str(DIR), html=True), name="static")
 
@@ -274,7 +324,7 @@ def main() -> None:
         t = threading.Thread(target=_cv_thread, args=(camera, settings), daemon=True)
         t.start()
         mode = "mock" if args.mock_camera else "Orbbec"
-        print(f"  CV      {mode} camera thread started")
+        log.info("CV %s camera thread started", mode)
 
     import socket
     try:

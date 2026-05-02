@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import threading
+from datetime import datetime
 from typing import Any, TypedDict
 
 import uvicorn  # type: ignore[import]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
-from fastapi.responses import HTMLResponse  # type: ignore[import]
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
+from fastapi.responses import HTMLResponse, JSONResponse  # type: ignore[import]
 
 
 # ---------------------------------------------------------------------------
@@ -283,13 +286,38 @@ window.addEventListener('resize', () => { resize(); if (lastState) draw(lastStat
 # ---------------------------------------------------------------------------
 
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"])
 _connections: set[WebSocket] = set()
+_log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
+
+
+class WebSocketLogHandler(logging.Handler):
+    """Streams log records to all connected /logs WebSocket clients."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if _loop is None or not _log_queues:
+            return
+        msg = json.dumps({
+            "ts": datetime.fromtimestamp(record.created).strftime("%H:%M:%S"),
+            "level": record.levelname,
+            "msg": record.getMessage(),
+        })
+        for q in list(_log_queues):
+            try:
+                _loop.call_soon_threadsafe(q.put_nowait, msg)
+            except Exception:
+                pass
 
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return _HTML
+
+
+@app.get("/health")
+async def health():
+    return JSONResponse({"ok": True})
 
 
 @app.websocket("/ws")
@@ -304,6 +332,22 @@ async def ws_endpoint(websocket: WebSocket):
         pass
     finally:
         _connections.discard(websocket)
+
+
+@app.websocket("/logs")
+async def logs_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    q: asyncio.Queue[str] = asyncio.Queue(maxsize=500)
+    _log_queues.append(q)
+    try:
+        while True:
+            msg = await q.get()
+            await websocket.send_text(msg)
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        if q in _log_queues:
+            _log_queues.remove(q)
 
 
 def _get_loop() -> asyncio.AbstractEventLoop:
@@ -361,4 +405,6 @@ def start_server(host: str = "0.0.0.0", port: int = 8765) -> None:
     t = threading.Thread(target=_run, daemon=True)
     t.start()
     ready.wait()
+    handler = WebSocketLogHandler()
+    logging.getLogger("flower_beds").addHandler(handler)
     print(f"Visualizer: http://{host}:{port}")

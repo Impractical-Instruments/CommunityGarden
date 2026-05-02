@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community Garden — Show Dashboard</title>
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<nav class="nav">
+  <h1>Community Garden — Show Dashboard</h1>
+</nav>
+<main class="cards">
+
+  <div class="card">
+    <div class="card-header">
+      <span class="dot" id="dot-flowerbeds"></span>
+      <span class="card-name">Flower Beds</span>
+    </div>
+    <div class="uptime" id="uptime-flowerbeds">—</div>
+    <a href="flowerbeds.html" class="details-btn">Details →</a>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="dot" id="dot-treehouse"></span>
+      <span class="card-name">Tree House</span>
+    </div>
+    <div class="uptime" id="uptime-treehouse">—</div>
+    <a href="treehouse.html" class="details-btn">Details →</a>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="dot" id="dot-captcha"></span>
+      <span class="card-name">Funding CAPTCHA</span>
+    </div>
+    <div class="uptime" id="uptime-captcha">—</div>
+    <a href="fundingcaptcha.html" class="details-btn">Details →</a>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="dot" id="dot-pipes"></span>
+      <span class="card-name">Playing the Pipes</span>
+    </div>
+    <div class="uptime" id="uptime-pipes">—</div>
+    <a href="playingthepipes.html" class="details-btn">Details →</a>
+  </div>
+
+</main>
+<script>
+const HOST = window.location.hostname || 'localhost';
+
+const ELEMENTS = [
+  { id: 'flowerbeds', port: 8765 },
+  { id: 'treehouse',  port: 8766 },
+  { id: 'captcha',    port: 8080 },
+  { id: 'pipes',      port: null },
+];
+
+const state = {};
+ELEMENTS.forEach(e => { state[e.id] = { online: false, since: null }; });
+
+function fmtUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m ${sec}s`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+async function checkElement(el) {
+  if (!el.port) return;  // pipes — always offline until implemented
+
+  let online = false;
+  try {
+    const resp = await fetch(`http://${HOST}:${el.port}/health`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    online = resp.ok;
+  } catch (_) {}
+
+  const s = state[el.id];
+  if (online && !s.online) s.since = Date.now();
+  else if (!online)        s.since = null;
+  s.online = online;
+
+  document.getElementById(`dot-${el.id}`).className = 'dot ' + (online ? 'online' : 'offline');
+}
+
+function updateUptimes() {
+  ELEMENTS.forEach(el => {
+    const s = state[el.id];
+    const el2 = document.getElementById(`uptime-${el.id}`);
+    if (el.port === null) {
+      el2.textContent = 'not yet implemented';
+    } else if (s.online && s.since) {
+      el2.textContent = fmtUptime(Date.now() - s.since);
+    } else {
+      el2.textContent = 'offline';
+    }
+  });
+}
+
+function tick() {
+  ELEMENTS.forEach(el => checkElement(el));
+}
+
+tick();
+setInterval(tick, 2000);
+setInterval(updateUptimes, 1000);
+</script>
+</body>
+</html>

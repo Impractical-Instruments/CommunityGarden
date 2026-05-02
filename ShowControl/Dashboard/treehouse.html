@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tree House — Detail</title>
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body class="detail-page">
+<nav class="nav">
+  <a href="index.html">← Dashboard</a>
+  <h1>Tree House</h1>
+</nav>
+<div class="detail-body">
+
+  <!-- Status panel -->
+  <div class="th-status">
+    <div class="th-row">
+      <div class="th-field">
+        <label>Mode</label>
+        <span id="th-mode">—</span>
+      </div>
+      <div class="th-field">
+        <label>Brightness</label>
+        <span id="th-brightness">—</span>
+      </div>
+      <div class="th-field">
+        <label>State</label>
+        <span class="log-conn" id="ws-conn">connecting…</span>
+      </div>
+    </div>
+    <div class="th-displays" id="th-displays">
+      <span style="color:#444;font-size:.75em">waiting for data…</span>
+    </div>
+  </div>
+
+  <!-- Log section fills remaining space -->
+  <div class="log-section log-section-fill">
+    <div class="log-header">
+      <span>Logs</span>
+      <span class="log-conn" id="log-conn">connecting…</span>
+    </div>
+    <div class="log-panel" id="log-panel">
+      <div id="log-lines"></div>
+    </div>
+  </div>
+
+</div>
+<script>
+const HOST = window.location.hostname || 'localhost';
+const PORT = 8766;
+
+// ── State WebSocket ──────────────────────────────────────────────────────────
+
+const wsConn = document.getElementById('ws-conn');
+
+function connectState() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${HOST}:${PORT}/ws`);
+
+  ws.onopen  = () => { wsConn.textContent = 'connected'; wsConn.className = 'log-conn connected'; };
+  ws.onclose = () => { wsConn.textContent = 'reconnecting…'; wsConn.className = 'log-conn disconnected'; setTimeout(connectState, 2000); };
+  ws.onerror = () => ws.close();
+
+  ws.onmessage = ev => {
+    try {
+      const s = JSON.parse(ev.data);
+
+      document.getElementById('th-mode').textContent = s.mode || '—';
+      document.getElementById('th-brightness').textContent =
+        s.brightness != null ? Math.round(s.brightness * 100) + '%' : '—';
+
+      const container = document.getElementById('th-displays');
+      container.innerHTML = '';
+      (s.displays || []).forEach(d => {
+        const el = document.createElement('div');
+        el.className = 'th-display' + (d.enabled ? '' : ' disabled');
+        const dot = document.createElement('span');
+        dot.className = 'dot ' + (d.enabled ? 'online' : 'offline');
+        el.appendChild(dot);
+        el.appendChild(document.createTextNode(d.name));
+        container.appendChild(el);
+      });
+    } catch (_) {}
+  };
+}
+
+connectState();
+
+// ── Log WebSocket ────────────────────────────────────────────────────────────
+
+const logPanel = document.getElementById('log-panel');
+const logLines = document.getElementById('log-lines');
+const logConn  = document.getElementById('log-conn');
+
+function appendLog(entry) {
+  const div = document.createElement('div');
+  div.className = 'log-line log-' + entry.level.toLowerCase();
+  div.textContent = `[${entry.ts}] ${entry.level.padEnd(8)} ${entry.msg}`;
+  logLines.appendChild(div);
+  if (logPanel.scrollTop + logPanel.clientHeight >= logPanel.scrollHeight - 40)
+    logPanel.scrollTop = logPanel.scrollHeight;
+  while (logLines.children.length > 500)
+    logLines.removeChild(logLines.firstChild);
+}
+
+function connectLogs() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocket(`${proto}://${HOST}:${PORT}/logs`);
+  ws.onopen  = () => { logConn.textContent = 'connected';     logConn.className = 'log-conn connected'; };
+  ws.onclose = () => { logConn.textContent = 'reconnecting…'; logConn.className = 'log-conn disconnected'; setTimeout(connectLogs, 2000); };
+  ws.onerror = () => ws.close();
+  ws.onmessage = ev => { try { appendLog(JSON.parse(ev.data)); } catch (_) {} };
+}
+
+connectLogs();
+</script>
+</body>
+</html>
