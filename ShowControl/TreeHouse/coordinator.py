@@ -13,6 +13,8 @@ from displays import (
     LEDDisplay,
     LookingGlassConfig,
     LookingGlassDisplay,
+    PorchLightsConfig,
+    PorchLightsDisplay,
     ShowMode,
 )
 
@@ -83,6 +85,7 @@ class TreehouseConfig:
     gable_front: GableWindowConfig
     gable_back: GableWindowConfig
     dormer: DormerConfig
+    porch_lights: PorchLightsConfig
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +169,15 @@ def load_config(path: str) -> TreehouseConfig:
         pattern=dw.get("pattern", "solid"),
     )
 
+    pl = raw.get("porch_lights", {})
+    porch_lights = PorchLightsConfig(
+        name=pl.get("name", "Porch Lights"),
+        pico_pin=pl.get("pico_pin", 8),
+        led_count=pl.get("led_count", 2),
+        blowup_duration=pl.get("blowup_duration", 3.0),
+        aftermath_duration=pl.get("aftermath_duration", 10.0),
+    )
+
     return TreehouseConfig(
         pico=PicoConfig(
             port=pico_raw.get("port", "/dev/ttyACM0"),
@@ -184,6 +196,7 @@ def load_config(path: str) -> TreehouseConfig:
         gable_front=gable_front,
         gable_back=gable_back,
         dormer=dormer,
+        porch_lights=porch_lights,
     )
 
 
@@ -228,6 +241,8 @@ def build_displays(config: TreehouseConfig) -> list[Display]:
         pattern=config.dormer.pattern,
     )))
 
+    displays.append(PorchLightsDisplay(config.porch_lights))
+
     return displays
 
 
@@ -261,6 +276,11 @@ class Coordinator:
     def set_dim_level(self, level: float) -> None:
         self._dim_level = max(0.0, min(1.0, level))
         log.info("Dim level → %.2f", self._dim_level)
+
+    def trigger_captcha_blowup(self) -> None:
+        display = self._displays.get("Porch Lights")
+        if isinstance(display, PorchLightsDisplay):
+            display.trigger_blowup()
 
     def get(self, name: str) -> Display:
         return self._displays[name]

@@ -2,6 +2,7 @@ from .base import ChannelFrame, Color, Display, DisplayState, ShowMode, scale_co
 from .led import LEDDisplay, LEDConfig
 from .video import LookingGlassDisplay, LookingGlassConfig
 from .effect import ForgeAndFloraDisplay, ForgeAndFloraConfig
+from .porch_lights import PorchLightsDisplay, PorchLightsConfig
 
 __all__ = [
     "ChannelFrame",
@@ -16,4 +17,6 @@ __all__ = [
     "LookingGlassConfig",
     "ForgeAndFloraDisplay",
     "ForgeAndFloraConfig",
+    "PorchLightsDisplay",
+    "PorchLightsConfig",
 ]

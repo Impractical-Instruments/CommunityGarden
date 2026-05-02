@@ -5,9 +5,7 @@ Recognised addresses
 --------------------
 /treehouse/mode       <string>   "full" | "dim" | "off"
 /treehouse/brightness <float>    0.0–1.0  (overrides the dim level in config)
-
-Additional addresses for individual display control can be added to the
-dispatcher below as the festival programme is finalised.
+/captcha/blowup                  triggers Porch Lights blowup sequence
 """
 
 import asyncio
@@ -34,8 +32,13 @@ def _build_dispatcher(coordinator: "Coordinator") -> Dispatcher:
         log.info("OSC %s → %.2f", address, level)
         coordinator.set_dim_level(float(level))
 
+    def on_captcha_blowup(address: str, *args) -> None:
+        log.info("OSC %s — triggering porch lights blowup", address)
+        coordinator.trigger_captcha_blowup()
+
     d.map("/treehouse/mode", on_mode)
     d.map("/treehouse/brightness", on_brightness)
+    d.map("/captcha/blowup", on_captcha_blowup)
     d.set_default_handler(
         lambda addr, *args: log.debug("OSC unhandled: %s %s", addr, args)
     )
