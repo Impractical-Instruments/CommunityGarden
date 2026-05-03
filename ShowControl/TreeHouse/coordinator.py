@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,6 +60,7 @@ class BranchConfig:
 @dataclass
 class OSCConfig:
     listen_port: int = 9001
+    heartbeat_interval_s: float = 5.0
 
 
 @dataclass
@@ -241,6 +243,7 @@ def load_config(path: str) -> TreehouseConfig:
         ),
         osc=OSCConfig(
             listen_port=network.get("elements", {}).get("treehouse", {}).get("osc_port", 9001),
+            heartbeat_interval_s=float(network.get("heartbeat_interval_s", 5.0)),
         ),
         show=ShowConfig(
             fps=show_raw.get("fps", 30),
@@ -310,7 +313,13 @@ def build_displays(config: TreehouseConfig) -> list[Controllable]:
 class Coordinator:
     """Owns all Controllable instances, drives the frame loop, manages show state."""
 
-    def __init__(self, displays: list[Controllable], branch_config: BranchConfig | None = None) -> None:
+    def __init__(
+        self,
+        displays: list[Controllable],
+        branch_config: BranchConfig | None = None,
+        heartbeat_interval_s: float = 5.0,
+        _clock=None,
+    ) -> None:
         self._displays: dict[str, Controllable] = {d.name: d for d in displays}
         self._led_displays: dict[str, LEDDisplay] = {
             d.name: d for d in displays if isinstance(d, LEDDisplay)
@@ -332,6 +341,10 @@ class Coordinator:
         self._pipes_activity = 0.0
         self._branch_motors: list[BranchMotorConfig] = (branch_config.motors if branch_config else [])
         self._branch_positions: list[tuple[int, float]] = []
+        self._heartbeat_interval = heartbeat_interval_s
+        self._clock = _clock or time.monotonic
+        self._last_received: dict[str, float] = {}
+        self._stale_warned: set[str] = set()
 
     @property
     def brightness(self) -> float:
@@ -370,15 +383,23 @@ class Coordinator:
     def trigger_captcha_blowup(self) -> None:
         log.info("Captcha blowup signalled")
         self._captcha_blowup_pending = True
+        self._touch("captcha")
 
     def set_flowerbeds_activity(self, value: float) -> None:
         self._flowerbeds_activity = max(0.0, min(1.0, value))
+        self._touch("flowerbeds")
 
     def set_captcha_intensity(self, value: float) -> None:
         self._captcha_intensity = max(0.0, min(1.0, value))
+        self._touch("captcha")
 
     def set_pipes_activity(self, value: float) -> None:
         self._pipes_activity = max(0.0, min(1.0, value))
+        self._touch("pipes")
+
+    def _touch(self, sender: str) -> None:
+        self._last_received[sender] = self._clock()
+        self._stale_warned.discard(sender)
 
     def reset_porch_lights(self) -> None:
         if self._porch_lights:
@@ -387,7 +408,28 @@ class Coordinator:
     def get(self, name: str) -> Controllable:
         return self._displays[name]
 
+    def _expire_stale_senders(self) -> None:
+        now = self._clock()
+        timeout = 2.0 * self._heartbeat_interval
+        stale_values = {"flowerbeds": 0.0, "captcha": 0.0, "pipes": 0.0}
+        for sender, last in self._last_received.items():
+            if now - last > timeout:
+                if sender not in self._stale_warned:
+                    log.warning(
+                        "No signal from %s for %.0fs — zeroing contribution",
+                        sender, now - last,
+                    )
+                    self._stale_warned.add(sender)
+                if sender in stale_values:
+                    if sender == "flowerbeds":
+                        self._flowerbeds_activity = 0.0
+                    elif sender == "captcha":
+                        self._captcha_intensity = 0.0
+                    elif sender == "pipes":
+                        self._pipes_activity = 0.0
+
     def update(self, dt: float) -> None:
+        self._expire_stale_senders()
         state = GardenState(
             flowerbeds_activity=self._flowerbeds_activity,
             captcha_intensity=self._captcha_intensity,

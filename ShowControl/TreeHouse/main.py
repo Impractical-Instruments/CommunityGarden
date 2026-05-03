@@ -61,7 +61,11 @@ async def _frame_loop(
 async def _run(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     displays = build_displays(config)
-    coordinator = Coordinator(displays, branch_config=config.branch)
+    coordinator = Coordinator(
+        displays,
+        branch_config=config.branch,
+        heartbeat_interval_s=config.osc.heartbeat_interval_s,
+    )
     coordinator._dim_level = config.show.dim_level
 
     driver = PicoDriver(config.pico.port, config.pico.baud)
