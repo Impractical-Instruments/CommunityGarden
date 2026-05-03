@@ -71,12 +71,16 @@ def build_calibration(camera: Any, num_frames: int) -> Calibration:
     return calibration
 
 
+def _identity_filter(positions: list[np.ndarray]) -> list[np.ndarray]:
+    return positions
+
+
 def run_pipeline(
     camera: Any,
     camera_transform: Transform,
     calibration: Calibration,
     stabilizer_config: StabilizerConfig,
-    pre_stabilize_filter: PreStabilizeFilter | None = None,
+    pre_stabilize_filter: PreStabilizeFilter = _identity_filter,
 ) -> Iterator[list[TrackedBlob]]:
     """
     Run the blob-detection pipeline for one camera.
@@ -99,6 +103,5 @@ def run_pipeline(
                 for blob in result.world_blobs
                 if blob.valid
             ]
-            if pre_stabilize_filter is not None:
-                raw_positions = pre_stabilize_filter(raw_positions)
+            raw_positions = pre_stabilize_filter(raw_positions)
             yield stabilizer.update(raw_positions)

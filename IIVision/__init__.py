@@ -4,7 +4,7 @@ IIVision — shared computer-vision pipeline for Impractical Instruments install
 Public API:
     build_calibration(camera, num_frames) -> Calibration
     run_pipeline(camera, camera_transform, calibration, stabilizer_config,
-                 pre_stabilize_filter=None) -> Iterator[list[TrackedBlob]]
+                 pre_stabilize_filter=<identity>) -> Iterator[list[TrackedBlob]]
 
     Calibration classes: Calibration, Calibrator
     Camera classes:      MockCamera, OrbbecCamera
