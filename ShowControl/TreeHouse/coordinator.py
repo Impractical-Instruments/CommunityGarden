@@ -173,7 +173,8 @@ def load_config(path: str) -> TreehouseConfig:
         led_count=ff.get("led_count", 48),
         blend=ff.get("blend", 0.0),
         transition_speed=ff.get("transition_speed", 0.1),
-        flicker_intensity=ff.get("flicker_intensity", 0.3),
+        base_flicker_intensity=ff.get("base_flicker_intensity", 0.1),
+        max_flicker_intensity=ff.get("max_flicker_intensity", 0.6),
     )
 
     gf = raw["gable_windows"]["front"]
@@ -318,9 +319,6 @@ class Coordinator:
         self._looking_glass: LookingGlassDisplay | None = next(
             (d for d in displays if isinstance(d, LookingGlassDisplay)), None
         )
-        self._forge_and_flora: ForgeAndFloraDisplay | None = next(
-            (d for d in displays if isinstance(d, ForgeAndFloraDisplay)), None
-        )
         self._porch_lights: PorchLightsDisplay | None = next(
             (d for d in displays if isinstance(d, PorchLightsDisplay)), None
         )
@@ -362,10 +360,6 @@ class Coordinator:
     def set_looking_glass_scene(self, scene: str) -> None:
         if self._looking_glass:
             self._looking_glass.set_scene(scene)
-
-    def set_forge_mode(self, mode: str) -> None:
-        if self._forge_and_flora:
-            self._forge_and_flora.set_mode(mode)
 
     def trigger_captcha_blowup(self) -> None:
         log.info("Captcha blowup signalled")

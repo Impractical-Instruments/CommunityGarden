@@ -15,7 +15,8 @@ class ForgeAndFloraConfig:
     led_count: int = 48      # same count on both strips
     blend: float = 0.0       # 0.0 = welding arc, 1.0 = magical gardening
     transition_speed: float = 0.1  # blend units per second
-    flicker_intensity: float = 0.3
+    base_flicker_intensity: float = 0.1   # flicker when garden is quiet
+    max_flicker_intensity: float = 0.6    # flicker at peak captcha+flowerbeds activity
 
 
 class ForgeAndFloraDisplay(LEDControllable):
@@ -41,7 +42,9 @@ class ForgeAndFloraDisplay(LEDControllable):
         self.led_count = config.led_count
         self.blend = config.blend
         self.transition_speed = config.transition_speed
-        self.flicker_intensity = config.flicker_intensity
+        self._base_flicker = config.base_flicker_intensity
+        self._max_flicker = config.max_flicker_intensity
+        self.flicker_intensity = self._base_flicker
         self._target_blend = config.blend
         self._time = 0.0
 
@@ -71,6 +74,14 @@ class ForgeAndFloraDisplay(LEDControllable):
         if not self.enabled:
             return
         self._time += dt
+
+        # pipes_activity drives the arc→bloom crossfade
+        self._target_blend = state.pipes_activity
+
+        # combined captcha + flowerbeds activity drives how dramatic the effects are
+        intensity = min(1.0, (state.captcha_intensity + state.flowerbeds_activity) / 2.0)
+        self.flicker_intensity = self._base_flicker + intensity * (self._max_flicker - self._base_flicker)
+
         delta = self._target_blend - self.blend
         step = self.transition_speed * dt
         if abs(delta) <= step:
@@ -112,6 +123,7 @@ class ForgeAndFloraDisplay(LEDControllable):
             params={
                 "blend": round(self.blend, 3),
                 "target_blend": round(self._target_blend, 3),
+                "flicker_intensity": round(self.flicker_intensity, 3),
                 "transition_speed": self.transition_speed,
                 "arc_pin": self.arc_pin,
                 "bloom_pin": self.bloom_pin,
