@@ -324,7 +324,7 @@ class Coordinator:
         self._porch_lights: PorchLightsDisplay | None = next(
             (d for d in displays if isinstance(d, PorchLightsDisplay)), None
         )
-        self.mode = ShowMode.FULL
+        self.mode = ShowMode.ACTIVE
         self._dim_level = 0.25
         self._captcha_blowup_pending = False
         self._flowerbeds_activity = 0.0
@@ -335,7 +335,7 @@ class Coordinator:
 
     @property
     def brightness(self) -> float:
-        if self.mode == ShowMode.OFF:
+        if self.mode == ShowMode.INACTIVE:
             return 0.0
         if self.mode == ShowMode.DIM:
             return self._dim_level

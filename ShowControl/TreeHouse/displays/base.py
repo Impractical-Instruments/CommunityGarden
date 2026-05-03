@@ -8,9 +8,9 @@ Color = tuple[int, int, int, int]
 
 
 class ShowMode(Enum):
-    FULL = "full"
+    ACTIVE = "active"
     DIM = "dim"
-    OFF = "off"
+    INACTIVE = "inactive"
 
 
 def scale_color(color: Color, factor: float) -> Color:
@@ -36,7 +36,7 @@ class GardenState:
     captcha_intensity: float = 0.0
     captcha_blowup: bool = False
     pipes_activity: float = 0.0
-    show_mode: ShowMode = ShowMode.FULL
+    show_mode: ShowMode = ShowMode.ACTIVE
     brightness: float = 1.0
 
 
