@@ -62,19 +62,36 @@ def load_settings(path: str) -> dict:
         return json.load(f)
 
 
+def load_network(config_path: str) -> dict:
+    network_path = Path(config_path).resolve().parent.parent / "network.json"
+    if network_path.exists():
+        with open(network_path) as f:
+            return json.load(f)
+    log.warning("network.json not found at %s — OSC fabric disabled", network_path)
+    return {}
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _build_controllers(settings: dict, no_osc: bool) -> list[SimpleUDPClient]:
+def _build_controllers(network: dict, no_osc: bool) -> list[SimpleUDPClient]:
     if no_osc:
         return []
-    return [
-        SimpleUDPClient(cfg.ip, cfg.port)
-        for cfg in [ControllerConfig.from_dict(c) for c in settings.get("controllers", [])]
-    ]
+    clients = []
+    for key, fw in network.get("firmware", {}).items():
+        if key.startswith("flowerbeds_controller_") and fw.get("ip") and fw.get("osc_port"):
+            clients.append(SimpleUDPClient(fw["ip"], fw["osc_port"]))
+    return clients
+
+
+def _build_treehouse_client(network: dict, no_osc: bool) -> SimpleUDPClient | None:
+    if no_osc:
+        return None
+    th = network.get("elements", {}).get("treehouse", {})
+    if th.get("ip") and th.get("osc_port"):
+        return SimpleUDPClient(th["ip"], th["osc_port"])
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +100,7 @@ def _build_controllers(settings: dict, no_osc: bool) -> list[SimpleUDPClient]:
 
 def run(args: argparse.Namespace) -> None:
     settings = load_settings(args.config)
+    network  = load_network(args.config)
 
     # --- camera ---
     raw_cameras = settings.get("cameras", [])
@@ -113,12 +131,19 @@ def run(args: argparse.Namespace) -> None:
              len(coordinator.modules),
              sum(len(m.clusters) for m in coordinator.modules))
 
-    # --- OSC controllers ---
-    controllers = _build_controllers(settings, args.no_osc)
+    # --- OSC controllers (servo hardware) ---
+    controllers = _build_controllers(network, args.no_osc)
     if controllers:
         log.info("OSC output → %d controller(s)", len(controllers))
     else:
         log.info("OSC output disabled (--no-osc)")
+
+    # --- OSC fabric (TreeHouse activity signal) ---
+    treehouse_client = _build_treehouse_client(network, args.no_osc)
+    if treehouse_client:
+        th = network["elements"]["treehouse"]
+        log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
+    activity_max_blobs = settings.get("activity_max_blobs", 10)
 
     # --- visualizer ---
     if not args.no_visualizer:
@@ -181,6 +206,10 @@ def run(args: argparse.Namespace) -> None:
             for cmd in commands:
                 ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
 
+        if treehouse_client is not None:
+            activity = min(1.0, len(tracked) / activity_max_blobs)
+            treehouse_client.send_message("/flowerbeds/activity", activity)
+
         frame_count += 1
         state: VisualizerState = {
             "frame": frame_count,
@@ -224,6 +253,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
     0° = forward (+Y world axis), 90° = right (+X), -90° = left.
     """
     settings = load_settings(args.config)
+    network  = load_network(args.config)
     yaw = args.calibrate_yaw
 
     # Collect every motor_id from config.
@@ -239,7 +269,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
 
     commands = [MotorCommand(motor_id=mid, rotation_deg=yaw) for mid in motor_ids]
 
-    controllers = _build_controllers(settings, args.no_osc)
+    controllers = _build_controllers(network, args.no_osc)
 
     log.info(
         "Calibration mode — holding %d motor(s) at %.1f° (Ctrl+C to exit)",

@@ -87,12 +87,7 @@
       }
     ]
   },
-  "controllers": [
-    {
-      "ip": "192.168.1.50",
-      "port": 9000
-    }
-  ],
+  "activity_max_blobs": 10,
   "cameras": [
     {
       "name": "Camera",

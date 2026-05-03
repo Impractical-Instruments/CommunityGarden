@@ -4,10 +4,6 @@
     "baud": 115200
   },
 
-  "osc": {
-    "listen_port": 9001
-  },
-
   "show": {
     "fps": 30,
     "dim_level": 0.25

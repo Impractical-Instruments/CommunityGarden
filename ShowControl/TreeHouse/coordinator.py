@@ -1,6 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 
 from displays import (
     ChannelFrame,
@@ -104,8 +105,15 @@ def load_config(path: str) -> TreehouseConfig:
     with open(path) as f:
         raw = json.load(f)
 
+    network_path = Path(path).resolve().parent.parent / "network.json"
+    network: dict = {}
+    if network_path.exists():
+        with open(network_path) as f:
+            network = json.load(f)
+    else:
+        log.warning("network.json not found at %s", network_path)
+
     pico_raw = raw.get("pico", {})
-    osc_raw  = raw.get("osc", {})
     show_raw = raw.get("show", {})
 
     dioramas = [
@@ -186,7 +194,7 @@ def load_config(path: str) -> TreehouseConfig:
             baud=pico_raw.get("baud", 115200),
         ),
         osc=OSCConfig(
-            listen_port=osc_raw.get("listen_port", 9001),
+            listen_port=network.get("elements", {}).get("treehouse", {}).get("osc_port", 9001),
         ),
         show=ShowConfig(
             fps=show_raw.get("fps", 30),
