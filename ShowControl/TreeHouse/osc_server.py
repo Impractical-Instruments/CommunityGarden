@@ -3,7 +3,7 @@ OSC server — receives show-control messages from other festival elements.
 
 Recognised addresses
 --------------------
-/treehouse/mode        <string>   "full" | "dim" | "off"
+/treehouse/mode        <string>   "active" | "dim" | "inactive"
 /treehouse/brightness  <float>    0.0–1.0  (overrides the dim level in config)
 /flowerbeds/activity   <float>    0.0–1.0  normalised visitor activity from FlowerBeds
 /captcha/intensity     <float>    0.0–1.0  Arc progress toward Blow-Up from FundingCAPTCHA
