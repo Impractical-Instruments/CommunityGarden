@@ -48,6 +48,10 @@ from flower_beds import (
 )
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
+# OSCFabric lives one level above FlowerBeds, inside ShowControl/
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from OSCFabric import FabricClient, load_network_config
+
 _OSC_ADDRESS = "/cg/ff/rot"
 
 log = logging.getLogger("flower_beds")
@@ -60,15 +64,6 @@ log = logging.getLogger("flower_beds")
 def load_settings(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
-
-
-def load_network(config_path: str) -> dict:
-    network_path = Path(config_path).resolve().parent.parent / "network.json"
-    if network_path.exists():
-        with open(network_path) as f:
-            return json.load(f)
-    log.warning("network.json not found at %s — OSC fabric disabled", network_path)
-    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -85,22 +80,17 @@ def _build_controllers(network: dict, no_osc: bool) -> list[SimpleUDPClient]:
     return clients
 
 
-def _build_treehouse_client(network: dict, no_osc: bool) -> SimpleUDPClient | None:
-    if no_osc:
-        return None
-    th = network.get("elements", {}).get("treehouse", {})
-    if th.get("ip") and th.get("osc_port"):
-        return SimpleUDPClient(th["ip"], th["osc_port"])
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
 def run(args: argparse.Namespace) -> None:
     settings = load_settings(args.config)
-    network  = load_network(args.config)
+    try:
+        network = load_network_config()
+    except FileNotFoundError as exc:
+        log.warning("%s — OSC fabric disabled", exc)
+        network = {}
 
     # --- camera ---
     raw_cameras = settings.get("cameras", [])
@@ -139,11 +129,12 @@ def run(args: argparse.Namespace) -> None:
         log.info("OSC output disabled (--no-osc)")
 
     # --- OSC fabric (TreeHouse activity signal) ---
-    treehouse_client = _build_treehouse_client(network, args.no_osc)
-    if treehouse_client:
+    activity_max_blobs = settings.get("activity_max_blobs", 10)
+    fabric: FabricClient | None = None
+    if not args.no_osc and network.get("elements", {}).get("treehouse", {}).get("ip"):
+        fabric = FabricClient("flowerbeds", network)
         th = network["elements"]["treehouse"]
         log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
-    activity_max_blobs = settings.get("activity_max_blobs", 10)
 
     # --- visualizer ---
     if not args.no_visualizer:
@@ -206,9 +197,10 @@ def run(args: argparse.Namespace) -> None:
             for cmd in commands:
                 ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
 
-        if treehouse_client is not None:
+        if fabric is not None:
             activity = min(1.0, len(tracked) / activity_max_blobs)
-            treehouse_client.send_message("/flowerbeds/activity", activity)
+            fabric.report("activity", activity)
+            fabric.tick(1.0 / cam_cfg.framerate)
 
         frame_count += 1
         state: VisualizerState = {
@@ -253,7 +245,11 @@ def run_calibrate(args: argparse.Namespace) -> None:
     0° = forward (+Y world axis), 90° = right (+X), -90° = left.
     """
     settings = load_settings(args.config)
-    network  = load_network(args.config)
+    try:
+        network = load_network_config()
+    except FileNotFoundError as exc:
+        log.warning("%s — OSC fabric disabled", exc)
+        network = {}
     yaw = args.calibrate_yaw
 
     # Collect every motor_id from config.

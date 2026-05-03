@@ -46,28 +46,22 @@ DIR        = Path(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS    = DIR / "uploads"
 PAIRS_FILE = DIR / "pairs.json"
 SETTINGS   = DIR / "captcha-settings.json"
-NETWORK    = DIR / "../network.json"
 UPLOADS.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
 log = logging.getLogger("captcha")
 
-# ── OSC output — optional ─────────────────────────────────────────────────────
+# ── OSC Fabric ────────────────────────────────────────────────────────────────
+_SHOWCONTROL = (DIR / "..").resolve()
+sys.path.insert(0, str(_SHOWCONTROL))
 try:
-    from pythonosc.udp_client import SimpleUDPClient as _SimpleUDPClient  # type: ignore[import]
-    _OSC_AVAILABLE = True
+    from OSCFabric import FabricClient, load_network_config
+    _FABRIC_AVAILABLE = True
 except ImportError:
-    _OSC_AVAILABLE = False
+    _FABRIC_AVAILABLE = False
 
-_osc_clients: list = []
-
-
-def _send_osc(address: str, *args) -> None:
-    for client in _osc_clients:
-        try:
-            client.send_message(address, list(args) if args else [])
-        except Exception as exc:
-            log.warning("OSC send error: %s", exc)
+_fabric: "FabricClient | None" = None
+_HEARTBEAT_TICK_S = 1.0
 
 
 # ── IIVision CV imports — optional ────────────────────────────────────────────
@@ -111,7 +105,18 @@ async def lifespan(app: FastAPI):
     _loop = asyncio.get_running_loop()
     handler = WebSocketLogHandler()
     logging.getLogger("captcha").addHandler(handler)
-    yield
+
+    async def _heartbeat():
+        while True:
+            await asyncio.sleep(_HEARTBEAT_TICK_S)
+            if _fabric is not None:
+                _fabric.tick(_HEARTBEAT_TICK_S)
+
+    task = asyncio.create_task(_heartbeat())
+    try:
+        yield
+    finally:
+        task.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -224,9 +229,10 @@ async def post_game_event(request: Request):
     else:
         intensity = 0.0
 
-    _send_osc("/captcha/intensity", float(intensity))
-    if event in ("win", "lose"):
-        _send_osc("/captcha/blowup")
+    if _fabric is not None:
+        _fabric.report("intensity", float(intensity))
+        if event in ("win", "lose"):
+            _fabric.send_event("blowup")
 
     return {"ok": True}
 
@@ -347,19 +353,20 @@ def main() -> None:
     if SETTINGS.exists():
         settings = json.loads(SETTINGS.read_text())
 
-    if _OSC_AVAILABLE:
-        if NETWORK.exists():
-            net = json.loads(NETWORK.read_text())
-            th = net.get("elements", {}).get("treehouse", {})
+    global _fabric
+    if _FABRIC_AVAILABLE:
+        try:
+            network = load_network_config()
+            th = network.get("elements", {}).get("treehouse", {})
             if th.get("ip") and th.get("osc_port"):
-                _osc_clients.append(_SimpleUDPClient(th["ip"], th["osc_port"]))
+                _fabric = FabricClient("captcha", network)
                 log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
             else:
-                log.warning("network.json: treehouse ip/osc_port not set — OSC output disabled")
-        else:
-            log.warning("network.json not found — OSC output disabled")
+                log.warning("network.json: treehouse ip/osc_port not set — OSC fabric disabled")
+        except FileNotFoundError as exc:
+            log.warning("%s — OSC fabric disabled", exc)
     else:
-        log.warning("python-osc not installed — OSC output disabled")
+        log.warning("OSCFabric not available — OSC fabric disabled")
 
     if args.camera or args.mock_camera:
         if not _CV_AVAILABLE:
