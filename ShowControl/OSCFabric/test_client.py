@@ -9,8 +9,8 @@ from __future__ import annotations
 import json
 import pytest
 
-from client import FabricClient
-from config import load_network_config
+from OSCFabric.client import FabricClient
+from OSCFabric.config import load_network_config
 
 
 # ---------------------------------------------------------------------------
