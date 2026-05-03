@@ -2,6 +2,7 @@
   "_comment": "Single source of truth for all show-network addressing. See docs/adr/0007-osc-fabric-schema.md.",
 
   "heartbeat_interval_s": 5,
+  "change_epsilon": 0.01,
 
   "elements": {
     "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
