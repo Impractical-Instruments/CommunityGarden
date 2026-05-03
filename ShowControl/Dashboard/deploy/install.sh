@@ -15,6 +15,10 @@ echo "App dir: $APP_DIR"
 echo "User:    $SERVICE_USER"
 echo ""
 
+# ── Install dependencies ───────────────────────────────────────────────────────
+echo "→ Installing Python dependencies..."
+pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."
 DEST="/etc/systemd/system/cg-dashboard.service"

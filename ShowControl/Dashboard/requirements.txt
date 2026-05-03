@@ -1,0 +1,7 @@
+# Dashboard server dependencies
+# Install with: pip install -r requirements.txt
+
+fastapi>=0.100
+uvicorn[standard]>=0.23
+python-osc>=1.8
+pydantic>=2.0
