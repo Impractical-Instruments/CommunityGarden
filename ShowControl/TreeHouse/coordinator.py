@@ -265,6 +265,18 @@ class Coordinator:
 
     def __init__(self, displays: list[Controllable]) -> None:
         self._displays: dict[str, Controllable] = {d.name: d for d in displays}
+        self._led_displays: dict[str, LEDDisplay] = {
+            d.name: d for d in displays if isinstance(d, LEDDisplay)
+        }
+        self._looking_glass: LookingGlassDisplay | None = next(
+            (d for d in displays if isinstance(d, LookingGlassDisplay)), None
+        )
+        self._forge_and_flora: ForgeAndFloraDisplay | None = next(
+            (d for d in displays if isinstance(d, ForgeAndFloraDisplay)), None
+        )
+        self._porch_lights: PorchLightsDisplay | None = next(
+            (d for d in displays if isinstance(d, PorchLightsDisplay)), None
+        )
         self.mode = ShowMode.FULL
         self._dim_level = 0.25
         self._captcha_blowup_pending = False
@@ -292,21 +304,19 @@ class Coordinator:
         log.info("Dim level → %.2f", self._dim_level)
 
     def set_display_pattern(self, display_name: str, pattern: str) -> None:
-        display = self._displays.get(display_name)
-        if isinstance(display, LEDDisplay):
+        display = self._led_displays.get(display_name)
+        if display:
             display.set_pattern(pattern)
         else:
-            log.warning("set_display_pattern: %r not found or not an LEDDisplay", display_name)
+            log.warning("set_display_pattern: %r not found", display_name)
 
     def set_looking_glass_scene(self, scene: str) -> None:
-        display = self._displays.get("Looking Glass")
-        if isinstance(display, LookingGlassDisplay):
-            display.set_scene(scene)
+        if self._looking_glass:
+            self._looking_glass.set_scene(scene)
 
     def set_forge_mode(self, mode: str) -> None:
-        display = self._displays.get("Forge & Flora")
-        if isinstance(display, ForgeAndFloraDisplay):
-            display.set_mode(mode)
+        if self._forge_and_flora:
+            self._forge_and_flora.set_mode(mode)
 
     def trigger_captcha_blowup(self) -> None:
         log.info("Captcha blowup signalled")
@@ -322,9 +332,8 @@ class Coordinator:
         self._pipes_activity = max(0.0, min(1.0, value))
 
     def reset_porch_lights(self) -> None:
-        display = self._displays.get("Porch Lights")
-        if isinstance(display, PorchLightsDisplay):
-            display.reset()
+        if self._porch_lights:
+            self._porch_lights.reset()
 
     def get(self, name: str) -> Controllable:
         return self._displays[name]
