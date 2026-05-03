@@ -35,6 +35,28 @@ class PicoConfig:
 
 
 @dataclass
+class BranchMotorConfig:
+    id: int
+    min_pos: float = 0.0
+    max_pos: float = 90.0
+    recoil_pos: float = -20.0
+    weight_flowerbeds: float = 0.6
+    weight_captcha: float = 0.2
+    weight_pipes: float = 0.2
+
+
+@dataclass
+class BranchConfig:
+    port: str = "/dev/ttyACM1"
+    baud: int = 115200
+    motors: list[BranchMotorConfig] = None
+
+    def __post_init__(self) -> None:
+        if self.motors is None:
+            self.motors = []
+
+
+@dataclass
 class OSCConfig:
     listen_port: int = 9001
 
@@ -89,6 +111,11 @@ class TreehouseConfig:
     gable_back: GableWindowConfig
     dormer: DormerConfig
     porch_lights: PorchLightsConfig
+    branch: BranchConfig = None
+
+    def __post_init__(self) -> None:
+        if self.branch is None:
+            self.branch = BranchConfig()
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +215,25 @@ def load_config(path: str) -> TreehouseConfig:
         aftermath_duration=pl.get("aftermath_duration", 10.0),
     )
 
+    bc = raw.get("branch_controller", {})
+    branch_motors = [
+        BranchMotorConfig(
+            id=m["id"],
+            min_pos=m.get("min_pos", 0.0),
+            max_pos=m.get("max_pos", 90.0),
+            recoil_pos=m.get("recoil_pos", -20.0),
+            weight_flowerbeds=m.get("weights", {}).get("flowerbeds", 0.6),
+            weight_captcha=m.get("weights", {}).get("captcha", 0.2),
+            weight_pipes=m.get("weights", {}).get("pipes", 0.2),
+        )
+        for m in bc.get("motors", [])
+    ]
+    branch = BranchConfig(
+        port=bc.get("port", "/dev/ttyACM1"),
+        baud=bc.get("baud", 115200),
+        motors=branch_motors,
+    )
+
     return TreehouseConfig(
         pico=PicoConfig(
             port=pico_raw.get("port", "/dev/ttyACM0"),
@@ -207,6 +253,7 @@ def load_config(path: str) -> TreehouseConfig:
         gable_back=gable_back,
         dormer=dormer,
         porch_lights=porch_lights,
+        branch=branch,
     )
 
 
@@ -263,7 +310,7 @@ def build_displays(config: TreehouseConfig) -> list[Controllable]:
 class Coordinator:
     """Owns all Controllable instances, drives the frame loop, manages show state."""
 
-    def __init__(self, displays: list[Controllable]) -> None:
+    def __init__(self, displays: list[Controllable], branch_config: BranchConfig | None = None) -> None:
         self._displays: dict[str, Controllable] = {d.name: d for d in displays}
         self._led_displays: dict[str, LEDDisplay] = {
             d.name: d for d in displays if isinstance(d, LEDDisplay)
@@ -283,6 +330,8 @@ class Coordinator:
         self._flowerbeds_activity = 0.0
         self._captcha_intensity = 0.0
         self._pipes_activity = 0.0
+        self._branch_motors: list[BranchMotorConfig] = (branch_config.motors if branch_config else [])
+        self._branch_positions: list[tuple[int, float]] = []
 
     @property
     def brightness(self) -> float:
@@ -350,6 +399,27 @@ class Coordinator:
         self._captcha_blowup_pending = False
         for controllable in self._displays.values():
             controllable.update(dt, state)
+        self._update_branch_positions(state)
+
+    def _update_branch_positions(self, state: GardenState) -> None:
+        positions: list[tuple[int, float]] = []
+        for motor in self._branch_motors:
+            if state.captcha_blowup:
+                pos = motor.recoil_pos
+            else:
+                signal = (
+                    motor.weight_flowerbeds * state.flowerbeds_activity
+                    + motor.weight_captcha * state.captcha_intensity
+                    + motor.weight_pipes * state.pipes_activity
+                )
+                signal = max(0.0, min(1.0, signal))
+                pos = motor.min_pos + signal * (motor.max_pos - motor.min_pos)
+            positions.append((motor.id, pos))
+        self._branch_positions = positions
+
+    def get_branch_positions(self) -> list[tuple[int, float]]:
+        """Return (motor_id, degrees) pairs for the current frame."""
+        return list(self._branch_positions)
 
     def get_all_frames(self) -> list[ChannelFrame]:
         frames: list[ChannelFrame] = []

@@ -90,5 +90,23 @@
     "led_count": 2,
     "blowup_duration": 3.0,
     "aftermath_duration": 10.0
+  },
+
+  "branch_controller": {
+    "port": "/dev/ttyACM1",
+    "baud": 115200,
+    "motors": [
+      {
+        "id": 1,
+        "min_pos": 0.0,
+        "max_pos": 90.0,
+        "recoil_pos": -20.0,
+        "weights": {
+          "flowerbeds": 0.6,
+          "captcha": 0.2,
+          "pipes": 0.2
+        }
+      }
+    ]
   }
 }
