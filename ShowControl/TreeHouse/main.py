@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import logging
 
+from branch_controller import BranchController
 from coordinator import Coordinator, build_displays, load_config
 from osc_server import serve as serve_osc
 from pico_driver import PicoDriver
@@ -27,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="TreeHouse show control")
     p.add_argument("--config", default="settings.json", help="Path to settings JSON")
     p.add_argument("--no-pico", action="store_true", help="Skip Pico connection (dev mode)")
+    p.add_argument("--no-branch", action="store_true", help="Skip branch controller connection (dev mode)")
     p.add_argument("--no-osc", action="store_true", help="Skip OSC listener")
     p.add_argument("--no-visualizer", action="store_true", help="Disable WebSocket visualizer server")
     p.add_argument("--visualizer-port", type=int, default=8766, metavar="N",
@@ -35,7 +37,12 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-async def _frame_loop(coordinator: Coordinator, driver: PicoDriver, fps: int) -> None:
+async def _frame_loop(
+    coordinator: Coordinator,
+    driver: PicoDriver,
+    branch: BranchController,
+    fps: int,
+) -> None:
     dt = 1.0 / fps
     loop = asyncio.get_running_loop()
     frame = 0
@@ -43,6 +50,8 @@ async def _frame_loop(coordinator: Coordinator, driver: PicoDriver, fps: int) ->
         t0 = loop.time()
         coordinator.update(dt)
         driver.send_frames(coordinator.get_all_frames(), coordinator.brightness)
+        for motor_id, degrees in coordinator.get_branch_positions():
+            branch.set_position(motor_id, degrees)
         frame += 1
         if frame % fps == 0:  # ~once per second
             await visualizer.broadcast_state(coordinator)
@@ -52,18 +61,23 @@ async def _frame_loop(coordinator: Coordinator, driver: PicoDriver, fps: int) ->
 async def _run(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     displays = build_displays(config)
-    coordinator = Coordinator(displays)
+    coordinator = Coordinator(displays, branch_config=config.branch)
     coordinator._dim_level = config.show.dim_level
 
     driver = PicoDriver(config.pico.port, config.pico.baud)
     if not args.no_pico:
         driver.connect()
 
-    log.info("TreeHouse starting — %d displays", len(displays))
+    branch = BranchController(config.branch.port, config.branch.baud)
+    if not args.no_branch:
+        branch.connect()
+
+    log.info("TreeHouse starting — %d displays, %d branch motors",
+             len(displays), len(config.branch.motors))
     for name in coordinator.display_names:
         log.info("  • %s", name)
 
-    tasks = [asyncio.create_task(_frame_loop(coordinator, driver, config.show.fps))]
+    tasks = [asyncio.create_task(_frame_loop(coordinator, driver, branch, config.show.fps))]
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
@@ -73,6 +87,7 @@ async def _run(args: argparse.Namespace) -> None:
         await asyncio.gather(*tasks)
     finally:
         driver.close()
+        branch.close()
 
 
 def main() -> None:
