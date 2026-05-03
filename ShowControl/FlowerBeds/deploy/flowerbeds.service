@@ -1,13 +1,13 @@
 [Unit]
-Description=FundingCAPTCHA Game Server
+Description=FlowerBeds Show Control
 After=network.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
-# Remove --camera if the Orbbec camera is not present on this install.
-# Use --mock-camera to emit fake blobs for testing without hardware.
+# Remove --no-osc if OSC controllers are present on the network.
+# Remove --no-visualizer to enable the live WebSocket debug view.
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA
-ExecStart=/usr/bin/python3 server.py 8080 --camera
+WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FlowerBeds
+ExecStart=/usr/bin/python3 main.py --config settings.json
 Restart=always
 RestartSec=5
 User=pi
@@ -15,7 +15,7 @@ User=pi
 SupplementaryGroups=video plugdev
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=captcha
+SyslogIdentifier=flowerbeds
 
 [Install]
 WantedBy=multi-user.target
