@@ -7,10 +7,13 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-APP_DIR="$REPO_ROOT/Prototypes/FundingCAPTCHA"
+APP_DIR="$REPO_ROOT/ShowControl/FundingCAPTCHA"
+
+SERVICE_USER="${SUDO_USER:-pi}"
 
 echo "=== FundingCAPTCHA install ==="
 echo "App dir:  $APP_DIR"
+echo "User:     $SERVICE_USER"
 echo ""
 
 # ── Python dependencies ────────────────────────────────────────────────────────
@@ -45,7 +48,8 @@ fi
 echo "→ Installing systemd units..."
 for SVC in captcha.service captcha-kiosk.service; do
     DEST="/etc/systemd/system/$SVC"
-    sed "s|/home/pi/CommunityGarden/Prototypes/FundingCAPTCHA|$APP_DIR|g" \
+    sed "s|/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA|$APP_DIR|g
+         s|User=pi|User=$SERVICE_USER|g" \
         "$SCRIPT_DIR/$SVC" > "$DEST"
     echo "   written: $DEST"
 done
