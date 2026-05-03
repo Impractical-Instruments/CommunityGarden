@@ -46,10 +46,29 @@ DIR        = Path(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS    = DIR / "uploads"
 PAIRS_FILE = DIR / "pairs.json"
 SETTINGS   = DIR / "captcha-settings.json"
+NETWORK    = DIR / "../network.json"
 UPLOADS.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
 log = logging.getLogger("captcha")
+
+# ── OSC output — optional ─────────────────────────────────────────────────────
+try:
+    from pythonosc.udp_client import SimpleUDPClient as _SimpleUDPClient  # type: ignore[import]
+    _OSC_AVAILABLE = True
+except ImportError:
+    _OSC_AVAILABLE = False
+
+_osc_clients: list = []
+
+
+def _send_osc(address: str, *args) -> None:
+    for client in _osc_clients:
+        try:
+            client.send_message(address, list(args) if args else [])
+        except Exception as exc:
+            log.warning("OSC send error: %s", exc)
+
 
 # ── IIVision CV imports — optional ────────────────────────────────────────────
 _REPO = (DIR / "../..").resolve()
@@ -182,6 +201,36 @@ async def get_captcha_settings():
     return json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
 
 
+@app.post("/api/game-event")
+async def post_game_event(request: Request):
+    """Receive game state from the browser and relay to the OSC fabric."""
+    try:
+        data = json.loads(await request.body())
+    except Exception:
+        return {"ok": False, "error": "invalid JSON"}
+
+    game           = data.get("game")
+    event          = data.get("event")
+    score          = float(data.get("score", 0))
+    win_score      = float(data.get("winScore", 1))
+    timer_fraction = float(data.get("timerFraction", 1.0))
+
+    if game == "rhythm":
+        intensity = score / win_score if win_score > 0 else 0.0
+    elif game == "upsidedown":
+        intensity = 1.0 - max(0.0, min(1.0, timer_fraction))
+    elif game is not None:
+        intensity = 0.3
+    else:
+        intensity = 0.0
+
+    _send_osc("/captcha/intensity", float(intensity))
+    if event in ("win", "lose"):
+        _send_osc("/captcha/blowup")
+
+    return {"ok": True}
+
+
 # ── WebSocket ──────────────────────────────────────────────────────────────────
 
 @app.websocket("/ws")
@@ -297,6 +346,20 @@ def main() -> None:
     settings: dict = {}
     if SETTINGS.exists():
         settings = json.loads(SETTINGS.read_text())
+
+    if _OSC_AVAILABLE:
+        if NETWORK.exists():
+            net = json.loads(NETWORK.read_text())
+            th = net.get("elements", {}).get("treehouse", {})
+            if th.get("ip") and th.get("osc_port"):
+                _osc_clients.append(_SimpleUDPClient(th["ip"], th["osc_port"]))
+                log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
+            else:
+                log.warning("network.json: treehouse ip/osc_port not set — OSC output disabled")
+        else:
+            log.warning("network.json not found — OSC output disabled")
+    else:
+        log.warning("python-osc not installed — OSC output disabled")
 
     if args.camera or args.mock_camera:
         if not _CV_AVAILABLE:

@@ -22,6 +22,15 @@ const gameTitle  = document.getElementById('game-title');
 const gameStatus = document.getElementById('game-status');
 const msgOverlay = document.getElementById('game-message');
 
+// ── OSC fabric relay ───────────────────────────────────────────────────────────
+function postGameEvent({ game = null, event = null, score = 0, winScore = 1, timerFraction = 1.0 } = {}) {
+  fetch('/api/game-event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ game, event, score, winScore, timerFraction }),
+  }).catch(() => {});
+}
+
 // ── Lobby ──────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.game-card .play-btn').forEach(btn => {
   btn.addEventListener('click', () => startGame(btn.closest('.game-card').dataset.game));
@@ -38,6 +47,7 @@ function showLobby() {
   msgOverlay.classList.add('hidden');
   currentGameId = null;
   backgroundRenderer?.update({ game: null });
+  postGameEvent({ game: null });
 }
 
 function startGame(id) {
@@ -57,6 +67,7 @@ function startGame(id) {
   grid = new Grid(gridCont, meta.cols, meta.rows, (col, row) => {
     activeGame?.onTap(col, row);
     backgroundRenderer?.update({ game: currentGameId, event: 'tap' });
+    postGameEvent({ game: currentGameId, event: 'tap' });
   });
 
   touchInput.resize(meta.cols, meta.rows);
@@ -69,6 +80,7 @@ function startGame(id) {
   );
 
   backgroundRenderer?.update({ game: id });
+  postGameEvent({ game: id });
 }
 
 function stopGame() {
@@ -81,6 +93,7 @@ function stopGame() {
 
 function handleWin(id) {
   backgroundRenderer?.update({ game: id, event: 'win' });
+  postGameEvent({ game: id, event: 'win' });
   showMessage(
     '🎉 You did it!',
     "Challenge complete. You've proven you're human (or at least have human-like skills).",
@@ -100,6 +113,7 @@ function handleWin(id) {
 
 function handleLose(id) {
   backgroundRenderer?.update({ game: id, event: 'lose' });
+  postGameEvent({ game: id, event: 'lose' });
   showMessage(
     '💀 Game Over',
     'The defenders got the ball. Try again!',
@@ -137,6 +151,7 @@ const touchInput = new TouchInput({
   onTap: (col, row) => {
     activeGame?.onTap(col, row);
     backgroundRenderer?.update({ game: currentGameId, event: 'tap' });
+    postGameEvent({ game: currentGameId, event: 'tap' });
   },
 });
 

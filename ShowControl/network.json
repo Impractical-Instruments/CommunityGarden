@@ -1,0 +1,18 @@
+{
+  "_comment": "Single source of truth for all show-network addressing. See docs/adr/0007-osc-fabric-schema.md.",
+
+  "heartbeat_interval_s": 5,
+
+  "elements": {
+    "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
+    "flowerbeds": { "ip": "192.168.1.11", "osc_port": 9002, "http_port": 8765 },
+    "captcha":    { "ip": "192.168.1.12", "osc_port": 9003, "http_port": 8080 },
+    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767 }
+  },
+
+  "firmware": {
+    "flowerbeds_controller_1": { "ip": "192.168.1.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000 },
+    "flowerbeds_controller_2": { "ip": "192.168.1.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000 },
+    "treehouse_branch":        { "ip": null, "mac": null, "osc_port": null }
+  }
+}
