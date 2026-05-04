@@ -14,7 +14,7 @@ Each show-control element runs as a systemd service with `Restart=always` and `R
 | `treehouse` | TreeHouse | `ShowControl/TreeHouse/main.py` | 8766 (viz) | 192.168.1.10 |
 | `captcha` | FundingCAPTCHA | `ShowControl/FundingCAPTCHA/server.py` | 8080 | 192.168.1.12 |
 | `captcha-kiosk` | FundingCAPTCHA kiosk | Chromium (kiosk mode) | — | 192.168.1.12 |
-| `cg-dashboard` | Show Dashboard | `ShowControl/Dashboard/serve.py` | 9000 | any |
+| `cg-dashboard` | Show Dashboard | `ShowControl/Dashboard/serve.py` | 9000 | 192.168.1.10 |
 
 Playing the Pipes does not yet have a service file; one will be added once the element stub exists.
 
@@ -162,8 +162,10 @@ Or trigger from the dashboard without stopping the service — the show pauses ~
 
 ### Show Dashboard
 
-- **No hardware dependencies** — pure static file server
-- Opens at `http://<host>:9000/` — links to each element's visualizer
+- **Runs on the TreeHouse machine** (192.168.1.10) — FastAPI server with static HTML pages and a mode-relay OSC endpoint
+- Opens at `http://192.168.1.10:9000/` from any browser on the show network
+- Reads `ShowControl/network.json` for element IPs and OSC ports — edit that file if addresses change
+- `POST /api/mode` relays show mode (`active` / `dim` / `inactive`) to any element via OSC
 
 ---
 
