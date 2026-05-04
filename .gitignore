@@ -13,3 +13,4 @@ Log/
 **/*.pyo
 .venv/
 *.calibration.npz
+layout_calibrated.json

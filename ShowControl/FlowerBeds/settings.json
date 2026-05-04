@@ -1,5 +1,10 @@
 {
   "calibration_frames": 60,
+  "layout_calibration": {
+    "_comment": "ArUco auto-layout — place 40cm DICT_4X4_50 tags at each module's registration point",
+    "frames": 30,
+    "tag_size_cm": 40.0
+  },
   "stabilizer": {
     "_comment": "Cross-frame blob ID tracking and EMA de-jittering",
     "max_match_dist_cm": 80.0,
@@ -20,6 +25,7 @@
     },
     "modules": [
       {
+        "marker_id": 0,
         "registration_point_cm": [
           -40,
           -84,
