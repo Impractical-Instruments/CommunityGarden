@@ -5,6 +5,12 @@ Show systems for [Connect Beyond Festival](https://www.connectbeyondfestival.com
 
 ---
 
+## Site setup
+
+**On-site crew:** see the **[Site Setup Guide](docs/setup.md)** — first-time venue setup, show morning checklist, and common troubleshooting.
+
+---
+
 ## What's here
 
 | Element | Description |
@@ -65,13 +71,13 @@ Every element has a dev mode — no camera, no LEDs, no servos required.
 | Element | Dev flag(s) |
 |---|---|
 | Tree House | `--no-pico` |
-| FlowerBeds | `--mock --no-osc` |
+| FlowerBeds | `--mock-camera --no-osc` |
 | FundingCAPTCHA | `--mock-camera` |
 
 Example:
 ```bash
 python main.py --no-pico                    # Tree House, no Pico
-python main.py --mock --no-osc              # FlowerBeds, no camera or servos
+python main.py --mock-camera --no-osc       # FlowerBeds, no camera or servos
 python server.py --mock-camera              # FundingCAPTCHA, no depth camera
 ```
 

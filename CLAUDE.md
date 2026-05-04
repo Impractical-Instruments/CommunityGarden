@@ -249,7 +249,7 @@ python main.py --config settings.json
 ### Run (mock camera, no hardware)
 
 ```bash
-python main.py --config settings.json --mock --no-osc
+python main.py --config settings.json --mock-camera --no-osc
 ```
 
 ### Run (headless, no visualizer)
@@ -263,7 +263,7 @@ python main.py --config settings.json --no-visualizer
 | Flag | Description |
 |---|---|
 | `--config PATH` | Path to settings JSON (default: `settings.json`) |
-| `--mock` | Use mock camera (random blobs, no hardware required) |
+| `--mock-camera` | Use mock camera (random blobs, no hardware required) |
 | `--no-osc` | Disable OSC output to Arduino |
 | `--no-visualizer` | Disable WebSocket visualizer server |
 | `--visualizer-port N` | Visualizer HTTP port (default: 8765) |
@@ -287,7 +287,7 @@ Required Arduino libraries:
 ## No Formal Tests or CI
 
 There is currently no automated test suite and no CI/CD pipeline. Verification is done by:
-1. Running with `--mock --no-osc` to exercise the full pipeline without hardware
+1. Running with `--mock-camera --no-osc` to exercise the full pipeline without hardware
 2. Connecting the live visualizer at `http://<show-computer-ip>:8765` to observe blob tracking
 3. Using the TouchOSC layout (`TouchOSC/FlowerBedTester.tosc`) for manual motor validation
 
@@ -314,7 +314,7 @@ git push -u origin <branch-name>
 2. **World coordinate system: X=right, Y=forward, Z=up, centimetres.** Camera space (Orbbec native) is X=right, Y=down, Z=forward in metres. `Blob3D.world_pos_cm()` converts between them.
 3. **Dynamixel motor IDs must match config.** `ClusterConfig.motor_id` in `settings.json` must match the ID programmed into the servo hardware.
 4. **Do not hardcode network addresses, positions, or motor IDs** — they all belong in `settings.json`.
-5. **Mock mode** (`--mock`) works without any hardware and is the fastest way to test logic changes.
+5. **Mock mode** (`--mock-camera`) works without any hardware and is the fastest way to test logic changes.
 6. **`pyorbbecsdk2`** is only needed for real camera operation; mock mode runs without it installed.
 
 ---
