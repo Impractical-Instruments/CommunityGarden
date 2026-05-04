@@ -23,7 +23,30 @@ from contextlib import contextmanager
 
 import numpy as np
 
+try:
+    import cv2  # type: ignore[import]
+except ImportError:
+    cv2 = None  # type: ignore[assignment]
+
 from .blob_tracker import CameraIntrinsics, FramePacket
+
+
+# ---------------------------------------------------------------------------
+# RGB frame (used by layout calibrator only)
+# ---------------------------------------------------------------------------
+
+class RGBFrame:
+    """Single BGR color frame from the Orbbec color sensor."""
+
+    def __init__(self, data: np.ndarray, width: int, height: int,
+                 fx: float, fy: float, cx: float, cy: float) -> None:
+        self.data = data          # shape (H, W, 3), BGR
+        self.width = width
+        self.height = height
+        self.fx = fx
+        self.fy = fy
+        self.cx = cx
+        self.cy = cy
 
 
 class BaseCamera(ABC):
@@ -238,3 +261,120 @@ class MockCamera(BaseCamera):
             sleep_s = (1.0 / self.fps) - elapsed
             if sleep_s > 0:
                 time.sleep(sleep_s)
+
+
+# ---------------------------------------------------------------------------
+# Orbbec color-only camera — used exclusively by the layout calibrator
+# ---------------------------------------------------------------------------
+
+class OrbbecRGBCamera:
+    """
+    Opens only the Orbbec COLOR stream and yields RGBFrame objects.
+    Not a BaseCamera subclass — depth pipeline is not involved.
+
+    Typical use:
+        with OrbbecRGBCamera(serial=..., width=1280, height=720, fps=15) as cam:
+            for frame in cam.frames():
+                ...
+    """
+
+    def __init__(
+        self,
+        serial: str | None = None,
+        width: int = 1280,
+        height: int = 720,
+        fps: int = 15,
+    ) -> None:
+        try:
+            from pyorbbecsdk import (  # type: ignore[import]
+                Config, Context, OBFormat, OBSensorType, Pipeline,
+            )
+        except ImportError as exc:
+            raise ImportError(
+                "pyorbbecsdk2 is not installed. Run: pip install pyorbbecsdk2"
+            ) from exc
+
+        self._serial = serial
+        self._width = width
+        self._height = height
+        self._fps = fps
+
+        self._Pipeline = Pipeline
+        self._Config = Config
+        self._Context = Context
+        self._OBSensorType = OBSensorType
+        self._OBFormat = OBFormat
+
+        self._pipeline: object | None = None
+        self._context: object | None = None
+
+    def __enter__(self) -> "OrbbecRGBCamera":
+        if self._serial:
+            self._context = self._Context()
+            device_list = self._context.query_devices()
+            device = device_list.get_device_by_serial_number(self._serial)
+            self._pipeline = self._Pipeline(device)
+        else:
+            self._pipeline = self._Pipeline()
+
+        profile_list = self._pipeline.get_stream_profile_list(
+            self._OBSensorType.COLOR_SENSOR
+        )
+        # Prefer RGB888; fall back to the first available profile.
+        try:
+            profile = profile_list.get_video_stream_profile(
+                self._width, self._height, self._OBFormat.RGB, self._fps
+            )
+        except Exception:
+            profile = profile_list.get_default_video_stream_profile()
+
+        config = self._Config()
+        config.enable_stream(profile)
+        self._pipeline.start(config)
+        return self
+
+    def __exit__(self, *_) -> None:
+        if self._pipeline is not None:
+            self._pipeline.stop()
+            self._pipeline = None
+        self._context = None
+
+    def frames(self) -> Iterator[RGBFrame]:
+        assert self._pipeline is not None, "Camera not opened — use as context manager"
+        while True:
+            frame_set = self._pipeline.wait_for_frames(200)
+            if frame_set is None:
+                continue
+            color_frame = frame_set.get_color_frame()
+            if color_frame is None:
+                continue
+
+            w = color_frame.get_width()
+            h = color_frame.get_height()
+            raw = bytes(color_frame.get_data())
+
+            # Intrinsics from the color stream profile
+            profile = color_frame.get_stream_profile()
+            intr = profile.get_intrinsic()
+
+            # Decode: try raw RGB reshape, fall back to JPEG decode
+            arr: np.ndarray | None = None
+            if len(raw) == w * h * 3:
+                arr = np.frombuffer(raw, dtype=np.uint8).reshape(h, w, 3)
+                arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+            else:
+                buf = np.frombuffer(raw, dtype=np.uint8)
+                arr = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+
+            if arr is None:
+                continue
+
+            yield RGBFrame(
+                data=arr,
+                width=w,
+                height=h,
+                fx=intr.fx,
+                fy=intr.fy,
+                cx=intr.cx,
+                cy=intr.cy,
+            )

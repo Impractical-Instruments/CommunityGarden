@@ -95,9 +95,56 @@ sudo systemctl disable flowerbeds
 
 - **Hardware:** Orbbec depth camera (USB), Arduino OSC controllers (network)
 - **USB groups:** The service user must be in `video` and `plugdev` groups (added by `install.sh` via `SupplementaryGroups`)
-- **Calibration:** On first start the camera captures `calibration_frames` (default 60) to build a background model. This takes several seconds; `Restart=always` handles spurious camera-open failures.
+- **Depth calibration:** On first start the camera captures `calibration_frames` (default 60) to build a background model. This takes several seconds; `Restart=always` handles spurious camera-open failures.
 - **Flags:** Edit `/etc/systemd/system/flowerbeds.service` and add `--no-osc` (no Arduino), `--no-visualizer` (headless), or `--mock-camera` (software testing), then `sudo systemctl daemon-reload && sudo systemctl restart flowerbeds`
 - **Visualizer:** `http://<host>:8765/` — live top-down blob view
+
+#### Layout calibration (ArUco auto-layout)
+
+The physical position and orientation of each flower module can be auto-detected from ArUco markers placed at each module's registration point, rather than measured and typed into `settings.json` by hand. Use this any time modules are repositioned.
+
+**What you need**
+
+- 12 printed ArUco markers, **DICT_4X4_50**, one per module, **40 cm square** (laminate if possible)
+- Each module's `marker_id` in `settings.json` must match the printed tag ID (IDs 0–11 by default)
+- The Orbbec camera must be mounted and powered (layout calibration uses the color sensor)
+
+**Tag orientation convention**
+
+Point the **top edge of the tag** (the edge opposite the printed ID number) toward the direction you want the module's flowers to face at rest. That direction becomes `yaw = 0°` for that module.
+
+**Step-by-step workflow**
+
+1. Place all tags flat on the floor at each module's registration point, oriented as above.
+2. Run layout calibration (choose one):
+   - **CLI:** `python main.py --config settings.json --layout-calibrate`
+   - **Dashboard:** open `http://<show-ip>:8765/` and click **Layout Calibrate**
+3. Wait ~3 seconds while the camera captures 30 frames (progress shown in the visualizer).
+4. Remove all tags.
+5. Restart (or continue) the show normally — `layout_calibrated.json` is loaded automatically.
+
+The visualizer's **CAL:** badge turns green and shows `layout_calibrated` when done. Any module whose tag wasn't detected keeps its existing position from `settings.json`; a warning is logged.
+
+**Files**
+
+| File | Purpose |
+|---|---|
+| `settings.json` | Manual/default positions — versioned, never overwritten by calibration |
+| `layout_calibrated.json` | Auto-detected overrides — gitignored, auto-loaded at startup |
+
+Delete `layout_calibrated.json` to revert to the manual positions in `settings.json`.
+
+**Recalibrating after a move**
+
+Stop the service, re-place tags, run `--layout-calibrate` again, remove tags, restart. The new `layout_calibrated.json` replaces the old one.
+
+```bash
+sudo systemctl stop flowerbeds
+python main.py --config settings.json --layout-calibrate
+sudo systemctl start flowerbeds
+```
+
+Or trigger from the dashboard without stopping the service — the show pauses ~3 s and resumes automatically with the updated layout.
 
 ### TreeHouse
 
