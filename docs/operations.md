@@ -4,6 +4,15 @@ Process supervision and deployment for CommunityGarden show-control software.
 
 ---
 
+## Prerequisites
+
+- Python 3.11+
+- Git
+
+Each show element has its own `requirements.txt`. Install them separately — they don't share a virtualenv.
+
+---
+
 ## Services overview
 
 Each show-control element runs as a systemd service with `Restart=always` and `RestartSec=5`, so it recovers automatically from crashes without operator intervention.
@@ -48,6 +57,57 @@ sudo bash install.sh
 3. Runs `systemctl enable` + `systemctl restart`
 
 The service user defaults to the invoking user (`$SUDO_USER`) and falls back to `pi`.
+
+---
+
+## Manual startup (dev / local)
+
+Run each element from its own terminal without systemd. All elements are independent; start only what you need.
+
+### Dashboard
+```bash
+cd ShowControl/Dashboard
+python serve.py
+# → http://<your-ip>:9000
+```
+
+### TreeHouse
+```bash
+cd ShowControl/TreeHouse
+pip install -r requirements.txt
+python main.py
+```
+
+### FlowerBeds
+```bash
+cd ShowControl/FlowerBeds
+pip install -r requirements.txt
+python main.py --config settings.json
+```
+
+### FundingCAPTCHA
+```bash
+cd ShowControl/FundingCAPTCHA
+python server.py
+```
+
+---
+
+## Running without hardware
+
+Every element has a dev mode — no camera, no LEDs, no servos required.
+
+| Element | Dev flag(s) |
+|---|---|
+| TreeHouse | `--no-pico` |
+| FlowerBeds | `--mock-camera --no-osc` |
+| FundingCAPTCHA | `--mock-camera` |
+
+```bash
+python main.py --no-pico                    # TreeHouse, no Pico
+python main.py --mock-camera --no-osc       # FlowerBeds, no camera or servos
+python server.py --mock-camera              # FundingCAPTCHA, no depth camera
+```
 
 ---
 

@@ -183,20 +183,7 @@ Chromium retries automatically once the server responds.
 
 ### Updating the software
 
-```bash
-cd /home/pi/CommunityGarden
-git pull
-sudo systemctl restart flowerbeds treehouse captcha cg-dashboard
-```
-
-If Python dependencies changed:
-
-```bash
-pip3 install --break-system-packages -r ShowControl/FlowerBeds/requirements.txt
-pip3 install --break-system-packages -r ShowControl/TreeHouse/requirements.txt
-pip3 install --break-system-packages -r ShowControl/FundingCAPTCHA/requirements.txt
-sudo systemctl restart flowerbeds treehouse captcha
-```
+See [Operations Guide — Updating the software](operations.md#updating-the-software).
 
 ---
 
