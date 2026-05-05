@@ -13,5 +13,6 @@ python-osc>=1.8
 # ── CV pipeline (required only for --camera or --mock-camera) ─────────────────
 numpy>=1.24
 scipy>=1.10
-# pyorbbecsdk2 is not on PyPI — install from the Orbbec SDK release:
-#   pip install pyorbbecsdk2  (or build from source)
+
+# Orbbec camera SDK
+pyorbbecsdk2
