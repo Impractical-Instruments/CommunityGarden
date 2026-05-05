@@ -15,6 +15,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import struct
 import time
 from abc import ABC, abstractmethod
@@ -22,6 +23,9 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 import numpy as np
+
+log = logging.getLogger(__name__)
+_CAMERA_RETRY_DELAY_S = 5
 
 try:
     import cv2  # type: ignore[import]
@@ -111,13 +115,21 @@ class OrbbecCamera(BaseCamera):
         self._context: object | None = None
 
     def __enter__(self) -> "OrbbecCamera":
-        if self._serial:
-            self._context = self._Context()
-            device_list = self._context.query_devices()
-            device = device_list.get_device_by_serial_number(self._serial)
-            self._pipeline = self._Pipeline(device)
-        else:
-            self._pipeline = self._Pipeline()
+        while True:
+            try:
+                if self._serial:
+                    self._context = self._Context()
+                    device_list = self._context.query_devices()
+                    device = device_list.get_device_by_serial_number(self._serial)
+                    self._pipeline = self._Pipeline(device)
+                else:
+                    self._pipeline = self._Pipeline()
+                break
+            except RuntimeError as exc:
+                self._pipeline = None
+                self._context = None
+                log.warning("Orbbec device not ready (%s) — retrying in %ds…", exc, _CAMERA_RETRY_DELAY_S)
+                time.sleep(_CAMERA_RETRY_DELAY_S)
         profile_list = self._pipeline.get_stream_profile_list(self._OBSensorType.DEPTH_SENSOR)
         profile = profile_list.get_video_stream_profile(
             self._width, self._height, self._OBFormat.Y16, self._fps,
@@ -309,13 +321,21 @@ class OrbbecRGBCamera:
         self._context: object | None = None
 
     def __enter__(self) -> "OrbbecRGBCamera":
-        if self._serial:
-            self._context = self._Context()
-            device_list = self._context.query_devices()
-            device = device_list.get_device_by_serial_number(self._serial)
-            self._pipeline = self._Pipeline(device)
-        else:
-            self._pipeline = self._Pipeline()
+        while True:
+            try:
+                if self._serial:
+                    self._context = self._Context()
+                    device_list = self._context.query_devices()
+                    device = device_list.get_device_by_serial_number(self._serial)
+                    self._pipeline = self._Pipeline(device)
+                else:
+                    self._pipeline = self._Pipeline()
+                break
+            except RuntimeError as exc:
+                self._pipeline = None
+                self._context = None
+                log.warning("Orbbec device not ready (%s) — retrying in %ds…", exc, _CAMERA_RETRY_DELAY_S)
+                time.sleep(_CAMERA_RETRY_DELAY_S)
 
         profile_list = self._pipeline.get_stream_profile_list(
             self._OBSensorType.COLOR_SENSOR
