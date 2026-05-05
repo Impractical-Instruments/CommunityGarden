@@ -48,4 +48,6 @@ for svc in flowerbeds treehouse cg-dashboard captcha; do
 done
 echo ""
 echo "View logs:  journalctl -u <service> -f"
-echo "Dashboard:  http://$(hostname -I | awk '{print $1}'):9000/"
+if systemctl is-active --quiet cg-dashboard.service 2>/dev/null; then
+    echo "Dashboard:  http://$(hostname -I | awk '{print $1}'):9000/"
+fi
