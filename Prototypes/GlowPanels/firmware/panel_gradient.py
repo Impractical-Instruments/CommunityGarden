@@ -21,12 +21,12 @@ import neopixel
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-NUM_LEDS  = 18      # 18 for side-lit single edge; 54 for back-lit 3-row box
+NUM_LEDS  = 224      # 18 for side-lit single edge; 54 for back-lit 3-row box
 DATA_PIN  = 0       # GPIO number (GP0 = physical pin 1)
 
 # Global brightness multiplier 0.0–1.0.
 # Keep at 0.4–0.6 during prototyping to avoid blinding yourself.
-BRIGHTNESS = 0.5
+BRIGHTNESS = 1
 
 # RGBW base colour — (R, G, B, W) each 0–255.
 # COLOR_WARM: warm white-green tint, earthen/mycelium feel.
@@ -41,7 +41,7 @@ BASE_COLOR = COLOR_WARM
 #        Calm, architectural. No animation loop needed.
 #   "B"  Breathing gradient — per-LED sine wave with a phase offset between
 #        neighbours. Organic, bioluminescent pulse.
-MODE = "A"
+MODE = "B"
 
 # ── Mode A settings ───────────────────────────────────────────────────────────
 # Gradient runs bright→dim from index 0 to NUM_LEDS-1.
@@ -107,3 +107,4 @@ def main():
 
 
 main()
+
