@@ -66,11 +66,9 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 **What it does:** Depth camera detects visitors as Blobs. Blobs are stabilised into Blob Tracks. Tracks are assigned to nearby FlowerClusters. Each cluster rotates its servo-driven flower toward the nearest visitor. Flowers have mirrors at their centres.
 
 **Production configuration:**
-- 1 depth camera (Orbbec), overhead mount — single-camera coverage TBC after tomorrow's test
-- 2 controller boards (OpenRB-150), 24 Dynamixel servos each = 48 flowers total
-- OSC over UDP to controllers
-
-**Key open question:** Can one camera cover the full 48-cluster field from the intended mount height? Testing tomorrow (2026-04-30). Multi-camera fallback is supported by the codebase.
+- 1 depth camera (Orbbec), overhead mount — single-camera coverage confirmed (tested 2026-04-30)
+- 2 controller boards (OpenRB-150), 24 Dynamixel XL430-W250-T servos each = 48 flowers total, 12 modules × 4 clusters
+- OSC over UDP to controllers at `192.168.1.50` and `192.168.1.51`
 
 **OSC output to fabric:**
 - TBD — at minimum, visitor count / activity level for TreeHouse to consume
@@ -102,7 +100,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **What it does:** A Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with valves and switches. Visitors operate the controls to steer a music system running granulators and loop players on a Raspberry Pi (Cycling '74 Max/RNBO). Controls use Tiller Control — visitors change the direction and character of the music, not trigger discrete notes.
 
-**Hardware path:** Sensors may connect directly to the Raspberry Pi/Max rather than via a microcontroller intermediary (unlike other Elements, which use OpenRB-150 + OSC). TBD based on what the teammate implements.
+**Hardware path (confirmed 2026-05-07):** Direct sensor → Pi/Max. Physical controls (rotary encoders, switches) are read by a Python GPIO bridge process on the Pi; the bridge sends OSC to the RNBO runner, which handles all audio DSP and emits `/pipes/activity` to the TreeHouse directly. No microcontroller intermediary. Note: RNBO runner cannot read GPIO directly — the bridge process is required.
 
 **OSC output to fabric:** Playing the Pipes is an emitter only — it sends activity signals outward (controls active, engagement level) and does not receive from other Elements. It is a pure sound piece; external OSC input would conflict with the Tiller Control experience.
 
@@ -114,7 +112,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **What it does:** A 7-foot kiosk styled as a CRT monitor running a suite of increasingly frustrating CAPTCHA-inspired touch-screen games. Visitors must "prove their humanity" to progress.
 
-**Touch screen approach:** Front-projection onto the kiosk face, with depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). Testing this approach (2026-05-03 weekend).
+**Touch screen approach:** Front-projection onto the kiosk face using a BenQ LH830ST short-throw laser projector, with Orbbec depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). **Touch detection untested as of 2026-05-07 — Week 1 priority (see issue #73).**
 
 **Prototype vs. final:**
 - Prototype: browser-based games, standard display, being built with youth group as a creative/educational process
@@ -178,8 +176,8 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 
 ### Remote Access
 
-- SSH access to all show computers on the Show Network
-- Optional internet uplink (via router added to Show Network) for remote monitoring from outside the venue — nice-to-have, not required
+- SSH access to all show computers on the Show Network (password auth on isolated LAN)
+- No internet uplink — monitoring is LAN-only for the festival
 
 ### Installation & Deinstallation
 
@@ -202,10 +200,11 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 
 | # | Question | Status |
 |---|---|---|
-| 1 | Can one Orbbec camera cover the full 48-cluster FlowerBeds field? | Testing 2026-04-30 |
-| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | Testing 2026-05-03 |
-| 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | Teammate to confirm |
-| 4 | OSC message schema for each Element's output to the fabric | TBD per element |
-| 5 | TreeHouse: exact mapping of Garden State inputs to branch/display outputs | Design TBD |
+| 1 | Can one Orbbec camera cover the full 48-cluster FlowerBeds field? | **Resolved 2026-04-30: yes, single camera confirmed** |
+| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Untested — Week 1 priority, see issue #73** |
+| 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | **Resolved 2026-05-07: direct GPIO → Python bridge → RNBO runner → OSC. See issue #49.** |
+| 4 | OSC message schema for each Element's output to the fabric | Largely resolved via ADR-0007; see `ShowControl/network.json` |
+| 5 | TreeHouse: exact mapping of Garden State inputs to branch/display outputs | In progress — ADR-0008 covers displays; branch weights configurable per-motor in `settings.json` |
+| 6 | Playing the Pipes: audio system for venue | **Resolved 2026-05-07: 4× studio monitors (Event series). Pi 5 has no analog audio — USB audio interface required.** |
 | 6 | Monitoring dashboard: build as central aggregator service or per-element push? | TBD |
 | 7 | Internet uplink for remote monitoring: worth adding for festival? | TBD |
