@@ -109,30 +109,27 @@ Ground floor diorama. Lit with SK6812 RGBW strips using an incandescent-style pa
 Second floor diorama. Lit with SK6812 strips using a chase/strobe pattern.
 
 **Mycelium**:
-Second floor diorama. Contains clay mushrooms and edge-lit acrylic panels masked so the glow traces mycelium network patterns. LED light enters through acrylic edges and illuminates the masked paths. Animation logic pulses or propagates along the mycelium paths in response to Garden State rather than applying uniform brightness.
+Second floor diorama. Contains clay mushrooms and edge-lit acrylic panels masked so the glow traces mycelium network patterns. LED light enters through acrylic edges and illuminates the masked paths. 224 LEDs total on one SK6812 channel. Animation logic pulses or propagates along the mycelium paths in response to Garden State rather than applying uniform brightness.
 
 **Attic**:
 The interior space at the top of the TreeHouse, behind the gable windows and dormer. Functionally houses branch motors, wiring, and rigging. Visually dressed as an upside-down TV den — furniture and lamps mounted to the ceiling, a TV mounted so it faces the floor (ceiling from the visitor's perspective). Visitors see only ambient glow through the clear acrylic gable windows: the TV glow and warm lamp light. The TV is not directly visible from the front.
 
 **Attic TV**:
-A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. Visible to visitors only as indirect glow through the gable windows. Driven as a standard Pico LED channel; "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker).
+A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. Visible to visitors only as indirect glow through the gable windows. Driven as a standard Pico LED channel; "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker). Shares an SK6812 channel with the Attic Lamps (8 LEDs total).
 
 **Controllable**:
 The base abstraction for everything the TreeHouse controls. Two methods: `update(dt, state)` advances internal state by `dt` seconds given the current `GardenState`; `get_state()` returns a serialisable snapshot for monitoring. Every display, motor controller, and video output in the TreeHouse is a Controllable.
 _Avoid_: "Display" (the old name — being replaced)
 
 **LEDControllable**:
-A Controllable subclass for anything that drives SK6812 RGBW LED strips via the Pico. Adds `get_pixels()` returning a list of `ChannelFrame` objects (one per Pico GPIO pin). The `PicoDriver` collects pixels from all LEDControllables each frame and sends them in a single batch. Each room/space is its own LEDControllable subclass with its own Garden-State-reactive animation logic.
+A Controllable subclass for anything that drives SK6812 RGBW LED strips via a Pico. Adds `get_pixels()` returning a list of `ChannelFrame` objects (one per Pico GPIO pin). Two `PicoDriver` instances (one per Pico) collect pixels from their assigned LEDControllables each frame and send them. Each room/space is its own LEDControllable subclass with its own Garden-State-reactive animation logic.
 _Avoid_: "LEDDisplay" (the old name — being replaced), conflating with `Controllable`
 
 **GardenState**:
 A dataclass passed to every `Controllable.update()` each frame. Fields: `bloom` (0.0–1.0 Branch extension target), `intensity` (0.0–1.0 aggregate visitor activity), `blowup_triggered` (bool, one-shot per Blow-Up event). Each Controllable reads only the fields relevant to it.
 
 **Attic Lamps**:
-One or two physical lamp props (floor or table lamps) mounted upside-down in the Attic, each containing a single LED. Provide warm ambient fill light visible through the gable windows. Simple point sources — low LED count (1–2 per lamp).
-
-**Exterior Lights**:
-Lights by the front door of the TreeHouse, styled to look like typical house exterior lighting (warm, domestic). Driven as a dedicated LEDControllable class on the same Pi Pico as all other LED strips. Separate class for independent animation/reactivity logic.
+One or two physical lamp props (floor or table lamps) mounted upside-down in the Attic. Provide warm ambient fill light visible through the gable windows. Share an SK6812 channel with the Attic TV (8 LEDs total across both TV and lamps).
 
 **Branch**:
 One of 4–6 motorised branches mounted on the TreeHouse roof. Each Branch extends (blooms) or retracts (withers) independently via a Dynamixel servo driving a lead screw that pushes a wire with leaves/blooms through a PVC housing dressed as a tree branch. The aggregate extension state follows a 0.0–1.0 Bloom value: 0.0 = fully retracted/dead, 1.0 = fully extended/bloomed.

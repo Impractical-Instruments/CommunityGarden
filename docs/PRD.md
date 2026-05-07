@@ -88,6 +88,8 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 - **Front door:** Operable; visitors can reach in to interact with a diorama
 - **Dioramas:** Multiple interior scenes lit and animated (House Swarming, Club chase, Forge & Flora arc-to-bloom crossfade, Looking Glass generative video kaleidoscope)
 
+**LED hardware:** Two Pi Picos (MicroPython + PIO) drive 8 SK6812 RGBW channels from the garage tech bay. Pico A: dioramas + Forge & Flora (5 channels). Pico B: Dormer, Porch Lights, Attic TV & Lamps (3 channels). All channels use stable udev device names. See ADR-0010.
+
 **Hub role:** Receives activity signals from FlowerBeds, Playing the Pipes, and FundingCAPTCHA over the OSC Fabric. Expresses aggregate Garden State through its displays and animations. Exact mapping of input signals to display outputs is a design decision in progress.
 
 **Open question:** Exact branch growth → Garden State mapping is TBD.
