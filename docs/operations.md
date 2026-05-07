@@ -208,10 +208,38 @@ Or trigger from the dashboard without stopping the service — the show pauses ~
 
 ### TreeHouse
 
-- **Hardware:** Raspberry Pi (Debian/Ubuntu), Pi Pico over USB serial (`/dev/ttyACM0`)
+- **Hardware:** Raspberry Pi (Debian/Ubuntu), two Pi Picos (LED) + one branch controller over USB serial
 - **USB groups:** The service user must be in `dialout` group (added by `install.sh`)
-- **Flags:** Add `--no-pico` to skip serial connection (dev mode)
+- **Flags:** Add `--no-pico` to skip serial connections (dev mode)
 - **Visualizer:** `http://<host>:8766/` — live display state view
+
+#### USB device naming (udev)
+
+Three USB serial devices attach to the TreeHouse Pi. Linux enumerates `/dev/ttyACMx` in plug order — not stable across reboots. Udev rules map each device's USB serial number to a fixed symlink:
+
+| Symlink | Device | Channels |
+|---|---|---|
+| `/dev/treehouse-pico-a` | Pico A (dioramas) | House Swarming, Club, Mycelium, F&F arc, F&F bloom |
+| `/dev/treehouse-pico-b` | Pico B (structure) | Dormer, Porch Lights, Attic TV & Lamps |
+| `/dev/treehouse-branches` | Branch controller | Dynamixel branch motors |
+
+`settings.json` references these symlinks — never `/dev/ttyACMx` directly.
+
+**First-time setup (run once per machine):**
+
+```bash
+# Find the USB serial numbers of each Pico/controller while plugged in one at a time:
+udevadm info -a -n /dev/ttyACM0 | grep 'ATTRS{serial}'
+
+# Then add to /etc/udev/rules.d/99-treehouse.rules:
+SUBSYSTEM=="tty", ATTRS{serial}=="<pico-a-serial>", SYMLINK+="treehouse-pico-a"
+SUBSYSTEM=="tty", ATTRS{serial}=="<pico-b-serial>", SYMLINK+="treehouse-pico-b"
+SUBSYSTEM=="tty", ATTRS{serial}=="<branch-serial>", SYMLINK+="treehouse-branches"
+
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+Record the serial numbers in `ShowControl/network.json` under `"firmware"` so they are not lost.
 
 ### FundingCAPTCHA
 

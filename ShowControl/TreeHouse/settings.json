@@ -1,6 +1,11 @@
 {
-  "pico": {
-    "port": "/dev/ttyACM0",
+  "pico_dioramas": {
+    "port": "/dev/treehouse-pico-a",
+    "baud": 115200
+  },
+
+  "pico_structure": {
+    "port": "/dev/treehouse-pico-b",
     "baud": 115200
   },
 
@@ -13,7 +18,7 @@
     {
       "name": "House Swarming",
       "pico_pin": 0,
-      "led_count": 146,
+      "led_count": 20,
       "brightness": 1.0,
       "color": [255, 180, 80, 255],
       "pattern": "incandescent"
@@ -21,15 +26,15 @@
     {
       "name": "Club",
       "pico_pin": 1,
-      "led_count": 24,
+      "led_count": 20,
       "brightness": 1.0,
       "color": [180, 0, 255, 0],
       "pattern": "chase"
     },
     {
       "name": "Mycelium",
-      "pico_pin": 7,
-      "led_count": 40,
+      "pico_pin": 2,
+      "led_count": 224,
       "brightness": 1.0,
       "color": [80, 255, 120, 50],
       "pattern": "mycelium",
@@ -47,38 +52,20 @@
     },
     "forge_and_flora": {
       "name": "Forge & Flora",
-      "arc_pin": 2,
-      "bloom_pin": 3,
-      "led_count": 48,
+      "arc_pin": 3,
+      "arc_led_count": 20,
+      "bloom_pin": 4,
+      "bloom_led_count": 20,
       "blend": 0.0,
       "transition_speed": 0.1,
       "flicker_intensity": 0.3
     }
   },
 
-  "gable_windows": {
-    "front": {
-      "name": "Front Gable",
-      "pico_pin": 4,
-      "led_count": 46,
-      "brightness": 0.8,
-      "color": [0, 0, 0, 255],
-      "pattern": "solid"
-    },
-    "back": {
-      "name": "Back Gable",
-      "pico_pin": 5,
-      "led_count": 46,
-      "brightness": 0.8,
-      "color": [0, 0, 0, 255],
-      "pattern": "solid"
-    }
-  },
-
   "dormer": {
     "name": "Dormer",
-    "pico_pin": 6,
-    "led_count": 90,
+    "pico_pin": 0,
+    "led_count": 4,
     "brightness": 0.8,
     "color": [0, 0, 0, 255],
     "pattern": "solid"
@@ -86,14 +73,23 @@
 
   "porch_lights": {
     "name": "Porch Lights",
-    "pico_pin": 8,
+    "pico_pin": 1,
     "led_count": 2,
     "blowup_duration": 3.0,
     "aftermath_duration": 10.0
   },
 
+  "attic": {
+    "name": "Attic TV & Lamps",
+    "pico_pin": 2,
+    "led_count": 8,
+    "brightness": 1.0,
+    "color": [180, 210, 255, 0],
+    "pattern": "incandescent"
+  },
+
   "branch_controller": {
-    "port": "/dev/ttyACM1",
+    "port": "/dev/treehouse-branches",
     "baud": 115200,
     "motors": [
       {
