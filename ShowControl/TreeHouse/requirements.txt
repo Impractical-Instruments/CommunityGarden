@@ -1,5 +1,5 @@
 python-osc
 pyserial
 moderngl
-pygame
+pyglfw
 numpy

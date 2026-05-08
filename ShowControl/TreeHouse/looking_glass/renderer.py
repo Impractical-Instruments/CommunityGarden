@@ -3,9 +3,11 @@ Looking Glass video renderer — runs as a standalone process, receives scene
 parameters from the TreeHouse coordinator via OSC on localhost:9002, renders
 a GLSL fragment shader fullscreen on the 7" HDMI display (1024×600).
 
+Uses GLFW for windowing (native Wayland + EGL on Pi 5).
 Requires MESA_GL_VERSION_OVERRIDE=3.3 on Pi 5 (set below before moderngl import).
 """
 import os
+import time
 import threading
 import logging
 from pathlib import Path
@@ -13,8 +15,8 @@ from pathlib import Path
 os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
 
+import glfw
 import numpy as np
-import pygame
 import moderngl
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import ThreadingOSCUDPServer
@@ -67,9 +69,29 @@ def _build_vao(ctx: moderngl.Context, prog: moderngl.Program):
 def main() -> None:
     threading.Thread(target=_osc_thread, daemon=True).start()
 
-    pygame.init()
-    pygame.mouse.set_visible(False)
-    pygame.display.set_mode((WIDTH, HEIGHT), pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN)
+    if not glfw.init():
+        raise RuntimeError("GLFW init failed")
+
+    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
+    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
+
+    monitor = glfw.get_primary_monitor()
+    window = glfw.create_window(WIDTH, HEIGHT, "Looking Glass", monitor, None)
+    if not window:
+        glfw.terminate()
+        raise RuntimeError("GLFW window creation failed")
+
+    glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_HIDDEN)
+    glfw.set_key_callback(
+        window,
+        lambda w, key, sc, action, mods: glfw.set_window_should_close(w, True)
+        if key == glfw.KEY_ESCAPE and action == glfw.PRESS
+        else None,
+    )
+    glfw.make_context_current(window)
+    glfw.swap_interval(1)
 
     ctx = moderngl.create_context()
     log.info("OpenGL %s", ctx.version_code)
@@ -86,14 +108,10 @@ def main() -> None:
     vao = _build_vao(ctx, prog)
     log.info("Shader loaded: %s", current_scene)
 
-    clock = pygame.time.Clock()
+    frame_time = 1.0 / FPS
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                return
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                return
+    while not glfw.window_should_close(window):
+        t0 = time.monotonic()
 
         # Hot-swap shader on scene change
         if _state["scene"] != current_scene:
@@ -115,8 +133,15 @@ def main() -> None:
         prog["iTime"].value = _state["time"]
         prog["iIntensity"].value = _state["intensity"]
         vao.render(moderngl.TRIANGLE_STRIP)
-        pygame.display.flip()
-        clock.tick(FPS)
+
+        glfw.swap_buffers(window)
+        glfw.poll_events()
+
+        elapsed = time.monotonic() - t0
+        if elapsed < frame_time:
+            time.sleep(frame_time - elapsed)
+
+    glfw.terminate()
 
 
 if __name__ == "__main__":
