@@ -48,7 +48,8 @@
       "name": "Looking Glass",
       "scene": "bloom",
       "speed": 1.0,
-      "mirror_depth": 6
+      "mirror_depth": 6,
+      "renderer_port": 9002
     },
     "forge_and_flora": {
       "name": "Forge & Flora",

@@ -165,6 +165,7 @@ def load_config(path: str) -> TreehouseConfig:
         scene=lg.get("scene", "bloom"),
         speed=lg.get("speed", 1.0),
         mirror_depth=lg.get("mirror_depth", 6),
+        renderer_port=lg.get("renderer_port", 9002),
     )
 
     ff = raw["garage_windows"]["forge_and_flora"]

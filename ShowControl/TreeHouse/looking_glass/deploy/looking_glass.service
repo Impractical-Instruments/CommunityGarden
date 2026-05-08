@@ -1,0 +1,24 @@
+[Unit]
+Description=Looking Glass video renderer
+After=graphical.target
+# Renderer must start after the display server is up.
+# For X11: ensure DISPLAY and XAUTHORITY are correct below.
+# For Wayland (Pi 5 default): set WAYLAND_DISPLAY instead and remove DISPLAY/XAUTHORITY.
+
+[Service]
+WorkingDirectory=/home/pi/CommunityGarden/ShowControl/TreeHouse/looking_glass
+ExecStart=/usr/bin/python3 renderer.py
+Restart=on-failure
+RestartSec=5
+User=pi
+SupplementaryGroups=video render
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=MESA_GL_VERSION_OVERRIDE=3.3
+Environment=MESA_GLSL_VERSION_OVERRIDE=330
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=looking_glass
+
+[Install]
+WantedBy=graphical.target

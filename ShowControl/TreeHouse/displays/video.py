@@ -1,6 +1,8 @@
 import logging
 from dataclasses import dataclass
 
+from pythonosc.udp_client import SimpleUDPClient
+
 from .base import Controllable, ControllableState, GardenState
 
 log = logging.getLogger("treehouse")
@@ -11,8 +13,8 @@ class LookingGlassConfig:
     name: str = "Looking Glass"
     scene: str = "bloom"
     speed: float = 1.0
-    # Number of virtual mirror reflections rendered by the video engine
     mirror_depth: int = 6
+    renderer_port: int = 9002
 
 
 class LookingGlassDisplay(Controllable):
@@ -39,6 +41,8 @@ class LookingGlassDisplay(Controllable):
         self.speed = config.speed
         self.mirror_depth = config.mirror_depth
         self._time = 0.0
+        self._osc = SimpleUDPClient("127.0.0.1", config.renderer_port)
+        log.info("Looking Glass OSC → localhost:%d", config.renderer_port)
 
     # ------------------------------------------------------------------
     # Control interface
@@ -64,8 +68,11 @@ class LookingGlassDisplay(Controllable):
         if not self.enabled:
             return
         self._time += dt * self.speed
-        # TODO: push {scene, time, mirror_depth} to video renderer each frame
-        # (e.g. via OSC, shared-memory texture, or socket to a TouchDesigner patch)
+        intensity = (state.flowerbeds_activity + state.captcha_intensity + state.pipes_activity) / 3.0
+        intensity = max(0.0, min(1.0, intensity)) * state.brightness
+        self._osc.send_message("/lookingglass/scene", self.scene)
+        self._osc.send_message("/lookingglass/time", float(self._time))
+        self._osc.send_message("/lookingglass/intensity", float(intensity))
 
     def get_state(self) -> ControllableState:
         return ControllableState(
