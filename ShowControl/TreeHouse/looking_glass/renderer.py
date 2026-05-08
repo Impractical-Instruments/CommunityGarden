@@ -3,11 +3,10 @@ Looking Glass video renderer — runs as a standalone process, receives scene
 parameters from the TreeHouse coordinator via OSC on localhost:9002, renders
 a GLSL fragment shader fullscreen on the 7" HDMI display (1024×600).
 
-Uses GLFW for windowing (native Wayland + EGL on Pi 5).
+Uses pyglet for windowing (native Wayland+EGL on Pi 5).
 Requires MESA_GL_VERSION_OVERRIDE=3.3 on Pi 5 (set below before moderngl import).
 """
 import os
-import time
 import threading
 import logging
 from pathlib import Path
@@ -15,8 +14,8 @@ from pathlib import Path
 os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
 
-import glfw
 import numpy as np
+import pyglet
 import moderngl
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import ThreadingOSCUDPServer
@@ -66,82 +65,54 @@ def _build_vao(ctx: moderngl.Context, prog: moderngl.Program):
     return ctx.vertex_array(prog, [(vbo, "2f", "in_vert")])
 
 
-def main() -> None:
-    threading.Thread(target=_osc_thread, daemon=True).start()
+class LookingGlassWindow(pyglet.window.Window):
+    def __init__(self):
+        super().__init__(WIDTH, HEIGHT, caption="Looking Glass", fullscreen=True, vsync=True)
+        self.set_mouse_visible(False)
+        self.ctx = moderngl.create_context()
+        log.info("OpenGL %s", self.ctx.version_code)
+        self._current_scene = _state["scene"]
+        self._load_scene(self._current_scene)
 
-    if not glfw.init():
-        raise RuntimeError("GLFW init failed")
+    def _load_scene(self, name: str) -> None:
+        try:
+            frag = _load_frag(name)
+        except FileNotFoundError:
+            log.warning("Shader %r missing, falling back to bloom", name)
+            name = "bloom"
+            frag = _load_frag("bloom")
+        if hasattr(self, "vao"):
+            self.vao.release()
+            self.prog.release()
+        self.prog = self.ctx.program(vertex_shader=VERT, fragment_shader=frag)
+        self.vao = _build_vao(self.ctx, self.prog)
+        self._current_scene = name
+        log.info("Shader loaded: %s", name)
 
-    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
-    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    glfw.window_hint(glfw.OPENGL_FORWARD_COMPAT, True)
-
-    monitor = glfw.get_primary_monitor()
-    window = glfw.create_window(WIDTH, HEIGHT, "Looking Glass", monitor, None)
-    if not window:
-        glfw.terminate()
-        raise RuntimeError("GLFW window creation failed")
-
-    glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_HIDDEN)
-    glfw.set_key_callback(
-        window,
-        lambda w, key, sc, action, mods: glfw.set_window_should_close(w, True)
-        if key == glfw.KEY_ESCAPE and action == glfw.PRESS
-        else None,
-    )
-    glfw.make_context_current(window)
-    glfw.swap_interval(1)
-
-    ctx = moderngl.create_context()
-    log.info("OpenGL %s", ctx.version_code)
-
-    current_scene = _state["scene"]
-    try:
-        frag = _load_frag(current_scene)
-    except FileNotFoundError:
-        log.warning("Shader %r missing, falling back to bloom", current_scene)
-        current_scene = "bloom"
-        frag = _load_frag("bloom")
-
-    prog = ctx.program(vertex_shader=VERT, fragment_shader=frag)
-    vao = _build_vao(ctx, prog)
-    log.info("Shader loaded: %s", current_scene)
-
-    frame_time = 1.0 / FPS
-
-    while not glfw.window_should_close(window):
-        t0 = time.monotonic()
-
-        # Hot-swap shader on scene change
-        if _state["scene"] != current_scene:
+    def on_draw(self):
+        if _state["scene"] != self._current_scene:
             try:
-                frag = _load_frag(_state["scene"])
-                new_prog = ctx.program(vertex_shader=VERT, fragment_shader=frag)
-                vao.release()
-                prog.release()
-                prog = new_prog
-                vao = _build_vao(ctx, prog)
-                current_scene = _state["scene"]
-                log.info("Scene → %s", current_scene)
+                self._load_scene(_state["scene"])
             except Exception as exc:
                 log.error("Shader swap failed: %s", exc)
-                _state["scene"] = current_scene
+                _state["scene"] = self._current_scene
 
-        ctx.clear()
-        prog["iResolution"].value = (float(WIDTH), float(HEIGHT))
-        prog["iTime"].value = _state["time"]
-        prog["iIntensity"].value = _state["intensity"]
-        vao.render(moderngl.TRIANGLE_STRIP)
+        self.ctx.clear()
+        self.prog["iResolution"].value = (float(WIDTH), float(HEIGHT))
+        self.prog["iTime"].value = _state["time"]
+        self.prog["iIntensity"].value = _state["intensity"]
+        self.vao.render(moderngl.TRIANGLE_STRIP)
 
-        glfw.swap_buffers(window)
-        glfw.poll_events()
+    def on_key_press(self, symbol, modifiers):
+        if symbol == pyglet.window.key.ESCAPE:
+            pyglet.app.exit()
 
-        elapsed = time.monotonic() - t0
-        if elapsed < frame_time:
-            time.sleep(frame_time - elapsed)
 
-    glfw.terminate()
+def main() -> None:
+    threading.Thread(target=_osc_thread, daemon=True).start()
+    window = LookingGlassWindow()
+    pyglet.clock.schedule_interval(lambda dt: window.dispatch_event("on_draw"), 1 / FPS)
+    pyglet.app.run()
 
 
 if __name__ == "__main__":
