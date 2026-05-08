@@ -23,13 +23,13 @@ class Grid {
     container.innerHTML = '';
     container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
     container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+    container.style.position = 'relative'; // canvas overlay anchor
 
-    // Compute cell size so grid fits nicely in viewport.
-    // On mobile the HUD stacks below the grid, so don't subtract its width.
     const isMobile = window.innerWidth <= 600;
-    const maxW = isMobile ? window.innerWidth - 32 : Math.min(window.innerWidth - 240, 620);
+    const maxW = isMobile ? window.innerWidth - 32 : window.innerWidth - 260;
     const maxH = isMobile ? Math.round(window.innerHeight * 0.55) : window.innerHeight - 180;
-    const cellPx = Math.floor(Math.min(maxW / cols, maxH / rows, 110));
+    const cellPx = Math.floor(Math.min(maxW / cols, maxH / rows));
+    this._cellPx = cellPx;
     container.style.width = `${cellPx * cols + 4 * (cols - 1)}px`;
 
     this.cells = [];
@@ -52,6 +52,12 @@ class Grid {
   }
 
   cell(col, row) { return this.cells[row]?.[col]; }
+
+  // Pixel position of any continuous cell-space point (vx, vy) relative to container top-left.
+  cellPixel(vx, vy) {
+    const gap = 4, px = this._cellPx;
+    return { x: vx * (px + gap) + px / 2, y: vy * (px + gap) + px / 2 };
+  }
 
   setContent(col, row, html) {
     const el = this.cell(col, row);

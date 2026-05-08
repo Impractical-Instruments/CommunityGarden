@@ -79,6 +79,9 @@ function startGame(id) {
     () => handleLose(id)
   );
 
+  // Let games signal grid-size changes (e.g. rhythm expanding to larger grid).
+  activeGame.onGridResize = (cols, rows) => touchInput.resize(cols, rows);
+
   backgroundRenderer?.update({ game: id });
   postGameEvent({ game: id });
 }
@@ -97,11 +100,20 @@ function handleWin(id) {
   showMessage(
     '🎉 You did it!',
     "Challenge complete. You've proven you're human (or at least have human-like skills).",
-    'Play Again',
+    'Next Level',
     () => {
       if (activeGame) {
-        msgOverlay.classList.add('hidden');
-        activeGame.nextLevel?.();
+        const more = activeGame.nextLevel?.();
+        if (more === false) {
+          showMessage(
+            '🏆 All Levels Complete!',
+            'You crushed every level. Legendary.',
+            'Back to Menu',
+            () => { stopGame(); showLobby(); }
+          );
+        } else {
+          msgOverlay.classList.add('hidden');
+        }
       } else {
         startGame(id);
       }

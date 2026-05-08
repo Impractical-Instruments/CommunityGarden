@@ -208,6 +208,22 @@ input[type=file] {
     <h3>Sent this session</h3>
     <div class="sent-thumbs" id="sent-thumbs"></div>
   </div>
+
+  <hr style="border:none;border-top:1px solid var(--border);margin:28px 0">
+
+  <h2 style="font-size:1.1rem;margin-bottom:6px">🖼 Upside Down Background</h2>
+  <p style="color:var(--muted);font-size:.9rem;margin-bottom:16px">
+    Upload a background image for Upside Down. At higher levels, the pairs will blend into it.
+  </p>
+
+  <div class="photo-area" id="bg-preview-area">
+    <div class="photo-icon">🌄</div>
+    <div class="photo-hint">Tap to choose a background image</div>
+    <input type="file" id="bg-input" accept="image/*">
+  </div>
+
+  <button class="btn-upload" id="bg-upload-btn" disabled>Set as Background ✈️</button>
+  <div id="bg-status" class="status"></div>
 </div>
 
 <script>
@@ -316,6 +332,70 @@ function addSentThumb(dataUrl) {
   img.src = dataUrl;
   sentThumbs.appendChild(img);
 }
+
+// ── Background image upload ───────────────────────────────────────────────────
+
+const bgPreview   = document.getElementById('bg-preview-area');
+const bgInput     = document.getElementById('bg-input');
+const bgUploadBtn = document.getElementById('bg-upload-btn');
+const bgStatus    = document.getElementById('bg-status');
+let bgDataUrl     = null;
+
+bgInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    resizeImage(ev.target.result, 1200, dataUrl => {
+      bgDataUrl = dataUrl;
+      bgPreview.innerHTML = `<img src="${dataUrl}" alt="background preview">`;
+      bgPreview.classList.add('has-photo');
+      bgUploadBtn.disabled = false;
+      bgStatus.className = 'status';
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+bgUploadBtn.addEventListener('click', async () => {
+  if (!bgDataUrl) return;
+  bgUploadBtn.disabled = true;
+  bgStatus.className = 'status loading';
+  bgStatus.textContent = 'Uploading… ✈️';
+  bgStatus.style.display = 'block';
+  try {
+    const res  = await fetch('/api/background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: bgDataUrl }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      bgStatus.className   = 'status success';
+      bgStatus.textContent = '✅ Background set! It will appear in Upside Down.';
+      bgDataUrl = null;
+      bgInput.value = '';
+    } else {
+      throw new Error(json.error || 'Unknown error');
+    }
+  } catch (err) {
+    bgStatus.className   = 'status error';
+    bgStatus.textContent = `❌ ${err.message}`;
+    bgUploadBtn.disabled = false;
+  }
+});
+
+// Show current background if one exists
+(async () => {
+  try {
+    const res = await fetch('/api/background');
+    if (res.ok) {
+      const url = '/api/background?t=' + Date.now();
+      bgPreview.innerHTML = `<img src="${url}" alt="current background">`;
+      bgPreview.classList.add('has-photo');
+    }
+  } catch (_) {}
+})();
 </script>
 </body>
 </html>

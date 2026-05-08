@@ -2,54 +2,58 @@
  * Football Keepaway
  *
  * Grid: 5×5
- * Offensive team: one player has the ball 🏈.
- * Player taps: (1) cell with ball-carrier → selects them
- *              (2) cell with an open receiver → pass
- * Defenders 🔴 move each tick, trying to reach the ball or cover receivers.
- * Win: survive TARGET_TIME seconds (increases each attempt).
- * Lose: a defender lands on the ball-carrier's cell.
- *
- * If photos have been uploaded via upload.html, kid faces replace the
- * offense emoji. Defenders always stay as 🔴 for clear team distinction.
+ * Offense taps ball-carrier → selects, taps open receiver → passes.
+ * Defenders (canvas overlay, smooth continuous motion) chase ball.
+ * Win: survive TARGET_TIME seconds. 10 levels, per-level config.
  */
 class KeepawayGame {
   static get META() {
     return { id: 'keepaway', title: '🏈 Football Keepaway', cols: 5, rows: 5 };
   }
 
+  // Edit this array to tune each level: defenders, tick speed, survival time.
+  static LEVELS = [
+    { defenders: 1, tickMs: 1600, targetTime:  8 },
+    { defenders: 1, tickMs: 1300, targetTime: 12 },
+    { defenders: 2, tickMs: 1100, targetTime: 14 },
+    { defenders: 2, tickMs:  900, targetTime: 16 },
+    { defenders: 2, tickMs:  750, targetTime: 18 },
+    { defenders: 3, tickMs:  620, targetTime: 20 },
+    { defenders: 3, tickMs:  500, targetTime: 22 },
+    { defenders: 3, tickMs:  420, targetTime: 24 },
+    { defenders: 4, tickMs:  360, targetTime: 26 },
+    { defenders: 4, tickMs:  300, targetTime: 30 },
+  ];
+
   static TUNING = {
-    initialTime:  12,  // seconds to survive on first round
-    timePerLevel:  5,  // extra seconds added each level
-    tickBase:    1000,  // defender tick at difficulty 1 (ms; higher = slower)
-    tickScale:    80,  // ms subtracted per difficulty level
-    tickMin:     300,  // fastest possible defender tick (ms)
-    easeInFactor:  1.6,  // defenders start this many times slower at round start
+    easeInFactor: 1.8,  // defenders start this many times slower at round start
   };
 
   constructor(grid, hud, onWin, onLose) {
-    this.grid       = grid;
-    this.hud        = hud;
-    this.onWin      = onWin;
-    this.onLose     = onLose;
-    this.difficulty = 1;
-    this.targetTime = KeepawayGame.TUNING.initialTime;
-    this.playerPhotos = null; // set after async load
+    this.grid         = grid;
+    this.hud          = hud;
+    this.onWin        = onWin;
+    this.onLose       = onLose;
+    this.levelIdx     = 0;
+    this.playerPhotos = null;
     this._destroyed   = false;
+    this._canvas      = null;
+    this._ctx         = null;
+    this._rafId       = null;
 
     this._loadPhotosAndInit();
   }
+
+  get hasNextLevel() { return this.levelIdx < KeepawayGame.LEVELS.length - 1; }
 
   async _loadPhotosAndInit() {
     try {
       const res    = await fetch('/api/photos');
       const photos = await res.json();
       if (Array.isArray(photos) && photos.length > 0) {
-        // Shuffle so different kids appear in different positions each game
-        this.playerPhotos = [...photos]
-          .sort(() => Math.random() - .5)
-          .map(p => p.url);
+        this.playerPhotos = [...photos].sort(() => Math.random() - .5).map(p => p.url);
       }
-    } catch (_) { /* no server or no photos — emoji fallback */ }
+    } catch (_) {}
     if (!this._destroyed) this._init();
   }
 
@@ -59,36 +63,110 @@ class KeepawayGame {
     this.elapsed  = 0;
     this.alive    = true;
 
+    const level  = KeepawayGame.LEVELS[this.levelIdx];
+    const numDef = level.defenders;
+
     this.offense = [
       { c: 1, r: 1 }, { c: 3, r: 1 },
       { c: 0, r: 3 }, { c: 2, r: 3 }, { c: 4, r: 3 },
     ];
     this.ballIdx = 0;
 
-    this.defense = [
+    const defStarts = [
       { c: 4, r: 0 }, { c: 0, r: 4 }, { c: 4, r: 4 }, { c: 2, r: 2 },
     ];
+    this.defense = defStarts.slice(0, numDef).map(d => ({
+      c: d.c, r: d.r, vx: d.c, vy: d.r,
+    }));
 
-    const { tickBase, tickScale, tickMin, easeInFactor } = KeepawayGame.TUNING;
-    this._baseTickMs = Math.max(tickBase - this.difficulty * tickScale, tickMin);
-    this._tickMs     = this._baseTickMs * easeInFactor;
-    this._tickId  = null;
-    this._timerId = null;
+    this._baseTickMs = level.tickMs;
+    this._tickMs     = this._baseTickMs * KeepawayGame.TUNING.easeInFactor;
+    this._targetTime = level.targetTime;
+    this._tickId     = null;
+    this._timerId    = null;
 
+    this._setupCanvas();
     this._startTimers();
+    this._startRAF();
     this._render();
     this._updateHud();
   }
 
-  // Returns HTML for an offense player cell, or null to use emoji fallback.
-  _playerHTML(playerIdx, badge, dimmed) {
-    if (!this.playerPhotos?.length) return null;
-    const url = this.playerPhotos[playerIdx % this.playerPhotos.length];
-    const filter = dimmed ? 'filter:grayscale(55%) brightness(0.55)' : '';
-    return `<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center">
-      <img src="${url}" style="width:78%;height:78%;object-fit:cover;border-radius:50%;${filter}">
-      ${badge ? `<span style="position:absolute;bottom:3px;right:3px;font-size:.9rem;line-height:1">${badge}</span>` : ''}
-    </div>`;
+  _setupCanvas() {
+    const cont = this.grid.container;
+    if (!this._canvas) {
+      this._canvas = document.createElement('canvas');
+      this._canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;';
+      this._ctx = this._canvas.getContext('2d');
+    }
+    if (this._canvas.parentNode !== cont) cont.appendChild(this._canvas);
+    const px  = this.grid._cellPx;
+    const gap = 4;
+    this._canvas.width  = px * this.grid.cols + gap * (this.grid.cols - 1);
+    this._canvas.height = px * this.grid.rows + gap * (this.grid.rows - 1);
+  }
+
+  _startRAF() {
+    let last = performance.now();
+    const loop = (now) => {
+      if (!this.alive) return;
+      const dt = now - last;
+      last = now;
+      this._updateVisuals(dt);
+      this._drawCanvas();
+      this._rafId = requestAnimationFrame(loop);
+    };
+    this._rafId = requestAnimationFrame(loop);
+  }
+
+  _updateVisuals(dt) {
+    const speed = 1000 / (this._baseTickMs * 0.55); // cells per second
+    this.defense.forEach(d => {
+      const dx = d.c - d.vx, dy = d.r - d.vy;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 0.005) { d.vx = d.c; d.vy = d.r; return; }
+      const step = Math.min(dist, speed * dt / 1000);
+      d.vx += (dx / dist) * step;
+      d.vy += (dy / dist) * step;
+    });
+  }
+
+  _drawCanvas() {
+    const { _canvas: cv, _ctx: ctx, grid } = this;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+
+    const px = grid._cellPx;
+    const gap = 4;
+    const r = px * 0.36;
+
+    this.defense.forEach(d => {
+      const x = d.vx * (px + gap) + px / 2;
+      const y = d.vy * (px + gap) + px / 2;
+
+      // Glow
+      const grd = ctx.createRadialGradient(x, y, 0, x, y, r * 1.7);
+      grd.addColorStop(0, 'rgba(239,68,68,0.45)');
+      grd.addColorStop(1, 'rgba(239,68,68,0)');
+      ctx.beginPath();
+      ctx.arc(x, y, r * 1.7, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      // Body
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Inner highlight
+      ctx.beginPath();
+      ctx.arc(x - r * 0.28, y - r * 0.28, r * 0.32, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fill();
+    });
   }
 
   _startTimers() {
@@ -98,14 +176,13 @@ class KeepawayGame {
       this.elapsed++;
       this._updateTickSpeed();
       this._updateHud();
-      if (this.elapsed >= this.targetTime) { this._stop(); this.onWin(); }
+      if (this.elapsed >= this._targetTime) { this._stop(); this.onWin(); }
     }, 1000);
   }
 
-  // Ramp defender speed from 2× slow at round start down to 1× by round end
   _updateTickSpeed() {
     const { easeInFactor } = KeepawayGame.TUNING;
-    const progress = Math.min(this.elapsed / this.targetTime, 1);
+    const progress = Math.min(this.elapsed / this._targetTime, 1);
     const factor   = easeInFactor - (easeInFactor - 1) * progress;
     const newMs    = Math.round(this._baseTickMs * factor);
     if (newMs !== this._tickMs) {
@@ -118,7 +195,10 @@ class KeepawayGame {
   _stop() {
     clearInterval(this._tickId);
     clearInterval(this._timerId);
-    this.alive = false;
+    cancelAnimationFrame(this._rafId);
+    this._rafId = null;
+    this.alive  = false;
+    if (this._ctx) this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
   _tick() {
@@ -130,7 +210,6 @@ class KeepawayGame {
 
   _moveDefenders() {
     const ballCell = this.offense[this.ballIdx];
-
     this.defense.forEach((def, di) => {
       let target = ballCell;
       if (di % 2 === 1) {
@@ -142,7 +221,6 @@ class KeepawayGame {
         });
         if (best) target = best;
       }
-
       const dc = Math.sign(target.c - def.c);
       const dr = Math.sign(target.r - def.r);
       const candidates = [];
@@ -178,18 +256,21 @@ class KeepawayGame {
     return this.defense.some(d => d.c === oc && d.r === or_);
   }
 
+  _playerHTML(playerIdx, badge, dimmed) {
+    if (!this.playerPhotos?.length) return null;
+    const url    = this.playerPhotos[playerIdx % this.playerPhotos.length];
+    const filter = dimmed ? 'filter:grayscale(55%) brightness(0.55)' : '';
+    return `<div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center">
+      <img src="${url}" style="width:78%;height:78%;object-fit:cover;border-radius:50%;${filter}">
+      ${badge ? `<span style="position:absolute;bottom:3px;right:3px;font-size:.9rem;line-height:1">${badge}</span>` : ''}
+    </div>`;
+  }
+
   _render() {
-    const { grid, offense, defense, ballIdx, selected } = this;
+    const { grid, offense, ballIdx, selected } = this;
     grid.clearAll();
     grid.forEach((c, r, el) => { el.innerHTML = ''; });
 
-    // Defenders always emoji — clear "bad team" signal
-    defense.forEach(d => {
-      grid.setContent(d.c, d.r, '🔴');
-      grid.addClass(d.c, d.r, 'danger');
-    });
-
-    // Offense — use kid photos if available, else emoji
     offense.forEach((o, i) => {
       const isBall = i === ballIdx;
       const isSel  = selected === i;
@@ -208,30 +289,34 @@ class KeepawayGame {
   }
 
   _updateHud() {
-    const remaining  = Math.max(0, this.targetTime - this.elapsed);
-    const pct        = (remaining / this.targetTime) * 100;
-    const hasPhotos  = !!this.playerPhotos?.length;
-    const passHint   = hasPhotos ? 'Tap an open teammate' : 'Tap 🔵 open receiver';
+    const remaining = Math.max(0, this._targetTime - this.elapsed);
+    const pct       = (remaining / this._targetTime) * 100;
+    const hasPhotos = !!this.playerPhotos?.length;
+    const passHint  = hasPhotos ? 'Tap an open teammate' : 'Tap 🔵 open receiver';
+    const level     = KeepawayGame.LEVELS[this.levelIdx];
 
     this.hud.innerHTML = `
       <div class="hud-box">
         <div class="hud-label">Survive</div>
         <div class="hud-value ${remaining <= 3 ? 'bad' : 'good'}">${remaining}s</div>
         <div class="progress-bar">
-          <div class="progress-bar-fill" style="width:${pct}%; background:${remaining <= 3 ? 'var(--danger)' : 'var(--success)'}"></div>
+          <div class="progress-bar-fill" style="width:${pct}%;background:${remaining <= 3 ? 'var(--danger)' : 'var(--success)'}"></div>
         </div>
       </div>
       <div class="hud-box">
-        <div class="hud-label">Difficulty</div>
-        <div class="hud-value">${this.difficulty}</div>
+        <div class="hud-label">Level</div>
+        <div class="hud-value">${this.levelIdx + 1} / ${KeepawayGame.LEVELS.length}</div>
+      </div>
+      <div class="hud-box">
+        <div class="hud-label">Defenders</div>
+        <div class="hud-value">${level.defenders}</div>
       </div>
       <div class="hud-box">
         <div class="hud-label">Instruction</div>
-        <div style="font-size:.82rem; color:var(--muted); margin-top:4px; line-height:1.5">
+        <div style="font-size:.82rem;color:var(--muted);margin-top:4px;line-height:1.5">
           ${this.phase === 'select' ? 'Tap 🏈 to select<br>the ball carrier' : `${passHint}<br>to pass`}
         </div>
       </div>
-      ${hasPhotos ? `<div class="hud-box"><div class="hud-label">Team</div><div style="font-size:.75rem;color:var(--accent2);margin-top:4px">📸 Your crew!</div></div>` : ''}
     `;
   }
 
@@ -244,7 +329,7 @@ class KeepawayGame {
     if (this.phase === 'select') {
       if (isBall) {
         this.selected = offIdx;
-        this.phase = 'pass';
+        this.phase    = 'pass';
         this._render();
         this._updateHud();
       }
@@ -271,11 +356,17 @@ class KeepawayGame {
     }
   }
 
-  destroy() { this._destroyed = true; this._stop(); }
+  destroy() {
+    this._destroyed = true;
+    this._stop();
+    this._canvas?.remove();
+    this._canvas = null;
+  }
 
   nextLevel() {
-    this.difficulty++;
-    this.targetTime += KeepawayGame.TUNING.timePerLevel;
-    this._init(); // playerPhotos already loaded
+    if (!this.hasNextLevel) return false;
+    this.levelIdx++;
+    this._init();
+    return true;
   }
 }

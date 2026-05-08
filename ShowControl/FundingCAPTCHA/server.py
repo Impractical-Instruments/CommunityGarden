@@ -42,10 +42,11 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DIR        = Path(os.path.dirname(os.path.abspath(__file__)))
-UPLOADS    = DIR / "uploads"
-PAIRS_FILE = DIR / "pairs.json"
-SETTINGS   = DIR / "captcha-settings.json"
+DIR             = Path(os.path.dirname(os.path.abspath(__file__)))
+UPLOADS         = DIR / "uploads"
+PAIRS_FILE      = DIR / "pairs.json"
+SETTINGS        = DIR / "captcha-settings.json"
+BACKGROUND_FILE = DIR / "uploads" / "background.jpg"
 UPLOADS.mkdir(exist_ok=True)
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
@@ -197,6 +198,32 @@ async def post_pairs(request: Request):
         PAIRS_FILE.write_text(json.dumps(pairs, indent=2))
         log.info("pairs saved %d pair(s)", len(pairs))
         return {"ok": True, "count": len(pairs)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/background")
+async def get_background():
+    if not BACKGROUND_FILE.exists():
+        return JSONResponse({"error": "no background"}, status_code=404)
+    from fastapi.responses import FileResponse
+    return FileResponse(str(BACKGROUND_FILE), media_type="image/jpeg")
+
+
+@app.post("/api/background")
+async def post_background(request: Request):
+    body = await request.body()
+    if len(body) > MAX_UPLOAD_BYTES:
+        return {"ok": False, "error": "Upload too large"}
+    try:
+        data   = json.loads(body)
+        imgstr = data.get("data", "")
+        if "," not in imgstr:
+            raise ValueError("Missing data URL separator")
+        _header, b64 = imgstr.split(",", 1)
+        BACKGROUND_FILE.write_bytes(base64.b64decode(b64))
+        log.info("background image saved")
+        return {"ok": True, "url": "/api/background"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
