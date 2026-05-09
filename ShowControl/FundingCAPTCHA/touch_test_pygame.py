@@ -8,6 +8,12 @@ Usage:
   python touch_test_pygame.py --camera --cols 4 --rows 5
   python touch_test_pygame.py --camera --width 1280 --height 720
 
+Startup sequence:
+  1. IIVision background calibration (progress bar)
+  2. Corner calibration — touch each of 4 corners for 2 s each
+     → derives screen_rect and saves to captcha-settings.json
+  3. Live touch tester with grid overlay
+
 Exit: press q or Ctrl+C.
 """
 
@@ -50,6 +56,14 @@ GREEN  = (0,   220, 80)
 YELLOW = (255, 220, 0)
 CYAN   = (0,   200, 220)
 RED    = (220, 40,  40)
+
+DWELL_S          = 2.0   # seconds hand must stay still to confirm a corner
+DWELL_RADIUS_CM  = 8.0   # cm — movement beyond this resets the dwell timer
+FPS              = 30
+
+_CORNER_LABELS   = ["TOP-LEFT", "TOP-RIGHT", "BOTTOM-RIGHT", "BOTTOM-LEFT"]
+# Screen-fraction positions (col, row) for each corner target indicator
+_CORNER_FRACS    = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
 
 
 def load_settings() -> dict:
@@ -169,6 +183,188 @@ def show_error(screen: pygame.Surface, font: pygame.font.Font, msg: str, W: int,
                 sys.exit(1)
 
 
+def _draw_crosshair(surf: pygame.Surface, cx: int, cy: int, size: int, color: tuple) -> None:
+    pygame.draw.circle(surf, color, (cx, cy), size, 4)
+    pygame.draw.line(surf, color, (cx - size - 20, cy), (cx + size + 20, cy), 2)
+    pygame.draw.line(surf, color, (cx, cy - size - 20), (cx, cy + size + 20), 2)
+
+
+def run_corner_calibration(
+    screen: pygame.Surface,
+    blob_q: queue.Queue,
+    W: int,
+    H: int,
+    font_big: pygame.font.Font,
+    font_sm: pygame.font.Font,
+    clock: pygame.time.Clock,
+    stop: threading.Event,
+) -> dict:
+    """
+    Guide user to touch each screen corner for DWELL_S seconds.
+    Returns derived screen_rect {x0, x1, z0, z1} and saves to SETTINGS_PATH.
+
+    Corner order: TL → TR → BR → BL (clockwise).
+    World mapping:
+      TL → (x0, z1)   TR → (x1, z1)
+      BL → (x0, z0)   BR → (x1, z0)
+    """
+    DWELL_FRAMES = int(DWELL_S * FPS)
+    INSET        = 100   # px from edge to corner target centre
+
+    corner_px = [
+        (INSET,     INSET    ),
+        (W - INSET, INSET    ),
+        (W - INSET, H - INSET),
+        (INSET,     H - INSET),
+    ]
+
+    # Drain any queued blobs from the calibration warm-up
+    try:
+        while True:
+            blob_q.get_nowait()
+    except queue.Empty:
+        pass
+
+    recorded: list[tuple[float, float]] = []  # (x_cm, z_cm) per confirmed corner
+    corner_idx    = 0
+    dwell_origin: tuple[float, float] | None = None
+    dwell_frames  = 0
+    current_blobs: list[dict] = []
+
+    while corner_idx < 4:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                stop.set(); pygame.quit(); sys.exit(0)
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+                stop.set(); pygame.quit(); sys.exit(0)
+
+        try:
+            while True:
+                current_blobs = blob_q.get_nowait()
+        except queue.Empty:
+            pass
+
+        screen.fill(BLACK)
+
+        label = _CORNER_LABELS[corner_idx]
+        tx, ty = corner_px[corner_idx]
+
+        # Corner target
+        _draw_crosshair(screen, tx, ty, 70, GREEN)
+
+        # Previous confirmed corners — dim green dot
+        for i, (px_f, py_f) in enumerate(corner_px[:corner_idx]):
+            pygame.draw.circle(screen, GREY, (px_f, py_f), 20)
+
+        # HUD
+        hdr = font_big.render(f"Corner {corner_idx + 1}/4 — {label}", True, WHITE)
+        screen.blit(hdr, (W // 2 - hdr.get_width() // 2, H // 2 - 70))
+        sub = font_sm.render("Hold hand still for 2 seconds", True, YELLOW)
+        screen.blit(sub, (W // 2 - sub.get_width() // 2, H // 2 - 10))
+
+        # Blob tracking — use first detected blob
+        if current_blobs:
+            b   = current_blobs[0]
+            x_b = b["x"]
+            z_b = b["z"]
+
+            if dwell_origin is None:
+                dwell_origin = (x_b, z_b)
+                dwell_frames = 0
+            else:
+                dist = ((x_b - dwell_origin[0]) ** 2 + (z_b - dwell_origin[1]) ** 2) ** 0.5
+                if dist > DWELL_RADIUS_CM:
+                    dwell_origin = (x_b, z_b)
+                    dwell_frames = 0
+                else:
+                    dwell_frames += 1
+
+            progress = min(dwell_frames / DWELL_FRAMES, 1.0)
+
+            # Dwell progress bar along bottom
+            pygame.draw.rect(screen, GREY,  (0, H - 24, W, 24))
+            pygame.draw.rect(screen, GREEN, (0, H - 24, int(progress * W), 24))
+
+            # Raw blob coords
+            raw = font_sm.render(
+                f"blob #{b['id']}  x={x_b:+.1f}  z={z_b:+.1f}  "
+                f"dwell {dwell_frames}/{DWELL_FRAMES}",
+                True, CYAN,
+            )
+            screen.blit(raw, (10, 10))
+
+            if dwell_frames >= DWELL_FRAMES:
+                # Average current position over the last few frames would be ideal
+                # but dwell_origin is already the stable anchor — use live position
+                recorded.append((x_b, z_b))
+                corner_idx  += 1
+                dwell_origin = None
+                dwell_frames = 0
+                current_blobs = []
+
+                # Flash confirmation
+                screen.fill(GREEN)
+                if corner_idx < 4:
+                    msg = font_big.render(
+                        f"Got it!  Next: {_CORNER_LABELS[corner_idx]}", True, BLACK)
+                else:
+                    msg = font_big.render("All corners recorded!", True, BLACK)
+                screen.blit(msg, (W // 2 - msg.get_width() // 2, H // 2 - 30))
+                pygame.display.flip()
+                pygame.time.wait(1200)
+                continue
+        else:
+            dwell_origin = None
+            dwell_frames = 0
+
+            waiting = font_sm.render("Waiting for blob…", True, GREY)
+            screen.blit(waiting, (10, 10))
+
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    # ── Derive screen_rect ─────────────────────────────────────────────────────
+    # TL=0 TR=1 BR=2 BL=3
+    tl_x, tl_z = recorded[0]
+    tr_x, tr_z = recorded[1]
+    br_x, br_z = recorded[2]
+    bl_x, bl_z = recorded[3]
+
+    screen_rect = {
+        "x0": round((tl_x + bl_x) / 2.0, 1),
+        "x1": round((tr_x + br_x) / 2.0, 1),
+        "z0": round((bl_z + br_z) / 2.0, 1),
+        "z1": round((tl_z + tr_z) / 2.0, 1),
+    }
+
+    # ── Save to settings file ──────────────────────────────────────────────────
+    settings: dict = {}
+    if SETTINGS_PATH.exists():
+        try:
+            settings = json.loads(SETTINGS_PATH.read_text())
+        except Exception:
+            pass
+    settings["screen_rect"] = screen_rect
+    SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+
+    # ── Confirmation screen ────────────────────────────────────────────────────
+    screen.fill(BLACK)
+    lines = [
+        font_big.render("Screen rect saved!", True, GREEN),
+        font_sm.render(f"x0={screen_rect['x0']}  x1={screen_rect['x1']}", True, WHITE),
+        font_sm.render(f"z0={screen_rect['z0']}  z1={screen_rect['z1']}", True, WHITE),
+        font_sm.render("Starting tester…", True, YELLOW),
+    ]
+    y = H // 2 - sum(l.get_height() for l in lines) // 2
+    for line in lines:
+        screen.blit(line, (W // 2 - line.get_width() // 2, y))
+        y += line.get_height() + 8
+    pygame.display.flip()
+    pygame.time.wait(2000)
+
+    return screen_rect
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="FundingCAPTCHA pygame touch tester")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -272,9 +468,9 @@ def main() -> None:
         txt = font_big.render(f"Calibrating…  {progress} / {cal_frames}", True, WHITE)
         screen.blit(txt, (W // 2 - txt.get_width() // 2, H // 2 - txt.get_height() // 2))
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(FPS)
 
-    # ── Phase 2: live blob display ─────────────────────────────────────────────
+    # ── Phase 2: start pipeline thread ────────────────────────────────────────
     blob_q: queue.Queue[list] = queue.Queue(maxsize=4)
     stop    = threading.Event()
 
@@ -284,6 +480,10 @@ def main() -> None:
         daemon=True,
     ).start()
 
+    # ── Phase 3: corner calibration ───────────────────────────────────────────
+    rect = run_corner_calibration(screen, blob_q, W, H, font_big, font_sm, clock, stop)
+
+    # ── Phase 4: live touch tester ────────────────────────────────────────────
     current_blobs: list[dict] = []
 
     while True:
@@ -305,7 +505,8 @@ def main() -> None:
         draw_blobs(screen, current_blobs, rect, args.cols, args.rows, W, H, font_sm)
 
         hud = font_sm.render(
-            f"{mode_label}  grid={args.cols}×{args.rows}  blobs={len(current_blobs)}  [q] quit",
+            f"{mode_label}  grid={args.cols}×{args.rows}  blobs={len(current_blobs)}"
+            f"  rect x[{rect['x0']},{rect['x1']}] z[{rect['z0']},{rect['z1']}]  [q] quit",
             True, YELLOW,
         )
         screen.blit(hud, (10, 10))
@@ -319,7 +520,7 @@ def main() -> None:
             screen.blit(raw, (10, 50 + i * 36))
 
         pygame.display.flip()
-        clock.tick(30)
+        clock.tick(FPS)
 
 
 if __name__ == "__main__":
