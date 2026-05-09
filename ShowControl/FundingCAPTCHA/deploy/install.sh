@@ -22,6 +22,13 @@ apt-get install -y cage chromium seatd 2>/dev/null || true
 usermod -aG video "$SERVICE_USER"
 systemctl enable --now seatd
 
+# ── Orbbec USB permissions ─────────────────────────────────────────────────────
+echo "→ Installing Orbbec udev rule..."
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0807", MODE="0666"' \
+    > /etc/udev/rules.d/99-orbbec.rules
+udevadm control --reload-rules
+udevadm trigger
+
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 # numpy and scipy from apt are faster on Pi ARM

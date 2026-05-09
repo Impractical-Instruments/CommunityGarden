@@ -27,6 +27,6 @@
     "height":  400,
     "fps":     10,
     "pos_cm":  [0.0, -300.0, 200.0],
-    "rotation": { "pitch": -30.0, "yaw": 0.0, "roll": 0.0 }
+    "rotation": { "pitch": 0, "yaw": 0.0, "roll": 180 }
   }
 }
