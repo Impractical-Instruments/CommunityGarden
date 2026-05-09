@@ -69,7 +69,7 @@ _REPO = (DIR / "../..").resolve()
 sys.path.insert(0, str(_REPO))
 try:
     import numpy as np
-    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, build_calibration, run_pipeline
+    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, Calibrator, run_pipeline
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -310,7 +310,17 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     )
 
     calib_frames = settings.get("calibration_frames", 60)
-    calibration = build_calibration(camera, calib_frames)
+    log.info("Calibrating (%d frames)…", calib_frames)
+    calibrator = Calibrator(calib_frames)
+    with camera:
+        for frame in camera.frames():
+            if _cv_stop.is_set():
+                log.info("Calibration interrupted by shutdown")
+                return  # camera closed cleanly by context manager exit
+            if calibrator.push_frame(frame):
+                break
+    calibration = calibrator.build()
+    log.info("Calibration complete")
 
     for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config):
         if _cv_stop.is_set():
