@@ -3,10 +3,10 @@
 
   "screen_rect": {
     "_comment": "World-space region (cm) that maps to the full game grid. X=right (horizontal on screen), Z=up (height on screen). Calibrate z0/z1 on-site to match screen bottom and top.",
-    "x0": -150,
-    "x1":  150,
-    "z0":   50,
-    "z1":  200
+    "x0": -50,
+    "x1":  50,
+    "z0":   0,
+    "z1":  40
   },
 
   "blob_dwell_frames": 3,
@@ -26,7 +26,7 @@
     "width":   640,
     "height":  400,
     "fps":     10,
-    "pos_cm":  [0, 0, 0],
+    "pos_cm":  [0, -103, 0],
     "rotation": { "pitch": 0, "yaw": 0, "roll": 180 }
   }
 }
