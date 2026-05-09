@@ -310,6 +310,14 @@ def main() -> None:
         )
         screen.blit(hud, (10, 10))
 
+        # Raw world-space coords — always visible regardless of screen_rect
+        for i, b in enumerate(current_blobs):
+            raw = font_sm.render(
+                f"#{b['id']}  x={b['x']:+.1f}  y={b['y']:+.1f}  z={b['z']:+.1f}",
+                True, WHITE,
+            )
+            screen.blit(raw, (10, 50 + i * 36))
+
         pygame.display.flip()
         clock.tick(30)
 
