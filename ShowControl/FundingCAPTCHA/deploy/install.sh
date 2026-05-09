@@ -33,7 +33,7 @@ if ! grep -q "^gpu_mem=" /boot/config.txt 2>/dev/null && \
 fi
 
 # ── Disable Chromium password / restore prompts ────────────────────────────────
-CHROME_PREFS="/home/pi/.config/chromium/Default/Preferences"
+CHROME_PREFS="/home/$SERVICE_USER/.config/chromium/Default/Preferences"
 if [ -f "$CHROME_PREFS" ]; then
     python3 -c "
 import json, sys
@@ -49,6 +49,7 @@ echo "→ Installing systemd units..."
 for SVC in captcha.service captcha-kiosk.service; do
     DEST="/etc/systemd/system/$SVC"
     sed "s|/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA|$APP_DIR|g
+         s|/home/pi|/home/$SERVICE_USER|g
          s|User=pi|User=$SERVICE_USER|g" \
         "$SCRIPT_DIR/$SVC" > "$DEST"
     echo "   written: $DEST"
