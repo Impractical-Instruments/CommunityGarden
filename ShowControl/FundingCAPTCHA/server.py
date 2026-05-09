@@ -117,6 +117,12 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        for ws in list(_connections):
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        _connections.clear()
 
 
 app = FastAPI(lifespan=lifespan)

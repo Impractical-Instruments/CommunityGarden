@@ -19,6 +19,7 @@ ExecStart=cage /usr/bin/chromium -- \
   http://localhost:8080/
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=10
 User=pi
 
 [Install]
