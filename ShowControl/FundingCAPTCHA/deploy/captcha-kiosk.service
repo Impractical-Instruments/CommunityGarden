@@ -4,11 +4,10 @@ After=captcha.service graphical.target
 Wants=captcha.service
 
 [Service]
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=LIBSEAT_BACKEND=seatd
 # Wait until the server is actually up before opening Chromium
 ExecStartPre=/bin/sh -c 'until curl -sf http://localhost:8080/ > /dev/null 2>&1; do sleep 1; done'
-ExecStart=chromium \
+ExecStart=cage /usr/bin/chromium -- \
   --kiosk \
   --noerrdialogs \
   --disable-infobars \

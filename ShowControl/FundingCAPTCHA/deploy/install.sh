@@ -16,6 +16,12 @@ echo "App dir:  $APP_DIR"
 echo "User:     $SERVICE_USER"
 echo ""
 
+# ── System dependencies ────────────────────────────────────────────────────────
+echo "→ Installing system dependencies..."
+apt-get install -y cage chromium seatd 2>/dev/null || true
+usermod -aG video "$SERVICE_USER"
+systemctl enable --now seatd
+
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 # numpy and scipy from apt are faster on Pi ARM
