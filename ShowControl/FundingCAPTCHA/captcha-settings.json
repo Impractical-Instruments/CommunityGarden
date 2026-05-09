@@ -5,8 +5,8 @@
     "_comment": "World-space region (cm) that maps to the full game grid. X=right (horizontal on screen), Z=up (height on screen). Calibrate z0/z1 on-site to match screen bottom and top.",
     "x0": -89,
     "x1":  73,
-    "z0":  -117,
-    "z1":  -29
+    "z0":  39,
+    "z1":  67
   },
 
   "blob_dwell_frames": 3,
