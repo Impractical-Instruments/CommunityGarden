@@ -1,523 +1,436 @@
 #!/usr/bin/env python3
 """
-FundingCAPTCHA pygame touch tester — no browser required.
+FundingCAPTCHA pygame touch tester.
+
+Connects to a running server.py via WebSocket and overlays a calibration grid
+on the projected screen area.
 
 Usage:
-  python touch_test_pygame.py --mock-camera
-  python touch_test_pygame.py --camera
-  python touch_test_pygame.py --camera --cols 4 --rows 5
-  python touch_test_pygame.py --camera --width 1280 --height 720
+  python touch_test_pygame.py
+  python touch_test_pygame.py --server ws://192.168.1.5:8080/ws
+  python touch_test_pygame.py --cols 4 --rows 3
+  python touch_test_pygame.py --aspect 4:3 --dwell 3
 
-Startup sequence:
-  1. IIVision background calibration (progress bar)
-  2. Corner calibration — touch each of 4 corners for 2 s each
-     → derives screen_rect and saves to captcha-settings.json
-  3. Live touch tester with grid overlay
+Without screen_corners in captcha-settings.json, the tool still shows blob
+world-space positions so you can determine corner coordinates by touch.
 
-Exit: press q or Ctrl+C.
+Once you have the three corner coordinates, add to captcha-settings.json:
+  "screen_corners": {
+    "bottom_left":  [x, y, z],
+    "bottom_right": [x, y, z],
+    "top_left":     [x, y, z]
+  }
+  Units: cm. World space: X=right, Y=forward, Z=up.
+  The fourth corner (top_right) is derived.
+
+Press Q or Escape to quit.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import os
 import queue
 import sys
 import threading
 from pathlib import Path
 
-# Must be set before pygame import
-if "SDL_VIDEODRIVER" not in os.environ:
-    os.environ["SDL_VIDEODRIVER"] = "kmsdrm"
-
+import numpy as np
 import pygame
+import websockets
 
 DIR           = Path(__file__).parent
 SETTINGS_PATH = DIR / "captcha-settings.json"
 
-_REPO = (DIR / "../..").resolve()
-sys.path.insert(0, str(_REPO))
+# ── Colours ────────────────────────────────────────────────────────────────────
+BLACK    = (  0,   0,   0)
+WHITE    = (255, 255, 255)
+DK_GREY  = ( 28,  28,  28)
+MID_GREY = ( 75,  75,  75)
+LT_GREY  = (140, 140, 140)
+GREEN    = (  0, 200,  75)
+YELLOW   = (240, 200,   0)
+CYAN     = (  0, 200, 220)
+ORANGE   = (240, 130,   0)
+RED      = (220,  40,  40)
 
-try:
-    import numpy as np
-    from IIVision import (
-        Calibrator, MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator,
-        build_calibration, run_pipeline,
-    )
-except ImportError as e:
-    print(f"ERROR: IIVision not available: {e}", file=sys.stderr)
-    sys.exit(1)
-
-BLACK  = (0,   0,   0)
-WHITE  = (255, 255, 255)
-GREY   = (80,  80,  80)
-GREEN  = (0,   220, 80)
-YELLOW = (255, 220, 0)
-CYAN   = (0,   200, 220)
-RED    = (220, 40,  40)
-
-DWELL_S          = 2.0   # seconds hand must stay still to confirm a corner
-DWELL_RADIUS_CM  = 8.0   # cm — movement beyond this resets the dwell timer
-FPS              = 30
-
-_CORNER_LABELS   = ["TOP-LEFT", "TOP-RIGHT", "BOTTOM-RIGHT", "BOTTOM-LEFT"]
-# Screen-fraction positions (col, row) for each corner target indicator
-_CORNER_FRACS    = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+FPS = 30
 
 
-def load_settings() -> dict:
-    if SETTINGS_PATH.exists():
-        return json.loads(SETTINGS_PATH.read_text())
-    return {}
+# ── Screen projection ──────────────────────────────────────────────────────────
 
-
-def world_to_px(x_cm: float, z_cm: float, rect: dict, W: int, H: int) -> tuple[int, int]:
-    px = int((x_cm - rect["x0"]) / (rect["x1"] - rect["x0"]) * W)
-    py = int((1.0 - (z_cm - rect["z0"]) / (rect["z1"] - rect["z0"])) * H)
-    return px, py
-
-
-def blob_to_cell(x_cm: float, z_cm: float, rect: dict, cols: int, rows: int) -> tuple[int, int]:
-    col = int((x_cm - rect["x0"]) / (rect["x1"] - rect["x0"]) * cols)
-    row = int((1.0 - (z_cm - rect["z0"]) / (rect["z1"] - rect["z0"])) * rows)
-    return max(0, min(cols - 1, col)), max(0, min(rows - 1, row))
-
-
-def draw_grid(surf: pygame.Surface, cols: int, rows: int, W: int, H: int) -> None:
-    for c in range(1, cols):
-        x = c * W // cols
-        pygame.draw.line(surf, GREY, (x, 0), (x, H))
-    for r in range(1, rows):
-        y = r * H // rows
-        pygame.draw.line(surf, GREY, (0, y), (W, y))
-
-
-def draw_border(surf: pygame.Surface, W: int, H: int) -> None:
-    pygame.draw.rect(surf, GREEN, (0, 0, W, H), 3)
-
-
-def draw_blobs(
-    surf: pygame.Surface,
-    blobs: list[dict],
-    rect: dict,
-    cols: int,
-    rows: int,
-    W: int,
-    H: int,
-    font: pygame.font.Font,
-) -> None:
-    cw, ch = W // cols, H // rows
-    for b in blobs:
-        x, z = b["x"], b["z"]
-        px, py = world_to_px(x, z, rect, W, H)
-        col, row = blob_to_cell(x, z, rect, cols, rows)
-
-        cell_surf = pygame.Surface((cw, ch), pygame.SRCALPHA)
-        cell_surf.fill((0, 200, 220, 60))
-        surf.blit(cell_surf, (col * cw, row * ch))
-
-        pygame.draw.circle(surf, CYAN, (px, py), 16)
-        pygame.draw.circle(surf, WHITE, (px, py), 16, 2)
-
-        label = font.render(f"#{b['id']}  z={z:.1f}", True, WHITE)
-        surf.blit(label, (px + 20, py - 12))
-
-
-def _calibration_worker(
-    camera: object,
-    num_frames: int,
-    result_q: queue.Queue,
-    progress_q: queue.Queue,
-) -> None:
-    try:
-        calibrator = Calibrator(num_frames)
-        count = 0
-        with camera:
-            for frame in camera.frames():
-                count += 1
-                progress_q.put(count)
-                if calibrator.push_frame(frame):
-                    break
-        result_q.put(("ok", calibrator.build()))
-    except Exception as exc:
-        result_q.put(("err", str(exc)))
-
-
-def _pipeline_worker(
-    camera: object,
-    cam_tf: Transform,
-    calibration: object,
-    stab_cfg: StabilizerConfig,
-    blob_q: queue.Queue,
-    stop: threading.Event,
-) -> None:
-    try:
-        for tracked in run_pipeline(camera, cam_tf, calibration, stab_cfg):
-            if stop.is_set():
-                return
-            blobs = [
-                {"id": int(t.stable_id),
-                 "x": float(t.world_pos_cm[0]),
-                 "y": float(t.world_pos_cm[1]),
-                 "z": float(t.world_pos_cm[2])}
-                for t in tracked
-            ]
-            try:
-                blob_q.put_nowait(blobs)
-            except queue.Full:
-                pass
-    except Exception:
-        pass
-
-
-def show_error(screen: pygame.Surface, font: pygame.font.Font, msg: str, W: int, H: int) -> None:
-    screen.fill(BLACK)
-    label = font.render(f"ERROR: {msg}", True, RED)
-    screen.blit(label, (W // 2 - label.get_width() // 2, H // 2 - label.get_height() // 2))
-    pygame.display.flip()
-    while True:
-        for event in pygame.event.get():
-            if event.type in (pygame.QUIT, pygame.KEYDOWN):
-                pygame.quit()
-                sys.exit(1)
-
-
-def _draw_crosshair(surf: pygame.Surface, cx: int, cy: int, size: int, color: tuple) -> None:
-    pygame.draw.circle(surf, color, (cx, cy), size, 4)
-    pygame.draw.line(surf, color, (cx - size - 20, cy), (cx + size + 20, cy), 2)
-    pygame.draw.line(surf, color, (cx, cy - size - 20), (cx, cy + size + 20), 2)
-
-
-def run_corner_calibration(
-    screen: pygame.Surface,
-    blob_q: queue.Queue,
-    W: int,
-    H: int,
-    font_big: pygame.font.Font,
-    font_sm: pygame.font.Font,
-    clock: pygame.time.Clock,
-    stop: threading.Event,
-) -> dict:
+class ScreenProjector:
     """
-    Guide user to touch each screen corner for DWELL_S seconds.
-    Returns derived screen_rect {x0, x1, z0, z1} and saves to SETTINGS_PATH.
+    Orthographic projection from world space onto the screen plane.
 
-    Corner order: TL → TR → BR → BL (clockwise).
-    World mapping:
-      TL → (x0, z1)   TR → (x1, z1)
-      BL → (x0, z0)   BR → (x1, z0)
+    Defined by three world-space corners (cm):
+      bottom_left  — origin of screen UV space (u=0, v=0)
+      bottom_right — right edge (u=1, v=0)
+      top_left     — top edge   (u=0, v=1)
+
+    project() returns (u, v) in [0,1]². Values outside that range are off-screen.
     """
-    DWELL_FRAMES = int(DWELL_S * FPS)
-    INSET        = 100   # px from edge to corner target centre
 
-    corner_px = [
-        (INSET,     INSET    ),
-        (W - INSET, INSET    ),
-        (W - INSET, H - INSET),
-        (INSET,     H - INSET),
-    ]
+    def __init__(
+        self,
+        bottom_left:  list[float],
+        bottom_right: list[float],
+        top_left:     list[float],
+    ) -> None:
+        bl = np.array(bottom_left,  dtype=float)
+        br = np.array(bottom_right, dtype=float)
+        tl = np.array(top_left,     dtype=float)
 
-    # Drain any queued blobs from the calibration warm-up
-    try:
-        while True:
-            blob_q.get_nowait()
-    except queue.Empty:
-        pass
+        U = br - bl
+        V = tl - bl
+        self._w  = float(np.linalg.norm(U))
+        self._h  = float(np.linalg.norm(V))
+        self._U  = U / self._w
+        self._V  = V / self._h
+        n        = np.cross(self._U, self._V)
+        self._n  = n / np.linalg.norm(n)
+        self._bl = bl
 
-    recorded: list[tuple[float, float]] = []  # (x_cm, z_cm) per confirmed corner
-    corner_idx    = 0
-    dwell_origin: tuple[float, float] | None = None
-    dwell_frames  = 0
-    current_blobs: list[dict] = []
+    @property
+    def aspect(self) -> float:
+        return self._w / self._h
 
-    while corner_idx < 4:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                stop.set(); pygame.quit(); sys.exit(0)
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
-                stop.set(); pygame.quit(); sys.exit(0)
+    def project(self, xyz: list[float]) -> tuple[float, float]:
+        p        = np.array(xyz, dtype=float)
+        p_plane  = p - np.dot(p - self._bl, self._n) * self._n
+        u        = float(np.dot(p_plane - self._bl, self._U) / self._w)
+        v        = float(np.dot(p_plane - self._bl, self._V) / self._h)
+        return u, v
 
-        try:
-            while True:
-                current_blobs = blob_q.get_nowait()
-        except queue.Empty:
-            pass
+    @staticmethod
+    def in_bounds(u: float, v: float) -> bool:
+        return 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0
 
-        screen.fill(BLACK)
+    @staticmethod
+    def uv_to_cell(u: float, v: float, cols: int, rows: int) -> tuple[int, int]:
+        col = int(u * cols)
+        row = int((1.0 - v) * rows)   # v=1 → top of screen → row 0
+        return max(0, min(cols - 1, col)), max(0, min(rows - 1, row))
 
-        label = _CORNER_LABELS[corner_idx]
-        tx, ty = corner_px[corner_idx]
 
-        # Corner target
-        _draw_crosshair(screen, tx, ty, 70, GREEN)
+# ── Dwell tracker ──────────────────────────────────────────────────────────────
 
-        # Previous confirmed corners — dim green dot
-        for i, (px_f, py_f) in enumerate(corner_px[:corner_idx]):
-            pygame.draw.circle(screen, GREY, (px_f, py_f), 20)
+class DwellTracker:
+    """
+    Tracks per-blob dwell in grid cells.
 
-        # HUD
-        hdr = font_big.render(f"Corner {corner_idx + 1}/4 — {label}", True, WHITE)
-        screen.blit(hdr, (W // 2 - hdr.get_width() // 2, H // 2 - 70))
-        sub = font_sm.render("Hold hand still for 2 seconds", True, YELLOW)
-        screen.blit(sub, (W // 2 - sub.get_width() // 2, H // 2 - 10))
+    update() takes a list of (blob_id, col, row) for in-bounds blobs.
+    .immediate  → cells currently occupied (dim highlight)
+    .flashing   → cells with a recently confirmed dwell tap (bright flash)
+    """
 
-        # Blob tracking — use first detected blob
-        if current_blobs:
-            b   = current_blobs[0]
-            x_b = b["x"]
-            z_b = b["z"]
+    def __init__(self, dwell_frames: int) -> None:
+        self._target = dwell_frames
+        self._state:  dict[int, dict]           = {}  # blob_id → {col, row, frames}
+        self._flash:  dict[tuple[int,int], int] = {}  # cell → frames_remaining
 
-            if dwell_origin is None:
-                dwell_origin = (x_b, z_b)
-                dwell_frames = 0
+    def update(self, live: list[tuple[int, int, int]]) -> None:
+        live_ids = {bid for bid, _, _ in live}
+
+        for bid in list(self._state):
+            if bid not in live_ids:
+                del self._state[bid]
+
+        for bid, col, row in live:
+            s = self._state.get(bid)
+            if s is None or s["col"] != col or s["row"] != row:
+                self._state[bid] = {"col": col, "row": row, "frames": 1}
             else:
-                dist = ((x_b - dwell_origin[0]) ** 2 + (z_b - dwell_origin[1]) ** 2) ** 0.5
-                if dist > DWELL_RADIUS_CM:
-                    dwell_origin = (x_b, z_b)
-                    dwell_frames = 0
-                else:
-                    dwell_frames += 1
+                s["frames"] += 1
+                if s["frames"] == self._target:
+                    self._flash[(col, row)] = self._target * 5  # visible duration
 
-            progress = min(dwell_frames / DWELL_FRAMES, 1.0)
+        for cell in list(self._flash):
+            self._flash[cell] -= 1
+            if self._flash[cell] <= 0:
+                del self._flash[cell]
 
-            # Dwell progress bar along bottom
-            pygame.draw.rect(screen, GREY,  (0, H - 24, W, 24))
-            pygame.draw.rect(screen, GREEN, (0, H - 24, int(progress * W), 24))
+    @property
+    def immediate(self) -> set[tuple[int, int]]:
+        return {(s["col"], s["row"]) for s in self._state.values()}
 
-            # Raw blob coords
-            raw = font_sm.render(
-                f"blob #{b['id']}  x={x_b:+.1f}  z={z_b:+.1f}  "
-                f"dwell {dwell_frames}/{DWELL_FRAMES}",
-                True, CYAN,
-            )
-            screen.blit(raw, (10, 10))
+    @property
+    def flashing(self) -> set[tuple[int, int]]:
+        return set(self._flash)
 
-            if dwell_frames >= DWELL_FRAMES:
-                # Average current position over the last few frames would be ideal
-                # but dwell_origin is already the stable anchor — use live position
-                recorded.append((x_b, z_b))
-                corner_idx  += 1
-                dwell_origin = None
-                dwell_frames = 0
-                current_blobs = []
 
-                # Flash confirmation
-                screen.fill(GREEN)
-                if corner_idx < 4:
-                    msg = font_big.render(
-                        f"Got it!  Next: {_CORNER_LABELS[corner_idx]}", True, BLACK)
-                else:
-                    msg = font_big.render("All corners recorded!", True, BLACK)
-                screen.blit(msg, (W // 2 - msg.get_width() // 2, H // 2 - 30))
-                pygame.display.flip()
-                pygame.time.wait(1200)
-                continue
-        else:
-            dwell_origin = None
-            dwell_frames = 0
+# ── WebSocket client ───────────────────────────────────────────────────────────
 
-            waiting = font_sm.render("Waiting for blob…", True, GREY)
-            screen.blit(waiting, (10, 10))
+def _ws_thread(
+    url: str,
+    blob_q: "queue.Queue[list]",
+    status: list[str],   # status[0] mutated in-place
+    stop: threading.Event,
+) -> None:
+    async def _run() -> None:
+        while not stop.is_set():
+            try:
+                status[0] = "connecting"
+                async with websockets.connect(url, ping_interval=10, open_timeout=5) as ws:
+                    status[0] = "connected"
+                    async for raw in ws:
+                        if stop.is_set():
+                            return
+                        try:
+                            msg = json.loads(raw)
+                        except Exception:
+                            continue
+                        blobs = msg.get("blobs")
+                        if isinstance(blobs, list):
+                            # Drop oldest frame if queue is full so latency stays low
+                            if blob_q.full():
+                                try:
+                                    blob_q.get_nowait()
+                                except queue.Empty:
+                                    pass
+                            blob_q.put_nowait(blobs)
+            except Exception as exc:
+                status[0] = f"disconnected ({type(exc).__name__})"
+            if not stop.is_set():
+                await asyncio.sleep(2.0)
 
-        pygame.display.flip()
-        clock.tick(FPS)
+    asyncio.run(_run())
 
-    # ── Derive screen_rect ─────────────────────────────────────────────────────
-    # TL=0 TR=1 BR=2 BL=3
-    tl_x, tl_z = recorded[0]
-    tr_x, tr_z = recorded[1]
-    br_x, br_z = recorded[2]
-    bl_x, bl_z = recorded[3]
 
-    screen_rect = {
-        "x0": round((tl_x + bl_x) / 2.0, 1),
-        "x1": round((tr_x + br_x) / 2.0, 1),
-        "z0": round((bl_z + br_z) / 2.0, 1),
-        "z1": round((tl_z + tr_z) / 2.0, 1),
-    }
+# ── Layout ────────────────────────────────────────────────────────────────────
 
-    # ── Save to settings file ──────────────────────────────────────────────────
+def letterbox(win_w: int, win_h: int, aspect: float) -> tuple[int, int, int, int]:
+    """Return (x, y, w, h) centred in the window with the given aspect ratio."""
+    if win_w / win_h > aspect:
+        gh = win_h
+        gw = int(gh * aspect)
+    else:
+        gw = win_w
+        gh = int(gw / aspect)
+    return (win_w - gw) // 2, (win_h - gh) // 2, gw, gh
+
+
+def uv_to_px(u: float, v: float, gx: int, gy: int, gw: int, gh: int) -> tuple[int, int]:
+    return int(gx + u * gw), int(gy + (1.0 - v) * gh)
+
+
+# ── Drawing ────────────────────────────────────────────────────────────────────
+
+def draw_grid(surf: pygame.Surface, gx: int, gy: int, gw: int, gh: int,
+              cols: int, rows: int) -> None:
+    pygame.draw.rect(surf, DK_GREY, (gx, gy, gw, gh))
+    for c in range(1, cols):
+        x = int(gx + c * gw / cols)
+        pygame.draw.line(surf, MID_GREY, (x, gy), (x, gy + gh))
+    for r in range(1, rows):
+        y = int(gy + r * gh / rows)
+        pygame.draw.line(surf, MID_GREY, (gx, y), (gx + gw, y))
+    pygame.draw.rect(surf, GREEN, (gx, gy, gw, gh), 2)
+
+
+def highlight_cell(surf: pygame.Surface, gx: int, gy: int, gw: int, gh: int,
+                   cols: int, rows: int, col: int, row: int,
+                   color: tuple[int, int, int], alpha: int) -> None:
+    cw = gw // cols
+    ch = gh // rows
+    s  = pygame.Surface((cw, ch), pygame.SRCALPHA)
+    s.fill((*color, alpha))
+    surf.blit(s, (gx + col * cw, gy + row * ch))
+
+
+def draw_blob_dot(surf: pygame.Surface, px: int, py: int,
+                  color: tuple[int, int, int], radius: int = 12) -> None:
+    pygame.draw.circle(surf, color,  (px, py), radius)
+    pygame.draw.circle(surf, WHITE,  (px, py), radius, 2)
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="FundingCAPTCHA pygame touch tester")
+    ap.add_argument("--server", default="ws://localhost:8080/ws", metavar="URL",
+                    help="WebSocket URL of running server.py")
+    ap.add_argument("--cols",   type=int, default=5,   metavar="N")
+    ap.add_argument("--rows",   type=int, default=4,   metavar="N")
+    ap.add_argument("--aspect", default="4:3",          metavar="W:H",
+                    help="Fallback screen aspect ratio (used when screen_corners absent)")
+    ap.add_argument("--dwell",  type=int, default=None, metavar="N",
+                    help="Frames to confirm a tap (default: from settings, else 3)")
+    args = ap.parse_args()
+
+    # Parse fallback aspect ratio
+    try:
+        aw, ah = (int(x) for x in args.aspect.split(":"))
+        fallback_aspect = aw / ah
+    except Exception:
+        print(f"Bad --aspect '{args.aspect}', expected W:H e.g. 4:3", file=sys.stderr)
+        sys.exit(1)
+
+    # Load settings
     settings: dict = {}
     if SETTINGS_PATH.exists():
         try:
             settings = json.loads(SETTINGS_PATH.read_text())
-        except Exception:
-            pass
-    settings["screen_rect"] = screen_rect
-    SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+        except Exception as exc:
+            print(f"Warning: {SETTINGS_PATH}: {exc}", file=sys.stderr)
 
-    # ── Confirmation screen ────────────────────────────────────────────────────
-    screen.fill(BLACK)
-    lines = [
-        font_big.render("Screen rect saved!", True, GREEN),
-        font_sm.render(f"x0={screen_rect['x0']}  x1={screen_rect['x1']}", True, WHITE),
-        font_sm.render(f"z0={screen_rect['z0']}  z1={screen_rect['z1']}", True, WHITE),
-        font_sm.render("Starting tester…", True, YELLOW),
-    ]
-    y = H // 2 - sum(l.get_height() for l in lines) // 2
-    for line in lines:
-        screen.blit(line, (W // 2 - line.get_width() // 2, y))
-        y += line.get_height() + 8
-    pygame.display.flip()
-    pygame.time.wait(2000)
+    # Screen projector (optional until corners are configured)
+    projector: ScreenProjector | None = None
+    corners = settings.get("screen_corners")
+    # Treat null placeholder values as absent
+    if corners and all(corners.get(k) is not None for k in ("bottom_left", "bottom_right", "top_left")):
+        try:
+            projector = ScreenProjector(
+                corners["bottom_left"],
+                corners["bottom_right"],
+                corners["top_left"],
+            )
+        except Exception as exc:
+            print(f"Warning: bad screen_corners: {exc}", file=sys.stderr)
 
-    return screen_rect
+    aspect = projector.aspect if projector else fallback_aspect
 
+    dwell_frames = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="FundingCAPTCHA pygame touch tester")
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--camera",      action="store_true", help="Real Orbbec camera")
-    group.add_argument("--mock-camera", action="store_true", help="Mock camera (no hardware)")
-    parser.add_argument("--cols",   type=int, default=5,    metavar="N")
-    parser.add_argument("--rows",   type=int, default=5,    metavar="N")
-    parser.add_argument("--width",  type=int, default=1920, metavar="PX")
-    parser.add_argument("--height", type=int, default=1080, metavar="PX")
-    args = parser.parse_args()
-
-    settings   = load_settings()
-    rect       = settings.get("screen_rect", {"x0": -150, "x1": 150, "z0": 50, "z1": 200})
-    stab_d     = settings.get("stabilizer", {})
-    cam_cfg    = settings.get("camera", {})
-    cal_frames = settings.get("calibration_frames", 60)
-
-    stab_cfg = StabilizerConfig(
-        max_match_dist_cm  = stab_d.get("max_match_dist_cm",  80.0),
-        smoothing_alpha    = stab_d.get("smoothing_alpha",     0.3),
-        max_miss_frames    = stab_d.get("max_miss_frames",     8),
-        min_confirm_frames = stab_d.get("min_confirm_frames",  2),
-    )
-
-    pos_cm = cam_cfg.get("pos_cm", [0.0, 0.0, 200.0])
-    rot    = cam_cfg.get("rotation", {})
-    cam_tf = Transform(
-        translation=np.array(pos_cm, dtype=float),
-        rotation=Rotator(
-            pitch=rot.get("pitch", 0.0),
-            yaw=rot.get("yaw",     0.0),
-            roll=rot.get("roll",   0.0),
-        ),
-    )
-
-    if args.mock_camera:
-        camera: object = MockCamera(
-            width  = cam_cfg.get("width",  640),
-            height = cam_cfg.get("height", 400),
-            fps    = cam_cfg.get("fps",     10),
-        )
-        mode_label = "MOCK"
-    else:
-        camera = OrbbecCamera(
-            serial = cam_cfg.get("serial") or None,
-            width  = cam_cfg.get("width",  640),
-            height = cam_cfg.get("height", 400),
-            fps    = cam_cfg.get("fps",     10),
-        )
-        mode_label = "ORBBEC"
-
-    W, H = args.width, args.height
-
+    # Pygame
     pygame.init()
-    screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN | pygame.NOFRAME)
-    pygame.display.set_caption("CAPTCHA Touch Tester")
+    info  = pygame.display.Info()
+    WW, WH = info.current_w, info.current_h
+    screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
+    pygame.display.set_caption("Touch Tester")
     pygame.mouse.set_visible(False)
+    clock = pygame.time.Clock()
 
-    font_big = pygame.font.SysFont("monospace", 52, bold=True)
-    font_sm  = pygame.font.SysFont("monospace", 28)
-    clock    = pygame.time.Clock()
+    font_hud = pygame.font.SysFont("monospace", 20, bold=True)
+    font_lbl = pygame.font.SysFont("monospace", 18)
+    font_big = pygame.font.SysFont("monospace", 32, bold=True)
 
-    # ── Phase 1: calibration ───────────────────────────────────────────────────
-    progress_q: queue.Queue[int] = queue.Queue()
-    result_q:   queue.Queue      = queue.Queue()
+    gx, gy, gw, gh = letterbox(WW, WH, aspect)
 
+    # WebSocket thread
+    blob_q:    queue.Queue[list] = queue.Queue(maxsize=8)
+    ws_status: list[str]         = ["connecting"]
+    stop       = threading.Event()
     threading.Thread(
-        target=_calibration_worker,
-        args=(camera, cal_frames, result_q, progress_q),
+        target=_ws_thread,
+        args=(args.server, blob_q, ws_status, stop),
         daemon=True,
     ).start()
 
-    progress    = 0
-    calibration = None
-
-    while calibration is None:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit(); sys.exit(0)
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
-                pygame.quit(); sys.exit(0)
-
-        try:
-            while True:
-                progress = progress_q.get_nowait()
-        except queue.Empty:
-            pass
-
-        try:
-            status, payload = result_q.get_nowait()
-            if status == "err":
-                show_error(screen, font_big, payload, W, H)
-            calibration = payload
-        except queue.Empty:
-            pass
-
-        screen.fill(BLACK)
-        bar_w = int(progress / cal_frames * W)
-        pygame.draw.rect(screen, GREY,  (0, H // 2 - 30, W, 60))
-        pygame.draw.rect(screen, GREEN, (0, H // 2 - 30, bar_w, 60))
-        txt = font_big.render(f"Calibrating…  {progress} / {cal_frames}", True, WHITE)
-        screen.blit(txt, (W // 2 - txt.get_width() // 2, H // 2 - txt.get_height() // 2))
-        pygame.display.flip()
-        clock.tick(FPS)
-
-    # ── Phase 2: start pipeline thread ────────────────────────────────────────
-    blob_q: queue.Queue[list] = queue.Queue(maxsize=4)
-    stop    = threading.Event()
-
-    threading.Thread(
-        target=_pipeline_worker,
-        args=(camera, cam_tf, calibration, stab_cfg, blob_q, stop),
-        daemon=True,
-    ).start()
-
-    # ── Phase 3: corner calibration ───────────────────────────────────────────
-    rect = run_corner_calibration(screen, blob_q, W, H, font_big, font_sm, clock, stop)
-
-    # ── Phase 4: live touch tester ────────────────────────────────────────────
+    dwell         = DwellTracker(dwell_frames)
     current_blobs: list[dict] = []
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 stop.set(); pygame.quit(); sys.exit(0)
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_q, pygame.K_ESCAPE):
                 stop.set(); pygame.quit(); sys.exit(0)
 
+        # Drain to latest blob frame
         try:
             while True:
                 current_blobs = blob_q.get_nowait()
         except queue.Empty:
             pass
 
+        # ── Project blobs ────────────────────────────────────────────────────
+        live_cells: list[tuple[int, int, int]] = []
+        blob_info:  list[dict]                 = []
+
+        for b in current_blobs:
+            xyz = [b["x"], b["y"], b["z"]]
+            if projector:
+                u, v   = projector.project(xyz)
+                in_b   = projector.in_bounds(u, v)
+                col, row = projector.uv_to_cell(u, v, args.cols, args.rows) if in_b else (None, None)
+                if in_b:
+                    live_cells.append((b["id"], col, row))
+            else:
+                u = v = None
+                in_b  = False
+                col = row = None
+            blob_info.append({"id": b["id"], "xyz": xyz,
+                               "u": u, "v": v, "in_bounds": in_b,
+                               "col": col, "row": row})
+
+        dwell.update(live_cells)
+
+        # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(BLACK)
-        draw_grid(screen, args.cols, args.rows, W, H)
-        draw_border(screen, W, H)
-        draw_blobs(screen, current_blobs, rect, args.cols, args.rows, W, H, font_sm)
+        draw_grid(screen, gx, gy, gw, gh, args.cols, args.rows)
 
-        hud = font_sm.render(
-            f"{mode_label}  grid={args.cols}×{args.rows}  blobs={len(current_blobs)}"
-            f"  rect x[{rect['x0']},{rect['x1']}] z[{rect['z0']},{rect['z1']}]  [q] quit",
-            True, YELLOW,
-        )
-        screen.blit(hud, (10, 10))
+        if not projector:
+            # Prompt: tell user what's missing
+            m1 = font_big.render("screen_corners not configured", True, YELLOW)
+            m2 = font_lbl.render("Touch screen corners and read world coords below,", True, LT_GREY)
+            m3 = font_lbl.render(f"then set screen_corners in {SETTINGS_PATH.name}", True, LT_GREY)
+            cx = gx + gw // 2
+            cy = gy + gh // 2
+            screen.blit(m1, (cx - m1.get_width() // 2, cy - 50))
+            screen.blit(m2, (cx - m2.get_width() // 2, cy + 10))
+            screen.blit(m3, (cx - m3.get_width() // 2, cy + 38))
 
-        # Raw world-space coords — always visible regardless of screen_rect
-        for i, b in enumerate(current_blobs):
-            raw = font_sm.render(
-                f"#{b['id']}  x={b['x']:+.1f}  y={b['y']:+.1f}  z={b['z']:+.1f}",
-                True, WHITE,
-            )
-            screen.blit(raw, (10, 50 + i * 36))
+        # Cell highlights
+        for col, row in dwell.immediate:
+            highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
+                           col, row, CYAN, 55)
+        for col, row in dwell.flashing:
+            highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
+                           col, row, CYAN, 190)
+
+        # Blob dots + labels
+        for bi in blob_info:
+            xyz    = bi["xyz"]
+            in_b   = bi["in_bounds"]
+            dot_color = CYAN if in_b else ORANGE
+
+            if projector and bi["u"] is not None:
+                px, py = uv_to_px(bi["u"], bi["v"], gx, gy, gw, gh)
+                px = max(8, min(WW - 8, px))
+                py = max(8, min(WH - 8, py))
+            else:
+                # No projector: stack dots in top-left margin
+                idx    = blob_info.index(bi)
+                px, py = 20, 60 + idx * 90
+
+            draw_blob_dot(screen, px, py, dot_color)
+
+            line1 = f"#{bi['id']}  x={xyz[0]:+.1f} y={xyz[1]:+.1f} z={xyz[2]:+.1f}"
+            if bi["u"] is not None:
+                state = "IN" if in_b else "OUT"
+                line2 = f"    u={bi['u']:.2f} v={bi['v']:.2f}  {state}"
+                if bi["col"] is not None:
+                    line2 += f"  col={bi['col']} row={bi['row']}"
+            else:
+                line2 = ""
+
+            lbl1 = font_lbl.render(line1, True, WHITE)
+            lbl2 = font_lbl.render(line2, True, dot_color) if line2 else None
+
+            tx = min(px + 16, WW - lbl1.get_width() - 4)
+            ty = py - 18
+            screen.blit(lbl1, (tx, ty))
+            if lbl2:
+                screen.blit(lbl2, (tx, ty + 20))
+
+        # ── Status bar ────────────────────────────────────────────────────────
+        connected  = ws_status[0] == "connected"
+        bar_color  = GREEN if connected else RED
+        status_str = ws_status[0] if connected else f"DISCONNECTED — reconnecting…  ({args.server})"
+        bar        = font_hud.render(status_str, True, bar_color)
+        screen.blit(bar, (8, WH - bar.get_height() - 6))
+
+        # ── HUD (top-right) ───────────────────────────────────────────────────
+        hud_lines = [
+            f"grid {args.cols}×{args.rows}  dwell {dwell_frames}f",
+            f"blobs: {len(current_blobs)}",
+            f"corners: {'OK' if projector else 'MISSING'}",
+        ]
+        for i, line in enumerate(hud_lines):
+            lbl = font_hud.render(line, True, YELLOW)
+            screen.blit(lbl, (WW - lbl.get_width() - 8, 8 + i * 24))
 
         pygame.display.flip()
         clock.tick(FPS)

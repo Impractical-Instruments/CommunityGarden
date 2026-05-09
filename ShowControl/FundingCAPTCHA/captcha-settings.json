@@ -1,8 +1,15 @@
 {
-  "_comment": "FundingCAPTCHA runtime config. Edit screen_rect to match your physical install.",
+  "_comment": "FundingCAPTCHA runtime config.",
+
+  "screen_corners": {
+    "_comment": "Three corners of the physical screen in world space (cm). X=right, Y=forward, Z=up. Run touch_test_pygame.py without this key, touch each corner, read world coords, then fill in here.",
+    "bottom_left":  null,
+    "bottom_right": null,
+    "top_left":     null
+  },
 
   "screen_rect": {
-    "_comment": "World-space region (cm) that maps to the full game grid. X=right (horizontal on screen), Z=up (height on screen). Calibrate z0/z1 on-site to match screen bottom and top.",
+    "_comment": "Legacy axis-aligned rect used by browser games. X=right, Z=up. Keep in sync with screen_corners once calibrated.",
     "x0": -89,
     "x1":  73,
     "z0":  39,
