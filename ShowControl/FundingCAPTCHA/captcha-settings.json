@@ -3,9 +3,9 @@
 
   "screen_corners": {
     "_comment": "Three corners of the physical screen in world space (cm). X=right, Y=forward, Z=up. Run touch_test_pygame.py without this key, touch each corner, read world coords, then fill in here.",
-    "bottom_left":  null,
-    "bottom_right": null,
-    "top_left":     null
+    "bottom_left":  [-45, 48, -106],
+    "bottom_right": [87, 95, -145],
+    "top_left":     [-64, 72, -67]
   },
 
   "screen_rect": {
