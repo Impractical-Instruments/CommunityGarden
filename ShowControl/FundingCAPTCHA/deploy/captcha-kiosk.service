@@ -8,7 +8,7 @@ Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/pi/.Xauthority
 # Wait until the server is actually up before opening Chromium
 ExecStartPre=/bin/sh -c 'until curl -sf http://localhost:8080/ > /dev/null 2>&1; do sleep 1; done'
-ExecStart=chromium-browser \
+ExecStart=chromium \
   --kiosk \
   --noerrdialogs \
   --disable-infobars \
