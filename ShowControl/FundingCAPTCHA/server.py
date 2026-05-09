@@ -78,6 +78,8 @@ except ImportError:
 _connections: set[WebSocket] = set()
 _log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
+_cv_stop: threading.Event = threading.Event()
+_cv_thread_handle: threading.Thread | None = None
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -117,6 +119,12 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        # Signal CV thread to exit its pipeline loop, then wait for it to
+        # release the camera before the process exits — prevents the camera
+        # being left half-open for the next start.
+        _cv_stop.set()
+        if _cv_thread_handle is not None:
+            _cv_thread_handle.join(timeout=5.0)
         for ws in list(_connections):
             try:
                 await ws.close()
@@ -305,6 +313,8 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     calibration = build_calibration(camera, calib_frames)
 
     for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config):
+        if _cv_stop.is_set():
+            break
         broadcast({
             "blobs": [
                 {"id":  int(t.stable_id),
@@ -397,8 +407,10 @@ def main() -> None:
                 fps    = cam_cfg.get("fps",     10),
             )
 
+        global _cv_thread_handle
         t = threading.Thread(target=_cv_thread, args=(camera, settings), daemon=True)
         t.start()
+        _cv_thread_handle = t
         mode = "mock" if args.mock_camera else "Orbbec"
         log.info("CV %s camera thread started", mode)
 
