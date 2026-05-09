@@ -16,6 +16,12 @@
     "z1":  67
   },
 
+  "detection": {
+    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm must be small enough to catch a hand 1-5cm shallower than the screen background.",
+    "depth_delta_mm":  20,
+    "min_blob_pixels": 500
+  },
+
   "blob_dwell_frames": 3,
 
   "calibration_frames": 60,

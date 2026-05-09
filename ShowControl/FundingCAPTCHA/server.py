@@ -69,7 +69,7 @@ _REPO = (DIR / "../..").resolve()
 sys.path.insert(0, str(_REPO))
 try:
     import numpy as np
-    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, Calibrator, run_pipeline
+    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, Calibrator, DetectionConfig, run_pipeline
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -290,6 +290,7 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     """Runs blob detection in a daemon thread; publishes positions via broadcast()."""
     stab_cfg = settings.get("stabilizer", {})
     cam_cfg  = settings.get("camera", {})
+    det_cfg  = settings.get("detection", {})
 
     stabilizer_config = StabilizerConfig(
         max_match_dist_cm  = stab_cfg.get("max_match_dist_cm",  80.0),
@@ -322,7 +323,15 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     calibration = calibrator.build()
     log.info("Calibration complete")
 
-    for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config):
+    detection_config = DetectionConfig(
+        depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),
+        min_blob_pixels  = det_cfg.get("min_blob_pixels",  500),
+        min_depth_mm     = det_cfg.get("min_depth_mm",     500),
+        max_depth_mm     = det_cfg.get("max_depth_mm",     6000),
+    )
+
+    for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config,
+                                detection_config=detection_config):
         if _cv_stop.is_set():
             break
         broadcast({
