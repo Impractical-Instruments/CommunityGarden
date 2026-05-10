@@ -347,7 +347,6 @@ def _cv_thread(camera: Any, settings: dict) -> None:
                 break
     calibration = calibrator.build()
     log.info("Calibration complete")
-    broadcast({"status": "active"})
 
     detection_config = DetectionConfig(
         depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),
@@ -369,6 +368,7 @@ def _cv_thread(camera: Any, settings: dict) -> None:
             log.info("camera active | frame=%d blobs=%d", frame_count, len(tracked))
             t_last_log = now
         broadcast({
+            "status": "active",
             "blobs": [
                 {"id":  int(t.stable_id),
                  "x":   float(t.world_pos_cm[0]),
