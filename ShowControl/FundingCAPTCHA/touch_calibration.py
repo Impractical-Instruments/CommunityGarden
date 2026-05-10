@@ -502,14 +502,18 @@ def main() -> None:
     projector: ScreenProjector | None = None
     corner_cal: CornerCal | None = None
 
-    if args.recalibrate:
-        server_host = urlparse(args.server).hostname or "localhost"
+    server_host = urlparse(args.server).hostname or "localhost"
+
+    def _send_osc_restart() -> None:
         try:
             from pythonosc.udp_client import SimpleUDPClient
             SimpleUDPClient(server_host, args.osc_port).send_message("/captcha/restart", [])
             print(f"Sent /captcha/restart to {server_host}:{args.osc_port}")
         except Exception as exc:
             print(f"Warning: could not send OSC restart: {exc}", file=sys.stderr)
+
+    if args.recalibrate:
+        _send_osc_restart()
         settings.pop("screen_corners", None)
         SETTINGS_LOCAL_PATH.write_text(json.dumps({}, indent=2))
 
@@ -562,6 +566,7 @@ def main() -> None:
                 if event.key in (pygame.K_q, pygame.K_ESCAPE):
                     stop.set(); pygame.quit(); sys.exit(0)
                 elif event.key == pygame.K_r:
+                    _send_osc_restart()
                     settings.pop("screen_corners", None)
                     SETTINGS_LOCAL_PATH.write_text(json.dumps({}, indent=2))
                     projector  = None

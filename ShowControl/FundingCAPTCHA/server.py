@@ -100,6 +100,7 @@ _cv_thread_handle: threading.Thread | None = None
 _camera_factory: Callable[[], Any] | None = None   # set in main() when --camera/--mock-camera
 _cv_settings: dict[str, Any] = {}
 _osc_server: Any = None
+_cv_status: dict[str, Any] = {"status": "unknown"}  # latest CV state; sent to new WS clients
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -280,6 +281,9 @@ async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
     _connections.add(websocket)
     try:
+        # Immediately push current CV state so clients don't have to wait for the next frame.
+        if _cv_status["status"] != "unknown":
+            await websocket.send_text(json.dumps(_cv_status))
         while True:
             await asyncio.sleep(10)
     except (WebSocketDisconnect, asyncio.CancelledError, Exception):
@@ -332,6 +336,7 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         ),
     )
 
+    global _cv_status
     calib_frames = settings.get("calibration_frames", 60)
     log.info("Calibrating (%d frames)…", calib_frames)
     calibrator = Calibrator(calib_frames)
@@ -342,11 +347,13 @@ def _cv_thread(camera: Any, settings: dict) -> None:
                 log.info("Calibration interrupted by shutdown")
                 return  # camera closed cleanly by context manager exit
             frame_idx += 1
-            broadcast({"status": "calibrating", "progress": frame_idx / calib_frames})
+            _cv_status = {"status": "calibrating", "progress": frame_idx / calib_frames}
+            broadcast(_cv_status)
             if calibrator.push_frame(frame):
                 break
     calibration = calibrator.build()
     log.info("Calibration complete")
+    _cv_status = {"status": "active", "blobs": []}
 
     detection_config = DetectionConfig(
         depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),
@@ -367,7 +374,7 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         if now - t_last_log >= 5.0:
             log.info("camera active | frame=%d blobs=%d", frame_count, len(tracked))
             t_last_log = now
-        broadcast({
+        msg = {
             "status": "active",
             "blobs": [
                 {"id":  int(t.stable_id),
@@ -375,8 +382,10 @@ def _cv_thread(camera: Any, settings: dict) -> None:
                  "y":   float(t.world_pos_cm[1]),
                  "z":   float(t.world_pos_cm[2])}
                 for t in tracked
-            ]
-        })
+            ],
+        }
+        _cv_status = msg
+        broadcast(msg)
 
 
 # ── CV pipeline restart ────────────────────────────────────────────────────────
