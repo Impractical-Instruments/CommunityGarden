@@ -14,10 +14,10 @@
     "depth_delta_mm":  10,
     "min_blob_pixels": 500,
     "min_depth_mm":    500,
-    "max_depth_mm":    6000
+    "max_depth_mm":    2000
   },
 
-  "blob_dwell_frames": 3,
+  "blob_dwell_frames": 10,
 
   "_comment_max_plane_dist_cm": "Max distance (cm) in front of calibrated screen plane to register a touch. Tune down toward 5-10cm once calibration plane matches the physical screen surface.",
   "max_plane_dist_cm": 10,
