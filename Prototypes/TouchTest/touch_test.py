@@ -93,6 +93,7 @@ class CalData:
     cam_h: int
     background: np.ndarray   # uint16 (H, W) — per-pixel median depth
     valid_mask: np.ndarray   # bool   (H, W) — pixels with reliable background
+    noise_floor: np.ndarray  # uint16 (H, W) — per-pixel IQR of depth during BG_CAL
     homography: np.ndarray   # float64 (3, 3) — camera pixels → screen UV
     screen_mask: np.ndarray  # uint8  (H, W) — 255 inside calibrated screen quad
     hover_mm: int
@@ -102,6 +103,7 @@ class CalData:
             path,
             background=self.background,
             valid_mask=self.valid_mask,
+            noise_floor=self.noise_floor,
             homography=self.homography,
             screen_mask=self.screen_mask,
             meta=np.array([self.cam_w, self.cam_h, self.hover_mm], dtype=np.int32),
@@ -111,12 +113,15 @@ class CalData:
     @classmethod
     def load(cls, path: Path) -> "CalData":
         d = np.load(path)
+        if "noise_floor" not in d:
+            raise KeyError("noise_floor missing — recalibrate")
         cam_w, cam_h, hover_mm = int(d["meta"][0]), int(d["meta"][1]), int(d["meta"][2])
         return cls(
             cam_w=cam_w,
             cam_h=cam_h,
             background=d["background"],
             valid_mask=d["valid_mask"].astype(bool),
+            noise_floor=d["noise_floor"],
             homography=d["homography"],
             screen_mask=d["screen_mask"],
             hover_mm=hover_mm,
@@ -138,8 +143,8 @@ class BgCal:
         self._frames.append(depth.astype(np.uint16))
         return len(self._frames) >= self._n
 
-    def build(self) -> tuple[np.ndarray, np.ndarray]:
-        """Returns (background uint16 H×W, valid_mask bool H×W)."""
+    def build(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Returns (background uint16 H×W, valid_mask bool H×W, noise_floor uint16 H×W)."""
         frames = np.stack(self._frames, axis=0)          # (N, H, W)
         valid  = (frames >= MIN_DEPTH_MM) & (frames <= MAX_DEPTH_MM)
         num_valid = valid.sum(axis=0)                    # (H, W)
@@ -147,36 +152,54 @@ class BgCal:
 
         sentinel = np.iinfo(np.uint16).max
         masked   = np.where(valid, frames, sentinel)
-        masked.sort(axis=0)                               # valid values first
+        masked.sort(axis=0)                               # valid values first (sentinel=max goes last)
 
         median_idx = (num_valid // 2).clip(0, len(self._frames) - 1)
         H, W = frames.shape[1], frames.shape[2]
         ii, jj = np.indices((H, W))
         background = masked[median_idx, ii, jj]
         background[~valid_mask] = 0
-        return background, valid_mask
+
+        # Per-pixel noise floor via IQR of the sorted valid frames.
+        # IQR ≈ 1.35σ, so IQR itself is a robust ~0.74σ estimator.
+        # Stored raw; foreground() multiplies by _NOISE_SIGMA to set the threshold.
+        p25_idx = (num_valid * 25 // 100).clip(0, len(self._frames) - 1)
+        p75_idx = (num_valid * 75 // 100).clip(0, len(self._frames) - 1)
+        iqr = (masked[p75_idx, ii, jj].astype(np.int32)
+               - masked[p25_idx, ii, jj].astype(np.int32)).clip(0, 65535)
+        noise_floor = np.where(valid_mask, iqr, 0).astype(np.uint16)
+
+        return background, valid_mask, noise_floor
 
 
 # ── Foreground mask ───────────────────────────────────────────────────────────
 
 _MORPH_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+# IQR ≈ 1.35σ. Multiplying stored IQR by this gives a ~3σ threshold per pixel.
+_NOISE_SIGMA  = 3
 
 
 def foreground(
-    depth: np.ndarray,       # uint16 (H, W)
-    background: np.ndarray,  # uint16 (H, W)
-    valid_mask: np.ndarray,  # bool   (H, W)
+    depth: np.ndarray,                       # uint16 (H, W)
+    background: np.ndarray,                  # uint16 (H, W)
+    valid_mask: np.ndarray,                  # bool   (H, W)
     hover_mm: int,
-    screen_mask: np.ndarray | None = None,  # uint8 (H, W)
+    noise_floor: np.ndarray | None = None,   # uint16 (H, W) — per-pixel IQR from BG_CAL
+    screen_mask: np.ndarray | None = None,   # uint8  (H, W)
 ) -> np.ndarray:
     """Binary foreground mask (H, W) uint8 — pixels closer than background by hover_mm."""
-    d   = depth.astype(np.int32)
-    b   = background.astype(np.int32)
-    fg  = (
+    d = depth.astype(np.int32)
+    b = background.astype(np.int32)
+    # Per-pixel threshold: at least hover_mm, raised to 3× IQR where sensor noise is high.
+    if noise_floor is not None:
+        threshold = np.maximum(hover_mm, noise_floor.astype(np.int32) * _NOISE_SIGMA)
+    else:
+        threshold = hover_mm
+    fg = (
         valid_mask
         & (d > MIN_DEPTH_MM)
         & (d < MAX_DEPTH_MM)
-        & ((b - d) > hover_mm)
+        & ((b - d) > threshold)
     ).astype(np.uint8) * 255
     if screen_mask is not None:
         fg &= (screen_mask > 0).astype(np.uint8) * 255
@@ -668,6 +691,9 @@ def main() -> None:
         bg_cal     = BgCal(cfg.bg_frames)
         corner_cal = None
 
+    background:    np.ndarray | None = None
+    valid_mask:    np.ndarray | None = None
+    noise_floor:   np.ndarray | None = None
     current_depth: np.ndarray | None = None
     current_fg:    np.ndarray | None = None
     touches:       list[Touch]       = []
@@ -708,7 +734,7 @@ def main() -> None:
                 assert bg_cal is not None
                 done = bg_cal.push(current_depth)
                 if done:
-                    background, valid_mask = bg_cal.build()
+                    background, valid_mask, noise_floor = bg_cal.build()
                     corner_cal = CornerCal(cfg)
                     state      = State.CORNER_CAL
                     bg_cal     = None
@@ -716,7 +742,7 @@ def main() -> None:
 
             elif state == State.CORNER_CAL:
                 assert corner_cal is not None
-                fg = foreground(current_depth, background, valid_mask, cfg.hover_mm)
+                fg = foreground(current_depth, background, valid_mask, cfg.hover_mm, noise_floor)
                 current_fg = fg
                 corner_cal.push_fg(fg)
                 if corner_cal.just_accepted:
@@ -727,6 +753,7 @@ def main() -> None:
                     cal_data  = CalData(
                         cam_w=cfg.cam_w, cam_h=cfg.cam_h,
                         background=background, valid_mask=valid_mask,
+                        noise_floor=noise_floor,
                         homography=H, screen_mask=smask,
                         hover_mm=cfg.hover_mm,
                     )
@@ -740,7 +767,7 @@ def main() -> None:
                 fg = foreground(
                     current_depth,
                     cal_data.background, cal_data.valid_mask,
-                    cal_data.hover_mm, cal_data.screen_mask,
+                    cal_data.hover_mm, cal_data.noise_floor, cal_data.screen_mask,
                 )
                 current_fg = fg
                 touches    = detect_touches(fg, cal_data.homography, cfg.min_blob_px, cfg.max_touches)
