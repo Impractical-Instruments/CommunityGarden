@@ -1,0 +1,12 @@
+# TouchTest dependencies
+# Install with: pip install -r requirements.txt
+#
+# On Raspberry Pi, prefer system packages for numpy and opencv (faster ARM builds):
+#   sudo apt-get install python3-numpy python3-opencv
+
+numpy>=1.24
+opencv-python>=4.8
+pygame>=2.1
+
+# Orbbec SDK — import name is `pyorbbecsdk`, install name is `pyorbbecsdk2`
+pyorbbecsdk2
