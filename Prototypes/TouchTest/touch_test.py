@@ -159,6 +159,9 @@ class BgCal:
 
 # ── Foreground mask ───────────────────────────────────────────────────────────
 
+_MORPH_KERNEL = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+
+
 def foreground(
     depth: np.ndarray,       # uint16 (H, W)
     background: np.ndarray,  # uint16 (H, W)
@@ -177,6 +180,8 @@ def foreground(
     ).astype(np.uint8) * 255
     if screen_mask is not None:
         fg &= (screen_mask > 0).astype(np.uint8) * 255
+    # Opening (erode then dilate) removes isolated noise pixels and thin speckle.
+    fg = cv2.morphologyEx(fg, cv2.MORPH_OPEN, _MORPH_KERNEL)
     return fg
 
 
@@ -221,6 +226,37 @@ def detect_touches(
 
 # ── Corner calibration ────────────────────────────────────────────────────────
 
+# For each corner, score foreground pixels so the one AT the screen corner
+# scores highest.  Higher score = closer to that corner in camera frame.
+# TL: min(px+py)  TR: max(px-py)  BR: max(px+py)  BL: max(py-px)
+_CORNER_SCORE_FN = [
+    lambda xs, ys: -(xs + ys),   # TL
+    lambda xs, ys:   xs - ys,    # TR
+    lambda xs, ys:   xs + ys,    # BR
+    lambda xs, ys:   ys - xs,    # BL
+]
+_CAL_TOP_FRAC = 0.10   # centroid of the top 10% most-extreme pixels
+_CAL_MIN_PX   = 20     # minimum pixels for that centroid
+
+
+def _corner_contact_point(fg: np.ndarray, corner_idx: int) -> tuple[float, float] | None:
+    """
+    Return the camera-pixel (cx, cy) of the actual contact point for the given
+    corner, ignoring the rest of the arm/hand blob.
+
+    Works by scoring every foreground pixel toward the expected camera-frame
+    corner (TL→top-left of frame, etc.) and averaging the top 10%.
+    This finds the fingertip even when the whole arm is visible.
+    """
+    ys, xs = np.where(fg > 0)
+    if len(xs) < _CAL_MIN_PX:
+        return None
+    scores   = _CORNER_SCORE_FN[corner_idx](xs.astype(np.float32), ys.astype(np.float32))
+    top_n    = max(_CAL_MIN_PX, int(len(xs) * _CAL_TOP_FRAC))
+    top_idx  = np.argpartition(scores, -top_n)[-top_n:]
+    return float(xs[top_idx].mean()), float(ys[top_idx].mean())
+
+
 class CornerCal:
     def __init__(self, cfg: Config) -> None:
         self._cfg = cfg
@@ -230,6 +266,7 @@ class CornerCal:
         self._dcy: float | None = None
         self._df  = 0
         self.just_accepted = False
+        self.detected_pt: tuple[float, float] | None = None  # current contact estimate
 
     @property
     def name(self) -> str:
@@ -246,21 +283,18 @@ class CornerCal:
     def push_fg(self, fg: np.ndarray) -> None:
         """Feed a foreground mask. Sets self.just_accepted = True when a corner is captured."""
         self.just_accepted = False
+        self.detected_pt   = None
         if self.done:
             return
 
-        n, _, stats, centroids = cv2.connectedComponentsWithStats(fg, connectivity=8)
-        best_area, best_cx, best_cy = 0, None, None
-        for i in range(1, n):
-            a = int(stats[i, cv2.CC_STAT_AREA])
-            if a > best_area:
-                best_area = a
-                best_cx, best_cy = float(centroids[i][0]), float(centroids[i][1])
-
-        if best_cx is None or best_area < self._cfg.min_blob_px:
+        pt = _corner_contact_point(fg, self.idx)
+        if pt is None:
             self._dcx = self._dcy = None
             self._df  = 0
             return
+
+        best_cx, best_cy = pt
+        self.detected_pt = pt
 
         moved = (
             self._dcx is None
@@ -451,7 +485,7 @@ def draw_bg_cal(surf: pygame.Surface, fonts: dict, WW: int, WH: int, progress: f
 def draw_corner_cal(
     surf: pygame.Surface, fonts: dict,
     WW: int, WH: int, gx: int, gy: int, gw: int, gh: int,
-    corner_cal: CornerCal,
+    corner_cal: CornerCal, cfg: Config,
     depth: np.ndarray | None, fg: np.ndarray | None,
 ) -> None:
     # Camera feed in the grid area
@@ -461,7 +495,7 @@ def draw_corner_cal(
         surf.blit(fg_overlay_surface(fg, gw, gh), (gx, gy))
     pygame.draw.rect(surf, MID_GREY, (gx, gy, gw, gh), 2)
 
-    # Target corner indicator (pulsing ring)
+    # Target corner indicator (pulsing ring at the expected screen grid corner)
     if not corner_cal.done:
         tx, ty = corner_screen_px(corner_cal.idx, gx, gy, gw, gh)
         pulse  = int(abs(pygame.time.get_ticks() % 1000 - 500) / 500 * 60 + 195)
@@ -469,9 +503,17 @@ def draw_corner_cal(
         pygame.draw.circle(surf, YELLOW, (tx, ty), 7)
         draw_dwell_arc(surf, tx, ty, corner_cal.dwell_progress)
 
+    # Detected contact point — shown in camera-frame coordinates scaled to grid
+    if corner_cal.detected_pt is not None:
+        dpx = gx + int(corner_cal.detected_pt[0] * gw / cfg.cam_w)
+        dpy = gy + int(corner_cal.detected_pt[1] * gh / cfg.cam_h)
+        # Scale properly from camera pixels to grid pixels
+        pygame.draw.circle(surf, GREEN, (dpx, dpy), 8)
+        pygame.draw.circle(surf, WHITE, (dpx, dpy), 8, 2)
+
     # Instructions
-    msg  = f"Touch {corner_cal.name} corner and hold"
-    sub  = f"Corner {min(corner_cal.idx + 1, 4)} of 4"
+    msg  = f"Touch {corner_cal.name} corner — fingertip only"
+    sub  = f"Corner {min(corner_cal.idx + 1, 4)} of 4  |  keep arm off-screen"
     t1   = fonts["big"].render(msg, True, YELLOW)
     t2   = fonts["sml"].render(sub, True, LT_GREY)
     surf.blit(t1, (WW // 2 - t1.get_width() // 2, 18))
@@ -720,7 +762,7 @@ def main() -> None:
             assert corner_cal is not None
             draw_corner_cal(
                 screen, fonts, WW, WH, gx, gy, gw, gh,
-                corner_cal, current_depth, current_fg,
+                corner_cal, cfg, current_depth, current_fg,
             )
 
         elif state == State.LIVE:
