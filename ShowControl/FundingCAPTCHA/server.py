@@ -364,6 +364,7 @@ def _cv_thread_inner(camera: Any, settings: dict) -> None:
     calibration = calibrator.build()
     log.info("Calibration complete")
     _cv_status = {"status": "active", "blobs": []}
+    broadcast(_cv_status)
 
     detection_config = DetectionConfig(
         depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),
@@ -371,6 +372,17 @@ def _cv_thread_inner(camera: Any, settings: dict) -> None:
         min_depth_mm     = det_cfg.get("min_depth_mm",     500),
         max_depth_mm     = det_cfg.get("max_depth_mm",     6000),
     )
+
+    # Heartbeat: broadcast "active" and log every 5 s even when no blobs are detected,
+    # so clients don't get stuck on "waiting for camera" and journalctl shows activity.
+    def _heartbeat() -> None:
+        while not _cv_stop.is_set():
+            time.sleep(5.0)
+            if not _cv_stop.is_set():
+                log.info("camera alive")
+                broadcast({"status": "active", "blobs": []})
+
+    threading.Thread(target=_heartbeat, daemon=True).start()
 
     frame_count = 0
     t_last_log = time.monotonic()
