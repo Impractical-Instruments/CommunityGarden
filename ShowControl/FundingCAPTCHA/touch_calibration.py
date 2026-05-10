@@ -196,6 +196,18 @@ class ScreenProjector:
         v        = float(np.dot(p_plane - self._bl, self._V) / self._h)
         return u, v
 
+    def plane_distance(self, xyz: list[float]) -> float:
+        """Signed distance (cm) from point to screen plane. Positive = camera side."""
+        return float(np.dot(np.array(xyz, dtype=float) - self._bl, self._n))
+
+    def in_bounds_3d(self, xyz: list[float], max_dist: float) -> bool:
+        """True if point is within the screen UV rectangle and ≤ max_dist cm in front."""
+        d = self.plane_distance(xyz)
+        if not (0.0 < d <= max_dist):
+            return False
+        u, v = self.project(xyz)
+        return self.in_bounds(u, v)
+
     @staticmethod
     def in_bounds(u: float, v: float) -> bool:
         return 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0
@@ -445,6 +457,9 @@ def main() -> None:
                     help="Frames blob must be stable to accept a calibration corner (~2s at 10fps)")
     ap.add_argument("--stable-cm",   type=float, default=15.0, metavar="CM",
                     help="Max blob movement (cm) allowed during corner dwell")
+    ap.add_argument("--max-plane-dist", type=float, default=None, metavar="CM",
+                    help="Max distance (cm) in front of screen plane to register a touch "
+                         "(default: from settings max_plane_dist_cm, else 30)")
     ap.add_argument("--recalibrate", action="store_true",
                     help="Wipe saved corners and redo corner calibration")
     ap.add_argument("--osc-port",   type=int, default=9003, metavar="N",
@@ -472,7 +487,8 @@ def main() -> None:
         except Exception as exc:
             print(f"Warning: {SETTINGS_LOCAL_PATH}: {exc}", file=sys.stderr)
 
-    dwell_frames = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
+    dwell_frames     = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
+    max_plane_dist   = args.max_plane_dist if args.max_plane_dist is not None else settings.get("max_plane_dist_cm", 30.0)
 
     # Determine initial state
     projector: ScreenProjector | None = None
@@ -583,17 +599,18 @@ def main() -> None:
             for b in current_blobs:
                 xyz = [b["x"], b["y"], b["z"]]
                 if projector:
-                    u, v   = projector.project(xyz)
-                    in_b   = projector.in_bounds(u, v)
+                    u, v     = projector.project(xyz)
+                    dist     = projector.plane_distance(xyz)
+                    in_b     = projector.in_bounds_3d(xyz, max_plane_dist)
                     col, row = projector.uv_to_cell(u, v, args.cols, args.rows) if in_b else (None, None)
                     if in_b:
                         live_cells.append((b["id"], col, row))
                 else:
-                    u = v = None
+                    u = v = dist = None
                     in_b  = False
                     col = row = None
                 blob_info.append({"id": b["id"], "xyz": xyz,
-                                   "u": u, "v": v, "in_bounds": in_b,
+                                   "u": u, "v": v, "dist": dist, "in_bounds": in_b,
                                    "col": col, "row": row})
 
             dwell.update(live_cells)
@@ -626,8 +643,9 @@ def main() -> None:
 
                 line1 = f"#{bi['id']}  x={xyz[0]:+.1f} y={xyz[1]:+.1f} z={xyz[2]:+.1f}"
                 if bi["u"] is not None:
-                    in_str = "IN" if in_b else "OUT"
-                    line2  = f"    u={bi['u']:.2f} v={bi['v']:.2f}  {in_str}"
+                    in_str  = "IN" if in_b else "OUT"
+                    dist_str = f"d={bi['dist']:+.1f}cm" if bi["dist"] is not None else ""
+                    line2  = f"    u={bi['u']:.2f} v={bi['v']:.2f}  {dist_str}  {in_str}"
                     if bi["col"] is not None:
                         line2 += f"  col={bi['col']} row={bi['row']}"
                 else:
@@ -644,7 +662,7 @@ def main() -> None:
             # HUD top-right
             hud_lines = [
                 f"grid {args.cols}×{args.rows}  dwell {dwell_frames}f",
-                f"blobs: {len(current_blobs)}",
+                f"blobs: {len(current_blobs)}  plane ≤{max_plane_dist:.0f}cm",
                 f"corners: {'OK' if projector else 'MISSING'}",
                 "R=recalibrate  Q=quit",
             ]
