@@ -20,6 +20,11 @@ from scipy.ndimage import label as nd_label
 # depth is trusted.
 _MIN_FRAMES_VALID = 10
 
+# Multiplier applied to per-pixel IQR to form the noise-adaptive threshold.
+# IQR ≈ 1.35σ, so 3×IQR ≈ 4σ — eliminates sensor noise false positives while
+# still catching real foreground objects.
+_NOISE_SIGMA = 3
+
 
 @dataclass
 class CameraIntrinsics:
@@ -93,7 +98,7 @@ class DetectionResult:
 @dataclass
 class Calibration:
     """
-    Background model: per-pixel median depth and validity mask.
+    Background model: per-pixel median depth, validity mask, and noise floor.
     Produced by Calibrator; consumed by BlobTracker.
     Serializable to disk to skip recalibration on warm restart.
     """
@@ -101,6 +106,7 @@ class Calibration:
     height: int
     background: np.ndarray   # uint16, shape (H*W,)
     valid_mask: np.ndarray   # bool,   shape (H*W,)
+    noise_floor: np.ndarray  # uint16, shape (H*W,) — per-pixel IQR from calibration frames
 
     def save(self, path: Path | str) -> None:
         """Save to a .npz file."""
@@ -108,6 +114,7 @@ class Calibration:
             path,
             background=self.background,
             valid_mask=self.valid_mask,
+            noise_floor=self.noise_floor,
             meta=np.array([self.width, self.height], dtype=np.int32),
         )
 
@@ -116,11 +123,17 @@ class Calibration:
         """Load from a .npz file. Raises FileNotFoundError if missing."""
         data = np.load(path)
         width, height = int(data["meta"][0]), int(data["meta"][1])
+        n = width * height
+        noise_floor = (
+            data["noise_floor"] if "noise_floor" in data
+            else np.zeros(n, dtype=np.uint16)
+        )
         return cls(
             width=width,
             height=height,
             background=data["background"],
             valid_mask=data["valid_mask"].astype(bool),
+            noise_floor=noise_floor,
         )
 
     @staticmethod
@@ -180,17 +193,26 @@ class Calibrator:
 
         sentinel = np.iinfo(np.uint16).max
         masked = np.where(valid, frames, sentinel)
-        masked.sort(axis=0)
+        masked.sort(axis=0)   # valid values first (sentinel=max floats to end)
 
+        arange = np.arange(frames.shape[1])
         median_idx = num_valid // 2
-        background = masked[median_idx, np.arange(frames.shape[1])]
+        background = masked[median_idx, arange]
         background[~valid_mask] = 0
+
+        # Per-pixel IQR from already-sorted frames — noise floor for adaptive threshold.
+        p25_idx = (num_valid * 25 // 100).clip(0, len(self._frames) - 1)
+        p75_idx = (num_valid * 75 // 100).clip(0, len(self._frames) - 1)
+        iqr = (masked[p75_idx, arange].astype(np.int32)
+               - masked[p25_idx, arange].astype(np.int32)).clip(0, 65535)
+        noise_floor = np.where(valid_mask, iqr, 0).astype(np.uint16)
 
         return Calibration(
             width=self._width,
             height=self._height,
             background=background,
             valid_mask=valid_mask,
+            noise_floor=noise_floor,
         )
 
 
@@ -248,7 +270,13 @@ class BlobTracker:
         bg_valid = cal.valid_mask & in_range
         bg_closer = cal.background > depth
         delta = cal.background.astype(np.int32) - depth.astype(np.int32)
-        fg_from_valid = bg_valid & bg_closer & (delta > self.detection_config.depth_delta_mm)
+        # Per-pixel threshold: at least depth_delta_mm, raised to 3×IQR where
+        # sensor noise is high — prevents noisy pixels from flickering as foreground.
+        threshold = np.maximum(
+            self.detection_config.depth_delta_mm,
+            cal.noise_floor.astype(np.int32) * _NOISE_SIGMA,
+        )
+        fg_from_valid = bg_valid & bg_closer & (delta > threshold)
         fg_from_invalid = (~cal.valid_mask) & in_range
 
         fg[fg_from_valid | fg_from_invalid] = 255

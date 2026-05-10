@@ -29,11 +29,12 @@ import logging
 import os
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -42,11 +43,19 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DIR        = Path(os.path.dirname(os.path.abspath(__file__)))
-UPLOADS    = DIR / "uploads"
-PAIRS_FILE = DIR / "pairs.json"
-SETTINGS   = DIR / "captcha-settings.json"
+DIR            = Path(os.path.dirname(os.path.abspath(__file__)))
+UPLOADS        = DIR / "uploads"
+PAIRS_FILE     = DIR / "pairs.json"
+SETTINGS       = DIR / "captcha-settings.json"
+SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 UPLOADS.mkdir(exist_ok=True)
+
+
+def _load_settings() -> dict:
+    s = json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
+    if SETTINGS_LOCAL.exists():
+        s.update(json.loads(SETTINGS_LOCAL.read_text()))
+    return s
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
 log = logging.getLogger("captcha")
@@ -69,15 +78,29 @@ _REPO = (DIR / "../..").resolve()
 sys.path.insert(0, str(_REPO))
 try:
     import numpy as np
-    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, build_calibration, run_pipeline
+    from IIVision import MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator, Calibrator, DetectionConfig, run_pipeline
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
+
+# ── OSC receive — optional ────────────────────────────────────────────────────
+try:
+    from pythonosc.dispatcher import Dispatcher as _OscDispatcher
+    from pythonosc.osc_server import ThreadingOSCUDPServer as _OscServer
+    _OSC_RX_AVAILABLE = True
+except ImportError:
+    _OSC_RX_AVAILABLE = False
 
 # ── WebSocket state ─────────────────────────────────────────────────────────────
 _connections: set[WebSocket] = set()
 _log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
+_cv_stop: threading.Event = threading.Event()
+_cv_thread_handle: threading.Thread | None = None
+_camera_factory: Callable[[], Any] | None = None   # set in main() when --camera/--mock-camera
+_cv_settings: dict[str, Any] = {}
+_osc_server: Any = None
+_cv_status: dict[str, Any] = {"status": "unknown"}  # latest CV state; sent to new WS clients
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -117,6 +140,20 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        if _osc_server is not None:
+            _osc_server.shutdown()
+        # Signal CV thread to exit its pipeline loop, then wait for it to
+        # release the camera before the process exits — prevents the camera
+        # being left half-open for the next start.
+        _cv_stop.set()
+        if _cv_thread_handle is not None:
+            _cv_thread_handle.join(timeout=5.0)
+        for ws in list(_connections):
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        _connections.clear()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -203,7 +240,7 @@ async def post_pairs(request: Request):
 
 @app.get("/api/captcha-settings")
 async def get_captcha_settings():
-    return json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
+    return _load_settings()
 
 
 @app.post("/api/game-event")
@@ -244,6 +281,9 @@ async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
     _connections.add(websocket)
     try:
+        # Immediately push current CV state so clients don't have to wait for the next frame.
+        if _cv_status["status"] != "unknown":
+            await websocket.send_text(json.dumps(_cv_status))
         while True:
             await asyncio.sleep(10)
     except (WebSocketDisconnect, asyncio.CancelledError, Exception):
@@ -274,8 +314,19 @@ def broadcast(state: dict[str, Any]) -> None:
 
 def _cv_thread(camera: Any, settings: dict) -> None:
     """Runs blob detection in a daemon thread; publishes positions via broadcast()."""
+    try:
+        _cv_thread_inner(camera, settings)
+    except Exception as exc:
+        global _cv_status
+        _cv_status = {"status": "error", "error": str(exc)}
+        log.error("CV thread crashed: %s", exc, exc_info=True)
+        broadcast(_cv_status)
+
+
+def _cv_thread_inner(camera: Any, settings: dict) -> None:
     stab_cfg = settings.get("stabilizer", {})
     cam_cfg  = settings.get("camera", {})
+    det_cfg  = settings.get("detection", {})
 
     stabilizer_config = StabilizerConfig(
         max_match_dist_cm  = stab_cfg.get("max_match_dist_cm",  80.0),
@@ -295,25 +346,136 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         ),
     )
 
+    global _cv_status
     calib_frames = settings.get("calibration_frames", 60)
-    calibration = build_calibration(camera, calib_frames)
+    fps          = settings.get("camera", {}).get("fps", 10)
+    calib_timeout_s = max(30.0, calib_frames / fps * 5)
+    log.info("Calibrating (%d frames, timeout %.0f s)…", calib_frames, calib_timeout_s)
 
-    for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config):
-        broadcast({
+    calib_done = threading.Event()
+
+    def _calib_watchdog() -> None:
+        if not calib_done.wait(timeout=calib_timeout_s):
+            global _cv_status
+            msg = f"Calibration timed out after {calib_timeout_s:.0f} s — camera may not be streaming frames"
+            log.error(msg)
+            _cv_status = {"status": "error", "error": msg}
+            broadcast(_cv_status)
+
+    threading.Thread(target=_calib_watchdog, daemon=True).start()
+
+    calibrator = Calibrator(calib_frames)
+    frame_idx = 0
+    with camera:
+        for frame in camera.frames():
+            if _cv_stop.is_set():
+                log.info("Calibration interrupted by shutdown")
+                calib_done.set()
+                return  # camera closed cleanly by context manager exit
+            frame_idx += 1
+            if frame_idx == 1 or frame_idx % 10 == 0:
+                log.info("Calibrating… frame %d/%d", frame_idx, calib_frames)
+            _cv_status = {"status": "calibrating", "progress": frame_idx / calib_frames}
+            broadcast(_cv_status)
+            if calibrator.push_frame(frame):
+                break
+    calib_done.set()
+    calibration = calibrator.build()
+    log.info("Calibration complete")
+    _cv_status = {"status": "active", "blobs": []}
+    broadcast(_cv_status)
+
+    detection_config = DetectionConfig(
+        depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),
+        min_blob_pixels  = det_cfg.get("min_blob_pixels",  500),
+        min_depth_mm     = det_cfg.get("min_depth_mm",     500),
+        max_depth_mm     = det_cfg.get("max_depth_mm",     6000),
+    )
+
+    # Heartbeat: broadcast "active" and log every 5 s even when no blobs are detected,
+    # so clients don't get stuck on "waiting for camera" and journalctl shows activity.
+    def _heartbeat() -> None:
+        while not _cv_stop.is_set():
+            time.sleep(5.0)
+            if not _cv_stop.is_set():
+                log.info("camera alive")
+                broadcast({"status": "active", "blobs": []})
+
+    threading.Thread(target=_heartbeat, daemon=True).start()
+
+    frame_count = 0
+    t_last_log = time.monotonic()
+
+    for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config,
+                                detection_config=detection_config):
+        if _cv_stop.is_set():
+            break
+        frame_count += 1
+        now = time.monotonic()
+        if now - t_last_log >= 5.0:
+            log.info("camera active | frame=%d blobs=%d", frame_count, len(tracked))
+            t_last_log = now
+        msg = {
+            "status": "active",
             "blobs": [
                 {"id":  int(t.stable_id),
                  "x":   float(t.world_pos_cm[0]),
                  "y":   float(t.world_pos_cm[1]),
                  "z":   float(t.world_pos_cm[2])}
                 for t in tracked
-            ]
-        })
+            ],
+        }
+        _cv_status = msg
+        broadcast(msg)
+
+
+# ── CV pipeline restart ────────────────────────────────────────────────────────
+
+def _restart_cv_pipeline(reason: str = "unknown") -> None:
+    """Hard-restart: stop old CV thread, close camera, reopen, redo calibration."""
+    global _cv_stop, _cv_thread_handle
+    if _camera_factory is None:
+        log.warning("Restart requested but no camera configured — ignoring")
+        return
+    log.info("CV pipeline restart requested (%s)", reason)
+    _cv_stop.set()
+    if _cv_thread_handle and _cv_thread_handle.is_alive():
+        _cv_thread_handle.join(timeout=5.0)
+    _cv_stop.clear()
+    t = threading.Thread(target=_cv_thread, args=(_camera_factory(), _cv_settings), daemon=True)
+    t.start()
+    _cv_thread_handle = t
+    log.info("CV pipeline restarted")
+
+
+def _start_osc_server(port: int) -> None:
+    global _osc_server
+    if not _OSC_RX_AVAILABLE:
+        log.warning("python-osc not available — OSC listener disabled")
+        return
+    disp = _OscDispatcher()
+    disp.map(
+        "/captcha/restart",
+        lambda addr, *a: threading.Thread(target=_restart_cv_pipeline, args=("OSC",), daemon=True).start(),
+    )
+    srv = _OscServer(("0.0.0.0", port), disp)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    _osc_server = srv
+    log.info("OSC listening on 0.0.0.0:%d  (/captcha/restart)", port)
 
 
 # ── Dashboard endpoints ────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/restart")
+async def post_restart():
+    if _camera_factory is None:
+        return JSONResponse({"ok": False, "error": "No camera configured (server not started with --camera)"}, status_code=400)
+    threading.Thread(target=_restart_cv_pipeline, args=("HTTP POST /api/restart",), daemon=True).start()
     return JSONResponse({"ok": True})
 
 
@@ -349,9 +511,12 @@ def main() -> None:
                         help="Use mock camera — fake blobs, no hardware needed")
     args = parser.parse_args()
 
-    settings: dict = {}
-    if SETTINGS.exists():
-        settings = json.loads(SETTINGS.read_text())
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    settings = _load_settings()
 
     global _fabric
     if _FABRIC_AVAILABLE:
@@ -377,24 +542,41 @@ def main() -> None:
             sys.exit(1)
 
         cam_cfg = settings.get("camera", {})
-        if args.mock_camera:
-            camera: Any = MockCamera(
-                width  = cam_cfg.get("width",  640),
-                height = cam_cfg.get("height", 400),
-                fps    = cam_cfg.get("fps",     10),
-            )
-        else:
-            camera = OrbbecCamera(
+        use_mock = args.mock_camera
+
+        def _make_camera() -> Any:
+            if use_mock:
+                return MockCamera(
+                    width  = cam_cfg.get("width",  640),
+                    height = cam_cfg.get("height", 400),
+                    fps    = cam_cfg.get("fps",     10),
+                )
+            return OrbbecCamera(
                 serial = cam_cfg.get("serial") or None,
                 width  = cam_cfg.get("width",  640),
                 height = cam_cfg.get("height", 400),
                 fps    = cam_cfg.get("fps",     10),
             )
 
-        t = threading.Thread(target=_cv_thread, args=(camera, settings), daemon=True)
+        global _cv_thread_handle, _camera_factory, _cv_settings
+        _camera_factory = _make_camera
+        _cv_settings    = settings
+        t = threading.Thread(target=_cv_thread, args=(_make_camera(), settings), daemon=True)
         t.start()
-        mode = "mock" if args.mock_camera else "Orbbec"
+        _cv_thread_handle = t
+        mode = "mock" if use_mock else "Orbbec"
         log.info("CV %s camera thread started", mode)
+
+        # OSC inbound listener — accepts /captcha/restart to hard-restart the pipeline.
+        # Port from network.json captcha.osc_port (ADR-0007), default 9003.
+        osc_port = 9003
+        if _FABRIC_AVAILABLE:
+            try:
+                _net = load_network_config()
+                osc_port = _net.get("elements", {}).get("captcha", {}).get("osc_port", 9003)
+            except Exception:
+                pass
+        _start_osc_server(osc_port)
 
     import socket
     try:

@@ -16,3 +16,6 @@ scipy>=1.10
 
 # Orbbec camera SDK
 pyorbbecsdk2
+
+# ── Touch calibration (touch_calibration.py) ─────────────────────────────────
+pygame>=2.1

@@ -1,15 +1,26 @@
 {
-  "_comment": "FundingCAPTCHA runtime config. Edit screen_rect to match your physical install.",
+  "_comment": "FundingCAPTCHA runtime config.",
 
   "screen_rect": {
-    "_comment": "World-space region (cm) that maps to the full game grid. X=right (horizontal on screen), Z=up (height on screen). Calibrate z0/z1 on-site to match screen bottom and top.",
-    "x0": -150,
-    "x1":  150,
-    "z0":   50,
-    "z1":  200
+    "_comment": "Axis-aligned rect used only by the browser game JS layer (TouchInput). X=right, Z=up. Deleted when games move to pygame (which uses ScreenProjector + screen_corners directly).",
+    "x0": -89,
+    "x1":  73,
+    "z0":  39,
+    "z1":  67
+  },
+
+  "detection": {
+    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm must be small enough to catch a hand 1-5cm shallower than the Screen background.",
+    "depth_delta_mm":  10,
+    "min_blob_pixels": 500,
+    "min_depth_mm":    500,
+    "max_depth_mm":    6000
   },
 
   "blob_dwell_frames": 3,
+
+  "_comment_max_plane_dist_cm": "Max distance (cm) in front of calibrated screen plane to register a touch. Tune down toward 5-10cm once calibration plane matches the physical screen surface.",
+  "max_plane_dist_cm": 30,
 
   "calibration_frames": 60,
 
@@ -27,6 +38,6 @@
     "height":  400,
     "fps":     10,
     "pos_cm":  [0, 0, 0],
-    "rotation": { "pitch": 0, "yaw": 0, "roll": 180 }
+    "rotation": { "pitch": 10, "yaw": 0, "roll": 180 }
   }
 }
