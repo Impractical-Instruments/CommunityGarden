@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -351,10 +352,18 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         max_depth_mm     = det_cfg.get("max_depth_mm",     6000),
     )
 
+    frame_count = 0
+    t_last_log = time.monotonic()
+
     for tracked in run_pipeline(camera, cam_tf, calibration, stabilizer_config,
                                 detection_config=detection_config):
         if _cv_stop.is_set():
             break
+        frame_count += 1
+        now = time.monotonic()
+        if now - t_last_log >= 5.0:
+            log.info("camera active | frame=%d blobs=%d", frame_count, len(tracked))
+            t_last_log = now
         broadcast({
             "blobs": [
                 {"id":  int(t.stable_id),

@@ -276,6 +276,7 @@ def run(args: argparse.Namespace) -> None:
         log.info("Calibration saved to %s", calib_path)
 
     calibration_state = "calibrated"
+    log.info("calibration_state=%s", calibration_state)
 
     # --- outer restart loop (re-entered after layout calibration) ---
     while _running:
@@ -349,6 +350,7 @@ def run(args: argparse.Namespace) -> None:
             calibration_state = run_layout_calibration(
                 raw_settings, args.config, camera_transform, broadcast, args.mock_camera
             )
+            log.info("calibration_state=%s", calibration_state)
             # Reload depth calibration (camera was re-opened by RGB calibrator)
             if calib_path.exists():
                 try:
