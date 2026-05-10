@@ -1,17 +1,9 @@
 {
   "_comment": "FundingCAPTCHA runtime config.",
 
-  "screen_rect": {
-    "_comment": "Axis-aligned rect used only by the browser game JS layer (TouchInput). X=right, Z=up. Deleted when games move to pygame (which uses ScreenProjector + screen_corners directly).",
-    "x0": -89,
-    "x1":  73,
-    "z0":  39,
-    "z1":  67
-  },
-
   "detection": {
-    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm must be small enough to catch a hand 1-5cm shallower than the Screen background.",
-    "depth_delta_mm":  10,
+    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm catches hands 1-5cm shallower than Screen background.",
+    "depth_delta_mm":  25,
     "min_blob_pixels": 500,
     "min_depth_mm":    500,
     "max_depth_mm":    2000
