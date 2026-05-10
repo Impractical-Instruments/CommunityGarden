@@ -4,9 +4,9 @@ Touch detection in FundingCAPTCHA maps raw world-space blob positions (cm, from 
 
 ## Architecture
 
-**Calibration** (`touch_calibration.py --camera` or `--mock-camera`):
+**Calibration** (integrated into `app.py`):
 
-The calibration tool enters corner-capture mode when `screen_corners` in `captcha-settings.json` are null or `--recalibrate` is passed. A Player touches each of three Screen corners in order (BOTTOM-LEFT → BOTTOM-RIGHT → TOP-LEFT); the tool detects the blob, waits for dwell stability, then writes the world-space coordinates directly to `captcha-settings.json`. No manual transcription required.
+Calibration runs automatically at startup if no saved calibration exists, or when the operator presses R. It is a state inside the unified app — not a separate tool. The app enters `BG_CAL` state (solid black frame, camera collects background model), then `CORNER_CAL` state (operator touches three screen corners in order: BOTTOM-LEFT → BOTTOM-RIGHT → TOP-LEFT). When all three corners are accepted, coordinates are written to `captcha-settings.local.json` and the app transitions to `LIVE`. Corner coordinates persist across restarts; the background model is rebuilt on each startup.
 
 **Projection** (`ScreenProjector`):
 
@@ -18,16 +18,17 @@ The calibration tool enters corner-capture mode when `screen_corners` in `captch
 
 (u, v) maps to (col, row) with v=1 at the top of the Screen (row 0). Games define their own grid dimensions; `ScreenProjector.uv_to_cell()` does the conversion.
 
-**Pygame games** will consume `ScreenProjector` directly — calibrate once, project each frame, map to grid cells. No additional coordinate config needed at the game layer.
+**Pygame games** consume `ScreenProjector` directly — calibrate once, project each frame, map to grid cells. No additional coordinate config needed at the game layer.
 
 ## The `screen_rect` field
 
-`captcha-settings.json` also contains a `screen_rect` (axis-aligned x0/x1/z0/z1 box). This is consumed only by the browser-game JS layer (`TouchInput`), which uses a simpler 2D axis-aligned mapping. It will be deleted when the browser games are replaced by pygame games. It is not derived from `screen_corners` and does not need to stay in sync once the migration is complete.
+`captcha-settings.json` previously contained a `screen_rect` (axis-aligned x0/x1/z0/z1 box) consumed only by the browser-game JS layer. The browser games have been replaced by native pygame games that use `ScreenProjector` directly. `screen_rect` has been removed.
 
 ## Consequences
 
 - Three physical corner measurements fully define the Screen's geometry for all subsequent runtime projection.
-- `ScreenProjector` is the single projection implementation; pygame games should import and reuse it rather than duplicating the mapping logic.
+- `ScreenProjector` is the single projection implementation; pygame games import and reuse it rather than duplicating the mapping logic.
 - `min_depth_mm` / `max_depth_mm` in the `detection` section bound the depth range the CV pipeline considers; tuned for the ~3-foot projector standoff distance.
-- `max_plane_dist_cm` (settings + `--max-plane-dist` CLI arg, default 30 cm) gates touch registration to blobs within that distance in front of the calibrated screen plane. Tune toward 5–10 cm once the calibration plane aligns with the physical screen surface. Blobs behind the plane (d ≤ 0) are always rejected. Pygame games that import `ScreenProjector` opt in to this filter by calling `in_bounds_3d(xyz, max_dist)` instead of `in_bounds(u, v)`.
-- If the Screen is physically moved or the camera is remounted, run `touch_calibration.py --recalibrate`. This sends `/captcha/restart` via OSC (port 9003) to trigger a hard camera restart and background re-calibration in server.py without restarting the service. The OSC message can also be sent from any OSC sender on the local network.
+- `max_plane_dist_cm` (settings + `--max-plane-dist` CLI arg, default 10 cm) gates touch registration to blobs within that distance in front of the calibrated screen plane. Blobs behind the plane (d ≤ 0) are always rejected.
+- If the Screen is physically moved or the camera is remounted, press R in `app.py` to wipe the saved calibration and redo both BG_CAL and CORNER_CAL. This also triggers a background model rebuild.
+- The background model is rebuilt on every startup (not persisted to disk). Corner coordinates are persisted. This means the projector must be displaying black at startup — `app.py` handles this automatically.
