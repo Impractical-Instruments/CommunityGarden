@@ -277,9 +277,8 @@ class BlobTracker:
             cal.noise_floor.astype(np.int32) * _NOISE_SIGMA,
         )
         fg_from_valid = bg_valid & bg_closer & (delta > threshold)
-        fg_from_invalid = (~cal.valid_mask) & in_range
 
-        fg[fg_from_valid | fg_from_invalid] = 255
+        fg[fg_from_valid] = 255
         return fg
 
     def _majority_filter(self, foreground: np.ndarray) -> np.ndarray:
