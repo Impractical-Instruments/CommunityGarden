@@ -108,15 +108,17 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Prototype being developed with a youth group; final version to follow.
+**Status:** Games designed with youth group; pygame implementation in progress. Festival debut May 29.
 
 **What it does:** A 7-foot kiosk styled as a CRT monitor running a suite of increasingly frustrating CAPTCHA-inspired touch-screen games. Visitors must "prove their humanity" to progress.
 
-**Touch screen approach:** Front-projection onto the kiosk face using a BenQ LH830ST short-throw laser projector, with Orbbec depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). **Touch detection untested as of 2026-05-07 — Week 1 priority (see issue #73).**
+**Touch screen approach:** Front-projection onto the kiosk face using a BenQ LH830ST short-throw laser projector, with Orbbec depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). See ADR-0004 and ADR-0011.
 
-**Prototype vs. final:**
-- Prototype: browser-based games, standard display, being built with youth group as a creative/educational process
-- Final: same game logic, camera/projector touch screen, CRT kiosk enclosure
+**Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, touch calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
+
+**Games (pygame):** UpsideDown, Rhythm, Keepaway. All must self-terminate on inactivity (see ADR-0003).
+
+**Photos:** Kid-designed images for UpsideDown are versioned with git LFS in `uploads/`. No upload endpoint — operator syncs locally before show. Pairings configured in `pairs.json`.
 
 **OSC output to fabric:**
 - TBD — activity signals (game started, game completed, game failed, frustration level) for TreeHouse to consume
