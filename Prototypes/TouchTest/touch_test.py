@@ -70,9 +70,9 @@ class Config:
     cam_w: int         = 640
     cam_h: int         = 400
     cam_fps: int       = 30
-    screen_w_cm: float = 150.0
-    screen_h_cm: float = 80.0
-    cols: int          = 5
+    screen_w_cm: float = 162.56
+    screen_h_cm: float = 121.92
+    cols: int          = 4
     rows: int          = 4
     hover_mm: int      = 20
     bg_frames: int     = 60
