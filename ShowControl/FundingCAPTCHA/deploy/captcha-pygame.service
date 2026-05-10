@@ -1,0 +1,21 @@
+[Unit]
+Description=FundingCAPTCHA pygame kiosk
+After=captcha.service graphical.target
+Wants=captcha.service
+
+[Service]
+Environment=DISPLAY=:0
+# Wait until the server is up before starting the pygame client
+ExecStartPre=/bin/sh -c 'until curl -sf http://localhost:8080/health > /dev/null 2>&1; do sleep 1; done'
+ExecStart=/usr/bin/python3 /home/pi/CommunityGarden/ShowControl/FundingCAPTCHA/captcha.py --camera
+WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+User=pi
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=captcha-pygame
+
+[Install]
+WantedBy=graphical.target

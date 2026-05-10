@@ -3,19 +3,18 @@
 FundingCAPTCHA server — FastAPI + uvicorn.
 
 Usage:
-  python server.py [port]                # browser pointer-only (default 8080)
+  python server.py [port]                # default 8080
   python server.py --mock-camera         # mock blobs via WebSocket (no hardware)
   python server.py --camera              # real Orbbec depth camera
 
 Endpoints:
-  GET  /                       → index.html (kiosk game)
   GET  /upload.html            → kid photo upload page
   GET  /gallery.html           → organiser pairing tool
   POST /upload                 → save base64 photo to uploads/
   GET  /api/photos             → list uploaded photos
   GET  /api/pairs              → Upside Down pairs config
   POST /api/pairs              → save pairs config
-  GET  /api/captcha-settings   → floor rect + camera config (for browser blob mapping)
+  POST /api/game-event         → relay game state to OSC fabric
   WS   /ws                     → pushes {blobs:[{id,x,y}]} when CV thread is running
 """
 
@@ -236,11 +235,6 @@ async def post_pairs(request: Request):
         return {"ok": True, "count": len(pairs)}
     except Exception as e:
         return {"ok": False, "error": str(e)}
-
-
-@app.get("/api/captcha-settings")
-async def get_captcha_settings():
-    return _load_settings()
 
 
 @app.post("/api/game-event")
@@ -495,7 +489,9 @@ async def logs_endpoint(websocket: WebSocket):
             _log_queues.remove(q)
 
 
-# ── Static files (catch-all — must be registered last) ────────────────────────
+# ── Static files ──────────────────────────────────────────────────────────────
+# Serves organiser tools (upload.html, gallery.html) and uploaded photos.
+# The kiosk is now captcha.py (pygame), not a browser page.
 app.mount("/", StaticFiles(directory=str(DIR), html=True), name="static")
 
 

@@ -17,5 +17,7 @@ scipy>=1.10
 # Orbbec camera SDK
 pyorbbecsdk2
 
-# ── Touch calibration (touch_calibration.py) ─────────────────────────────────
+# ── pygame client (captcha.py) + touch calibration ───────────────────────────
 pygame>=2.1
+moderngl>=5.8
+requests>=2.28

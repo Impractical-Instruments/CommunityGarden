@@ -22,7 +22,7 @@ Each show-control element runs as a systemd service with `Restart=always` and `R
 | `flowerbeds` | FlowerBeds | `ShowControl/FlowerBeds/main.py` | 8765 (viz) | 192.168.1.11 |
 | `treehouse` | TreeHouse | `ShowControl/TreeHouse/main.py` | 8766 (viz) | 192.168.1.10 |
 | `captcha` | FundingCAPTCHA | `ShowControl/FundingCAPTCHA/server.py` | 8080 | 192.168.1.12 |
-| `captcha-kiosk` | FundingCAPTCHA kiosk | Chromium (kiosk mode) | — | 192.168.1.12 |
+| `captcha-pygame` | FundingCAPTCHA kiosk | pygame (fullscreen) | — | 192.168.1.12 |
 | `cg-dashboard` | Show Dashboard | `ShowControl/Dashboard/serve.py` | 9000 | 192.168.1.10 |
 
 Playing the Pipes does not yet have a service file; one will be added once the element stub exists.
@@ -88,7 +88,8 @@ python main.py --config settings.json
 ### FundingCAPTCHA
 ```bash
 cd ShowControl/FundingCAPTCHA
-python server.py
+python server.py        # blob server + organiser tools (upload.html, gallery.html)
+python captcha.py       # pygame kiosk (separate terminal or service)
 ```
 
 ---
@@ -101,12 +102,14 @@ Every element has a dev mode — no camera, no LEDs, no servos required.
 |---|---|
 | TreeHouse | `--no-pico` |
 | FlowerBeds | `--mock-camera --no-osc` |
-| FundingCAPTCHA | `--mock-camera` |
+| FundingCAPTCHA | server: `--mock-camera`; client: `--mock-camera` or omit (mouse) |
 
 ```bash
 python main.py --no-pico                    # TreeHouse, no Pico
 python main.py --mock-camera --no-osc       # FlowerBeds, no camera or servos
-python server.py --mock-camera              # FundingCAPTCHA, no depth camera
+python server.py --mock-camera              # FundingCAPTCHA server, fake blobs
+python captcha.py --mock-camera            # FundingCAPTCHA pygame client, connect to mock-camera WS
+python captcha.py                          # FundingCAPTCHA pygame client, mouse-click mode (no server needed)
 ```
 
 ---
@@ -243,9 +246,11 @@ Record the serial numbers in `ShowControl/network.json` under `"firmware"` so th
 
 ### FundingCAPTCHA
 
-- **Hardware:** Orbbec depth camera (USB, optional), Chromium kiosk browser
-- **Services:** Two units — `captcha` (Python server) and `captcha-kiosk` (Chromium browser). The kiosk waits for the server to respond before opening.
-- **Flags:** Edit `/etc/systemd/system/captcha.service` to change `--camera` → `--mock-camera` (no hardware) or remove it entirely (pointer-only mode)
+- **Hardware:** Orbbec depth camera (USB, optional)
+- **Services:** Two units — `captcha` (FastAPI blob server) and `captcha-pygame` (pygame fullscreen kiosk). The pygame unit waits for the server `/health` before starting.
+- **Server flags:** Edit `/etc/systemd/system/captcha.service` to change `--camera` → `--mock-camera` (no hardware)
+- **Client flags:** Edit `/etc/systemd/system/captcha-pygame.service` to change `--camera` → `--mock-camera` or omit for mouse mode
+- **Organiser tools:** Upload photos at `http://192.168.1.12:8080/upload.html`; pair them at `http://192.168.1.12:8080/gallery.html`
 - **Uploads:** Photos saved to `ShowControl/FundingCAPTCHA/uploads/`
 
 ### Show Dashboard

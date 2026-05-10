@@ -18,11 +18,11 @@ The calibration tool enters corner-capture mode when `screen_corners` in `captch
 
 (u, v) maps to (col, row) with v=1 at the top of the Screen (row 0). Games define their own grid dimensions; `ScreenProjector.uv_to_cell()` does the conversion.
 
-**Pygame games** will consume `ScreenProjector` directly — calibrate once, project each frame, map to grid cells. No additional coordinate config needed at the game layer.
+**Pygame games** consume `ScreenProjector` directly via `touch_input.py` — calibrate once, project each frame, map to grid cells. No additional coordinate config needed at the game layer.
 
 ## The `screen_rect` field
 
-`captcha-settings.json` also contains a `screen_rect` (axis-aligned x0/x1/z0/z1 box). This is consumed only by the browser-game JS layer (`TouchInput`), which uses a simpler 2D axis-aligned mapping. It will be deleted when the browser games are replaced by pygame games. It is not derived from `screen_corners` and does not need to stay in sync once the migration is complete.
+`captcha-settings.json` contains a legacy `screen_rect` (axis-aligned x0/x1/z0/z1 box). It was consumed only by the now-removed browser JS `TouchInput` layer. It is safe to delete from `captcha-settings.json`; the pygame client ignores it.
 
 ## Consequences
 
