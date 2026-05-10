@@ -470,8 +470,6 @@ def main() -> None:
                          "(default: from settings max_plane_dist_cm, else 30)")
     ap.add_argument("--recalibrate", action="store_true",
                     help="Wipe saved corners and redo corner calibration")
-    ap.add_argument("--osc-port",   type=int, default=9003, metavar="N",
-                    help="OSC port server.py listens on for /captcha/restart (default: 9003)")
     args = ap.parse_args()
 
     # Parse fallback aspect ratio
@@ -502,15 +500,25 @@ def main() -> None:
     projector: ScreenProjector | None = None
     corner_cal: CornerCal | None = None
 
-    server_host = urlparse(args.server).hostname or "localhost"
+    _parsed     = urlparse(args.server)
+    server_host = _parsed.hostname or "localhost"
+    server_port = _parsed.port or 8080
 
     def _send_osc_restart() -> None:
+        """HTTP POST to /api/restart — same host/port as WebSocket, no separate OSC port needed."""
+        import http.client
+        url = f"http://{server_host}:{server_port}/api/restart"
         try:
-            from pythonosc.udp_client import SimpleUDPClient
-            SimpleUDPClient(server_host, args.osc_port).send_message("/captcha/restart", [])
-            print(f"Sent /captcha/restart to {server_host}:{args.osc_port}")
+            conn = http.client.HTTPConnection(server_host, server_port, timeout=5)
+            conn.request("POST", "/api/restart")
+            resp = conn.getresponse()
+            body = json.loads(resp.read())
+            if body.get("ok"):
+                print(f"Restart requested: {url}")
+            else:
+                print(f"Warning: server restart failed: {body.get('error')}", file=sys.stderr)
         except Exception as exc:
-            print(f"Warning: could not send OSC restart: {exc}", file=sys.stderr)
+            print(f"Warning: could not reach {url}: {exc}", file=sys.stderr)
 
     if args.recalibrate:
         _send_osc_restart()

@@ -431,13 +431,13 @@ def _cv_thread_inner(camera: Any, settings: dict) -> None:
 
 # ── CV pipeline restart ────────────────────────────────────────────────────────
 
-def _restart_cv_pipeline() -> None:
+def _restart_cv_pipeline(reason: str = "unknown") -> None:
     """Hard-restart: stop old CV thread, close camera, reopen, redo calibration."""
     global _cv_stop, _cv_thread_handle
     if _camera_factory is None:
         log.warning("Restart requested but no camera configured — ignoring")
         return
-    log.info("CV pipeline restart requested via OSC")
+    log.info("CV pipeline restart requested (%s)", reason)
     _cv_stop.set()
     if _cv_thread_handle and _cv_thread_handle.is_alive():
         _cv_thread_handle.join(timeout=5.0)
@@ -456,7 +456,7 @@ def _start_osc_server(port: int) -> None:
     disp = _OscDispatcher()
     disp.map(
         "/captcha/restart",
-        lambda addr, *a: threading.Thread(target=_restart_cv_pipeline, daemon=True).start(),
+        lambda addr, *a: threading.Thread(target=_restart_cv_pipeline, args=("OSC",), daemon=True).start(),
     )
     srv = _OscServer(("0.0.0.0", port), disp)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -468,6 +468,14 @@ def _start_osc_server(port: int) -> None:
 
 @app.get("/health")
 async def health():
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/restart")
+async def post_restart():
+    if _camera_factory is None:
+        return JSONResponse({"ok": False, "error": "No camera configured (server not started with --camera)"}, status_code=400)
+    threading.Thread(target=_restart_cv_pipeline, args=("HTTP POST /api/restart",), daemon=True).start()
     return JSONResponse({"ok": True})
 
 
