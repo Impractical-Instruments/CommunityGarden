@@ -9,21 +9,17 @@ Usage:
   python touch_test_pygame.py
   python touch_test_pygame.py --server ws://192.168.1.5:8080/ws
   python touch_test_pygame.py --cols 4 --rows 3
-  python touch_test_pygame.py --aspect 4:3 --dwell 3
+  python touch_test_pygame.py --recalibrate
 
-Without screen_corners in captcha-settings.json, the tool still shows blob
-world-space positions so you can determine corner coordinates by touch.
+Corner calibration:
+  If screen_corners are missing or --recalibrate is passed, the tool enters
+  an interactive calibration mode. Touch each screen corner in order
+  (BOTTOM-LEFT → BOTTOM-RIGHT → TOP-LEFT) and hold still; the tool detects
+  the blob, waits for dwell stability, then saves coordinates automatically.
 
-Once you have the three corner coordinates, add to captcha-settings.json:
-  "screen_corners": {
-    "bottom_left":  [x, y, z],
-    "bottom_right": [x, y, z],
-    "top_left":     [x, y, z]
-  }
-  Units: cm. World space: X=right, Y=forward, Z=up.
-  The fourth corner (top_right) is derived.
-
-Press Q or Escape to quit.
+Keys:
+  Q / Escape — quit
+  R          — wipe corners, restart calibration
 """
 
 from __future__ import annotations
@@ -31,9 +27,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import queue
 import sys
 import threading
+from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
@@ -56,6 +54,99 @@ ORANGE   = (240, 130,   0)
 RED      = (220,  40,  40)
 
 FPS = 30
+
+
+class State(Enum):
+    CORNER_CAL = auto()
+    LIVE       = auto()
+
+
+# ── Corner calibration ────────────────────────────────────────────────────────
+
+# Order matches captcha-settings.json keys; ScreenProjector needs exactly these three.
+_CAL_CORNERS   = ["BOTTOM-LEFT", "BOTTOM-RIGHT", "TOP-LEFT"]
+_CAL_KEYS      = ["bottom_left", "bottom_right", "top_left"]
+# UV position of each corner on the grid display (u=0 left, u=1 right, v=0 bottom, v=1 top)
+_CAL_CORNER_UV = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]
+
+
+class CornerCal:
+    """
+    Detects three screen corners from server blobs (world-space cm).
+
+    Requires exactly one blob at a time. When it has been stable within
+    stable_cm for dwell_frames consecutive frames, the position is accepted.
+    """
+
+    def __init__(self, dwell_frames: int, stable_cm: float = 15.0) -> None:
+        self._dwell      = max(1, dwell_frames)
+        self._stable     = stable_cm
+        self.idx         = 0
+        self._pts: list[list[float]] = []
+        self._last_xyz: list[float] | None = None
+        self._df         = 0
+        self.just_accepted  = False
+        self.detected_xyz: list[float] | None = None
+        self.blob_count   = 0
+
+    @property
+    def name(self) -> str:
+        return _CAL_CORNERS[self.idx] if not self.done else "Done!"
+
+    @property
+    def done(self) -> bool:
+        return len(self._pts) == 3
+
+    @property
+    def dwell_progress(self) -> float:
+        return min(1.0, self._df / self._dwell)
+
+    def push_blobs(self, blobs: list[dict]) -> None:
+        self.just_accepted = False
+        self.detected_xyz  = None
+        self.blob_count    = len(blobs)
+        if self.done:
+            return
+
+        if len(blobs) != 1:
+            self._last_xyz = None
+            self._df       = 0
+            return
+
+        xyz = [blobs[0]["x"], blobs[0]["y"], blobs[0]["z"]]
+        self.detected_xyz = xyz
+
+        if self._last_xyz is None:
+            moved = True
+        else:
+            dist  = math.sqrt(sum((a - b) ** 2 for a, b in zip(xyz, self._last_xyz)))
+            moved = dist > self._stable
+
+        if moved:
+            self._last_xyz = xyz
+            self._df       = 1
+        else:
+            self._df += 1
+
+        if self._df >= self._dwell:
+            self._pts.append(xyz[:])
+            self.idx      += 1
+            self._last_xyz = None
+            self._df       = 0
+            self.just_accepted = True
+
+    def result(self) -> dict:
+        assert self.done
+        return {k: v for k, v in zip(_CAL_KEYS, self._pts)}
+
+    def reset(self) -> None:
+        self.idx          = 0
+        self._pts         = []
+        self._last_xyz    = None
+        self._df          = 0
+        self.just_accepted = False
+        self.detected_xyz  = None
+        self.blob_count    = 0
 
 
 # ── Screen projection ──────────────────────────────────────────────────────────
@@ -245,18 +336,115 @@ def draw_blob_dot(surf: pygame.Surface, px: int, py: int,
     pygame.draw.circle(surf, WHITE,  (px, py), radius, 2)
 
 
+def draw_dwell_arc(surf: pygame.Surface, cx: int, cy: int,
+                   progress: float, radius: int = 36) -> None:
+    if progress <= 0:
+        return
+    angle = int(progress * 360)
+    for a in range(0, angle, 4):
+        rad = math.radians(a - 90)
+        ex  = int(cx + radius * math.cos(rad))
+        ey  = int(cy + radius * math.sin(rad))
+        pygame.draw.circle(surf, GREEN, (ex, ey), 3)
+
+
+def draw_corner_cal(
+    surf: pygame.Surface,
+    fonts: dict,
+    WW: int, WH: int,
+    gx: int, gy: int, gw: int, gh: int,
+    cal: CornerCal,
+) -> None:
+    pygame.draw.rect(surf, DK_GREY, (gx, gy, gw, gh))
+    pygame.draw.rect(surf, MID_GREY, (gx, gy, gw, gh), 2)
+
+    if not cal.done:
+        # Pulsing ring at the target grid corner
+        u, v   = _CAL_CORNER_UV[cal.idx]
+        tx, ty = uv_to_px(u, v, gx, gy, gw, gh)
+        pulse  = int(abs(pygame.time.get_ticks() % 1000 - 500) / 500 * 60 + 195)
+        pygame.draw.circle(surf, (pulse, pulse, 0), (tx, ty), 28, 4)
+        pygame.draw.circle(surf, YELLOW, (tx, ty), 7)
+        draw_dwell_arc(surf, tx, ty, cal.dwell_progress)
+
+    # Previously accepted corners
+    for i in range(cal.idx):
+        u, v   = _CAL_CORNER_UV[i]
+        px, py = uv_to_px(u, v, gx, gy, gw, gh)
+        pygame.draw.circle(surf, GREEN, (px, py), 10)
+        lbl = fonts["sml"].render(f"✓ {_CAL_CORNERS[i]}", True, GREEN)
+        surf.blit(lbl, (px + 14, py - 9))
+
+    # Title
+    msg = (f"Touch {cal.name} corner  ({min(cal.idx + 1, 3)}/3)"
+           if not cal.done else "Calibration complete!")
+    t1  = fonts["big"].render(msg, True, YELLOW)
+    surf.blit(t1, (WW // 2 - t1.get_width() // 2, 18))
+
+    # Blob status
+    if cal.detected_xyz is not None:
+        x, y, z = cal.detected_xyz
+        info = fonts["sml"].render(
+            f"blob  x={x:+.1f}  y={y:+.1f}  z={z:+.1f} cm  |  hold still…",
+            True, CYAN)
+        surf.blit(info, (WW // 2 - info.get_width() // 2, 62))
+    elif cal.blob_count == 0:
+        t = fonts["sml"].render("No blob detected — step into camera view", True, LT_GREY)
+        surf.blit(t, (WW // 2 - t.get_width() // 2, 62))
+    else:
+        t = fonts["sml"].render(
+            f"{cal.blob_count} blobs detected — one person only", True, ORANGE)
+        surf.blit(t, (WW // 2 - t.get_width() // 2, 62))
+
+    # Dwell bar
+    prog = cal.dwell_progress
+    bw   = 320
+    bx   = WW // 2 - bw // 2
+    by   = WH - 44
+    pygame.draw.rect(surf, MID_GREY, (bx, by, bw, 18))
+    pygame.draw.rect(surf, GREEN,    (bx, by, int(bw * prog), 18))
+    pygame.draw.rect(surf, WHITE,    (bx, by, bw, 18), 1)
+
+    # Sub-instruction
+    sub = fonts["sml"].render("R=restart  Q=quit", True, LT_GREY)
+    surf.blit(sub, (WW // 2 - sub.get_width() // 2, WH - 20))
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
+
+def _projector_from_corners(corners: dict) -> ScreenProjector | None:
+    """Build a ScreenProjector from a settings corners dict; returns None on failure."""
+    if not corners:
+        return None
+    if not all(corners.get(k) is not None for k in ("bottom_left", "bottom_right", "top_left")):
+        return None
+    try:
+        return ScreenProjector(
+            corners["bottom_left"],
+            corners["bottom_right"],
+            corners["top_left"],
+        )
+    except Exception as exc:
+        print(f"Warning: bad screen_corners: {exc}", file=sys.stderr)
+        return None
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="FundingCAPTCHA pygame touch tester")
-    ap.add_argument("--server", default="ws://localhost:8080/ws", metavar="URL",
+    ap.add_argument("--server",      default="ws://localhost:8080/ws", metavar="URL",
                     help="WebSocket URL of running server.py")
-    ap.add_argument("--cols",   type=int, default=5,   metavar="N")
-    ap.add_argument("--rows",   type=int, default=4,   metavar="N")
-    ap.add_argument("--aspect", default="4:3",          metavar="W:H",
+    ap.add_argument("--cols",        type=int, default=5,   metavar="N")
+    ap.add_argument("--rows",        type=int, default=4,   metavar="N")
+    ap.add_argument("--aspect",      default="4:3",          metavar="W:H",
                     help="Fallback screen aspect ratio (used when screen_corners absent)")
-    ap.add_argument("--dwell",  type=int, default=None, metavar="N",
+    ap.add_argument("--dwell",       type=int, default=None, metavar="N",
                     help="Frames to confirm a tap (default: from settings, else 3)")
+    ap.add_argument("--cal-dwell",   type=int, default=20,   metavar="N",
+                    help="Frames blob must be stable to accept a calibration corner (~2s at 10fps)")
+    ap.add_argument("--stable-cm",   type=float, default=15.0, metavar="CM",
+                    help="Max blob movement (cm) allowed during corner dwell")
+    ap.add_argument("--recalibrate", action="store_true",
+                    help="Wipe saved corners and redo corner calibration")
     args = ap.parse_args()
 
     # Parse fallback aspect ratio
@@ -275,36 +463,41 @@ def main() -> None:
         except Exception as exc:
             print(f"Warning: {SETTINGS_PATH}: {exc}", file=sys.stderr)
 
-    # Screen projector (optional until corners are configured)
+    dwell_frames = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
+
+    # Determine initial state
     projector: ScreenProjector | None = None
-    corners = settings.get("screen_corners")
-    # Treat null placeholder values as absent
-    if corners and all(corners.get(k) is not None for k in ("bottom_left", "bottom_right", "top_left")):
-        try:
-            projector = ScreenProjector(
-                corners["bottom_left"],
-                corners["bottom_right"],
-                corners["top_left"],
-            )
-        except Exception as exc:
-            print(f"Warning: bad screen_corners: {exc}", file=sys.stderr)
+    corner_cal: CornerCal | None = None
+
+    if args.recalibrate:
+        if isinstance(settings.get("screen_corners"), dict):
+            settings["screen_corners"] = {k: None for k in _CAL_KEYS}
+            SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+
+    projector = _projector_from_corners(settings.get("screen_corners"))
+    if projector is None:
+        state      = State.CORNER_CAL
+        corner_cal = CornerCal(args.cal_dwell, args.stable_cm)
+    else:
+        state = State.LIVE
 
     aspect = projector.aspect if projector else fallback_aspect
 
-    dwell_frames = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
-
     # Pygame
     pygame.init()
-    info  = pygame.display.Info()
+    info   = pygame.display.Info()
     WW, WH = info.current_w, info.current_h
     screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
     pygame.display.set_caption("Touch Tester")
     pygame.mouse.set_visible(False)
-    clock = pygame.time.Clock()
+    clock  = pygame.time.Clock()
 
-    font_hud = pygame.font.SysFont("monospace", 20, bold=True)
-    font_lbl = pygame.font.SysFont("monospace", 18)
-    font_big = pygame.font.SysFont("monospace", 32, bold=True)
+    fonts = {
+        "big": pygame.font.SysFont("monospace", 32, bold=True),
+        "med": pygame.font.SysFont("monospace", 24, bold=True),
+        "sml": pygame.font.SysFont("monospace", 18),
+        "hud": pygame.font.SysFont("monospace", 20, bold=True),
+    }
 
     gx, gy, gw, gh = letterbox(WW, WH, aspect)
 
@@ -318,15 +511,26 @@ def main() -> None:
         daemon=True,
     ).start()
 
-    dwell         = DwellTracker(dwell_frames)
+    dwell          = DwellTracker(dwell_frames)
     current_blobs: list[dict] = []
 
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 stop.set(); pygame.quit(); sys.exit(0)
-            if event.type == pygame.KEYDOWN and event.key in (pygame.K_q, pygame.K_ESCAPE):
-                stop.set(); pygame.quit(); sys.exit(0)
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_q, pygame.K_ESCAPE):
+                    stop.set(); pygame.quit(); sys.exit(0)
+                elif event.key == pygame.K_r:
+                    # Wipe corners from settings file and restart calibration
+                    if isinstance(settings.get("screen_corners"), dict):
+                        settings["screen_corners"] = {k: None for k in _CAL_KEYS}
+                        SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+                    projector  = None
+                    corner_cal = CornerCal(args.cal_dwell, args.stable_cm)
+                    state      = State.CORNER_CAL
+                    dwell      = DwellTracker(dwell_frames)
+                    gx, gy, gw, gh = letterbox(WW, WH, fallback_aspect)
 
         # Drain to latest blob frame
         try:
@@ -335,102 +539,115 @@ def main() -> None:
         except queue.Empty:
             pass
 
-        # ── Project blobs ────────────────────────────────────────────────────
-        live_cells: list[tuple[int, int, int]] = []
-        blob_info:  list[dict]                 = []
-
-        for b in current_blobs:
-            xyz = [b["x"], b["y"], b["z"]]
-            if projector:
-                u, v   = projector.project(xyz)
-                in_b   = projector.in_bounds(u, v)
-                col, row = projector.uv_to_cell(u, v, args.cols, args.rows) if in_b else (None, None)
-                if in_b:
-                    live_cells.append((b["id"], col, row))
-            else:
-                u = v = None
-                in_b  = False
-                col = row = None
-            blob_info.append({"id": b["id"], "xyz": xyz,
-                               "u": u, "v": v, "in_bounds": in_b,
-                               "col": col, "row": row})
-
-        dwell.update(live_cells)
-
-        # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(BLACK)
-        draw_grid(screen, gx, gy, gw, gh, args.cols, args.rows)
 
-        if not projector:
-            # Prompt: tell user what's missing
-            m1 = font_big.render("screen_corners not configured", True, YELLOW)
-            m2 = font_lbl.render("Touch screen corners and read world coords below,", True, LT_GREY)
-            m3 = font_lbl.render(f"then set screen_corners in {SETTINGS_PATH.name}", True, LT_GREY)
-            cx = gx + gw // 2
-            cy = gy + gh // 2
-            screen.blit(m1, (cx - m1.get_width() // 2, cy - 50))
-            screen.blit(m2, (cx - m2.get_width() // 2, cy + 10))
-            screen.blit(m3, (cx - m3.get_width() // 2, cy + 38))
+        # ── Corner calibration state ──────────────────────────────────────────
+        if state == State.CORNER_CAL:
+            assert corner_cal is not None
+            corner_cal.push_blobs(current_blobs)
 
-        # Cell highlights
-        for col, row in dwell.immediate:
-            highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
-                           col, row, CYAN, 55)
-        for col, row in dwell.flashing:
-            highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
-                           col, row, CYAN, 190)
+            if corner_cal.just_accepted and not corner_cal.done:
+                print(f"  ✓ {_CAL_CORNERS[corner_cal.idx - 1]} accepted.")
 
-        # Blob dots + labels
-        for bi in blob_info:
-            xyz    = bi["xyz"]
-            in_b   = bi["in_bounds"]
-            dot_color = CYAN if in_b else ORANGE
+            if corner_cal.done:
+                corners_result = corner_cal.result()
+                if "screen_corners" not in settings or not isinstance(settings["screen_corners"], dict):
+                    settings["screen_corners"] = {}
+                settings["screen_corners"].update(corners_result)
+                SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+                print(f"Corners saved to {SETTINGS_PATH}")
 
-            if projector and bi["u"] is not None:
-                px, py = uv_to_px(bi["u"], bi["v"], gx, gy, gw, gh)
-                px = max(8, min(WW - 8, px))
-                py = max(8, min(WH - 8, py))
-            else:
-                # No projector: stack dots in top-left margin
-                idx    = blob_info.index(bi)
-                px, py = 20, 60 + idx * 90
+                projector = _projector_from_corners(settings["screen_corners"])
+                gx, gy, gw, gh = letterbox(WW, WH, projector.aspect if projector else fallback_aspect)
+                state      = State.LIVE
+                corner_cal = None
 
-            draw_blob_dot(screen, px, py, dot_color)
+            draw_corner_cal(screen, fonts, WW, WH, gx, gy, gw, gh, corner_cal or CornerCal(1))
 
-            line1 = f"#{bi['id']}  x={xyz[0]:+.1f} y={xyz[1]:+.1f} z={xyz[2]:+.1f}"
-            if bi["u"] is not None:
-                state = "IN" if in_b else "OUT"
-                line2 = f"    u={bi['u']:.2f} v={bi['v']:.2f}  {state}"
-                if bi["col"] is not None:
-                    line2 += f"  col={bi['col']} row={bi['row']}"
-            else:
-                line2 = ""
+        # ── Live state ────────────────────────────────────────────────────────
+        elif state == State.LIVE:
+            live_cells: list[tuple[int, int, int]] = []
+            blob_info:  list[dict]                 = []
 
-            lbl1 = font_lbl.render(line1, True, WHITE)
-            lbl2 = font_lbl.render(line2, True, dot_color) if line2 else None
+            for b in current_blobs:
+                xyz = [b["x"], b["y"], b["z"]]
+                if projector:
+                    u, v   = projector.project(xyz)
+                    in_b   = projector.in_bounds(u, v)
+                    col, row = projector.uv_to_cell(u, v, args.cols, args.rows) if in_b else (None, None)
+                    if in_b:
+                        live_cells.append((b["id"], col, row))
+                else:
+                    u = v = None
+                    in_b  = False
+                    col = row = None
+                blob_info.append({"id": b["id"], "xyz": xyz,
+                                   "u": u, "v": v, "in_bounds": in_b,
+                                   "col": col, "row": row})
 
-            tx = min(px + 16, WW - lbl1.get_width() - 4)
-            ty = py - 18
-            screen.blit(lbl1, (tx, ty))
-            if lbl2:
-                screen.blit(lbl2, (tx, ty + 20))
+            dwell.update(live_cells)
 
-        # ── Status bar ────────────────────────────────────────────────────────
+            draw_grid(screen, gx, gy, gw, gh, args.cols, args.rows)
+
+            # Cell highlights
+            for col, row in dwell.immediate:
+                highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
+                               col, row, CYAN, 55)
+            for col, row in dwell.flashing:
+                highlight_cell(screen, gx, gy, gw, gh, args.cols, args.rows,
+                               col, row, CYAN, 190)
+
+            # Blob dots + labels
+            for bi in blob_info:
+                xyz       = bi["xyz"]
+                in_b      = bi["in_bounds"]
+                dot_color = CYAN if in_b else ORANGE
+
+                if projector and bi["u"] is not None:
+                    px, py = uv_to_px(bi["u"], bi["v"], gx, gy, gw, gh)
+                    px = max(8, min(WW - 8, px))
+                    py = max(8, min(WH - 8, py))
+                else:
+                    idx    = blob_info.index(bi)
+                    px, py = 20, 60 + idx * 90
+
+                draw_blob_dot(screen, px, py, dot_color)
+
+                line1 = f"#{bi['id']}  x={xyz[0]:+.1f} y={xyz[1]:+.1f} z={xyz[2]:+.1f}"
+                if bi["u"] is not None:
+                    in_str = "IN" if in_b else "OUT"
+                    line2  = f"    u={bi['u']:.2f} v={bi['v']:.2f}  {in_str}"
+                    if bi["col"] is not None:
+                        line2 += f"  col={bi['col']} row={bi['row']}"
+                else:
+                    line2 = ""
+
+                lbl1 = fonts["sml"].render(line1, True, WHITE)
+                lbl2 = fonts["sml"].render(line2, True, dot_color) if line2 else None
+                tx   = min(px + 16, WW - lbl1.get_width() - 4)
+                ty   = py - 18
+                screen.blit(lbl1, (tx, ty))
+                if lbl2:
+                    screen.blit(lbl2, (tx, ty + 20))
+
+            # HUD top-right
+            hud_lines = [
+                f"grid {args.cols}×{args.rows}  dwell {dwell_frames}f",
+                f"blobs: {len(current_blobs)}",
+                f"corners: {'OK' if projector else 'MISSING'}",
+                "R=recalibrate  Q=quit",
+            ]
+            for i, line in enumerate(hud_lines):
+                color = YELLOW if i < 3 else LT_GREY
+                lbl   = fonts["hud"].render(line, True, color)
+                screen.blit(lbl, (WW - lbl.get_width() - 8, 8 + i * 24))
+
+        # ── Status bar (both states) ──────────────────────────────────────────
         connected  = ws_status[0] == "connected"
         bar_color  = GREEN if connected else RED
         status_str = ws_status[0] if connected else f"DISCONNECTED — reconnecting…  ({args.server})"
-        bar        = font_hud.render(status_str, True, bar_color)
+        bar        = fonts["hud"].render(status_str, True, bar_color)
         screen.blit(bar, (8, WH - bar.get_height() - 6))
-
-        # ── HUD (top-right) ───────────────────────────────────────────────────
-        hud_lines = [
-            f"grid {args.cols}×{args.rows}  dwell {dwell_frames}f",
-            f"blobs: {len(current_blobs)}",
-            f"corners: {'OK' if projector else 'MISSING'}",
-        ]
-        for i, line in enumerate(hud_lines):
-            lbl = font_hud.render(line, True, YELLOW)
-            screen.blit(lbl, (WW - lbl.get_width() - 8, 8 + i * 24))
 
         pygame.display.flip()
         clock.tick(FPS)
