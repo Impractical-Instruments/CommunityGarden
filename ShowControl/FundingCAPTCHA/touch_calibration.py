@@ -714,6 +714,11 @@ def main() -> None:
             status_str = "camera active — ready to touch"
             bar = fonts["hud"].render(status_str, True, bar_color)
             screen.blit(bar, (8, WH - bar.get_height() - 6))
+        elif cv_state == "error":
+            bar_color  = RED
+            status_str = f"CAMERA ERROR: {cvs.get('error', 'unknown')}  — check journalctl"
+            bar = fonts["hud"].render(status_str, True, bar_color)
+            screen.blit(bar, (8, WH - bar.get_height() - 6))
         else:
             # Connected but server hasn't sent a status yet (no camera mode, or pre-first-frame)
             bar_color  = LT_GREY

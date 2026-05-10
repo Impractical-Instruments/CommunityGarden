@@ -314,6 +314,16 @@ def broadcast(state: dict[str, Any]) -> None:
 
 def _cv_thread(camera: Any, settings: dict) -> None:
     """Runs blob detection in a daemon thread; publishes positions via broadcast()."""
+    try:
+        _cv_thread_inner(camera, settings)
+    except Exception as exc:
+        global _cv_status
+        _cv_status = {"status": "error", "error": str(exc)}
+        log.error("CV thread crashed: %s", exc, exc_info=True)
+        broadcast(_cv_status)
+
+
+def _cv_thread_inner(camera: Any, settings: dict) -> None:
     stab_cfg = settings.get("stabilizer", {})
     cam_cfg  = settings.get("camera", {})
     det_cfg  = settings.get("detection", {})
