@@ -348,19 +348,38 @@ def _cv_thread_inner(camera: Any, settings: dict) -> None:
 
     global _cv_status
     calib_frames = settings.get("calibration_frames", 60)
-    log.info("Calibrating (%d frames)…", calib_frames)
+    fps          = settings.get("camera", {}).get("fps", 10)
+    calib_timeout_s = max(30.0, calib_frames / fps * 5)
+    log.info("Calibrating (%d frames, timeout %.0f s)…", calib_frames, calib_timeout_s)
+
+    calib_done = threading.Event()
+
+    def _calib_watchdog() -> None:
+        if not calib_done.wait(timeout=calib_timeout_s):
+            global _cv_status
+            msg = f"Calibration timed out after {calib_timeout_s:.0f} s — camera may not be streaming frames"
+            log.error(msg)
+            _cv_status = {"status": "error", "error": msg}
+            broadcast(_cv_status)
+
+    threading.Thread(target=_calib_watchdog, daemon=True).start()
+
     calibrator = Calibrator(calib_frames)
     frame_idx = 0
     with camera:
         for frame in camera.frames():
             if _cv_stop.is_set():
                 log.info("Calibration interrupted by shutdown")
+                calib_done.set()
                 return  # camera closed cleanly by context manager exit
             frame_idx += 1
+            if frame_idx == 1 or frame_idx % 10 == 0:
+                log.info("Calibrating… frame %d/%d", frame_idx, calib_frames)
             _cv_status = {"status": "calibrating", "progress": frame_idx / calib_frames}
             broadcast(_cv_status)
             if calibrator.push_frame(frame):
                 break
+    calib_done.set()
     calibration = calibrator.build()
     log.info("Calibration complete")
     _cv_status = {"status": "active", "blobs": []}
