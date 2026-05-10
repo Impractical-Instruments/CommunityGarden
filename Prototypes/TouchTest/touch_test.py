@@ -235,7 +235,8 @@ _CORNER_SCORE_FN = [
     lambda xs, ys:   xs + ys,    # BR
     lambda xs, ys:   ys - xs,    # BL
 ]
-_CAL_TOP_FRAC = 0.10   # centroid of the top 10% most-extreme pixels
+_CAL_TOP_FRAC = 0.03   # centroid of the top 3% most-extreme pixels
+_CAL_TOP_MAX  = 40     # never average more than this many pixels (keeps focus on fingertip)
 _CAL_MIN_PX   = 20     # minimum pixels for that centroid
 
 
@@ -252,7 +253,7 @@ def _corner_contact_point(fg: np.ndarray, corner_idx: int) -> tuple[float, float
     if len(xs) < _CAL_MIN_PX:
         return None
     scores   = _CORNER_SCORE_FN[corner_idx](xs.astype(np.float32), ys.astype(np.float32))
-    top_n    = max(_CAL_MIN_PX, int(len(xs) * _CAL_TOP_FRAC))
+    top_n    = max(_CAL_MIN_PX, min(_CAL_TOP_MAX, int(len(xs) * _CAL_TOP_FRAC)))
     top_idx  = np.argpartition(scores, -top_n)[-top_n:]
     return float(xs[top_idx].mean()), float(ys[top_idx].mean())
 
