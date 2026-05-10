@@ -335,15 +335,19 @@ def _cv_thread(camera: Any, settings: dict) -> None:
     calib_frames = settings.get("calibration_frames", 60)
     log.info("Calibrating (%d frames)…", calib_frames)
     calibrator = Calibrator(calib_frames)
+    frame_idx = 0
     with camera:
         for frame in camera.frames():
             if _cv_stop.is_set():
                 log.info("Calibration interrupted by shutdown")
                 return  # camera closed cleanly by context manager exit
+            frame_idx += 1
+            broadcast({"status": "calibrating", "progress": frame_idx / calib_frames})
             if calibrator.push_frame(frame):
                 break
     calibration = calibrator.build()
     log.info("Calibration complete")
+    broadcast({"status": "active"})
 
     detection_config = DetectionConfig(
         depth_delta_mm   = det_cfg.get("depth_delta_mm",   20),

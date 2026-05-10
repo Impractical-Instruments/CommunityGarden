@@ -270,13 +270,15 @@ class DwellTracker:
 def _ws_thread(
     url: str,
     blob_q: "queue.Queue[list]",
-    status: list[str],   # status[0] mutated in-place
+    status: list[str],      # status[0] mutated in-place: "connecting"/"connected"/...
+    cv_status: list[dict],  # cv_status[0] mutated in-place: {"state":..., "progress":...}
     stop: threading.Event,
 ) -> None:
     async def _run() -> None:
         while not stop.is_set():
             try:
                 status[0] = "connecting"
+                cv_status[0] = {"state": "unknown"}
                 async with websockets.connect(url, ping_interval=10, open_timeout=5) as ws:
                     status[0] = "connected"
                     async for raw in ws:
@@ -286,6 +288,11 @@ def _ws_thread(
                             msg = json.loads(raw)
                         except Exception:
                             continue
+                        if "status" in msg:
+                            cv_status[0] = {
+                                "state":    msg["status"],
+                                "progress": float(msg.get("progress", 1.0)),
+                            }
                         blobs = msg.get("blobs")
                         if isinstance(blobs, list):
                             # Drop oldest frame if queue is full so latency stays low
@@ -297,6 +304,7 @@ def _ws_thread(
                             blob_q.put_nowait(blobs)
             except Exception as exc:
                 status[0] = f"disconnected ({type(exc).__name__})"
+                cv_status[0] = {"state": "unknown"}
             if not stop.is_set():
                 await asyncio.sleep(2.0)
 
@@ -535,10 +543,11 @@ def main() -> None:
     # WebSocket thread
     blob_q:    queue.Queue[list] = queue.Queue(maxsize=8)
     ws_status: list[str]         = ["connecting"]
+    cv_status: list[dict]        = [{"state": "unknown"}]
     stop       = threading.Event()
     threading.Thread(
         target=_ws_thread,
-        args=(args.server, blob_q, ws_status, stop),
+        args=(args.server, blob_q, ws_status, cv_status, stop),
         daemon=True,
     ).start()
 
@@ -672,11 +681,40 @@ def main() -> None:
                 screen.blit(lbl, (WW - lbl.get_width() - 8, 8 + i * 24))
 
         # ── Status bar (both states) ──────────────────────────────────────────
-        connected  = ws_status[0] == "connected"
-        bar_color  = GREEN if connected else RED
-        status_str = ws_status[0] if connected else f"DISCONNECTED — reconnecting…  ({args.server})"
-        bar        = fonts["hud"].render(status_str, True, bar_color)
-        screen.blit(bar, (8, WH - bar.get_height() - 6))
+        connected = ws_status[0] == "connected"
+        cvs       = cv_status[0]
+        cv_state  = cvs.get("state", "unknown")
+
+        if not connected:
+            bar_color  = RED
+            status_str = f"DISCONNECTED — reconnecting…  ({args.server})"
+            bar = fonts["hud"].render(status_str, True, bar_color)
+            screen.blit(bar, (8, WH - bar.get_height() - 6))
+        elif cv_state == "calibrating":
+            progress   = cvs.get("progress", 0.0)
+            bar_color  = YELLOW
+            status_str = f"CAMERA CALIBRATING  {int(progress * 100):3d}%  — do not touch"
+            bar = fonts["hud"].render(status_str, True, bar_color)
+            by  = WH - bar.get_height() - 6
+            screen.blit(bar, (8, by))
+            # Progress fill bar to the right of the text
+            bx  = 8 + bar.get_width() + 12
+            bw  = WW - bx - 8
+            if bw > 0:
+                pygame.draw.rect(screen, MID_GREY, (bx, by + 2, bw, bar.get_height() - 4))
+                pygame.draw.rect(screen, YELLOW,   (bx, by + 2, int(bw * progress), bar.get_height() - 4))
+                pygame.draw.rect(screen, LT_GREY,  (bx, by + 2, bw, bar.get_height() - 4), 1)
+        elif cv_state == "active":
+            bar_color  = GREEN
+            status_str = "camera active — ready to touch"
+            bar = fonts["hud"].render(status_str, True, bar_color)
+            screen.blit(bar, (8, WH - bar.get_height() - 6))
+        else:
+            # Connected but server hasn't sent a status yet (no camera mode, or pre-first-frame)
+            bar_color  = LT_GREY
+            status_str = "connected — waiting for camera…"
+            bar = fonts["hud"].render(status_str, True, bar_color)
+            screen.blit(bar, (8, WH - bar.get_height() - 6))
 
         pygame.display.flip()
         clock.tick(FPS)
