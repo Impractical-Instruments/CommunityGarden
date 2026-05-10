@@ -4,7 +4,7 @@ from pyorbbecsdk import Pipeline, Config, OBSensorType, OBFormat
 
 pipeline = Pipeline()
 config = Config()
-config.enable_stream(OBSensorType.IR, 848, 480, OBFormat.Y8, 30)
+config.enable_stream(OBSensorType.LEFT_IR_SENSOR, 848, 480, OBFormat.Y8, 30)
 pipeline.start(config)
 
 try:
