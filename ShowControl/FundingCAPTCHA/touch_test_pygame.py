@@ -434,7 +434,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="FundingCAPTCHA pygame touch tester")
     ap.add_argument("--server",      default="ws://localhost:8080/ws", metavar="URL",
                     help="WebSocket URL of running server.py")
-    ap.add_argument("--cols",        type=int, default=5,   metavar="N")
+    ap.add_argument("--cols",        type=int, default=4,   metavar="N")
     ap.add_argument("--rows",        type=int, default=4,   metavar="N")
     ap.add_argument("--aspect",      default="4:3",          metavar="W:H",
                     help="Fallback screen aspect ratio (used when screen_corners absent)")
