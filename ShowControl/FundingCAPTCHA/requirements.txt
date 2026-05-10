@@ -17,5 +17,5 @@ scipy>=1.10
 # Orbbec camera SDK
 pyorbbecsdk2
 
-# ── Touch tester (touch_test_pygame.py) ───────────────────────────────────────
+# ── Touch calibration (touch_calibration.py) ─────────────────────────────────
 pygame>=2.1

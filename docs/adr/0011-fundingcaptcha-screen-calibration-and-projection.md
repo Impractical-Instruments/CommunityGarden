@@ -4,7 +4,7 @@ Touch detection in FundingCAPTCHA maps raw world-space blob positions (cm, from 
 
 ## Architecture
 
-**Calibration** (`touch_test_pygame.py --camera` or `--mock-camera`):
+**Calibration** (`touch_calibration.py --camera` or `--mock-camera`):
 
 The calibration tool enters corner-capture mode when `screen_corners` in `captcha-settings.json` are null or `--recalibrate` is passed. A Player touches each of three Screen corners in order (BOTTOM-LEFT → BOTTOM-RIGHT → TOP-LEFT); the tool detects the blob, waits for dwell stability, then writes the world-space coordinates directly to `captcha-settings.json`. No manual transcription required.
 
@@ -27,4 +27,4 @@ The calibration tool enters corner-capture mode when `screen_corners` in `captch
 - Three physical corner measurements fully define the Screen's geometry for all subsequent runtime projection.
 - `ScreenProjector` is the single projection implementation; pygame games should import and reuse it rather than duplicating the mapping logic.
 - `min_depth_mm` / `max_depth_mm` in the `detection` section bound the depth range the CV pipeline considers; tuned for the ~3-foot projector standoff distance.
-- If the Screen is physically moved or the camera is remounted, re-run `touch_test_pygame.py --recalibrate`.
+- If the Screen is physically moved or the camera is remounted, run `touch_calibration.py --recalibrate`. This sends `/captcha/restart` via OSC (port 9003) to trigger a hard camera restart and background re-calibration in server.py without restarting the service. The OSC message can also be sent from any OSC sender on the local network.

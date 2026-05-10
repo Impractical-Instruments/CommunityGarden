@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-FundingCAPTCHA pygame touch tester.
+FundingCAPTCHA pygame touch calibration tool.
 
 Connects to a running server.py via WebSocket and overlays a calibration grid
 on the projected screen area.
 
 Usage:
-  python touch_test_pygame.py
-  python touch_test_pygame.py --server ws://192.168.1.5:8080/ws
-  python touch_test_pygame.py --cols 4 --rows 3
-  python touch_test_pygame.py --recalibrate
+  python touch_calibration.py
+  python touch_calibration.py --server ws://192.168.1.5:8080/ws
+  python touch_calibration.py --cols 4 --rows 3
+  python touch_calibration.py --recalibrate
 
 Corner calibration:
   If screen_corners are missing or --recalibrate is passed, the tool enters
@@ -33,6 +33,7 @@ import sys
 import threading
 from enum import Enum, auto
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
 import pygame
@@ -446,6 +447,8 @@ def main() -> None:
                     help="Max blob movement (cm) allowed during corner dwell")
     ap.add_argument("--recalibrate", action="store_true",
                     help="Wipe saved corners and redo corner calibration")
+    ap.add_argument("--osc-port",   type=int, default=9003, metavar="N",
+                    help="OSC port server.py listens on for /captcha/restart (default: 9003)")
     args = ap.parse_args()
 
     # Parse fallback aspect ratio
@@ -476,6 +479,13 @@ def main() -> None:
     corner_cal: CornerCal | None = None
 
     if args.recalibrate:
+        server_host = urlparse(args.server).hostname or "localhost"
+        try:
+            from pythonosc.udp_client import SimpleUDPClient
+            SimpleUDPClient(server_host, args.osc_port).send_message("/captcha/restart", [])
+            print(f"Sent /captcha/restart to {server_host}:{args.osc_port}")
+        except Exception as exc:
+            print(f"Warning: could not send OSC restart: {exc}", file=sys.stderr)
         settings.pop("screen_corners", None)
         SETTINGS_LOCAL_PATH.write_text(json.dumps({}, indent=2))
 

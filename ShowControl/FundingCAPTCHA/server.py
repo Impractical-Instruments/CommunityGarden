@@ -33,7 +33,7 @@ import uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -82,12 +82,23 @@ try:
 except ImportError:
     _CV_AVAILABLE = False
 
+# ── OSC receive — optional ────────────────────────────────────────────────────
+try:
+    from pythonosc.dispatcher import Dispatcher as _OscDispatcher
+    from pythonosc.osc_server import ThreadingOSCUDPServer as _OscServer
+    _OSC_RX_AVAILABLE = True
+except ImportError:
+    _OSC_RX_AVAILABLE = False
+
 # ── WebSocket state ─────────────────────────────────────────────────────────────
 _connections: set[WebSocket] = set()
 _log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
 _cv_stop: threading.Event = threading.Event()
 _cv_thread_handle: threading.Thread | None = None
+_camera_factory: Callable[[], Any] | None = None   # set in main() when --camera/--mock-camera
+_cv_settings: dict[str, Any] = {}
+_osc_server: Any = None
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -127,6 +138,8 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         task.cancel()
+        if _osc_server is not None:
+            _osc_server.shutdown()
         # Signal CV thread to exit its pipeline loop, then wait for it to
         # release the camera before the process exits — prevents the camera
         # being left half-open for the next start.
@@ -353,6 +366,41 @@ def _cv_thread(camera: Any, settings: dict) -> None:
         })
 
 
+# ── CV pipeline restart ────────────────────────────────────────────────────────
+
+def _restart_cv_pipeline() -> None:
+    """Hard-restart: stop old CV thread, close camera, reopen, redo calibration."""
+    global _cv_stop, _cv_thread_handle
+    if _camera_factory is None:
+        log.warning("Restart requested but no camera configured — ignoring")
+        return
+    log.info("CV pipeline restart requested via OSC")
+    _cv_stop.set()
+    if _cv_thread_handle and _cv_thread_handle.is_alive():
+        _cv_thread_handle.join(timeout=5.0)
+    _cv_stop.clear()
+    t = threading.Thread(target=_cv_thread, args=(_camera_factory(), _cv_settings), daemon=True)
+    t.start()
+    _cv_thread_handle = t
+    log.info("CV pipeline restarted")
+
+
+def _start_osc_server(port: int) -> None:
+    global _osc_server
+    if not _OSC_RX_AVAILABLE:
+        log.warning("python-osc not available — OSC listener disabled")
+        return
+    disp = _OscDispatcher()
+    disp.map(
+        "/captcha/restart",
+        lambda addr, *a: threading.Thread(target=_restart_cv_pipeline, daemon=True).start(),
+    )
+    srv = _OscServer(("0.0.0.0", port), disp)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    _osc_server = srv
+    log.info("OSC listening on 0.0.0.0:%d  (/captcha/restart)", port)
+
+
 # ── Dashboard endpoints ────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -418,26 +466,41 @@ def main() -> None:
             sys.exit(1)
 
         cam_cfg = settings.get("camera", {})
-        if args.mock_camera:
-            camera: Any = MockCamera(
-                width  = cam_cfg.get("width",  640),
-                height = cam_cfg.get("height", 400),
-                fps    = cam_cfg.get("fps",     10),
-            )
-        else:
-            camera = OrbbecCamera(
+        use_mock = args.mock_camera
+
+        def _make_camera() -> Any:
+            if use_mock:
+                return MockCamera(
+                    width  = cam_cfg.get("width",  640),
+                    height = cam_cfg.get("height", 400),
+                    fps    = cam_cfg.get("fps",     10),
+                )
+            return OrbbecCamera(
                 serial = cam_cfg.get("serial") or None,
                 width  = cam_cfg.get("width",  640),
                 height = cam_cfg.get("height", 400),
                 fps    = cam_cfg.get("fps",     10),
             )
 
-        global _cv_thread_handle
-        t = threading.Thread(target=_cv_thread, args=(camera, settings), daemon=True)
+        global _cv_thread_handle, _camera_factory, _cv_settings
+        _camera_factory = _make_camera
+        _cv_settings    = settings
+        t = threading.Thread(target=_cv_thread, args=(_make_camera(), settings), daemon=True)
         t.start()
         _cv_thread_handle = t
-        mode = "mock" if args.mock_camera else "Orbbec"
+        mode = "mock" if use_mock else "Orbbec"
         log.info("CV %s camera thread started", mode)
+
+        # OSC inbound listener — accepts /captcha/restart to hard-restart the pipeline.
+        # Port from network.json captcha.osc_port (ADR-0007), default 9003.
+        osc_port = 9003
+        if _FABRIC_AVAILABLE:
+            try:
+                _net = load_network_config()
+                osc_port = _net.get("elements", {}).get("captcha", {}).get("osc_port", 9003)
+            except Exception:
+                pass
+        _start_osc_server(osc_port)
 
     import socket
     try:
