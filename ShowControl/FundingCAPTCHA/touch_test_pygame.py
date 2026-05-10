@@ -38,8 +38,9 @@ import numpy as np
 import pygame
 import websockets
 
-DIR           = Path(__file__).parent
-SETTINGS_PATH = DIR / "captcha-settings.json"
+DIR                = Path(__file__).parent
+SETTINGS_PATH      = DIR / "captcha-settings.json"
+SETTINGS_LOCAL_PATH = DIR / "captcha-settings.local.json"
 
 # ── Colours ────────────────────────────────────────────────────────────────────
 BLACK    = (  0,   0,   0)
@@ -455,13 +456,18 @@ def main() -> None:
         print(f"Bad --aspect '{args.aspect}', expected W:H e.g. 4:3", file=sys.stderr)
         sys.exit(1)
 
-    # Load settings
+    # Load settings (base + local overlay)
     settings: dict = {}
     if SETTINGS_PATH.exists():
         try:
             settings = json.loads(SETTINGS_PATH.read_text())
         except Exception as exc:
             print(f"Warning: {SETTINGS_PATH}: {exc}", file=sys.stderr)
+    if SETTINGS_LOCAL_PATH.exists():
+        try:
+            settings.update(json.loads(SETTINGS_LOCAL_PATH.read_text()))
+        except Exception as exc:
+            print(f"Warning: {SETTINGS_LOCAL_PATH}: {exc}", file=sys.stderr)
 
     dwell_frames = args.dwell if args.dwell is not None else settings.get("blob_dwell_frames", 3)
 
@@ -470,9 +476,8 @@ def main() -> None:
     corner_cal: CornerCal | None = None
 
     if args.recalibrate:
-        if isinstance(settings.get("screen_corners"), dict):
-            settings["screen_corners"] = {k: None for k in _CAL_KEYS}
-            SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+        settings.pop("screen_corners", None)
+        SETTINGS_LOCAL_PATH.write_text(json.dumps({}, indent=2))
 
     projector = _projector_from_corners(settings.get("screen_corners"))
     if projector is None:
@@ -522,10 +527,8 @@ def main() -> None:
                 if event.key in (pygame.K_q, pygame.K_ESCAPE):
                     stop.set(); pygame.quit(); sys.exit(0)
                 elif event.key == pygame.K_r:
-                    # Wipe corners from settings file and restart calibration
-                    if isinstance(settings.get("screen_corners"), dict):
-                        settings["screen_corners"] = {k: None for k in _CAL_KEYS}
-                        SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
+                    settings.pop("screen_corners", None)
+                    SETTINGS_LOCAL_PATH.write_text(json.dumps({}, indent=2))
                     projector  = None
                     corner_cal = CornerCal(args.cal_dwell, args.stable_cm)
                     state      = State.CORNER_CAL
@@ -551,11 +554,9 @@ def main() -> None:
 
             if corner_cal.done:
                 corners_result = corner_cal.result()
-                if "screen_corners" not in settings or not isinstance(settings["screen_corners"], dict):
-                    settings["screen_corners"] = {}
-                settings["screen_corners"].update(corners_result)
-                SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
-                print(f"Corners saved to {SETTINGS_PATH}")
+                settings["screen_corners"] = corners_result
+                SETTINGS_LOCAL_PATH.write_text(json.dumps({"screen_corners": corners_result}, indent=2))
+                print(f"Corners saved to {SETTINGS_LOCAL_PATH}")
 
                 projector = _projector_from_corners(settings["screen_corners"])
                 gx, gy, gw, gh = letterbox(WW, WH, projector.aspect if projector else fallback_aspect)

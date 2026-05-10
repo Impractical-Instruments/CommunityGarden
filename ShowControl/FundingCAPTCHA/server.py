@@ -42,11 +42,19 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-DIR        = Path(os.path.dirname(os.path.abspath(__file__)))
-UPLOADS    = DIR / "uploads"
-PAIRS_FILE = DIR / "pairs.json"
-SETTINGS   = DIR / "captcha-settings.json"
+DIR            = Path(os.path.dirname(os.path.abspath(__file__)))
+UPLOADS        = DIR / "uploads"
+PAIRS_FILE     = DIR / "pairs.json"
+SETTINGS       = DIR / "captcha-settings.json"
+SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 UPLOADS.mkdir(exist_ok=True)
+
+
+def _load_settings() -> dict:
+    s = json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
+    if SETTINGS_LOCAL.exists():
+        s.update(json.loads(SETTINGS_LOCAL.read_text()))
+    return s
 
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024  # 12 MB base64 ceiling
 log = logging.getLogger("captcha")
@@ -217,7 +225,7 @@ async def post_pairs(request: Request):
 
 @app.get("/api/captcha-settings")
 async def get_captcha_settings():
-    return json.loads(SETTINGS.read_text()) if SETTINGS.exists() else {}
+    return _load_settings()
 
 
 @app.post("/api/game-event")
@@ -384,9 +392,7 @@ def main() -> None:
                         help="Use mock camera — fake blobs, no hardware needed")
     args = parser.parse_args()
 
-    settings: dict = {}
-    if SETTINGS.exists():
-        settings = json.loads(SETTINGS.read_text())
+    settings = _load_settings()
 
     global _fabric
     if _FABRIC_AVAILABLE:

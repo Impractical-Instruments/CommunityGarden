@@ -1,15 +1,8 @@
 {
   "_comment": "FundingCAPTCHA runtime config.",
 
-  "screen_corners": {
-    "_comment": "Three corners of the physical screen in world space (cm). X=right, Y=forward, Z=up. Run touch_test_pygame.py without this key, touch each corner, read world coords, then fill in here.",
-    "bottom_left":  null,
-    "bottom_right": null,
-    "top_left":     null
-  },
-
   "screen_rect": {
-    "_comment": "Legacy axis-aligned rect used by browser games. X=right, Z=up. Keep in sync with screen_corners once calibrated.",
+    "_comment": "Axis-aligned rect used only by the browser game JS layer (TouchInput). X=right, Z=up. Deleted when games move to pygame (which uses ScreenProjector + screen_corners directly).",
     "x0": -89,
     "x1":  73,
     "z0":  39,
@@ -17,9 +10,11 @@
   },
 
   "detection": {
-    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm must be small enough to catch a hand 1-5cm shallower than the screen background.",
+    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm must be small enough to catch a hand 1-5cm shallower than the Screen background.",
     "depth_delta_mm":  10,
-    "min_blob_pixels": 500
+    "min_blob_pixels": 500,
+    "min_depth_mm":    500,
+    "max_depth_mm":    6000
   },
 
   "blob_dwell_frames": 3,
