@@ -449,6 +449,11 @@ def main() -> None:
                         help="Use mock camera — fake blobs, no hardware needed")
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     settings = _load_settings()
 
     global _fabric
