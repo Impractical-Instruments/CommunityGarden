@@ -237,6 +237,15 @@ class BlobTracker:
     # Public API
     # ------------------------------------------------------------------
 
+    def detect_foreground(self, frame: FramePacket) -> np.ndarray:
+        """uint16 (H, W): foreground pixels = depth_mm, background pixels = 0."""
+        cal = self._calibration
+        depth = np.frombuffer(frame.data, dtype=np.uint16).reshape(cal.height, cal.width)
+        fg_mask = self._subtract_background(frame).reshape(cal.height, cal.width) > 0
+        result = np.zeros((cal.height, cal.width), dtype=np.uint16)
+        result[fg_mask] = depth[fg_mask]
+        return result
+
     def detect(self, frame: FramePacket) -> DetectionResult:
         cal = self._calibration
         if frame.width != cal.width or frame.height != cal.height:
