@@ -108,15 +108,15 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Pygame implementation complete; browser stack deleted. Festival debut May 29.
+**Status:** Interaction pivot in progress (2026-05-11). Camera now faces Players; silhouette body interaction replaces touch detection. BodyGrid game being built; UpsideDown/Rhythm/Keepaway being ported. Festival debut May 29.
 
-**What it does:** A 7-foot kiosk styled as a CRT monitor running a suite of increasingly frustrating CAPTCHA-inspired touch-screen games. Visitors must "prove their humanity" to progress.
+**What it does:** A 7-foot kiosk styled as a CRT monitor. Players make shapes with their bodies in front of the kiosk; a depth camera captures their silhouettes and maps them to a projected grid. Games challenge Players to fill specific grid patterns simultaneously to "prove their humanity."
 
-**Touch screen approach:** Front-projection onto the kiosk face using a BenQ LH830ST short-throw laser projector, with Orbbec depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). See ADR-0004 and ADR-0011.
+**Interaction approach:** Orbbec depth camera mounted on the kiosk facing Players. Background subtraction + denoising produces a clean silhouette from the depth image. Configurable Depth Slabs define which depth ranges count as Play Zone; pixels outside all slabs appear as holes. Grid cells activate when ≥ threshold% of their pixels are covered by a given Depth Slab. No touch detection, no screen-plane calibration. See ADR-0013.
 
-**Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, touch calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
+**Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
 
-**Games (pygame):** UpsideDown, Rhythm, Keepaway. All must self-terminate on inactivity (see ADR-0003).
+**Games:** BodyGrid (new — silhouette grid pattern matching). UpsideDown, Rhythm, Keepaway to be ported to silhouette interaction. All must self-terminate via timer (see ADR-0003). Design docs in `docs/games/`.
 
 **Photos:** Kid-designed images live in `images/`. Per-game config files (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) map filenames; all default to `[]` with emoji fallback. No upload endpoint — operator copies images locally before show.
 

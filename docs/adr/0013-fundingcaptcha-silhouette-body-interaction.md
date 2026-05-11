@@ -1,0 +1,82 @@
+# FundingCAPTCHA uses body silhouette interaction, not touch detection
+
+**Supersedes:** ADR-0004 (depth-primary touch detection), ADR-0011 (screen calibration and projection)
+
+## Context
+
+The original FundingCAPTCHA design assumed Players touch a projected Screen. The depth camera was co-mounted with the projector, detecting finger contacts close to the projection surface. Field testing showed the camera-to-screen-plane calibration and the projector IR interference problem (ADR-0004) made reliable touch detection impractical as a show-day interaction.
+
+## Decision
+
+The camera is remounted to face outward toward Players rather than at the Screen. Players interact by making shapes with their bodies — their silhouettes, captured via depth background subtraction, activate cells on a projected grid overlay.
+
+Key consequences:
+
+**ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map directly to display pixels (horizontal flip + configurable ROI crop; no 3D projection needed).
+
+**CORNER_CAL is removed.** The per-installation corner-touch calibration step (operator touching three screen corners) is eliminated. BG_CAL (background model collection at startup) remains.
+
+**Blob detection is not used by FundingCAPTCHA.** The camera thread calls IIVision's `Calibrator` and background subtraction, then emits raw foreground depth frames. The `run_pipeline()` call (blob detection + stabilisation) is skipped. Grid cell activation is computed directly from per-pixel depth values.
+
+**Grid activation is per-pixel, not per-blob.** A cell activates when ≥ `cell_activation_threshold` (configurable, default 0.30) of its pixels are covered by a given Depth Slab. This produces smooth, intuitive silhouette-fills rather than point-contact events.
+
+## Play Zone and Depth Slabs
+
+The depth range in front of the camera is partitioned into Depth Slabs. Each slab has a `near_mm`, `far_mm`, and `slab_id`. Pixels in a slab contribute to the silhouette with that slab's color and game role. Pixels below the nearest slab's `near_mm` (the implicit "too close" exclusion zone) are discarded — this prevents a Player standing directly in front of the camera from filling the entire frame.
+
+Two slabs may share a `slab_id` (non-contiguous bands, identical behavior). Games may use `slab_id` to distinguish foreground depth layers with different visual or gameplay functions.
+
+Config shape:
+
+```json
+"depth_slabs": [
+  {"near_mm": 800, "far_mm": 2500, "slab_id": 0}
+],
+"slab_styles": {
+  "0": {"color": [0, 220, 100]}
+},
+"cell_activation_threshold": 0.30
+```
+
+## Arc state machine
+
+```
+Screensaver
+  → (player detected in Play Zone for attract_dwell_s)
+  → Level 1 active (Arc begins)
+    → (pattern held for hold_s) → Level 2 active (harder)
+    → (timer expires) → Blow-Up → Screensaver
+```
+
+`attract_dwell_s` is a global config value. The Arc starts on the first frame after the dwell countdown completes.
+
+## Level format
+
+Levels are authored as a JSON array in a per-Game config file. Each entry:
+
+```json
+{
+  "timer_s": 30,
+  "hold_s": 0.8,
+  "grid": [4, 4],
+  "cells": [[col, row, slab_id], ...]
+}
+```
+
+Arc plays Levels in index order. If all Levels are beaten, the Arc loops with a shorter effective timer (implementation-defined).
+
+## Alternatives considered
+
+**Keep touch detection, fix the IR interference problem.** IR amplitude masking (ADR-0004) was the next step. Rejected because the physical interaction — reaching toward a projected surface — was observed to be confusing and awkward for festival visitors. The body-silhouette interaction is more immediately legible and more thematically resonant (the machine is watching your whole body, not just your fingertip).
+
+**Use blob centroids for grid activation.** Centroid-based activation was considered and rejected. A blob centroid is a single point; filling a grid cell requires area coverage. Per-pixel threshold gives natural, spatially-intuitive results: you fill cells by physically occupying them with your body.
+
+## Consequences
+
+- `screen_projector.py` is deleted.
+- `CornerCal` and `CORNER_CAL` state are removed from `app.py`.
+- Camera thread outputs foreground depth frames (numpy arrays) instead of blob track lists.
+- `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop + flip config). Screen corner fields are removed.
+- `games/grid.py` `blob_to_cell()` is replaced by pixel-to-cell logic operating on the slab mask.
+- UpsideDown, Rhythm, and Keepaway must be ported to the silhouette interaction model. Design docs in `docs/games/`. Code deleted pending port.
+- BodyGrid is the first Game built for this interaction model.
