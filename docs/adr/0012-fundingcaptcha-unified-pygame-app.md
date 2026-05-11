@@ -34,9 +34,9 @@ app.py
 
 **Games** are native pygame modules in `games/` (UpsideDown, Rhythm, Keepaway). The browser JS game stack is deleted.
 
-**Photo management**: photos (for UpsideDown) are versioned with git LFS in the `uploads/` directory. The operator copies or syncs photos locally; there is no upload endpoint.
+**Photo management**: photos live in `images/`. Each game has its own config file (`pairs.json` for UpsideDown, `rhythm-images.json`, `keepaway-images.json`). All configs default to `[]`; games fall back to text/emoji when empty. No upload endpoint.
 
-**Pairing**: `pairs.json` remains the config file for matching photo pairs (UpsideDown). It is edited locally and committed to the repo.
+**Pairing**: `pairs.json` is the config file for matching photo pairs (UpsideDown). Format: `[{"label": "str", "a": "file_a.jpg", "b": "file_b.jpg"}]`. Edited locally.
 
 **Monitoring**: the dashboard (`Dashboard/fundingcaptcha.html`) connects to the monitoring WebSocket for logs and touch debug visualisation. It no longer embeds the game as an iframe.
 
@@ -44,9 +44,10 @@ app.py
 
 - One systemd service (`captcha.service`) replaces two (`captcha.service` + `captcha-kiosk.service`).
 - The projector display is always owned by `app.py`; black-screen during BG_CAL is guaranteed (see ADR-0004).
-- Browser game files (`index.html`, `main.js`, `grid.js`, `blob-ws.js`, `touch-input.js`, etc.) and JS game modules (`games/upsidedown.js`, `rhythm.js`, `keepaway.js`) are deleted.
-- `server.py` and `touch_calibration.py` are deleted.
+- Browser game files (`index.html`, `main.js`, `grid.js`, `blob-ws.js`, `touch-input.js`, etc.) and JS game modules (`games/upsidedown.js`, `rhythm.js`, `keepaway.js`) are deleted. ✓
+- `server.py` and `touch_calibration.py` are deleted. ✓
+- `deploy/captcha-kiosk.service` is deleted; `deploy/install.sh` updated accordingly. ✓
 - The monitoring WebSocket is lightweight (no FastAPI dependency for the game path); FastAPI is replaced by a plain asyncio HTTP/WS server.
 - `screen_rect` is removed from `captcha-settings.json` (was browser-only; see ADR-0011).
-- Photo upload endpoint (`POST /upload`, `GET /api/photos`) is removed. Photos live in `uploads/` and are managed via git LFS.
-- Gallery and pairing workflow (`gallery.html`, `upload.html`) move to a local operator tool or are handled directly via `pairs.json`.
+- Photo upload endpoint (`POST /upload`, `GET /api/photos`) is removed. Photos live in `images/` and are managed locally.
+- Gallery and pairing workflow (`gallery.html`, `upload.html`) are removed; pairings are configured directly in `pairs.json`.
