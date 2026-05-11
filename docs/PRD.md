@@ -108,7 +108,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Games designed with youth group; pygame implementation in progress. Festival debut May 29.
+**Status:** Pygame implementation complete; browser stack deleted. Festival debut May 29.
 
 **What it does:** A 7-foot kiosk styled as a CRT monitor running a suite of increasingly frustrating CAPTCHA-inspired touch-screen games. Visitors must "prove their humanity" to progress.
 
@@ -118,7 +118,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **Games (pygame):** UpsideDown, Rhythm, Keepaway. All must self-terminate on inactivity (see ADR-0003).
 
-**Photos:** Kid-designed images for UpsideDown are versioned with git LFS in `uploads/`. No upload endpoint — operator syncs locally before show. Pairings configured in `pairs.json`.
+**Photos:** Kid-designed images live in `images/`. Per-game config files (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) map filenames; all default to `[]` with emoji fallback. No upload endpoint — operator copies images locally before show.
 
 **OSC output to fabric:**
 - TBD — activity signals (game started, game completed, game failed, frustration level) for TreeHouse to consume
