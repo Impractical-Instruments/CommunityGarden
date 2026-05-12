@@ -48,7 +48,8 @@ sys.path.insert(0, str(DIR.parent.parent))
 sys.path.insert(0, str(DIR))
 
 try:
-    from IIVision import MockCamera, OrbbecCamera, Calibrator, BlobTracker, DetectionConfig
+    from IIVision import (MockCamera, OrbbecCamera, Calibrator, BlobTracker,
+                          DetectionConfig, Rotator, Transform, reproject_silhouette)
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -242,7 +243,8 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
             fg = tracker.detect_foreground(frame)
             raw_arr = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
             delta = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
-            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr, "delta": delta})
+            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr,
+                       "delta": delta, "intrinsics": frame.intrinsics})
 
 
 # ── Drawing ────────────────────────────────────────────────────────────────────
@@ -314,10 +316,20 @@ def _draw_silhouette(surf: pygame.Surface, foreground_roi: np.ndarray,
     surf.blit(sil_surf, (gx, gy))
 
 
-def _crop_foreground_roi(foreground: np.ndarray, cfg: BodyGridConfig) -> np.ndarray:
-    roi = cfg.camera_roi
-    flipped = foreground[:, ::-1]
-    return flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
+def _build_cam_transform(settings: dict) -> "Transform | None":
+    if not _CV_AVAILABLE:
+        return None
+    cam = settings.get("camera", {})
+    pos = cam.get("pos_cm", [0, 0, 0])
+    rot = cam.get("rotation", {})
+    return Transform(
+        translation=np.array(pos, dtype=float),
+        rotation=Rotator(
+            pitch=rot.get("pitch", 0.0),
+            yaw=rot.get("yaw", 0.0),
+            roll=rot.get("roll", 0.0),
+        ),
+    )
 
 
 _CAL_VIEW_LABELS = [
@@ -455,11 +467,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    settings   = load_settings()
-    bg_cfg     = _build_config(settings, args.cols, args.rows)
-    activator  = BodyGridActivator(bg_cfg)
-    slab_styles = settings.get("slab_styles", {"0": {"color": [0, 220, 100]}})
-    cam_cfg    = settings.get("camera", {})
+    settings      = load_settings()
+    bg_cfg        = _build_config(settings, args.cols, args.rows)
+    activator     = BodyGridActivator(bg_cfg)
+    slab_styles   = settings.get("slab_styles", {"0": {"color": [0, 220, 100]}})
+    cam_cfg       = settings.get("camera", {})
+    cam_transform = _build_cam_transform(settings)
     use_mock   = args.mock_camera
     debug      = args.debug
 
@@ -584,7 +597,11 @@ def main() -> None:
                     raw_frame = msg.get("raw")
                     raw_delta = msg.get("delta")
                     activations = activator.activate(fg)
-                    foreground_roi = _crop_foreground_roi(fg, bg_cfg)
+                    if cam_transform is not None and "intrinsics" in msg:
+                        warped = reproject_silhouette(fg, msg["intrinsics"], cam_transform)
+                        foreground_roi = warped[:, ::-1]  # mirror for players
+                    else:
+                        foreground_roi = fg[:, ::-1]
                     broadcast({"state": "live", "active_cells": len(activations)})
 
                 elif mtype == "error":
