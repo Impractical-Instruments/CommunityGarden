@@ -2,4 +2,4 @@
 
 test:
 	node --test
-	python -m pytest || test $$? -eq 5
+	python3 -m pytest || test $$? -eq 5

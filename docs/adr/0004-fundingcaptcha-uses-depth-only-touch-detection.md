@@ -1,5 +1,7 @@
 # FundingCAPTCHA uses depth-primary touch detection with calibrated background
 
+> **Superseded by ADR-0013.** Camera now faces Players; body silhouette interaction replaces touch detection.
+
 FundingCAPTCHA reuses IIVision's depth-based background subtraction pipeline for screen touch detection. The screen surface is calibrated as the background; a hand touching it appears as a foreground blob closer than the background plane by more than the detection threshold.
 
 ## Calibration must run with a black projected frame

@@ -237,6 +237,32 @@ class BlobTracker:
     # Public API
     # ------------------------------------------------------------------
 
+    @property
+    def calibration(self) -> Calibration:
+        return self._calibration
+
+    @property
+    def threshold_map(self) -> np.ndarray:
+        """Per-pixel effective foreground threshold (mm), shape (H, W), dtype uint16.
+
+        max(depth_delta_mm, noise_floor * NOISE_SIGMA). Zero where calibration invalid.
+        """
+        cal = self._calibration
+        t = np.maximum(
+            self.detection_config.depth_delta_mm,
+            cal.noise_floor.astype(np.int32) * _NOISE_SIGMA,
+        )
+        return np.where(cal.valid_mask, t, 0).reshape(cal.height, cal.width).astype(np.uint16)
+
+    def detect_foreground(self, frame: FramePacket) -> np.ndarray:
+        """uint16 (H, W): foreground pixels = depth_mm, background pixels = 0."""
+        cal = self._calibration
+        depth = np.frombuffer(frame.data, dtype=np.uint16).reshape(cal.height, cal.width)
+        fg_mask = self._subtract_background(frame).reshape(cal.height, cal.width) > 0
+        result = np.zeros((cal.height, cal.width), dtype=np.uint16)
+        result[fg_mask] = depth[fg_mask]
+        return result
+
     def detect(self, frame: FramePacket) -> DetectionResult:
         cal = self._calibration
         if frame.width != cal.width or frame.height != cal.height:

@@ -51,7 +51,7 @@ The tone varies: FlowerBeds is a lighthearted poke; FundingCAPTCHA is pointed sa
 1. **Arrival** — Visitors enter and FlowerBeds flowers (mirror-centred, servo-driven) begin tracking them. The flowers watch the visitors; the mirrors show the visitors watching themselves being watched.
 2. **Discovery** — Visitors see the TreeHouse: hyper-realistic exterior, otherworldly inside glimpsed through plexiglass windows. Branches on the roof grow and wither. An operable front door lets visitors reach in and interact with a diorama.
 3. **Playing the Pipes** — Pipes and conduit grow out of the base of the TreeHouse. Visitors discover valves and switches and begin steering the music system. Controls affect the character of the sound — Tiller Control, not direct instrument play.
-4. **FundingCAPTCHA** — On the other side of the TreeHouse: a 7-foot kiosk styled as a CRT monitor. Visitors play increasingly frustrating CAPTCHA-inspired games on a projected touch screen to "prove their humanity."
+4. **FundingCAPTCHA** — On the other side of the TreeHouse: a 7-foot kiosk styled as a CRT monitor. Visitors make shapes with their bodies in front of a projected grid to "prove their humanity" — their silhouettes activate cells on-screen.
 
 Throughout, the TreeHouse responds to activity across all Elements, updating its displays to reflect the Garden State.
 
@@ -108,15 +108,15 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Pygame implementation complete; browser stack deleted. Festival debut May 29.
+**Status:** Interaction pivot in progress (2026-05-11). Camera now faces Players; silhouette body interaction replaces touch detection. BodyGrid game being built; UpsideDown/Rhythm/Keepaway being ported. Festival debut May 29.
 
-**What it does:** A 7-foot kiosk styled as a CRT monitor running a suite of increasingly frustrating CAPTCHA-inspired touch-screen games. Visitors must "prove their humanity" to progress.
+**What it does:** A 7-foot kiosk styled as a CRT monitor. Players make shapes with their bodies in front of the kiosk; a depth camera captures their silhouettes and maps them to a projected grid. Games challenge Players to fill specific grid patterns simultaneously to "prove their humanity."
 
-**Touch screen approach:** Front-projection onto the kiosk face using a BenQ LH830ST short-throw laser projector, with Orbbec depth camera co-mounted on the projector for shared orientation and simpler coordinate mapping. Camera detects finger contacts close to the projection surface. Coordinate calibration required per installation (camera-to-screen mapping). See ADR-0004 and ADR-0011.
+**Interaction approach:** Orbbec depth camera mounted on the kiosk facing Players. Background subtraction + denoising produces a clean silhouette from the depth image. Configurable Depth Slabs define which depth ranges count as Play Zone; pixels outside all slabs appear as holes. Grid cells activate when ≥ threshold% of their pixels are covered by a given Depth Slab. No touch detection, no screen-plane calibration. See ADR-0013.
 
-**Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, touch calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
+**Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
 
-**Games (pygame):** UpsideDown, Rhythm, Keepaway. All must self-terminate on inactivity (see ADR-0003).
+**Games:** BodyGrid (new — silhouette grid pattern matching). UpsideDown, Rhythm, Keepaway to be ported to silhouette interaction. All must self-terminate via timer (see ADR-0003). Design docs in `docs/games/`.
 
 **Photos:** Kid-designed images live in `images/`. Per-game config files (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) map filenames; all default to `[]` with emoji fallback. No upload endpoint — operator copies images locally before show.
 
@@ -151,7 +151,7 @@ Garden State is the TreeHouse's internal representation of activity across the i
 
 Shared computer-vision library providing depth camera abstraction, blob detection, blob stabilisation, and coordinate transforms. Used by FlowerBeds and FundingCAPTCHA.
 
-**Festival scope:** IIVision must reliably serve FlowerBeds (3D people detection) and FundingCAPTCHA (2D surface touch detection). Generalising it for broader use is a post-festival aspiration, not a requirement.
+**Festival scope:** IIVision must reliably serve FlowerBeds (3D people detection) and FundingCAPTCHA (silhouette body detection — background subtraction + denoising, no blob tracking). Generalising it for broader use is a post-festival aspiration, not a requirement.
 
 ### Show Network
 
@@ -193,7 +193,6 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 
 - IIVision generalisation for third-party use
 - Inter-element communication beyond TreeHouse-as-hub (e.g., FundingCAPTCHA → Playing the Pipes)
-- Automated testing / CI pipeline
 - Any persistent data collection from visitors
 
 ---
@@ -203,10 +202,10 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 | # | Question | Status |
 |---|---|---|
 | 1 | Can one Orbbec camera cover the full 48-cluster FlowerBeds field? | **Resolved 2026-04-30: yes, single camera confirmed** |
-| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Untested — Week 1 priority, see issue #73** |
+| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Superseded — camera now faces Players (body silhouette interaction). See ADR-0013.** |
 | 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | **Resolved 2026-05-07: direct GPIO → Python bridge → RNBO runner → OSC. See issue #49.** |
 | 4 | OSC message schema for each Element's output to the fabric | Largely resolved via ADR-0007; see `ShowControl/network.json` |
 | 5 | TreeHouse: exact mapping of Garden State inputs to branch/display outputs | In progress — ADR-0008 covers displays; branch weights configurable per-motor in `settings.json` |
 | 6 | Playing the Pipes: audio system for venue | **Resolved 2026-05-07: 4× studio monitors (Event series). Pi 5 has no analog audio — USB audio interface required.** |
-| 6 | Monitoring dashboard: build as central aggregator service or per-element push? | TBD |
-| 7 | Internet uplink for remote monitoring: worth adding for festival? | TBD |
+| 7 | Monitoring dashboard: build as central aggregator service or per-element push? | TBD |
+| 8 | Internet uplink for remote monitoring: worth adding for festival? | TBD |

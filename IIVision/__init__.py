@@ -14,9 +14,10 @@ Public API:
 
 from .pipeline import PreStabilizeFilter, build_calibration, filter_positions_near_points, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
-from .blob_tracker import BlobTracker, Calibration, Calibrator, DetectionConfig
+from .blob_tracker import BlobTracker, Calibration, Calibrator, DetectionConfig, FramePacket
 from .camera import MockCamera, OrbbecCamera, OrbbecRGBCamera, RGBFrame
 from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
+from .silhouette_warp import reproject_silhouette
 
 __all__ = [
     "build_calibration",
@@ -30,6 +31,7 @@ __all__ = [
     "Calibration",
     "Calibrator",
     "DetectionConfig",
+    "FramePacket",
     "MockCamera",
     "OrbbecCamera",
     "OrbbecRGBCamera",
@@ -40,4 +42,5 @@ __all__ = [
     "orbbec_to_world",
     "rotator_to_matrix",
     "transform_position",
+    "reproject_silhouette",
 ]

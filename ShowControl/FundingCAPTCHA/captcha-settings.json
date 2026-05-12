@@ -6,7 +6,7 @@
     "depth_delta_mm":  25,
     "min_blob_pixels": 500,
     "min_depth_mm":    500,
-    "max_depth_mm":    2000
+    "max_depth_mm":    2500
   },
 
   "blob_dwell_frames": 10,
@@ -29,7 +29,7 @@
     "width":   640,
     "height":  400,
     "fps":     10,
-    "pos_cm":  [0, 0, 0],
-    "rotation": { "pitch": 10, "yaw": 0, "roll": 180 }
+    "pos_cm":  [0, 0, 50],
+    "rotation": { "pitch": -30, "yaw": 0, "roll": 0 }
   }
 }

@@ -46,14 +46,14 @@ The Element growing out of the base of the TreeHouse — a Dr. Seuss/Rube Goldbe
 _Avoid_: "playing music", "triggering notes" — visitors *steer* the music, they do not play it directly
 
 **FundingCAPTCHA**:
-The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor. A short-throw laser projector (mounted overhead, ~3 feet from the Screen) projects the game interface onto a vertical projection surface; an Orbbec depth camera co-mounted with the projector detects hands touching or approaching the Screen. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
+The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor. A short-throw laser projector projects the game interface onto the Screen; an Orbbec depth camera mounted on the kiosk facing toward Players captures their silhouettes at configured depth ranges. Players interact by making shapes with their bodies — their silhouettes activate cells on a projected grid. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
 
 **Screen** (FundingCAPTCHA):
-The vertical projection surface on the front of the FundingCAPTCHA kiosk. Visitors interact by physically touching the Screen; the depth camera detects contact (and near-contact within a configurable depth threshold) and converts it to tap-down and tap-up events on a grid. One to three Players can touch the Screen simultaneously.
-_Avoid_: "touch screen" (implies a capacitive panel), "canvas", "display"
+The vertical projection surface on the front of the FundingCAPTCHA kiosk. Displays game content and live Player silhouettes so Players can see their own shapes and how they map to the grid. Players interact by standing in front of the kiosk — not by touching the Screen.
+_Avoid_: "touch screen" (implies contact input), "canvas", "display"
 
 **Player** (FundingCAPTCHA):
-A Visitor who is actively touching or about to touch the Screen. FundingCAPTCHA is the only Element where "Player" is appropriate; elsewhere use Visitor. Play is drop-in/drop-out — there is no formal join or leave event.
+A Visitor standing in the Play Zone in front of the FundingCAPTCHA kiosk. FundingCAPTCHA is the only Element where "Player" is appropriate; elsewhere use Visitor. Play is drop-in/drop-out — there is no formal join or leave event.
 
 **Arc**:
 The lifecycle of a single game in FundingCAPTCHA. Difficulty ramps from easy to unmanageable as Players succeed; the Arc always ends in a spectacular inevitable failure (the Blow-Up) rather than a clean win. Winning a round only advances the difficulty — there is no overall victory condition. Every game type must guarantee a loss after sustained inactivity — either through a literal countdown timer, or through mechanics that ensure failure without Player input (e.g. defenders eventually catching the ball carrier in Keepaway).
@@ -67,13 +67,26 @@ The operational mode for live installation. Game selection is automated: the kio
 _Avoid_: "production mode", "performance mode"
 
 **Screensaver**:
-The idle state displayed when no Players have touched the Screen for a configurable period after a game has ended. Because every Arc is guaranteed to end in a loss on its own, the Screensaver only needs to monitor the between-game state — it never interrupts an active Arc. Touching the Screen exits the Screensaver and starts a game. Multiple screensavers available, inspired by classic procedural screensavers (e.g. the Windows pipes screensaver).
+The idle state displayed when no Players are in the Play Zone after an Arc has ended. Because every Arc is guaranteed to end in a loss on its own, the Screensaver only needs to monitor the between-Arc state — it never interrupts an active Arc. A Player entering the Play Zone and remaining for `attract_dwell_s` exits the Screensaver and starts a new Arc. Multiple screensavers available, inspired by classic procedural screensavers (e.g. the Windows pipes screensaver).
 _Avoid_: "attract screen", "idle animation", "lobby"
 
 ### FundingCAPTCHA Domain
 
-**Round**:
-One complete level within an Arc. A Round ends in either a win (difficulty increases, next Round begins) or a loss (Blow-Up, Arc ends). Each game type defines its own win and loss conditions per Round.
+**Game** (FundingCAPTCHA):
+A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyGrid, UpsideDown, Rhythm, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
+_Avoid_: "game type", "mode"
+
+**Level**:
+One authored puzzle definition within a Game. Specifies the target pattern (grid cells + Depth Slab required per cell), timer duration, and hold dwell. An Arc plays through Levels in order — winning a Level advances to the next; timer expiry triggers a Blow-Up.
+_Avoid_: "round", "stage", "difficulty step"
+
+**Play Zone**:
+The set of depth ranges in front of the FundingCAPTCHA camera where Player pixels contribute to the silhouette. Defined as one or more Depth Slabs. Pixels outside all slabs appear as holes in the silhouette. A "too close" implicit exclusion zone (below the `near_mm` of the nearest slab) prevents Players from blocking the camera entirely.
+_Avoid_: "detection zone", "active area"
+
+**Depth Slab**:
+A single depth band `[near_mm, far_mm]` with an associated `slab_id`. Pixels within a Depth Slab render with that slab's configured color and carry its game-defined role. Two slabs may share a `slab_id` (non-contiguous bands, identical behavior). Configured as `depth_slabs` in `captcha-settings.json`.
+_Avoid_: "depth layer", "depth band" (use Depth Slab)
 
 **Intensity**:
 A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each frame, representing how far the current Arc has progressed toward its Blow-Up. Derived from the current difficulty level normalised against the maximum. Resets to 0.0 at the start of each new Arc.
@@ -154,7 +167,7 @@ A stabilised, identity-consistent blob across multiple frames. A raw Blob become
 ### Infrastructure
 
 **IIVision**:
-The shared computer-vision library (depth camera abstraction, blob detection, blob stabilisation, coordinate transforms). Used by FlowerBeds and FundingCAPTCHA; intended to be general enough for any vision-based interactive installation.
+The shared computer-vision library (depth camera abstraction, background subtraction, blob detection, blob stabilisation, coordinate transforms). Used by FlowerBeds (full pipeline: blob detection + stabilisation) and FundingCAPTCHA (background subtraction + denoising only — blob detection not used). Intended to be general enough for any vision-based interactive installation.
 
 **OSC Fabric**:
 The UDP/OSC network that connects Elements when co-located. Any Element may send or receive OSC messages from any other Element. The TreeHouse is the primary consumer of cross-element messages, but the fabric is intentionally open.
