@@ -1,5 +1,7 @@
 # FundingCAPTCHA uses three-corner orthographic projection for Screen mapping
 
+> **Superseded by ADR-0013.** CornerCal and screen projection removed; camera faces Players and maps pixels directly.
+
 Touch detection in FundingCAPTCHA maps raw world-space blob positions (cm, from IIVision) onto the Screen surface so that games can work in normalised UV coordinates and grid cells. The Screen is a vertical projection surface whose physical corners are measured once during installation setup.
 
 ## Architecture

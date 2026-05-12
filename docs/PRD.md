@@ -51,7 +51,7 @@ The tone varies: FlowerBeds is a lighthearted poke; FundingCAPTCHA is pointed sa
 1. **Arrival** — Visitors enter and FlowerBeds flowers (mirror-centred, servo-driven) begin tracking them. The flowers watch the visitors; the mirrors show the visitors watching themselves being watched.
 2. **Discovery** — Visitors see the TreeHouse: hyper-realistic exterior, otherworldly inside glimpsed through plexiglass windows. Branches on the roof grow and wither. An operable front door lets visitors reach in and interact with a diorama.
 3. **Playing the Pipes** — Pipes and conduit grow out of the base of the TreeHouse. Visitors discover valves and switches and begin steering the music system. Controls affect the character of the sound — Tiller Control, not direct instrument play.
-4. **FundingCAPTCHA** — On the other side of the TreeHouse: a 7-foot kiosk styled as a CRT monitor. Visitors play increasingly frustrating CAPTCHA-inspired games on a projected touch screen to "prove their humanity."
+4. **FundingCAPTCHA** — On the other side of the TreeHouse: a 7-foot kiosk styled as a CRT monitor. Visitors make shapes with their bodies in front of a projected grid to "prove their humanity" — their silhouettes activate cells on-screen.
 
 Throughout, the TreeHouse responds to activity across all Elements, updating its displays to reflect the Garden State.
 
@@ -151,7 +151,7 @@ Garden State is the TreeHouse's internal representation of activity across the i
 
 Shared computer-vision library providing depth camera abstraction, blob detection, blob stabilisation, and coordinate transforms. Used by FlowerBeds and FundingCAPTCHA.
 
-**Festival scope:** IIVision must reliably serve FlowerBeds (3D people detection) and FundingCAPTCHA (2D surface touch detection). Generalising it for broader use is a post-festival aspiration, not a requirement.
+**Festival scope:** IIVision must reliably serve FlowerBeds (3D people detection) and FundingCAPTCHA (silhouette body detection — background subtraction + denoising, no blob tracking). Generalising it for broader use is a post-festival aspiration, not a requirement.
 
 ### Show Network
 
@@ -193,7 +193,6 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 
 - IIVision generalisation for third-party use
 - Inter-element communication beyond TreeHouse-as-hub (e.g., FundingCAPTCHA → Playing the Pipes)
-- Automated testing / CI pipeline
 - Any persistent data collection from visitors
 
 ---
@@ -203,10 +202,10 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 | # | Question | Status |
 |---|---|---|
 | 1 | Can one Orbbec camera cover the full 48-cluster FlowerBeds field? | **Resolved 2026-04-30: yes, single camera confirmed** |
-| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Untested — Week 1 priority, see issue #73** |
+| 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Superseded — camera now faces Players (body silhouette interaction). See ADR-0013.** |
 | 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | **Resolved 2026-05-07: direct GPIO → Python bridge → RNBO runner → OSC. See issue #49.** |
 | 4 | OSC message schema for each Element's output to the fabric | Largely resolved via ADR-0007; see `ShowControl/network.json` |
 | 5 | TreeHouse: exact mapping of Garden State inputs to branch/display outputs | In progress — ADR-0008 covers displays; branch weights configurable per-motor in `settings.json` |
 | 6 | Playing the Pipes: audio system for venue | **Resolved 2026-05-07: 4× studio monitors (Event series). Pi 5 has no analog audio — USB audio interface required.** |
-| 6 | Monitoring dashboard: build as central aggregator service or per-element push? | TBD |
-| 7 | Internet uplink for remote monitoring: worth adding for festival? | TBD |
+| 7 | Monitoring dashboard: build as central aggregator service or per-element push? | TBD |
+| 8 | Internet uplink for remote monitoring: worth adding for festival? | TBD |
