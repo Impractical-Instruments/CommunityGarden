@@ -10,7 +10,8 @@ States:
   LIVE    → grid + silhouette display
 
 Keys:
-  D    → toggle debug overlay
+  D    → toggle debug overlay (mini thumbnails + stats)
+  C    → cycle calibration views: background depth / valid mask / noise floor / threshold / delta
   R    → restart from BG_CAL
   Q    → quit
 
@@ -223,16 +224,25 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
 
         calibration = calibrator.build()
         log.info("BG_CAL complete")
-        cam_q.put({"type": "cal_done"})
-
+        H, W = calibration.height, calibration.width
         tracker = BlobTracker(calibration, detection_config)
+        cam_q.put({
+            "type":          "cal_done",
+            "cal_background":  calibration.background.reshape(H, W).copy(),
+            "cal_valid_mask":  (calibration.valid_mask.reshape(H, W).astype(np.uint8) * 255),
+            "cal_noise_floor": calibration.noise_floor.reshape(H, W).copy(),
+            "cal_threshold":   tracker.threshold_map.copy(),
+        })
+
+        bg_2d = calibration.background.reshape(H, W).astype(np.int32)
 
         for frame in camera.frames():
             if stop.is_set():
                 break
             fg = tracker.detect_foreground(frame)
-            raw_arr = np.frombuffer(frame.data, dtype=np.uint16).reshape(frame.height, frame.width)
-            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr})
+            raw_arr = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
+            delta = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
+            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr, "delta": delta})
 
 
 # ── Drawing ────────────────────────────────────────────────────────────────────
@@ -310,12 +320,44 @@ def _crop_foreground_roi(foreground: np.ndarray, cfg: BodyGridConfig) -> np.ndar
     return flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
 
 
+_CAL_VIEW_LABELS = [
+    "",
+    "background depth (mm)",
+    "valid mask  [white=trusted]",
+    "noise floor IQR (mm)",
+    "effective threshold (mm)",
+    "delta: bg − current (mm)",
+]
+
+
+def _draw_cal_view(surf: pygame.Surface, fonts: dict,
+                   arr: np.ndarray | None, label: str,
+                   gx: int, gy: int, gw: int, gh: int) -> None:
+    """Render a full-letterbox calibration image (grayscale, normalized) with label."""
+    if arr is None or arr.size == 0:
+        return
+    max_v = float(arr.max()) if arr.max() > 0 else 1.0
+    norm = (arr.astype(float) / max_v * 255).clip(0, 255).astype(np.uint8)
+    rgb = np.stack([norm, norm, norm], axis=-1)
+    s = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+    s = pygame.transform.scale(s, (gw, gh))
+    surf.blit(s, (gx, gy))
+    lbl = fonts["big"].render(label, True, YELLOW)
+    surf.blit(lbl, (gx + 8, gy + 8))
+    hint = fonts["sml"].render("C: next view", True, LT_GREY)
+    surf.blit(hint, (gx + 8, gy + 8 + lbl.get_height() + 2))
+
+
 def _draw_debug(surf: pygame.Surface, fonts: dict,
                 foreground_roi: np.ndarray | None,
                 raw_frame: np.ndarray | None,
                 activations: CellActivations,
                 cfg: BodyGridConfig,
                 fps: float,
+                cal_background: np.ndarray | None,
+                cal_valid_mask: np.ndarray | None,
+                cal_noise_floor: np.ndarray | None,
+                det_cfg: dict,
                 gx: int, gy: int, gw: int, gh: int) -> None:
     # Semi-transparent debug panel on right side
     panel_w = max(220, gw // 4)
@@ -342,6 +384,12 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
     _line("Slabs:", YELLOW)
     for slab in cfg.slabs:
         _line(f"  [{slab.slab_id}] {slab.near_mm}–{slab.far_mm}mm")
+    y += 4
+    _line("Detection:", YELLOW)
+    _line(f"  delta:  {det_cfg.get('depth_delta_mm', 25)}mm")
+    _line(f"  range:  {det_cfg.get('min_depth_mm', 500)}–{det_cfg.get('max_depth_mm', 4000)}mm")
+    _line(f"  blobs:  ≥{det_cfg.get('min_blob_pixels', 500)}px")
+    _line("C: cycle cal view", LT_GREY)
 
     # Per-cell coverage in debug: draw on grid cells
     cell_w = gw / cfg.cols
@@ -354,8 +402,8 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
             lbl = small.render(f"{sid}:{cov:.0%}", True, WHITE)
             surf.blit(lbl, (cx, cy + i * (small.get_height() + 1)))
 
-    # Mini depth views — raw (top) and foreground ROI (bottom)
-    def _mini_surf(arr: np.ndarray, mini_h: int) -> pygame.Surface:
+    # Mini depth/calibration views stacked from the bottom of the panel
+    def _mini_surf(arr: np.ndarray, mini_h: int) -> tuple[pygame.Surface, int]:
         mini_w = int(mini_h * arr.shape[1] / max(arr.shape[0], 1))
         max_d = max(int(arr.max()), 1)
         norm = (arr.astype(float) / max_d * 255).clip(0, 255).astype(np.uint8)
@@ -363,10 +411,16 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
         s = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
         return pygame.transform.scale(s, (mini_w, mini_h)), mini_w
 
-    mini_h = min(gh // 5, 80)
+    mini_h = min(gh // 10, 50)
     bottom_y = gy + gh - 6
 
-    for arr, label in [(foreground_roi, "foreground ROI"), (raw_frame, "raw depth")]:
+    for arr, label in [
+        (foreground_roi,  "foreground ROI"),
+        (raw_frame,       "raw depth"),
+        (cal_background,  "cal: background"),
+        (cal_valid_mask,  "cal: valid mask"),
+        (cal_noise_floor, "cal: noise floor"),
+    ]:
         if arr is None or arr.size == 0:
             continue
         s, mini_w = _mini_surf(arr, mini_h)
@@ -460,6 +514,12 @@ def main() -> None:
     activations: CellActivations = {}
     foreground_roi: np.ndarray | None = None
     raw_frame: np.ndarray | None = None
+    raw_delta: np.ndarray | None = None
+    cal_background: np.ndarray | None  = None
+    cal_valid_mask: np.ndarray | None  = None
+    cal_noise_floor: np.ndarray | None = None
+    cal_threshold: np.ndarray | None   = None
+    cal_view: int = 0  # 0=off, 1-5 cycle through cal views
     cal_frame, cal_total  = 0, settings.get("calibration_frames", 60)
     fps_display           = 0.0
 
@@ -478,11 +538,20 @@ def main() -> None:
                 elif event.key == pygame.K_d:
                     debug = not debug
                     log.info("Debug overlay %s", "on" if debug else "off")
+                elif event.key == pygame.K_c and state == AppState.LIVE:
+                    cal_view = (cal_view + 1) % len(_CAL_VIEW_LABELS)
+                    log.info("Cal view: %s", _CAL_VIEW_LABELS[cal_view] or "off")
                 elif event.key == pygame.K_r:
                     state = AppState.BG_CAL
                     activations = {}
                     foreground_roi = None
                     raw_frame = None
+                    raw_delta = None
+                    cal_background = None
+                    cal_valid_mask = None
+                    cal_noise_floor = None
+                    cal_threshold = None
+                    cal_view = 0
                     cam["stop"].set()
                     threading.Thread(target=_start_camera, daemon=True).start()
 
@@ -503,12 +572,17 @@ def main() -> None:
 
                 elif mtype == "cal_done":
                     state = AppState.LIVE
+                    cal_background  = msg.get("cal_background")
+                    cal_valid_mask  = msg.get("cal_valid_mask")
+                    cal_noise_floor = msg.get("cal_noise_floor")
+                    cal_threshold   = msg.get("cal_threshold")
                     log.info("BG_CAL complete — LIVE")
                     broadcast({"state": "live"})
 
                 elif mtype == "foreground":
                     fg: np.ndarray = msg["frame"]
                     raw_frame = msg.get("raw")
+                    raw_delta = msg.get("delta")
                     activations = activator.activate(fg)
                     foreground_roi = _crop_foreground_roi(fg, bg_cfg)
                     broadcast({"state": "live", "active_cells": len(activations)})
@@ -526,12 +600,22 @@ def main() -> None:
             _draw_cal(screen, fonts, WW, WH, cal_frame, cal_total)
 
         elif state == AppState.LIVE:
-            _draw_grid(screen, bg_cfg, activations, slab_styles, gx, gy, gw, gh)
-            if foreground_roi is not None:
-                _draw_silhouette(screen, foreground_roi, bg_cfg, slab_styles, gx, gy, gw, gh)
+            if cal_view > 0:
+                _cal_arrs = [None, cal_background, cal_valid_mask,
+                             cal_noise_floor, cal_threshold, raw_delta]
+                arr = _cal_arrs[cal_view] if cal_view < len(_cal_arrs) else None
+                _draw_cal_view(screen, fonts, arr, _CAL_VIEW_LABELS[cal_view],
+                               gx, gy, gw, gh)
+            else:
+                _draw_grid(screen, bg_cfg, activations, slab_styles, gx, gy, gw, gh)
+                if foreground_roi is not None:
+                    _draw_silhouette(screen, foreground_roi, bg_cfg, slab_styles, gx, gy, gw, gh)
             if debug:
                 _draw_debug(screen, fonts, foreground_roi, raw_frame, activations,
-                            bg_cfg, fps_display, gx, gy, gw, gh)
+                            bg_cfg, fps_display,
+                            cal_background, cal_valid_mask, cal_noise_floor,
+                            settings.get("detection", {}),
+                            gx, gy, gw, gh)
 
         pygame.display.flip()
 
