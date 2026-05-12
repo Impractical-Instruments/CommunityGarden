@@ -231,7 +231,8 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
             if stop.is_set():
                 break
             fg = tracker.detect_foreground(frame)
-            cam_q.put({"type": "foreground", "frame": fg, "raw": frame})
+            raw_arr = np.frombuffer(frame.data, dtype=np.uint16).reshape(frame.height, frame.width)
+            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr})
 
 
 # ── Drawing ────────────────────────────────────────────────────────────────────
