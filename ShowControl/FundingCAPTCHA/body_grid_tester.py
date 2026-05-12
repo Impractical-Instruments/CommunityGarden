@@ -231,7 +231,7 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
             if stop.is_set():
                 break
             fg = tracker.detect_foreground(frame)
-            cam_q.put({"type": "foreground", "frame": fg})
+            cam_q.put({"type": "foreground", "frame": fg, "raw": frame})
 
 
 # ── Drawing ────────────────────────────────────────────────────────────────────
@@ -311,6 +311,7 @@ def _crop_foreground_roi(foreground: np.ndarray, cfg: BodyGridConfig) -> np.ndar
 
 def _draw_debug(surf: pygame.Surface, fonts: dict,
                 foreground_roi: np.ndarray | None,
+                raw_frame: np.ndarray | None,
                 activations: CellActivations,
                 cfg: BodyGridConfig,
                 fps: float,
@@ -352,22 +353,29 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
             lbl = small.render(f"{sid}:{cov:.0%}", True, WHITE)
             surf.blit(lbl, (cx, cy + i * (small.get_height() + 1)))
 
-    # Mini foreground ROI view
-    if foreground_roi is not None and foreground_roi.size > 0:
-        mini_h = min(gh // 4, 100)
-        mini_w = int(mini_h * foreground_roi.shape[1] / max(foreground_roi.shape[0], 1))
-        mini_x = panel_x + (panel_w - mini_w) // 2
-        mini_y = gy + gh - mini_h - 6
+    # Mini depth views — raw (top) and foreground ROI (bottom)
+    def _mini_surf(arr: np.ndarray, mini_h: int) -> pygame.Surface:
+        mini_w = int(mini_h * arr.shape[1] / max(arr.shape[0], 1))
+        max_d = max(int(arr.max()), 1)
+        norm = (arr.astype(float) / max_d * 255).clip(0, 255).astype(np.uint8)
+        rgb = np.stack([norm, norm, norm], axis=-1)
+        s = pygame.surfarray.make_surface(rgb.swapaxes(0, 1))
+        return pygame.transform.scale(s, (mini_w, mini_h)), mini_w
 
-        max_d = max(int(foreground_roi.max()), 1)
-        norm = (foreground_roi.astype(float) / max_d * 255).clip(0, 255).astype(np.uint8)
-        rgb_mini = np.stack([norm, norm, norm], axis=-1)
-        mini_surf = pygame.surfarray.make_surface(rgb_mini.swapaxes(0, 1))
-        mini_surf = pygame.transform.scale(mini_surf, (mini_w, mini_h))
-        surf.blit(mini_surf, (mini_x, mini_y))
-        pygame.draw.rect(surf, MID_GREY, (mini_x, mini_y, mini_w, mini_h), 1)
-        lbl = fonts["tiny"].render("foreground ROI", True, LT_GREY)
-        surf.blit(lbl, (mini_x, mini_y - lbl.get_height() - 1))
+    mini_h = min(gh // 5, 80)
+    bottom_y = gy + gh - 6
+
+    for arr, label in [(foreground_roi, "foreground ROI"), (raw_frame, "raw depth")]:
+        if arr is None or arr.size == 0:
+            continue
+        s, mini_w = _mini_surf(arr, mini_h)
+        mini_x = panel_x + (panel_w - mini_w) // 2
+        bottom_y -= mini_h
+        surf.blit(s, (mini_x, bottom_y))
+        pygame.draw.rect(surf, MID_GREY, (mini_x, bottom_y, mini_w, mini_h), 1)
+        lbl = fonts["tiny"].render(label, True, LT_GREY)
+        surf.blit(lbl, (mini_x, bottom_y - lbl.get_height() - 1))
+        bottom_y -= lbl.get_height() + 5
 
 
 # ── App state ──────────────────────────────────────────────────────────────────
@@ -450,6 +458,7 @@ def main() -> None:
     state: AppState       = AppState.BG_CAL
     activations: CellActivations = {}
     foreground_roi: np.ndarray | None = None
+    raw_frame: np.ndarray | None = None
     cal_frame, cal_total  = 0, settings.get("calibration_frames", 60)
     fps_display           = 0.0
 
@@ -472,6 +481,7 @@ def main() -> None:
                     state = AppState.BG_CAL
                     activations = {}
                     foreground_roi = None
+                    raw_frame = None
                     cam["stop"].set()
                     threading.Thread(target=_start_camera, daemon=True).start()
 
@@ -497,6 +507,7 @@ def main() -> None:
 
                 elif mtype == "foreground":
                     fg: np.ndarray = msg["frame"]
+                    raw_frame = msg.get("raw")
                     activations = activator.activate(fg)
                     foreground_roi = _crop_foreground_roi(fg, bg_cfg)
                     broadcast({"state": "live", "active_cells": len(activations)})
@@ -518,7 +529,7 @@ def main() -> None:
             if foreground_roi is not None:
                 _draw_silhouette(screen, foreground_roi, bg_cfg, slab_styles, gx, gy, gw, gh)
             if debug:
-                _draw_debug(screen, fonts, foreground_roi, activations,
+                _draw_debug(screen, fonts, foreground_roi, raw_frame, activations,
                             bg_cfg, fps_display, gx, gy, gw, gh)
 
         pygame.display.flip()
