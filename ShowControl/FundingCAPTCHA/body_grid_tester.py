@@ -596,12 +596,13 @@ def main() -> None:
                     fg: np.ndarray = msg["frame"]
                     raw_frame = msg.get("raw")
                     raw_delta = msg.get("delta")
-                    activations = activator.activate(fg)
                     if cam_transform is not None and "intrinsics" in msg:
                         warped = reproject_silhouette(fg, msg["intrinsics"], cam_transform)
                         foreground_roi = warped[:, ::-1]  # mirror for players
+                        activations = activator.activate(warped)
                     else:
                         foreground_roi = fg[:, ::-1]
+                        activations = activator.activate(fg)
                     broadcast({"state": "live", "active_cells": len(activations)})
 
                 elif mtype == "error":
