@@ -1,35 +1,45 @@
 {
-  "_comment": "FundingCAPTCHA runtime config.",
+  "_comment": "FundingCAPTCHA runtime config. ADR-0012, ADR-0013.",
 
   "detection": {
-    "_comment": "Tuned for close-range hand-on-screen. depth_delta_mm catches hands 1-5cm shallower than Screen background.",
     "depth_delta_mm":  25,
     "min_blob_pixels": 500,
     "min_depth_mm":    500,
     "max_depth_mm":    2500
   },
 
-  "blob_dwell_frames": 10,
+  "depth_slabs": [
+    {"near_mm": 800, "far_mm": 2500, "slab_id": 0}
+  ],
 
-  "_comment_max_plane_dist_cm": "Max distance (cm) in front of calibrated screen plane to register a touch. Tune down toward 5-10cm once calibration plane matches the physical screen surface.",
-  "max_plane_dist_cm": 10,
+  "slab_styles": {
+    "0": {"color": [0, 220, 100]}
+  },
+
+  "cell_activation_threshold": 0.30,
+
+  "camera_roi": {"x": 0, "y": 0, "w": 640, "h": 400},
+
+  "attract_dwell_s": 3.0,
+  "min_foreground_pixels": 2000,
+  "silhouette_opacity": 0.35,
 
   "calibration_frames": 60,
 
-  "stabilizer": {
-    "max_match_dist_cm":  80,
-    "smoothing_alpha":     0.3,
-    "max_miss_frames":     8,
-    "min_confirm_frames":  2
+  "bodygrid": {
+    "timer_s": 35,
+    "hold_s": 1.0,
+    "hint_opacity": 0.1,
+    "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 
   "camera": {
-    "_comment": "Used when running with --camera. Leave serial blank for first detected device.",
+    "_comment": "Leave serial blank for first detected device.",
     "serial":  "",
     "width":   640,
     "height":  400,
     "fps":     10,
     "pos_cm":  [0, 0, 50],
-    "rotation": { "pitch": -30, "yaw": 0, "roll": 0 }
+    "rotation": {"pitch": -30, "yaw": 0, "roll": 0}
   }
 }

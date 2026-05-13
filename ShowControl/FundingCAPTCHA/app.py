@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """
-FundingCAPTCHA unified pygame app (ADR-0012).
-
-Replaces: server.py, touch_calibration.py, captcha-kiosk.service
+FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013).
 
 Usage:
-  python app.py [--camera | --mock-camera] [--port 8080]
-               [--max-plane-dist CM] [--cal-dwell N] [--stable-cm CM]
+  python3 app.py [--camera | --mock-camera] [--port 8080]
 
 States:
-  BG_CAL     → solid black; camera builds background depth model
-  CORNER_CAL → operator touches three corners (BL → BR → TL)
-  LIVE       → game rotation
+  BG_CAL      → solid black; camera builds background depth model
+  SCREENSAVER → idle; detects player and counts down attract dwell
+  GAME        → active Arc
 
 Keys:
-  R          → wipe corners, restart from BG_CAL
+  R          → restart from BG_CAL
   Q / Escape → quit
 """
 
@@ -25,7 +22,6 @@ import asyncio
 import importlib.util
 import json
 import logging
-import math
 import queue
 import random
 import sys
@@ -45,15 +41,11 @@ SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 
 sys.path.insert(0, str(DIR.parent.parent))  # IIVision
 sys.path.insert(0, str(DIR.parent))         # OSCFabric
-sys.path.insert(0, str(DIR))                # screen_projector, games
+sys.path.insert(0, str(DIR))                # body_grid, games
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
-    from IIVision import (
-        MockCamera, OrbbecCamera,
-        StabilizerConfig, Transform, Rotator,
-        Calibrator, DetectionConfig, run_pipeline,
-    )
+    from IIVision import MockCamera, OrbbecCamera, Calibrator, DetectionConfig, BlobTracker
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -63,8 +55,6 @@ try:
     _FABRIC_AVAILABLE = True
 except ImportError:
     _FABRIC_AVAILABLE = False
-
-from screen_projector import ScreenProjector
 
 log = logging.getLogger("captcha")
 
@@ -77,7 +67,7 @@ LT_GREY  = (140, 140, 140)
 GREEN    = (  0, 200,  75)
 YELLOW   = (240, 200,   0)
 CYAN     = (  0, 200, 220)
-ORANGE   = (240, 130,   0)
+RED      = (220,  50,  50)
 
 FPS = 30
 
@@ -98,85 +88,12 @@ def _save_local(data: dict) -> None:
     SETTINGS_LOCAL.write_text(json.dumps(data, indent=2))
 
 
-# ── Corner calibration ────────────────────────────────────────────────────────
-
-_CAL_CORNERS   = ["BOTTOM-LEFT", "BOTTOM-RIGHT", "TOP-LEFT"]
-_CAL_KEYS      = ["bottom_left", "bottom_right", "top_left"]
-_CAL_CORNER_UV = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]
-
-
-class CornerCal:
-    def __init__(self, dwell_frames: int, stable_cm: float = 15.0) -> None:
-        self._dwell     = max(1, dwell_frames)
-        self._stable    = stable_cm
-        self.idx        = 0
-        self._pts: list[list[float]] = []
-        self._last_xyz: list[float] | None = None
-        self._df        = 0
-        self.just_accepted  = False
-        self.detected_xyz: list[float] | None = None
-        self.blob_count     = 0
-
-    @property
-    def name(self) -> str:
-        return _CAL_CORNERS[self.idx] if not self.done else "Done!"
-
-    @property
-    def done(self) -> bool:
-        return len(self._pts) == 3
-
-    @property
-    def dwell_progress(self) -> float:
-        return min(1.0, self._df / self._dwell)
-
-    def push_blobs(self, blobs: list[dict]) -> None:
-        self.just_accepted = False
-        self.detected_xyz  = None
-        self.blob_count    = len(blobs)
-        if self.done:
-            return
-        if len(blobs) != 1:
-            self._last_xyz = None
-            self._df       = 0
-            return
-        xyz = [blobs[0]["x"], blobs[0]["y"], blobs[0]["z"]]
-        self.detected_xyz = xyz
-        if self._last_xyz is None:
-            moved = True
-        else:
-            dist  = math.sqrt(sum((a - b) ** 2 for a, b in zip(xyz, self._last_xyz)))
-            moved = dist > self._stable
-        if moved:
-            self._last_xyz = xyz
-            self._df       = 1
-        else:
-            self._df += 1
-        if self._df >= self._dwell:
-            self._pts.append(xyz[:])
-            self.idx      += 1
-            self._last_xyz = None
-            self._df       = 0
-            self.just_accepted = True
-
-    def result(self) -> dict:
-        return {k: v for k, v in zip(_CAL_KEYS, self._pts)}
-
-    def reset(self) -> None:
-        self.idx           = 0
-        self._pts          = []
-        self._last_xyz     = None
-        self._df           = 0
-        self.just_accepted = False
-        self.detected_xyz  = None
-        self.blob_count    = 0
-
-
 # ── App state ─────────────────────────────────────────────────────────────────
 
 class AppState(Enum):
-    BG_CAL     = auto()
-    CORNER_CAL = auto()
-    LIVE       = auto()
+    BG_CAL      = auto()
+    SCREENSAVER = auto()
+    GAME        = auto()
 
 
 # ── Monitoring server ─────────────────────────────────────────────────────────
@@ -256,7 +173,7 @@ async def _process_request(connection: Any, request: Any) -> Any:
     path = request.path
 
     if path in ("/ws", "/logs"):
-        return None  # proceed with WebSocket upgrade
+        return None
 
     if path == "/api/restart":
         _http_restart.set()
@@ -306,28 +223,7 @@ def _camera_thread(camera: Any, settings: dict,
 
 def _camera_inner(camera: Any, settings: dict,
                   cam_q: queue.Queue, stop: threading.Event) -> None:
-    stab_cfg = settings.get("stabilizer", {})
-    cam_cfg  = settings.get("camera", {})
-    det_cfg  = settings.get("detection", {})
-
-    stabilizer_config = StabilizerConfig(
-        max_match_dist_cm  = stab_cfg.get("max_match_dist_cm",  80.0),
-        smoothing_alpha    = stab_cfg.get("smoothing_alpha",     0.3),
-        max_miss_frames    = stab_cfg.get("max_miss_frames",     8),
-        min_confirm_frames = stab_cfg.get("min_confirm_frames",  2),
-    )
-
-    pos_cm = cam_cfg.get("pos_cm", [0.0, 0.0, 200.0])
-    rot    = cam_cfg.get("rotation", {})
-    cam_tf = Transform(
-        translation=np.array(pos_cm, dtype=float),
-        rotation=Rotator(
-            pitch=rot.get("pitch", 0.0),
-            yaw=rot.get("yaw",     0.0),
-            roll=rot.get("roll",   0.0),
-        ),
-    )
-
+    det_cfg      = settings.get("detection", {})
     calib_frames = settings.get("calibration_frames", 60)
     log.info("BG_CAL: collecting %d frames", calib_frames)
 
@@ -340,7 +236,7 @@ def _camera_inner(camera: Any, settings: dict,
                 return
             frame_idx += 1
             cam_q.put({"type": "cal_progress",
-                        "frame": frame_idx, "total": calib_frames})
+                       "frame": frame_idx, "total": calib_frames})
             if calibrator.push_frame(frame):
                 break
 
@@ -352,100 +248,38 @@ def _camera_inner(camera: Any, settings: dict,
         cam_q.put({"type": "cal_done"})
 
         detection_config = DetectionConfig(
-            depth_delta_mm   = det_cfg.get("depth_delta_mm",   25),
-            min_blob_pixels  = det_cfg.get("min_blob_pixels",  500),
-            min_depth_mm     = det_cfg.get("min_depth_mm",     500),
-            max_depth_mm     = det_cfg.get("max_depth_mm",     2000),
+            depth_delta_mm  = det_cfg.get("depth_delta_mm",  25),
+            min_blob_pixels = det_cfg.get("min_blob_pixels", 500),
+            min_depth_mm    = det_cfg.get("min_depth_mm",    500),
+            max_depth_mm    = det_cfg.get("max_depth_mm",    2500),
         )
+        tracker = BlobTracker(calibration, detection_config)
 
-        for tracked in run_pipeline(camera, cam_tf, calibration,
-                                     stabilizer_config,
-                                     detection_config=detection_config):
+        for frame in camera.frames():
             if stop.is_set():
                 break
-            cam_q.put({"type": "blobs", "blobs": [
-                {"id":  int(t.stable_id),
-                 "x":   float(t.world_pos_cm[0]),
-                 "y":   float(t.world_pos_cm[1]),
-                 "z":   float(t.world_pos_cm[2])}
-                for t in tracked
-            ]})
+            foreground = tracker.detect_foreground(frame)
+            cam_q.put({"type": "foreground", "frame": foreground})
 
 
-# ── Drawing helpers ───────────────────────────────────────────────────────────
+# ── Silhouette rendering ──────────────────────────────────────────────────────
 
-def _letterbox(win_w: int, win_h: int, aspect: float) -> tuple[int, int, int, int]:
-    if win_w / win_h > aspect:
-        gh = win_h; gw = int(gh * aspect)
-    else:
-        gw = win_w; gh = int(gw / aspect)
-    return (win_w - gw) // 2, (win_h - gh) // 2, gw, gh
-
-
-def _uv_to_px(u: float, v: float,
-               gx: int, gy: int, gw: int, gh: int) -> tuple[int, int]:
-    return int(gx + u * gw), int(gy + (1.0 - v) * gh)
-
-
-def _dwell_arc(surf: pygame.Surface, cx: int, cy: int,
-               progress: float, radius: int = 36) -> None:
-    if progress <= 0:
-        return
-    for a in range(0, int(progress * 360), 4):
-        rad = math.radians(a - 90)
-        pygame.draw.circle(surf, GREEN,
-                           (int(cx + radius * math.cos(rad)),
-                            int(cy + radius * math.sin(rad))), 3)
-
-
-def _draw_corner_cal(surf: pygame.Surface, fonts: dict,
-                      WW: int, WH: int,
-                      gx: int, gy: int, gw: int, gh: int,
-                      cal: CornerCal) -> None:
-    pygame.draw.rect(surf, DK_GREY,  (gx, gy, gw, gh))
-    pygame.draw.rect(surf, MID_GREY, (gx, gy, gw, gh), 2)
-
-    if not cal.done:
-        u, v   = _CAL_CORNER_UV[cal.idx]
-        tx, ty = _uv_to_px(u, v, gx, gy, gw, gh)
-        pulse  = int(abs(pygame.time.get_ticks() % 1000 - 500) / 500 * 60 + 195)
-        pygame.draw.circle(surf, (pulse, pulse, 0), (tx, ty), 28, 4)
-        pygame.draw.circle(surf, YELLOW, (tx, ty), 7)
-        _dwell_arc(surf, tx, ty, cal.dwell_progress)
-
-    for i in range(cal.idx):
-        u, v   = _CAL_CORNER_UV[i]
-        px, py = _uv_to_px(u, v, gx, gy, gw, gh)
-        pygame.draw.circle(surf, GREEN, (px, py), 10)
-        surf.blit(fonts["sml"].render(f"OK {_CAL_CORNERS[i]}", True, GREEN),
-                  (px + 14, py - 9))
-
-    msg = (f"Touch {cal.name} corner  ({min(cal.idx + 1, 3)}/3)"
-           if not cal.done else "Calibration complete!")
-    lbl = fonts["big"].render(msg, True, YELLOW)
-    surf.blit(lbl, (WW // 2 - lbl.get_width() // 2, 18))
-
-    if cal.detected_xyz is not None:
-        x, y, z = cal.detected_xyz
-        info = fonts["sml"].render(
-            f"blob  x={x:+.1f}  y={y:+.1f}  z={z:+.1f} cm  |  hold still…",
-            True, CYAN)
-        surf.blit(info, (WW // 2 - info.get_width() // 2, 62))
-    elif cal.blob_count == 0:
-        t = fonts["sml"].render("No blob detected — step into camera view", True, LT_GREY)
-        surf.blit(t, (WW // 2 - t.get_width() // 2, 62))
-    else:
-        t = fonts["sml"].render(f"{cal.blob_count} blobs — one person only", True, ORANGE)
-        surf.blit(t, (WW // 2 - t.get_width() // 2, 62))
-
-    bw = 320
-    bx = WW // 2 - bw // 2
-    by = WH - 44
-    pygame.draw.rect(surf, MID_GREY, (bx, by, bw, 18))
-    pygame.draw.rect(surf, GREEN,    (bx, by, int(bw * cal.dwell_progress), 18))
-    pygame.draw.rect(surf, WHITE,    (bx, by, bw, 18), 1)
-    surf.blit(fonts["sml"].render("R=restart  Q=quit", True, LT_GREY),
-              (WW // 2 - fonts["sml"].size("R=restart  Q=quit")[0] // 2, WH - 20))
+def _silhouette_surf(foreground: np.ndarray, slabs_cfg: list[dict],
+                     roi: dict, color: tuple,
+                     display_w: int, display_h: int) -> pygame.Surface:
+    """Render foreground depth frame as a colored mask, scaled to display size."""
+    flipped = foreground[:, ::-1]
+    cropped = flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
+    H, W    = cropped.shape
+    mask    = np.zeros((H, W), dtype=bool)
+    for s in slabs_cfg:
+        mask |= (cropped >= s["near_mm"]) & (cropped < s["far_mm"])
+    rgb = np.zeros((W, H, 3), dtype=np.uint8)
+    rgb[mask.T, 0] = color[0]
+    rgb[mask.T, 1] = color[1]
+    rgb[mask.T, 2] = color[2]
+    surf = pygame.surfarray.make_surface(rgb)
+    return pygame.transform.scale(surf, (display_w, display_h))
 
 
 # ── Game interface ────────────────────────────────────────────────────────────
@@ -453,13 +287,11 @@ def _draw_corner_cal(surf: pygame.Surface, fonts: dict,
 class Game:
     """Base class for FundingCAPTCHA games.
 
-    update() returns (intensity, event):
-      intensity — float 0–1, Arc progress toward Blow-Up
-      event     — 'win' | 'loss' | None
+    update() args: foreground (uint16 H×W numpy array or None), dt (seconds)
+    update() returns: (intensity 0–1, event 'loss' | None)
     """
 
-    def update(self, blobs: list[dict], projector: ScreenProjector | None,
-               max_plane_dist: float, dt: float) -> tuple[float, str | None]:
+    def update(self, foreground: np.ndarray | None, dt: float) -> tuple[float, str | None]:
         return 0.0, None
 
     def draw(self, surf: pygame.Surface) -> None:
@@ -476,9 +308,10 @@ class _NoGame(Game):
 
 def _load_games(settings: dict) -> list[Game]:
     games: list[Game] = []
-    for name in ("upsidedown", "rhythm", "keepaway"):
+    for name in ("bodygrid",):
         path = DIR / "games" / f"{name}.py"
         if not path.exists():
+            log.warning("Game not found: %s", path)
             continue
         try:
             spec = importlib.util.spec_from_file_location(f"games.{name}", path)
@@ -492,44 +325,84 @@ def _load_games(settings: dict) -> list[Game]:
 
 
 class _ShuffleBag:
-    def __init__(self, games: list[Game]) -> None:
-        self._games = list(games)
-        self._bag:  list[Game] = []
+    def __init__(self, items: list) -> None:
+        self._items = list(items)
+        self._bag:  list = []
 
-    def next(self) -> Game | None:
-        if not self._games:
+    def next(self) -> Any | None:
+        if not self._items:
             return None
         if not self._bag:
-            self._bag = list(self._games)
+            self._bag = list(self._items)
             random.shuffle(self._bag)
         return self._bag.pop()
+
+
+# ── Screensaver interface ─────────────────────────────────────────────────────
+
+class _NoSaver:
+    def update(self, dt: float, foreground: np.ndarray | None) -> None:
+        pass
+
+    def draw(self, surf: pygame.Surface) -> None:
+        surf.fill(DK_GREY)
+
+
+def _load_screensavers(settings: dict) -> list:
+    config_path = DIR / "screensavers.json"
+    try:
+        names = json.loads(config_path.read_text())
+    except Exception:
+        names = []
+
+    savers = []
+    for name in names:
+        path = DIR / name
+        if not path.exists():
+            log.warning("Screensaver not found: %s", path)
+            continue
+        try:
+            spec = importlib.util.spec_from_file_location(f"ss.{Path(name).stem}", path)
+            mod  = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+            spec.loader.exec_module(mod)                  # type: ignore[union-attr]
+            savers.append(mod.create(settings))
+            log.info("Loaded screensaver: %s", name)
+        except Exception as exc:
+            log.warning("Could not load screensaver %s: %s", name, exc)
+    return savers
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="FundingCAPTCHA unified pygame app")
-    ap.add_argument("--camera",         action="store_true")
-    ap.add_argument("--mock-camera",    action="store_true")
-    ap.add_argument("--port",           type=int,   default=8080)
-    ap.add_argument("--max-plane-dist", type=float, default=None,  metavar="CM")
-    ap.add_argument("--cal-dwell",      type=int,   default=20,    metavar="N")
-    ap.add_argument("--stable-cm",      type=float, default=15.0,  metavar="CM")
+    ap.add_argument("--camera",      action="store_true")
+    ap.add_argument("--mock-camera", action="store_true")
+    ap.add_argument("--port",        type=int, default=8080)
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     logging.getLogger().addHandler(_LogHandler())
 
-    settings       = load_settings()
-    max_plane_dist = args.max_plane_dist or settings.get("max_plane_dist_cm", 10.0)
-    cal_dwell      = args.cal_dwell
-    stable_cm      = args.stable_cm
-    cam_cfg        = settings.get("camera", {})
-    use_mock       = args.mock_camera
+    settings = load_settings()
+    cam_cfg  = settings.get("camera", {})
+    use_mock = args.mock_camera
 
     if (args.camera or use_mock) and not _CV_AVAILABLE:
         sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+
+    # Silhouette / attract config
+    slabs_cfg     = settings.get("depth_slabs",
+                                 [{"near_mm": 800, "far_mm": 2500, "slab_id": 0}])
+    roi           = settings.get("camera_roi",
+                                 {"x": 0, "y": 0, "w": cam_cfg.get("width", 640),
+                                                   "h": cam_cfg.get("height", 400)})
+    slab_color    = tuple(settings.get("slab_styles", {})
+                          .get("0", {}).get("color", [0, 220, 100]))
+    sil_opacity   = float(settings.get("silhouette_opacity", 0.5))
+    attract_dwell = float(settings.get("attract_dwell_s", 3.0))
+    min_fg_px     = int(settings.get("min_foreground_pixels", 2000))
 
     # ── OSC fabric ────────────────────────────────────────────────────────────
     fabric: Any = None
@@ -568,19 +441,26 @@ def main() -> None:
     pygame.mouse.set_visible(False)
     clock  = pygame.time.Clock()
 
-    fonts = {
-        "big": pygame.font.SysFont("monospace", 32, bold=True),
-        "sml": pygame.font.SysFont("monospace", 18),
-    }
+    font_big = pygame.font.SysFont("monospace", 36, bold=True)
+    font_sml = pygame.font.SysFont("monospace", 22)
+
+    # HUD width matches games/grid.py constant
+    from games.grid import HUD_W
+    game_w = WW - HUD_W
 
     # ── Games ─────────────────────────────────────────────────────────────────
-    games    = _load_games(settings)
-    bag      = _ShuffleBag(games)
-    no_game  = _NoGame()
-    cur_game = bag.next() or no_game
-    cur_game.reset()
+    games      = _load_games(settings)
+    game_bag   = _ShuffleBag(games)
+    no_game    = _NoGame()
+    cur_game   = no_game
 
-    # ── Camera thread state (mutable dict for safe swap across closures) ──────
+    # ── Screensavers ──────────────────────────────────────────────────────────
+    savers     = _load_screensavers(settings)
+    saver_bag  = _ShuffleBag(savers)
+    no_saver   = _NoSaver()
+    cur_saver  = saver_bag.next() or no_saver
+
+    # ── Camera thread state ───────────────────────────────────────────────────
     cam: dict[str, Any] = {
         "q":      queue.Queue(maxsize=32),
         "stop":   threading.Event(),
@@ -600,7 +480,6 @@ def main() -> None:
             cam["thread"] = t
             log.info("Camera thread started (%s)", "mock" if use_mock else "Orbbec")
         else:
-            # No camera: skip BG_CAL immediately
             cam["q"].put({"type": "cal_done"})
 
     def _do_restart() -> None:
@@ -612,15 +491,14 @@ def main() -> None:
         log.info("Camera restarted — entering BG_CAL")
 
     # ── State ─────────────────────────────────────────────────────────────────
-    state: AppState                 = AppState.BG_CAL
-    projector: ScreenProjector | None = None
-    corner_cal: CornerCal | None    = None
-    current_blobs: list[dict]       = []
-    cal_frame                       = 0
-    cal_total                       = settings.get("calibration_frames", 60)
-    gx, gy, gw, gh                  = _letterbox(WW, WH, 4.0 / 3.0)
-    t_last_osc                      = time.monotonic()
-    intensity                       = 0.0
+    state:             AppState          = AppState.BG_CAL
+    current_foreground: np.ndarray | None = None
+    fg_pixel_count     = 0
+    attract_elapsed    = 0.0
+    cal_frame          = 0
+    cal_total          = settings.get("calibration_frames", 60)
+    t_last_osc         = time.monotonic()
+    intensity          = 0.0
 
     _start_camera()
 
@@ -637,16 +515,18 @@ def main() -> None:
                     cam["stop"].set(); pygame.quit(); sys.exit(0)
                 elif event.key == pygame.K_r:
                     state = AppState.BG_CAL
-                    projector = corner_cal = None
-                    current_blobs = []
+                    current_foreground = None
+                    attract_elapsed    = 0.0
+                    intensity          = 0.0
                     threading.Thread(target=_do_restart, daemon=True).start()
 
         # HTTP restart
         if _http_restart.is_set():
             _http_restart.clear()
             state = AppState.BG_CAL
-            projector = corner_cal = None
-            current_blobs = []
+            current_foreground = None
+            attract_elapsed    = 0.0
+            intensity          = 0.0
             threading.Thread(target=_do_restart, daemon=True).start()
 
         # Drain camera queue
@@ -659,33 +539,19 @@ def main() -> None:
                     cal_frame = msg["frame"]
                     cal_total = msg["total"]
                     broadcast({"state": "bg_cal",
-                                "progress": cal_frame / max(cal_total, 1)})
+                               "progress": cal_frame / max(cal_total, 1)})
 
                 elif mtype == "cal_done":
-                    saved = load_settings().get("screen_corners")
-                    if saved:
-                        try:
-                            projector = ScreenProjector(
-                                saved["bottom_left"],
-                                saved["bottom_right"],
-                                saved["top_left"],
-                            )
-                            gx, gy, gw, gh = _letterbox(WW, WH, projector.aspect)
-                            state = AppState.LIVE
-                            log.info("Corners loaded — entering LIVE")
-                        except Exception as exc:
-                            log.warning("Bad saved corners (%s) — entering CORNER_CAL", exc)
-                            corner_cal = CornerCal(cal_dwell, stable_cm)
-                            state      = AppState.CORNER_CAL
-                    else:
-                        corner_cal = CornerCal(cal_dwell, stable_cm)
-                        state      = AppState.CORNER_CAL
-                        log.info("No corners — entering CORNER_CAL")
-                    broadcast({"state": state.name.lower()})
+                    state = AppState.SCREENSAVER
+                    log.info("BG_CAL complete — entering SCREENSAVER")
+                    cur_saver = saver_bag.next() or no_saver
+                    broadcast({"state": "screensaver"})
 
-                elif mtype == "blobs":
-                    current_blobs = msg["blobs"]
-                    broadcast({"state": "live", "blobs": current_blobs})
+                elif mtype == "foreground":
+                    current_foreground = msg["frame"]
+                    fg_pixel_count     = int(np.count_nonzero(current_foreground))
+                    broadcast({"state": state.name.lower(),
+                               "fg_pixels": fg_pixel_count})
 
                 elif mtype == "error":
                     log.error("Camera: %s", msg["msg"])
@@ -694,48 +560,55 @@ def main() -> None:
         except queue.Empty:
             pass
 
-        # Draw
+        # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(BLACK)
 
         if state == AppState.BG_CAL:
-            pass  # solid black — projector output minimised during depth bg capture
+            pass  # solid black — minimise projector output during BG calibration
 
-        elif state == AppState.CORNER_CAL:
-            assert corner_cal is not None
-            corner_cal.push_blobs(current_blobs)
+        elif state == AppState.SCREENSAVER:
+            cur_saver.update(dt, current_foreground)
+            cur_saver.draw(screen)
 
-            if corner_cal.just_accepted and not corner_cal.done:
-                log.info("Corner accepted: %s", _CAL_CORNERS[corner_cal.idx - 1])
+            player_present = (fg_pixel_count >= min_fg_px)
+            if player_present:
+                attract_elapsed += dt
 
-            if corner_cal.done:
-                result    = corner_cal.result()
-                projector = ScreenProjector(result["bottom_left"],
-                                            result["bottom_right"],
-                                            result["top_left"])
-                gx, gy, gw, gh = _letterbox(WW, WH, projector.aspect)
-                _save_local({"screen_corners": result})
-                log.info("Corners saved to %s", SETTINGS_LOCAL)
-                corner_cal = None
-                state      = AppState.LIVE
-                broadcast({"state": "live"})
-                cur_game = bag.next() or no_game
-                cur_game.reset()
+                # Silhouette overlay
+                if current_foreground is not None:
+                    sil = _silhouette_surf(current_foreground, slabs_cfg,
+                                           roi, slab_color, game_w, WH)
+                    sil.set_alpha(int(sil_opacity * 255))
+                    screen.blit(sil, (0, 0))
+
+                # Countdown text
+                remaining = max(0.0, attract_dwell - attract_elapsed)
+                t_big = font_big.render(f"Game starts in {int(remaining) + 1}...", True, WHITE)
+                screen.blit(t_big, t_big.get_rect(center=(game_w // 2, WH // 2 - 40)))
+
+                if attract_elapsed >= attract_dwell:
+                    state         = AppState.GAME
+                    attract_elapsed = 0.0
+                    cur_game      = game_bag.next() or no_game
+                    cur_game.reset()
+                    intensity     = 0.0
+                    log.info("Player detected — starting Arc (%s)", type(cur_game).__name__)
+                    broadcast({"state": "game"})
             else:
-                _draw_corner_cal(screen, fonts, WW, WH, gx, gy, gw, gh, corner_cal)
+                attract_elapsed = 0.0
 
-        elif state == AppState.LIVE:
-            intensity, event = cur_game.update(
-                current_blobs, projector, max_plane_dist, dt)
+        elif state == AppState.GAME:
+            intensity, event = cur_game.update(current_foreground, dt)
             cur_game.draw(screen)
 
-            if event in ("win", "loss"):
-                if event == "loss":
-                    log.info("Blow-Up — cycling game")
-                    if fabric:
-                        fabric.send_event("blowup")
-                cur_game = bag.next() or no_game
-                cur_game.reset()
+            if event == "loss":
+                log.info("Blow-Up — returning to screensaver")
+                if fabric:
+                    fabric.send_event("blowup")
+                state     = AppState.SCREENSAVER
+                cur_saver = saver_bag.next() or no_saver
                 intensity = 0.0
+                broadcast({"state": "screensaver"})
 
             now = time.monotonic()
             if now - t_last_osc >= 0.1 and fabric:
