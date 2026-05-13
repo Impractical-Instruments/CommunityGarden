@@ -77,7 +77,7 @@ A defined set of mechanics (code in `games/`) paired with a Level set (data in a
 _Avoid_: "game type", "mode"
 
 **Level**:
-One authored puzzle definition within a Game. Specifies the target pattern (grid cells + Depth Slab required per cell), timer duration, and hold dwell. An Arc plays through Levels in order — winning a Level advances to the next; timer expiry triggers a Blow-Up.
+One authored puzzle definition within a Game. For BodyGrid: specifies a prompt string, a background image, a grid size, a set of `valid_cells` (col/row pairs the Player must cover), a designer-assigned difficulty (1–5), and optional per-level overrides for timer duration, hold dwell, and hint opacity. An Arc picks Levels by shuffle-bag from those at equal or one step harder difficulty than the last Level beaten — there is no fixed ordering. Timer expiry triggers a Blow-Up; beating a Level only escalates difficulty.
 _Avoid_: "round", "stage", "difficulty step"
 
 **Play Zone**:
@@ -89,7 +89,7 @@ A single depth band `[near_mm, far_mm]` with an associated `slab_id`. Pixels wit
 _Avoid_: "depth layer", "depth band" (use Depth Slab)
 
 **Intensity**:
-A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each frame, representing how far the current Arc has progressed toward its Blow-Up. Derived from the current difficulty level normalised against the maximum. Resets to 0.0 at the start of each new Arc.
+A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each frame, representing how far the current Arc has progressed toward its Blow-Up. Computed as a configurable weighted sum of current difficulty (normalised 0–1 over max difficulty 5) and time pressure (elapsed / timer_s for the current Level). Weights live in `captcha-settings.json`. Resets to 0.0 at the start of each new Arc.
 _Avoid_: "difficulty", "score", "engagement level"
 
 **Blow-Up Signal**:

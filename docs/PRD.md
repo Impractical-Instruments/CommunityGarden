@@ -108,7 +108,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Interaction pivot in progress (2026-05-11). Camera now faces Players; silhouette body interaction replaces touch detection. BodyGrid game being built; UpsideDown/Rhythm/Keepaway being ported. Festival debut May 29.
+**Status:** Interaction pivot complete (2026-05-12). Camera faces Players; silhouette body interaction live. BodyGrid game designed and in implementation. UpsideDown/Rhythm/Keepaway pending port to silhouette interaction. Festival debut May 29.
 
 **What it does:** A 7-foot kiosk styled as a CRT monitor. Players make shapes with their bodies in front of the kiosk; a depth camera captures their silhouettes and maps them to a projected grid. Games challenge Players to fill specific grid patterns simultaneously to "prove their humanity."
 
@@ -116,12 +116,15 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
 
-**Games:** BodyGrid (new — silhouette grid pattern matching). UpsideDown, Rhythm, Keepaway to be ported to silhouette interaction. All must self-terminate via timer (see ADR-0003). Design docs in `docs/games/`.
+**Games:** BodyGrid (active — silhouette CAPTCHA grid pattern matching, see `docs/games/bodygrid.md`). UpsideDown, Rhythm, Keepaway pending port to silhouette interaction (code deleted; design docs in `docs/games/`). All games must self-terminate via timer (see ADR-0003).
 
-**Photos:** Kid-designed images live in `images/`. Per-game config files (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) map filenames; all default to `[]` with emoji fallback. No upload endpoint — operator copies images locally before show.
+**Level images:** Live in `images/`. BodyGrid levels defined in `bodygrid-levels.json`. Other per-game image configs (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) retained for future ports.
+
+**Screensavers:** Generative visual modules in `ScreenSavers/`. Config in `screensavers.json`. Rotate on each idle entry.
 
 **OSC output to fabric:**
-- TBD — activity signals (game started, game completed, game failed, frustration level) for TreeHouse to consume
+- `/captcha/intensity` (float 0–1) — weighted function of current Level difficulty and time pressure; sent every 100ms during an active Arc
+- `/captcha/blowup` (no args) — one-shot on Blow-Up
 
 ---
 
