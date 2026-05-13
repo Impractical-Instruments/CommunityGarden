@@ -5,11 +5,11 @@
     "depth_delta_mm":  25,
     "min_blob_pixels": 500,
     "min_depth_mm":    500,
-    "max_depth_mm":    2500
+    "max_depth_mm":    3000
   },
 
   "depth_slabs": [
-    {"near_mm": 800, "far_mm": 2500, "slab_id": 0}
+    {"near_mm": 800, "far_mm": 2000, "slab_id": 0}
   ],
 
   "slab_styles": {
