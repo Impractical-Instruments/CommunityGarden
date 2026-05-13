@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import random
 from enum import Enum, auto
@@ -9,6 +10,8 @@ from pathlib import Path
 
 import numpy as np
 import pygame
+
+log = logging.getLogger(__name__)
 
 from games.grid import (
     Grid,
@@ -109,11 +112,16 @@ def _load_bg(image_name: str | None, w: int, h: int) -> pygame.Surface | None:
         return None
     path = _IMAGES / image_name
     if not path.exists():
+        log.warning("Background image not found: %s", path)
+        return None
+    if not pygame.image.get_extended():
+        log.warning("SDL_image not available — cannot load %s (install python3-pil or libsdl2-image)", path.suffix)
         return None
     try:
         img = pygame.image.load(str(path)).convert()
         return pygame.transform.scale(img, (w, h))
-    except Exception:
+    except Exception as exc:
+        log.warning("Failed to load background image %s: %s", path, exc)
         return None
 
 
