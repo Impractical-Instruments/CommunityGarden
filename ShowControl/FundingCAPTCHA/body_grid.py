@@ -60,8 +60,7 @@ class BodyGridActivator:
         cfg = self._cfg
         roi = cfg.camera_roi
 
-        flipped = foreground[:, ::-1]
-        cropped = flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
+        cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
 
         roi_h, roi_w = cropped.shape
         result: CellActivations = {}

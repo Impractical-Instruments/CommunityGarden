@@ -136,22 +136,21 @@ def test_max_rule_activates_when_one_slab_exceeds_threshold():
 
 # ── Spatial mapping ────────────────────────────────────────────────────────────
 
-def test_horizontal_flip_moves_left_to_right():
-    # Blob on left half of frame → after flip → right column active
+def test_col_maps_left_display_to_col0():
+    # Frame arrives pre-flipped (display space); left blob → col 0
     fg = _fg()
-    fg[:, :50] = 1000  # left half (x=0..49) in camera space
-    result = BodyGridActivator(_cfg(cols=2, rows=1)).activate(fg)
-    # After flip: left→right; col 1 = right half of display
-    assert (1, 0) in result
-    assert (0, 0) not in result
-
-
-def test_horizontal_flip_moves_right_to_left():
-    fg = _fg()
-    fg[:, 50:] = 1000  # right half in camera space
+    fg[:, :50] = 1000  # left half in display space
     result = BodyGridActivator(_cfg(cols=2, rows=1)).activate(fg)
     assert (0, 0) in result
     assert (1, 0) not in result
+
+
+def test_col_maps_right_display_to_col1():
+    fg = _fg()
+    fg[:, 50:] = 1000  # right half in display space
+    result = BodyGridActivator(_cfg(cols=2, rows=1)).activate(fg)
+    assert (1, 0) in result
+    assert (0, 0) not in result
 
 
 def test_roi_excludes_pixels_outside():
@@ -173,8 +172,8 @@ def test_roi_includes_pixels_inside():
 
 def test_only_active_cells_in_result():
     fg = _fg()
-    # Activate only top-left quarter of a 2×2 grid
-    fg[:50, :50] = 1000  # after flip → top-right quarter (col=1, row=0)
+    # Frame is pre-flipped (display space); top-left blob → col=0, row=0
+    fg[:50, :50] = 1000
     result = BodyGridActivator(_cfg(cols=2, rows=2)).activate(fg)
     assert len(result) == 1
-    assert (1, 0) in result
+    assert (0, 0) in result

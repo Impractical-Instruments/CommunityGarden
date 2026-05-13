@@ -131,8 +131,7 @@ def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
 
 def _foreground_surf(foreground: np.ndarray, slabs_cfg: list[dict],
                      roi: dict, color: tuple, w: int, h: int) -> pygame.Surface:
-    flipped = foreground[:, ::-1]
-    cropped = flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
+    cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
     H, W    = cropped.shape
     mask    = np.zeros((H, W), dtype=bool)
     for s in slabs_cfg:

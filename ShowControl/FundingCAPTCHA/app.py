@@ -43,6 +43,8 @@ sys.path.insert(0, str(DIR.parent.parent))  # IIVision
 sys.path.insert(0, str(DIR.parent))         # OSCFabric
 sys.path.insert(0, str(DIR))                # body_grid, games
 
+from silhouette import build_cam_transform, apply_cam_transform
+
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
     from IIVision import MockCamera, OrbbecCamera, Calibrator, DetectionConfig, BlobTracker
@@ -227,8 +229,9 @@ def _camera_inner(camera: Any, settings: dict,
     calib_frames = settings.get("calibration_frames", 60)
     log.info("BG_CAL: collecting %d frames", calib_frames)
 
-    calibrator = Calibrator(calib_frames)
-    frame_idx  = 0
+    calibrator    = Calibrator(calib_frames)
+    cam_transform = build_cam_transform(settings)
+    frame_idx     = 0
 
     with camera:
         for frame in camera.frames():
@@ -259,7 +262,10 @@ def _camera_inner(camera: Any, settings: dict,
             if stop.is_set():
                 break
             foreground = tracker.detect_foreground(frame)
-            cam_q.put({"type": "foreground", "frame": foreground})
+            corrected  = apply_cam_transform(
+                foreground, getattr(frame, "intrinsics", None), cam_transform
+            )
+            cam_q.put({"type": "foreground", "frame": corrected})
 
 
 # ── Silhouette rendering ──────────────────────────────────────────────────────
@@ -268,8 +274,7 @@ def _silhouette_surf(foreground: np.ndarray, slabs_cfg: list[dict],
                      roi: dict, color: tuple,
                      display_w: int, display_h: int) -> pygame.Surface:
     """Render foreground depth frame as a colored mask, scaled to display size."""
-    flipped = foreground[:, ::-1]
-    cropped = flipped[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
+    cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
     H, W    = cropped.shape
     mask    = np.zeros((H, W), dtype=bool)
     for s in slabs_cfg:

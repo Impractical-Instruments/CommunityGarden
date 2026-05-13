@@ -12,7 +12,7 @@ The camera is remounted to face outward toward Players rather than at the Screen
 
 Key consequences:
 
-**ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map directly to display pixels (horizontal flip + configurable ROI crop; no 3D projection needed).
+**ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map to display pixels via a camera-mounting correction: the camera thread calls `apply_cam_transform()` (see `silhouette.py`) which reprojects the depth frame to appear as though the camera is centred on the screen — compensating for physical mounting position and orientation — then mirrors horizontally so players see a natural mirror view. ROI crop is applied downstream in `BodyGridActivator`. Games and screensavers receive a fully corrected, display-space frame and must not flip.
 
 **CORNER_CAL is removed.** The per-installation corner-touch calibration step (operator touching three screen corners) is eliminated. BG_CAL (background model collection at startup) remains.
 
@@ -91,7 +91,8 @@ Arc progression uses a shuffle-bag over eligible Levels: after beating a Level, 
 - `screen_projector.py` is deleted.
 - `CornerCal` and `CORNER_CAL` state are removed from `app.py`.
 - Camera thread outputs foreground depth frames (numpy arrays) instead of blob track lists.
-- `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop + flip config). Screen corner fields are removed.
+- `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop, display-space coordinates). `camera.pos_cm` and `camera.rotation` (pitch/yaw/roll) drive the reprojection. Screen corner fields are removed.
+- `silhouette.py` provides `build_cam_transform(settings)` and `apply_cam_transform(fg, intrinsics, transform)`. Both camera entry points (`app.py`, `body_grid_tester.py`) use these. Games must not flip or reproject — frames arrive display-ready.
 - `games/grid.py` `blob_to_cell()` is replaced by pixel-to-cell logic operating on the slab mask.
 - UpsideDown, Rhythm, and Keepaway must be ported to the silhouette interaction model. Design docs in `docs/games/`. Code deleted pending port.
 - BodyGrid is the first Game built for this interaction model.
