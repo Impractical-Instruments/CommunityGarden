@@ -107,6 +107,18 @@ def _load_taunts() -> list[str]:
     return ["Too Slow! You're not a robot."]
 
 
+def _img_load(path: Path) -> pygame.Surface:
+    """Load image via pygame, falling back to Pillow for unsupported formats (e.g. JPEG on Pi)."""
+    try:
+        return pygame.image.load(str(path)).convert()
+    except Exception:
+        pass
+    from PIL import Image as _PILImage
+    pil = _PILImage.open(str(path)).convert("RGB")
+    raw = pil.tobytes()
+    return pygame.image.frombuffer(raw, pil.size, "RGB").convert()
+
+
 def _load_bg(image_name: str | None, w: int, h: int) -> pygame.Surface | None:
     if not image_name:
         return None
@@ -114,11 +126,8 @@ def _load_bg(image_name: str | None, w: int, h: int) -> pygame.Surface | None:
     if not path.exists():
         log.warning("Background image not found: %s", path)
         return None
-    if not pygame.image.get_extended():
-        log.warning("SDL_image not available — cannot load %s (install python3-pil or libsdl2-image)", path.suffix)
-        return None
     try:
-        img = pygame.image.load(str(path)).convert()
+        img = _img_load(path)
         return pygame.transform.scale(img, (w, h))
     except Exception as exc:
         log.warning("Failed to load background image %s: %s", path, exc)

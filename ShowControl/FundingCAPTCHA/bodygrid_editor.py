@@ -12,6 +12,17 @@ _DIR    = Path(__file__).parent
 _LEVELS = _DIR / "bodygrid-levels.json"
 _IMAGES = _DIR / "images"
 
+
+def _img_load(path: Path) -> "pygame.Surface":
+    """Load image via pygame, falling back to Pillow for JPEG on Pi (SDL_image JPEG-less builds)."""
+    try:
+        return pygame.image.load(str(path)).convert()
+    except Exception:
+        pass
+    from PIL import Image as _PILImage
+    pil = _PILImage.open(str(path)).convert("RGB")
+    return pygame.image.frombuffer(pil.tobytes(), pil.size, "RGB").convert()
+
 # ── Colors ─────────────────────────────────────────────────────────────────
 BLACK      = (  0,   0,   0)
 WHITE      = (255, 255, 255)
@@ -145,7 +156,7 @@ class Editor:
             if not path.exists():
                 return None
             try:
-                img = pygame.image.load(str(path)).convert()
+                img = _img_load(path)
                 self._bg_cache[name] = pygame.transform.scale(img, (GRID_W, H))
             except Exception:
                 return None
@@ -158,7 +169,7 @@ class Editor:
             if not path.exists():
                 return None
             try:
-                img = pygame.image.load(str(path)).convert()
+                img = _img_load(path)
                 self._thumb_cache[key] = pygame.transform.scale(img, (tw, th))
             except Exception:
                 return None
