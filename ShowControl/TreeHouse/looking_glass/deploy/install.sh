@@ -16,7 +16,7 @@ echo "User:    $SERVICE_USER"
 echo ""
 
 echo "→ Installing system dependencies..."
-apt-get install -y cage libgl1-mesa-dri seatd
+apt-get install -y cage libgl1-mesa-dri libegl1 libegl-mesa0 libgl1 seatd
 systemctl enable --now seatd
 usermod -aG _seat "$SERVICE_USER"
 
