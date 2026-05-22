@@ -3,14 +3,14 @@ Description=Looking Glass video renderer
 After=graphical.target
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/TreeHouse/looking_glass
+WorkingDirectory=%h/CommunityGarden/ShowControl/TreeHouse/looking_glass
 ExecStart=/usr/bin/python3 renderer.py
 Restart=on-failure
 RestartSec=5
 User=pi
 SupplementaryGroups=video render
 Environment=WAYLAND_DISPLAY=wayland-1
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 StandardOutput=journal

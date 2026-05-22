@@ -19,11 +19,8 @@ echo "→ Installing Python dependencies..."
 pip3 install --break-system-packages moderngl pygame numpy python-osc
 
 echo "→ Installing systemd unit..."
-SERVICE_UID=$(id -u "$SERVICE_USER")
 DEST="/etc/systemd/system/looking_glass.service"
-sed "s|/home/pi/CommunityGarden/ShowControl/TreeHouse/looking_glass|$APP_DIR|g
-     s|User=pi|User=$SERVICE_USER|g
-     s|/run/user/1000|/run/user/$SERVICE_UID|g" \
+sed "s|User=pi|User=$SERVICE_USER|g" \
     "$SCRIPT_DIR/looking_glass.service" > "$DEST"
 echo "   written: $DEST"
 

@@ -22,8 +22,7 @@ pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."
 DEST="/etc/systemd/system/treehouse.service"
-sed "s|/home/pi/CommunityGarden/ShowControl/TreeHouse|$APP_DIR|g
-     s|User=pi|User=$SERVICE_USER|g" \
+sed "s|User=pi|User=$SERVICE_USER|g" \
     "$SCRIPT_DIR/treehouse.service" > "$DEST"
 echo "   written: $DEST"
 

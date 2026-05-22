@@ -6,7 +6,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 # Remove --no-visualizer to enable the live WebSocket debug view.
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FlowerBeds
+WorkingDirectory=%h/CommunityGarden/ShowControl/FlowerBeds
 ExecStart=/usr/bin/python3 main.py --config settings.json
 Restart=always
 RestartSec=5

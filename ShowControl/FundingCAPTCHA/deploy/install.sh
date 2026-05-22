@@ -31,9 +31,7 @@ pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
 # ── Patch service file with actual app path ────────────────────────────────────
 echo "→ Installing systemd unit..."
 DEST="/etc/systemd/system/captcha.service"
-sed "s|/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA|$APP_DIR|g
-     s|/home/pi|/home/$SERVICE_USER|g
-     s|User=pi|User=$SERVICE_USER|g" \
+sed "s|User=pi|User=$SERVICE_USER|g" \
     "$SCRIPT_DIR/captcha.service" > "$DEST"
 echo "   written: $DEST"
 
