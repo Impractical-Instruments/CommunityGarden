@@ -64,8 +64,8 @@ injecting socket variables and hoping a compositor exists, the renderer is wrapp
 ```
 
 `cage` is a minimal kiosk Wayland compositor (wlroots-based) that runs a single application
-fullscreen and exits when it does. It provides the Wayland socket to the renderer child process
-directly — no `WAYLAND_DISPLAY` or `XDG_RUNTIME_DIR` injection needed in the unit file.
+fullscreen and exits when it does. It sets `WAYLAND_DISPLAY` for the renderer child process automatically.
+`XDG_RUNTIME_DIR` must still be set in the unit file — cage uses it to create the socket.
 
 This also enables multiple independent displays: a second cage instance with `-d <output>`
 runs a second renderer on a different physical screen, each managed by its own systemd unit.

@@ -8,6 +8,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse
 ExecStart=/usr/bin/python3 main.py --config settings.json
+Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
