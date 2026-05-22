@@ -1,4 +1,4 @@
-"""BodyGrid — silhouette CAPTCHA grid-matching game (ADR-0013)."""
+"""BodyCaptcha — silhouette CAPTCHA grid-matching game (ADR-0013)."""
 from __future__ import annotations
 
 import json
@@ -22,7 +22,7 @@ from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivat
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
-_LEVELS = _DIR / "bodygrid-levels.json"
+_LEVELS = _DIR / "bodycaptcha-levels.json"
 _TAUNTS = _DIR / "taunts.json"
 
 HINT_COLOR   = (100, 180, 255)
@@ -161,10 +161,10 @@ def _foreground_surf(foreground: np.ndarray, slabs_cfg: list[dict],
     return pygame.transform.scale(surf, (w, h))
 
 
-class BodyGridGame:
+class BodyCaptchaGame:
     def __init__(self, settings: dict) -> None:
         self._settings   = settings
-        self._defaults   = settings.get("bodygrid", {})
+        self._defaults   = settings.get("bodycaptcha", {})
         self._all_levels = _load_levels()
         self._taunts     = _load_taunts()
         self._bag        = _LevelBag(self._all_levels)
@@ -462,5 +462,5 @@ def _wrap(text: str, width: int) -> list[str]:
     return lines
 
 
-def create(settings: dict) -> BodyGridGame:
-    return BodyGridGame(settings)
+def create(settings: dict) -> BodyCaptchaGame:
+    return BodyCaptchaGame(settings)

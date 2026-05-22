@@ -313,7 +313,7 @@ class _NoGame(Game):
 
 def _load_games(settings: dict) -> list[Game]:
     games: list[Game] = []
-    for name in ("bodygrid",):
+    for name in ("bodycaptcha",):
         path = DIR / "games" / f"{name}.py"
         if not path.exists():
             log.warning("Game not found: %s", path)

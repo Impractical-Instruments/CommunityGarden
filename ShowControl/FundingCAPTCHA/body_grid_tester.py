@@ -3,7 +3,7 @@
 FundingCAPTCHA body grid tester.
 
 Displays silhouettes detected in configurable depth slabs on a configurable grid.
-Used to tune camera ROI, slab depths, and grid size for the BodyGrid game.
+Used to tune camera ROI, slab depths, and grid size for Body Grid.
 
 States:
   BG_CAL  → solid black; camera builds background depth model
@@ -472,7 +472,7 @@ def main() -> None:
     info   = pygame.display.Info()
     WW, WH = info.current_w, info.current_h
     screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
-    pygame.display.set_caption("BodyGrid Tester")
+    pygame.display.set_caption("Body Grid Tester")
     pygame.mouse.set_visible(False)
     clock  = pygame.time.Clock()
 

@@ -26,7 +26,7 @@
 
   "calibration_frames": 60,
 
-  "bodygrid": {
+  "bodycaptcha": {
     "timer_s": 35,
     "hold_s": 1.0,
     "hint_opacity": 0.1,

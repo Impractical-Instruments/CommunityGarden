@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BodyGrid level editor/visualizer — standalone, no camera needed."""
+"""BodyCaptcha level editor/visualizer — standalone, no camera needed."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 import pygame
 
 _DIR    = Path(__file__).parent
-_LEVELS = _DIR / "bodygrid-levels.json"
+_LEVELS = _DIR / "bodycaptcha-levels.json"
 _IMAGES = _DIR / "images"
 
 
@@ -104,7 +104,7 @@ def _all_image_paths() -> list[str]:
 class Editor:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption("BodyGrid Level Editor")
+        pygame.display.set_caption("BodyCaptcha Level Editor")
         self._surf    = pygame.display.set_mode((W, H))
         self._clock   = pygame.time.Clock()
         self._f15     = pygame.font.SysFont("monospace", 15, bold=True)
