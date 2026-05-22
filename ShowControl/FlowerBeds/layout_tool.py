@@ -31,10 +31,10 @@ _OSC_ADDRESS = "/cg/ff/rot"
 STATIC_DIR   = Path(__file__).resolve().parent / "layout_tool"
 
 _DEFAULT_CLUSTER_OFFSETS = [
-    [40.0,  -30.0, 0.0],
-    [40.0,  -75.0, 0.0],
-    [100.0, -25.0, 0.0],
-    [95.0,  -70.0, 0.0],
+    [10.0,  10.0, 0.0],
+    [-10.0,  10.0, 0.0],
+    [10.0, -10.0, 0.0],
+    [-10.0,  -10.0, 0.0],
 ]
 
 # Paths set by main() before the server starts
@@ -120,6 +120,11 @@ class LayoutBody(BaseModel):
 @app.get("/")
 async def index():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/api/defaults")
+async def get_defaults():
+    return JSONResponse({"cluster_offsets": _DEFAULT_CLUSTER_OFFSETS})
 
 
 @app.get("/api/layout")

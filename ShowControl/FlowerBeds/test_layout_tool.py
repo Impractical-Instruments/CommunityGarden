@@ -70,6 +70,31 @@ def test_index_returns_html(client):
 
 
 # ---------------------------------------------------------------------------
+# GET /api/defaults
+# ---------------------------------------------------------------------------
+
+def test_get_defaults_returns_cluster_offsets(client):
+    r = client.get("/api/defaults")
+    assert r.status_code == 200
+    d = r.json()
+    assert "cluster_offsets" in d
+    offsets = d["cluster_offsets"]
+    assert len(offsets) == 4
+    assert offsets[0] == [40.0, -30.0, 0.0]
+    assert offsets[1] == [40.0, -75.0, 0.0]
+    assert offsets[2] == [100.0, -25.0, 0.0]
+    assert offsets[3] == [95.0, -70.0, 0.0]
+
+
+def test_defaults_match_default_module(client):
+    r = client.get("/api/defaults")
+    offsets = r.json()["cluster_offsets"]
+    m = _default_module(0)
+    for i, cluster in enumerate(m["clusters"]):
+        assert cluster["pos_offset_cm"] == offsets[i]
+
+
+# ---------------------------------------------------------------------------
 # GET /api/layout
 # ---------------------------------------------------------------------------
 

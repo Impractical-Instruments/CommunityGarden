@@ -395,7 +395,7 @@ function selectAimCluster(j) {
 }
 
 // ================================================================ module ops
-const DEFAULT_OFFSETS = [[40,-30,0],[40,-75,0],[100,-25,0],[95,-70,0]];
+let DEFAULT_OFFSETS = null;  // loaded from /api/defaults on boot
 
 function addModule() {
   const idx = state.modules.length;
@@ -536,7 +536,13 @@ async function refreshControllerStatus() {
 }
 
 // ================================================================ boot
-loadLayout();
-refreshControllerStatus();
-setInterval(refreshControllerStatus, 10000);
-resize();
+async function boot() {
+  const r = await fetch('/api/defaults');
+  const d = await r.json();
+  DEFAULT_OFFSETS = d.cluster_offsets;
+  await loadLayout();
+  refreshControllerStatus();
+  setInterval(refreshControllerStatus, 10000);
+  resize();
+}
+boot();
