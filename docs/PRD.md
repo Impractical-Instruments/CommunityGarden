@@ -100,7 +100,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **What it does:** A Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with valves and switches. Visitors operate the controls to steer a music system running granulators and loop players on a Raspberry Pi (Cycling '74 Max/RNBO). Controls use Tiller Control — visitors change the direction and character of the music, not trigger discrete notes.
 
-**Hardware path (confirmed 2026-05-07):** Direct sensor → Pi/Max. Physical controls (rotary encoders, switches) are read by a Python GPIO bridge process on the Pi; the bridge sends OSC to the RNBO runner, which handles all audio DSP and emits `/pipes/activity` to the TreeHouse directly. No microcontroller intermediary. Note: RNBO runner cannot read GPIO directly — the bridge process is required.
+**Hardware path (revised 2026-05-21):** Two Pi Pico microcontrollers read 6 quadrature rotary encoders each (12 total) and send encoder events over USB serial to the Pi. Max reads the Pico serial ports directly and routes encoder deltas into the RNBO patch. RNBO handles all audio DSP and emits `/pipes/activity` to the TreeHouse. See ADR-0014.
 
 **OSC output to fabric:** Playing the Pipes is an emitter only — it sends activity signals outward (controls active, engagement level) and does not receive from other Elements. It is a pure sound piece; external OSC input would conflict with the Tiller Control experience.
 
@@ -203,7 +203,7 @@ A phone-accessible web interface (accessible on the Show Network, optionally via
 |---|---|---|
 | 1 | Can one Orbbec camera cover the full 48-cluster FlowerBeds field? | **Resolved 2026-04-30: yes, single camera confirmed** |
 | 2 | FundingCAPTCHA: does front-projection + co-mounted camera give reliable touch detection? | **Superseded — camera now faces Players (body silhouette interaction). See ADR-0013.** |
-| 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | **Resolved 2026-05-07: direct GPIO → Python bridge → RNBO runner → OSC. See issue #49.** |
+| 3 | Playing the Pipes: direct sensor → Pi/Max, or microcontroller → OSC? | **Revised 2026-05-21: 2× Pi Pico (6 encoders each) → USB serial → Max. See ADR-0014.** |
 | 4 | OSC message schema for each Element's output to the fabric | Largely resolved via ADR-0007; see `ShowControl/network.json` |
 | 5 | TreeHouse: exact mapping of Garden State inputs to branch/display outputs | In progress — ADR-0008 covers displays; branch weights configurable per-motor in `settings.json` |
 | 6 | Playing the Pipes: audio system for venue | **Resolved 2026-05-07: 4× studio monitors (Event series). Pi 5 has no analog audio — USB audio interface required.** |
