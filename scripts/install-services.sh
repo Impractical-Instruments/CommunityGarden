@@ -16,9 +16,19 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Default: all elements with a deploy/install.sh
 ALL_ELEMENTS=(FlowerBeds TreeHouse Dashboard FundingCAPTCHA)
-ELEMENTS=("${@:-${ALL_ELEMENTS[@]}}")
+
+if [ "$#" -eq 0 ]; then
+    echo "Error: specify which element(s) to install. Each Pi runs one element."
+    echo ""
+    echo "Usage: sudo bash $0 <element> [element ...]"
+    echo "Available: ${ALL_ELEMENTS[*]}"
+    echo ""
+    echo "To install all (unusual): sudo bash $0 ${ALL_ELEMENTS[*]}"
+    exit 1
+fi
+
+ELEMENTS=("$@")
 
 echo "=== CommunityGarden service install ==="
 echo "Repo:     $REPO_ROOT"
