@@ -19,6 +19,10 @@ echo "→ Installing system dependencies..."
 apt-get install -y cage libgl1-mesa-dri libegl1 libegl-mesa0 libgl1 seatd
 systemctl enable --now seatd
 usermod -aG _seat "$SERVICE_USER"
+# moderngl requires unversioned .so symlinks; Pi OS ships only the versioned runtime libs
+ln -sf /lib/aarch64-linux-gnu/libGL.so.1  /lib/aarch64-linux-gnu/libGL.so
+ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
+ldconfig
 
 echo "→ Installing Python dependencies..."
 pip3 install --break-system-packages moderngl pyglet numpy python-osc
