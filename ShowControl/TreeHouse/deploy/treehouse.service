@@ -8,6 +8,10 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 [Service]
 WorkingDirectory=/home/pi/CommunityGarden/ShowControl/TreeHouse
 ExecStart=/usr/bin/python3 main.py --config settings.json
+Environment=WAYLAND_DISPLAY=wayland-0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=MESA_GL_VERSION_OVERRIDE=3.3
+Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
 RestartSec=5
 User=pi

@@ -99,14 +99,14 @@ Every element has a dev mode — no camera, no LEDs, no servos required.
 
 | Element | Dev flag(s) |
 |---|---|
-| TreeHouse | `--no-pico` |
+| TreeHouse | `--no-pico --no-branch --no-renderer` |
 | FlowerBeds | `--mock-camera --no-osc` |
 | FundingCAPTCHA | `--mock-camera` |
 
 ```bash
-python main.py --no-pico                    # TreeHouse, no Pico
-python main.py --mock-camera --no-osc       # FlowerBeds, no camera or servos
-python server.py --mock-camera              # FundingCAPTCHA, no depth camera
+python3 main.py --no-pico --no-branch --no-renderer   # TreeHouse, no hardware or display
+python3 main.py --mock-camera --no-osc                # FlowerBeds, no camera or servos
+python3 server.py --mock-camera                       # FundingCAPTCHA, no depth camera
 ```
 
 ---
@@ -212,6 +212,86 @@ Or trigger from the dashboard without stopping the service — the show pauses ~
 - **USB groups:** The service user must be in `dialout` group (added by `install.sh`)
 - **Flags:** Add `--no-pico` to skip serial connections (dev mode)
 - **Visualizer:** `http://<host>:8766/` — live display state view
+
+#### Looking Glass renderer
+
+The renderer (`looking_glass/renderer.py`) runs as a **child process of the treehouse service** — not its own systemd unit. `main.py` spawns it on start, watches its exit code, and relaunches it with exponential back-off (1 s → 2 s → 4 s … cap 30 s) on crash. Renderer crashes do not crash the coordinator; OSC messages are simply dropped until the renderer is back.
+
+**Restart the renderer** (without restarting the coordinator):
+
+```bash
+# Kill the renderer process — the coordinator will relaunch it automatically
+sudo pkill -f looking_glass/renderer.py
+```
+
+**Restart everything** (coordinator + renderer):
+
+```bash
+sudo systemctl restart treehouse
+```
+
+**Run without a display** (dev machines, CI, WSL):
+
+```bash
+python3 main.py --no-pico --no-branch --no-renderer
+```
+
+**Run the renderer in isolation** (shader development):
+
+```bash
+cd ShowControl/TreeHouse
+python3 -m looking_glass.renderer
+# or
+python3 looking_glass/renderer.py
+```
+
+The renderer opens fullscreen on whatever display is active. Send OSC to `127.0.0.1:9002` to control it:
+
+| OSC address | Value | Effect |
+|---|---|---|
+| `/lookingglass/scene` | `bloom` / `fractal` / `mycelium` / `cosmos` | Switch shader |
+| `/lookingglass/time` | float (seconds) | Show elapsed time |
+| `/lookingglass/intensity` | float 0–1 | Drive brightness/activity |
+
+Example with `oscsend` (from `liblo-tools`):
+
+```bash
+oscsend osc.udp://127.0.0.1:9002 /lookingglass/scene s cosmos
+oscsend osc.udp://127.0.0.1:9002 /lookingglass/intensity f 0.8
+```
+
+**Renderer logs** appear in the treehouse journal (no separate unit):
+
+```bash
+journalctl -u treehouse -f | grep looking_glass
+```
+
+**Adding or editing shaders:**
+
+1. Write a `.glsl` file in `ShowControl/TreeHouse/looking_glass/` using these uniforms:
+   ```glsl
+   #version 330
+   uniform vec2  iResolution;   // viewport px
+   uniform float iTime;         // show elapsed seconds
+   uniform float iIntensity;    // 0–1 activity level
+   out vec4 fragColor;
+   ```
+2. Name it `<scene>.glsl`. The renderer accepts the name via `/lookingglass/scene`.
+3. Prototype on [shadertoy.com](https://www.shadertoy.com) using `mainImage()` + `fragCoord`, then port by replacing those with the uniforms above and `void main()`.
+4. Hot-reload: send `/lookingglass/scene <name>` via OSC — no restart needed. If the shader fails to compile the renderer logs the error and stays on the previous scene.
+
+**Wayland environment (systemd context):**
+
+The service runs as `User=pi` outside the desktop session. The service file injects the required Wayland vars:
+
+```
+WAYLAND_DISPLAY=wayland-0
+XDG_RUNTIME_DIR=/run/user/1000
+MESA_GL_VERSION_OVERRIDE=3.3
+MESA_GLSL_VERSION_OVERRIDE=330
+```
+
+If the renderer fails to open a window, check that `WAYLAND_DISPLAY=wayland-0` is correct for this machine (`ls /run/user/1000/` should show a `wayland-0` socket).
 
 #### USB device naming (udev)
 

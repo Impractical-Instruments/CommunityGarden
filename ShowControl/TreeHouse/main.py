@@ -14,6 +14,8 @@ Sends LED pixel data to the Pi Pico over USB serial each frame.
 import argparse
 import asyncio
 import logging
+import sys
+from pathlib import Path
 
 from branch_controller import BranchController
 from coordinator import Coordinator, build_displays, load_config
@@ -33,8 +35,38 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-visualizer", action="store_true", help="Disable WebSocket visualizer server")
     p.add_argument("--visualizer-port", type=int, default=8766, metavar="N",
                    help="Visualizer HTTP port (default: 8766)")
+    p.add_argument("--no-renderer", action="store_true", help="Skip Looking Glass renderer subprocess (dev mode)")
     p.add_argument("--verbose", "-v", action="store_true", help="Enable DEBUG logging")
     return p.parse_args()
+
+
+_RENDERER_PATH = Path(__file__).parent / "looking_glass" / "renderer.py"
+
+
+async def _renderer_subprocess(renderer_path: Path) -> None:
+    backoff = 1.0
+    while True:
+        log.info("Starting renderer subprocess")
+        proc = await asyncio.create_subprocess_exec(sys.executable, str(renderer_path))
+        try:
+            exit_code = await proc.wait()
+        except asyncio.CancelledError:
+            proc.terminate()
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=3.0)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+            raise
+        if exit_code == 0:
+            log.info("Renderer exited cleanly")
+            return
+        log.warning("Renderer crashed (exit %d), restarting in %.0fs", exit_code, backoff)
+        try:
+            await asyncio.sleep(backoff)
+        except asyncio.CancelledError:
+            raise
+        backoff = min(backoff * 2, 30.0)
 
 
 async def _frame_loop(
@@ -86,6 +118,8 @@ async def _run(args: argparse.Namespace) -> None:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
         tasks.append(asyncio.create_task(visualizer.serve(coordinator=coordinator, port=args.visualizer_port)))
+    if not args.no_renderer:
+        tasks.append(asyncio.create_task(_renderer_subprocess(_RENDERER_PATH)))
 
     try:
         await asyncio.gather(*tasks)
