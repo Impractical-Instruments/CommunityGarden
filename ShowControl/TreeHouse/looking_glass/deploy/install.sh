@@ -15,8 +15,11 @@ echo "App dir: $APP_DIR"
 echo "User:    $SERVICE_USER"
 echo ""
 
+echo "→ Installing system dependencies..."
+apt-get install -y cage libgl1-mesa-dri
+
 echo "→ Installing Python dependencies..."
-pip3 install --break-system-packages moderngl pygame numpy python-osc
+pip3 install --break-system-packages moderngl pyglet numpy python-osc
 
 echo "→ Installing systemd unit..."
 DEST="/etc/systemd/system/looking_glass.service"

@@ -46,7 +46,7 @@ async def _renderer_subprocess(renderer_path: Path) -> None:
     backoff = 1.0
     while True:
         log.info("Starting renderer subprocess")
-        proc = await asyncio.create_subprocess_exec(sys.executable, str(renderer_path))
+        proc = await asyncio.create_subprocess_exec("/usr/bin/cage", "--", sys.executable, str(renderer_path))
         try:
             exit_code = await proc.wait()
         except asyncio.CancelledError:

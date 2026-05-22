@@ -54,20 +54,24 @@ author iterate visually on [shadertoy.com](https://www.shadertoy.com) and paste 
 | `mycelium.glsl` | branching network propagation, organic tendrils |
 | `cosmos.glsl` | stellar nebula drift, gas clouds, slow starfield |
 
-### Wayland environment
+### Wayland compositor
 
-The systemd unit runs as `User=ii` but not inside the desktop session, so Wayland socket vars
-are absent. The service file must inject them explicitly:
+The Pi runs Raspberry Pi OS Lite — no desktop session, no Wayland compositor. Rather than
+injecting socket variables and hoping a compositor exists, the renderer is wrapped in `cage`:
 
-```ini
-Environment=WAYLAND_DISPLAY=wayland-0
-Environment=XDG_RUNTIME_DIR=/run/user/1000
-Environment=MESA_GL_VERSION_OVERRIDE=3.3
-Environment=MESA_GLSL_VERSION_OVERRIDE=330
+```
+/usr/bin/cage -- /usr/bin/python3 renderer.py
 ```
 
-`MESA_GL_VERSION_OVERRIDE` is also set inside `renderer.py` as a belt-and-braces measure, but
-the service file env ensures it is available before any GL library is loaded.
+`cage` is a minimal kiosk Wayland compositor (wlroots-based) that runs a single application
+fullscreen and exits when it does. It provides the Wayland socket to the renderer child process
+directly — no `WAYLAND_DISPLAY` or `XDG_RUNTIME_DIR` injection needed in the unit file.
+
+This also enables multiple independent displays: a second cage instance with `-d <output>`
+runs a second renderer on a different physical screen, each managed by its own systemd unit.
+
+`MESA_GL_VERSION_OVERRIDE=3.3` is set in the unit file (inherited by cage → renderer) and also
+inside `renderer.py` as a belt-and-braces measure before any GL library loads.
 
 ---
 

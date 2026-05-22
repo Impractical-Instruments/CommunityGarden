@@ -280,18 +280,25 @@ journalctl -u treehouse -f | grep looking_glass
 3. Prototype on [shadertoy.com](https://www.shadertoy.com) using `mainImage()` + `fragCoord`, then port by replacing those with the uniforms above and `void main()`.
 4. Hot-reload: send `/lookingglass/scene <name>` via OSC — no restart needed. If the shader fails to compile the renderer logs the error and stays on the previous scene.
 
-**Wayland environment (systemd context):**
+**Wayland compositor (systemd context):**
 
-The service runs as `User=ii` outside the desktop session. The service file injects the required Wayland vars:
+The Pi runs Raspberry Pi OS Lite — no desktop session, no compositor. The renderer is wrapped in `cage`, a minimal Wayland kiosk compositor that runs a single app fullscreen and provides the Wayland socket itself:
 
 ```
-WAYLAND_DISPLAY=wayland-0
-XDG_RUNTIME_DIR=/run/user/1000
-MESA_GL_VERSION_OVERRIDE=3.3
-MESA_GLSL_VERSION_OVERRIDE=330
+ExecStart=/usr/bin/cage -- /usr/bin/python3 renderer.py
 ```
 
-If the renderer fails to open a window, check that `WAYLAND_DISPLAY=wayland-0` is correct for this machine (`ls /run/user/1000/` should show a `wayland-0` socket).
+cage must be installed: `sudo apt install cage libgl1-mesa-dri`
+
+The service user (`ii`) must be in the `video` and `render` groups for DRM access (handled by `SupplementaryGroups=video render` in the unit file).
+
+**Multiple displays:** run a second cage instance targeting the other output. To target a specific output, add the `-d` flag:
+
+```
+ExecStart=/usr/bin/cage -d HDMI-A-2 -- /usr/bin/python3 renderer.py
+```
+
+List available outputs: `wlr-randr` (run from inside a cage session) or check kernel logs (`dmesg | grep -i hdmi`).
 
 #### USB device naming (udev)
 

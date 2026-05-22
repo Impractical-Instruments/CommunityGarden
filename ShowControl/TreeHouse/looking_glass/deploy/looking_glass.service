@@ -1,16 +1,15 @@
 [Unit]
 Description=Looking Glass video renderer
-After=graphical.target
+After=multi-user.target
 
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse/looking_glass
-ExecStart=/usr/bin/python3 renderer.py
+# cage provides the Wayland compositor. For a second display add: -d HDMI-A-2
+ExecStart=/usr/bin/cage -- /usr/bin/python3 renderer.py
 Restart=on-failure
 RestartSec=5
 User=ii
 SupplementaryGroups=video render
-Environment=WAYLAND_DISPLAY=wayland-1
-Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 StandardOutput=journal
@@ -18,4 +17,4 @@ StandardError=journal
 SyslogIdentifier=looking_glass
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
