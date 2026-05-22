@@ -1,2 +1,5 @@
 python-osc
 pyserial
+moderngl
+pyglet
+numpy

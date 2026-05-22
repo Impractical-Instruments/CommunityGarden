@@ -3,12 +3,13 @@ OSC server — receives show-control messages from other festival elements.
 
 Recognised addresses
 --------------------
-/treehouse/mode        <string>   "active" | "dim" | "inactive"
-/treehouse/brightness  <float>    0.0–1.0  (overrides the dim level in config)
-/flowerbeds/activity   <float>    0.0–1.0  normalised visitor activity from FlowerBeds
-/captcha/intensity     <float>    0.0–1.0  Arc progress toward Blow-Up from FundingCAPTCHA
-/captcha/blowup                   one-shot Blow-Up event from FundingCAPTCHA
-/pipes/activity        <float>    0.0–1.0  normalised music engagement from Playing the Pipes
+/treehouse/mode              <string>   "active" | "dim" | "inactive"
+/treehouse/brightness        <float>    0.0–1.0  (overrides the dim level in config)
+/lookingglass/scene          <string>   "bloom" | "fractal" | "mycelium" | "cosmos"
+/flowerbeds/activity         <float>    0.0–1.0  normalised visitor activity from FlowerBeds
+/captcha/intensity           <float>    0.0–1.0  Arc progress toward Blow-Up from FundingCAPTCHA
+/captcha/blowup                         one-shot Blow-Up event from FundingCAPTCHA
+/pipes/activity              <float>    0.0–1.0  normalised music engagement from Playing the Pipes
 """
 
 import asyncio
@@ -48,8 +49,13 @@ def _build_dispatcher(coordinator: "Coordinator") -> Dispatcher:
     def on_pipes_activity(address: str, value: float) -> None:
         coordinator.set_pipes_activity(float(value))
 
+    def on_lookingglass_scene(address: str, scene: str) -> None:
+        log.info("OSC %s → %r", address, scene)
+        coordinator.set_looking_glass_scene(str(scene))
+
     d.map("/treehouse/mode", on_mode)
     d.map("/treehouse/brightness", on_brightness)
+    d.map("/lookingglass/scene", on_lookingglass_scene)
     d.map("/flowerbeds/activity", on_flowerbeds_activity)
     d.map("/captcha/intensity", on_captcha_intensity)
     d.map("/captcha/blowup", on_captcha_blowup)

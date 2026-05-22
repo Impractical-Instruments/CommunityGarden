@@ -6,11 +6,11 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 # Remove --no-visualizer to enable the live WebSocket debug view.
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FlowerBeds
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FlowerBeds
 ExecStart=/usr/bin/python3 main.py --config settings.json
 Restart=always
 RestartSec=5
-User=pi
+User=ii
 # Orbbec camera appears as a USB device; video + plugdev give unprivileged access.
 SupplementaryGroups=video plugdev
 StandardOutput=journal

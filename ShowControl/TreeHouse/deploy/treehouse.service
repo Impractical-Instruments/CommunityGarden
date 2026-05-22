@@ -1,16 +1,20 @@
 [Unit]
 Description=TreeHouse Show Control
-After=network.target
+After=network.target graphical.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 # Add --no-pico if the Pi Pico is not connected on this install.
 # Add --no-osc to disable the OSC listener.
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/TreeHouse
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse
 ExecStart=/usr/bin/python3 main.py --config settings.json
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=LIBSEAT_BACKEND=seatd
+Environment=MESA_GL_VERSION_OVERRIDE=3.3
+Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
 RestartSec=5
-User=pi
+User=ii
 # Pi Pico appears as /dev/ttyACM0 (USB CDC); dialout gives unprivileged access.
 SupplementaryGroups=dialout
 StandardOutput=journal
@@ -18,4 +22,4 @@ StandardError=journal
 SyslogIdentifier=treehouse
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target

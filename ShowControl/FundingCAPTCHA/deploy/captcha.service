@@ -6,12 +6,12 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 # Use --mock-camera to emit fake blobs for testing without hardware.
 
 [Service]
-WorkingDirectory=/home/pi/CommunityGarden/ShowControl/FundingCAPTCHA
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FundingCAPTCHA
 ExecStart=/usr/bin/python3 server.py 8080 --camera
 Restart=always
 RestartSec=5
 TimeoutStopSec=10
-User=pi
+User=ii
 # Orbbec camera appears as a USB device; video + plugdev give unprivileged access.
 SupplementaryGroups=video plugdev
 StandardOutput=journal

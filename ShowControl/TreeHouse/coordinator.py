@@ -82,16 +82,6 @@ class DioramaConfig:
 
 
 @dataclass
-class GableWindowConfig:
-    name: str
-    pico_pin: int
-    led_count: int
-    brightness: float = 1.0
-    color: Color = (0, 0, 0, 255)
-    pattern: str = "solid"
-
-
-@dataclass
 class DormerConfig:
     name: str
     pico_pin: int
@@ -109,8 +99,6 @@ class TreehouseConfig:
     dioramas: list[DioramaConfig]
     looking_glass: LookingGlassConfig
     forge_and_flora: ForgeAndFloraConfig
-    gable_front: GableWindowConfig
-    gable_back: GableWindowConfig
     dormer: DormerConfig
     porch_lights: PorchLightsConfig
     branch: BranchConfig = None
@@ -165,6 +153,7 @@ def load_config(path: str) -> TreehouseConfig:
         scene=lg.get("scene", "bloom"),
         speed=lg.get("speed", 1.0),
         mirror_depth=lg.get("mirror_depth", 6),
+        renderer_port=lg.get("renderer_port", 9002),
     )
 
     ff = raw["garage_windows"]["forge_and_flora"]
@@ -177,26 +166,6 @@ def load_config(path: str) -> TreehouseConfig:
         transition_speed=ff.get("transition_speed", 0.1),
         base_flicker_intensity=ff.get("base_flicker_intensity", 0.1),
         max_flicker_intensity=ff.get("max_flicker_intensity", 0.6),
-    )
-
-    gf = raw["gable_windows"]["front"]
-    gable_front = GableWindowConfig(
-        name=gf.get("name", "Front Gable"),
-        pico_pin=gf["pico_pin"],
-        led_count=gf["led_count"],
-        brightness=gf.get("brightness", 1.0),
-        color=_color(gf.get("color", [0, 0, 0, 255])),
-        pattern=gf.get("pattern", "solid"),
-    )
-
-    gb = raw["gable_windows"]["back"]
-    gable_back = GableWindowConfig(
-        name=gb.get("name", "Back Gable"),
-        pico_pin=gb["pico_pin"],
-        led_count=gb["led_count"],
-        brightness=gb.get("brightness", 1.0),
-        color=_color(gb.get("color", [0, 0, 0, 255])),
-        pattern=gb.get("pattern", "solid"),
     )
 
     dw = raw["dormer"]
@@ -253,8 +222,6 @@ def load_config(path: str) -> TreehouseConfig:
         dioramas=dioramas,
         looking_glass=looking_glass,
         forge_and_flora=forge_and_flora,
-        gable_front=gable_front,
-        gable_back=gable_back,
         dormer=dormer,
         porch_lights=porch_lights,
         branch=branch,
@@ -282,16 +249,6 @@ def build_displays(config: TreehouseConfig) -> list[Controllable]:
 
     displays.append(LookingGlassDisplay(config.looking_glass))
     displays.append(ForgeAndFloraDisplay(config.forge_and_flora))
-
-    for gable in (config.gable_front, config.gable_back):
-        displays.append(LEDDisplay(LEDConfig(
-            name=gable.name,
-            pico_pin=gable.pico_pin,
-            led_count=gable.led_count,
-            brightness=gable.brightness,
-            color=gable.color,
-            pattern=gable.pattern,
-        )))
 
     displays.append(LEDDisplay(LEDConfig(
         name=config.dormer.name,

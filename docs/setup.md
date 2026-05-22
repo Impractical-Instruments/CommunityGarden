@@ -80,7 +80,7 @@ Servo-motor flowers follow visitors using a depth camera.
    - **CLI (SSH to FlowerBeds machine):**
      ```bash
      sudo systemctl stop flowerbeds
-     cd /home/pi/CommunityGarden/ShowControl/FlowerBeds
+     cd /home/ii/CommunityGarden/ShowControl/FlowerBeds
      python main.py --config settings.json --layout-calibrate
      sudo systemctl start flowerbeds
      ```
@@ -101,6 +101,14 @@ Drives LEDs, branch motors, and video displays. Also runs the Dashboard on the s
 
 - Pi Pico connects via USB (`/dev/ttyACM0`). Verify the Pico LED is lit after startup.
 - Check the visualizer to see live display state.
+
+**First-time provisioning (once per machine):**
+
+The Looking Glass renderer depends on `moderngl` → `glcontext`, which requires X11 development headers to compile. Install before running `pip3 install -r requirements.txt`:
+
+```bash
+sudo apt-get install -y libx11-dev
+```
 
 See [Operations Guide — TreeHouse](operations.md#treehouse) for more detail.
 
