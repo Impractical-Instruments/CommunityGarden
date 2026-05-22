@@ -43,7 +43,22 @@ python main.py --config settings.json --no-visualizer
 | `--no-osc` | Disable OSC output to Arduino |
 | `--no-visualizer` | Disable WebSocket visualizer server |
 | `--visualizer-port N` | Visualizer HTTP port (default: 8765) |
+| `--calibrate-yaw DEG` | Hold all motors at DEG degrees (0=forward, 90=right); useful for physically aligning flowers to zero |
 | `--verbose` / `-v` | Enable DEBUG logging |
+
+## Run the layout tool (pre-show, Windows laptop)
+
+The layout tool configures module positions visually. Run on your laptop before show; save
+result to `settings.json` and deploy normally.
+
+```bash
+cd ShowControl/FlowerBeds
+python layout_tool.py
+# opens http://localhost:8764
+```
+
+Laptop must be on the show network to use manual aim and OSC test features. Controller
+status check and saving work without network access.
 
 ## Verifying changes
 

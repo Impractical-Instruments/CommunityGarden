@@ -1,6 +1,6 @@
 # ADR 0009 — ArUco auto-layout for Flower Bed modules
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0015](0015-flowerbeds-gui-layout-tool.md)
 
 ## Context
 
