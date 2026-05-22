@@ -16,7 +16,9 @@ echo "User:    $SERVICE_USER"
 echo ""
 
 echo "→ Installing system dependencies..."
-apt-get install -y cage libgl1-mesa-dri
+apt-get install -y cage libgl1-mesa-dri seatd
+systemctl enable --now seatd
+usermod -aG _seat "$SERVICE_USER"
 
 echo "→ Installing Python dependencies..."
 pip3 install --break-system-packages moderngl pyglet numpy python-osc

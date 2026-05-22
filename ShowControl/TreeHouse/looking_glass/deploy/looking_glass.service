@@ -11,6 +11,7 @@ RestartSec=5
 User=ii
 SupplementaryGroups=video render
 Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=LIBSEAT_BACKEND=seatd
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 StandardOutput=journal
