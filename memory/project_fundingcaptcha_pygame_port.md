@@ -23,14 +23,14 @@ Camera now faces Players (mounted on kiosk, pointing outward). Silhouette body i
 - Win Level → next Level (harder: more cells, multi-slab, shorter timer)
 - Timer expires → Blow-Up → Screensaver
 
-**Level format (bodygrid-levels.json):**
+**Level format (bodycaptcha-levels.json):**
 `[{"timer_s": 30, "hold_s": 0.8, "grid": [4,4], "cells": [[col, row, slab_id], ...]}]`
 
 **Difficulty axes:** cell count, pose complexity (single body can't cover), multi-slab requirement, timer duration.
-**Stretch goal:** moving cells / distorting grid (Space Team-style) — log as issue when BodyGrid ships.
+**Stretch goal:** moving cells / distorting grid (Space Team-style) — log as issue when BodyCaptcha ships.
 
 **Status (2026-05-11):** Docs done. Code TODO:
-- [ ] Implement `BodyGrid` game (`games/bodygrid.py` + `bodygrid-levels.json`)
+- [ ] Implement `BodyCaptcha` game (`games/bodycaptcha.py` + `bodycaptcha-levels.json`)
 - [ ] Rewrite camera thread in `app.py` (raw depth frames, skip `run_pipeline`)
 - [ ] Remove `CornerCal`, `CORNER_CAL` state, `ScreenProjector` from `app.py`
 - [ ] Update `games/grid.py` (replace `blob_to_cell` with pixel-to-cell from slab mask)

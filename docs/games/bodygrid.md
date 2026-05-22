@@ -1,81 +1,46 @@
-# BodyGrid — game design
+# Body Grid — input layer
 
-**Status:** In implementation (2026-05-13). First game built for silhouette body interaction (ADR-0013).
+Body Grid is the depth-camera input mechanism used by FundingCAPTCHA. It maps a Player's silhouette to a grid of boolean cell states. Any Game or tester that needs grid-based body input uses Body Grid.
 
-## Concept
+## How it works
 
-A CAPTCHA-styled silhouette puzzle. A photo is displayed behind a grid overlay with a text prompt ("Select all motorcycles"). The Player must position their body so their silhouette covers exactly the correct cells — no more, no less — and hold that pose long enough to pass.
+1. An Orbbec depth camera captures a raw depth frame.
+2. Background subtraction + denoising (IIVision) produces a foreground depth frame.
+3. `BodyGridActivator` partitions the frame into a configurable grid and evaluates each cell.
+4. A cell is **active** when ≥ `cell_activation_threshold` (default 0.30) of its pixels are covered by a foreground pixel within any configured Depth Slab.
 
-The game is designed so the Player always loses eventually. Beating a Level only escalates to a harder one. The Blow-Up is the payoff, not a failure.
+Cell states are boolean. Games and the tester consume the active-cell set each frame.
 
-## Mechanics
+## BodyGridActivator
 
-**Input:** BodyGridActivator (per-pixel depth coverage). A cell is "active" when ≥ `cell_activation_threshold` of its pixels are covered by any configured Depth Slab.
+The `BodyGridActivator` class (in `games/grid.py`) owns cell activation:
 
-**Win condition per Level:** Player covers all `valid_cells` and no non-target cells simultaneously for a continuous `hold_s` duration.
-- Hold timer starts when exact match achieved.
-- Hold timer resets if any extra cell is covered or any valid cell is uncovered.
+- Takes a foreground depth frame and a slab mask.
+- Returns a set of `(col, row)` pairs for active cells each frame.
+- Grid dimensions and `cell_activation_threshold` are configurable per-Level (or game-wide via `captcha-settings.json`).
 
-**Level progression:** On beating a Level, the next Level is drawn from a shuffle-bag of Levels at the same difficulty or one step harder. No fixed ordering. No overall win — the Arc always ends when a Level's timer expires.
+## Grid overlay
 
-**Loss condition:** Level countdown timer reaches zero → Blow-Up.
+A reusable grid overlay abstraction (separate from any Game) renders the grid on screen. It draws cell boundaries and exposes raw active-cell state to its caller — no game-specific coloring. Games and the tester apply their own visual treatment on top.
 
-## Visual feedback
+## Depth Slabs
 
-| State | Valid cell | Non-valid cell |
-|---|---|---|
-| Not covered | Hint color at `hint_opacity` (default 10%) | Normal image |
-| Covered | Bright green overlay | Red overlay (invalidates hold) |
-| Hold active | Green + hold progress bar shown | — |
-| Win (level beat) | Flash green | — |
+The Play Zone is defined as one or more Depth Slabs (`depth_slabs` in `captcha-settings.json`). Each slab has `near_mm`, `far_mm`, and `slab_id`. Pixels within a slab contribute to the silhouette. Pixels below the nearest slab's `near_mm` are discarded (too-close exclusion zone).
 
-## Blow-Up
+Two slabs may share a `slab_id` (non-contiguous bands, identical behavior).
 
-On timer expiry:
-1. Random taunt selected from `taunts.json` (default: "Too Slow! You're not a robot.")
-2. Current Level image shatters into a confetti particle animation.
-3. Animation completes → Arc ends → Screensaver.
-
-Intentionally over-the-top and silly. Losing should feel like a payoff.
-
-## Intensity signal
-
-`intensity = clamp(w_diff × difficulty/5 + w_time × elapsed/timer_s, 0.0, 1.0)`
-
-Weights `w_diff` and `w_time` are configurable in `captcha-settings.json` under `intensity_weights`.
-
-## Level format
-
-Levels live in `bodygrid-levels.json` as a JSON array:
+Config shape:
 
 ```json
-[
-  {
-    "prompt": "Select all motorcycles",
-    "image": "motorcycles.jpg",
-    "difficulty": 2,
-    "grid": [4, 4],
-    "valid_cells": [[0, 2], [1, 2], [2, 3]],
-    "timer_s": 40,
-    "hold_s": 1.0,
-    "hint_opacity": 0.1
-  }
-]
+"depth_slabs": [
+  {"near_mm": 800, "far_mm": 2500, "slab_id": 0}
+],
+"slab_styles": {
+  "0": {"color": [0, 220, 100]}
+},
+"cell_activation_threshold": 0.30
 ```
 
-`timer_s`, `hold_s`, and `hint_opacity` are optional per-Level overrides. Game-wide defaults apply when absent (see `captcha-settings.json`). `difficulty` is designer-assigned 1–5.
+## Standalone tester
 
-## Config keys (`captcha-settings.json`)
-
-```json
-"bodygrid": {
-  "timer_s": 35,
-  "hold_s": 1.0,
-  "hint_opacity": 0.1,
-  "intensity_weights": { "difficulty": 0.4, "time_pressure": 0.6 }
-}
-```
-
-## Player count
-
-Designed for 1–2 Players. One Player can fill cells solo; two Players cooperating can cover larger or split patterns.
+`body_grid_tester.py` runs Body Grid in isolation — no Game context. Useful for tuning depth slabs, verifying activation thresholds, and checking camera reprojection. Displays the live silhouette with the grid overlay; logs active cells each frame.

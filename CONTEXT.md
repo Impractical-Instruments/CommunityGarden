@@ -73,12 +73,16 @@ _Avoid_: "attract screen", "idle animation", "lobby"
 ### FundingCAPTCHA Domain
 
 **Game** (FundingCAPTCHA):
-A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyGrid, UpsideDown, Rhythm, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
+A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyCaptcha, UpsideDown, Rhythm, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
 _Avoid_: "game type", "mode"
 
 **Level**:
-One authored puzzle definition within a Game. For BodyGrid: specifies a prompt string, a background image, a grid size, a set of `valid_cells` (col/row pairs the Player must cover), a designer-assigned difficulty (1–5), and optional per-level overrides for timer duration, hold dwell, and hint opacity. An Arc picks Levels by shuffle-bag from those at equal or one step harder difficulty than the last Level beaten — there is no fixed ordering. Timer expiry triggers a Blow-Up; beating a Level only escalates difficulty.
+One authored puzzle definition within a Game. For BodyCaptcha: specifies a prompt string, a background image, a grid size, a set of `valid_cells` (col/row pairs the Player must cover), a designer-assigned difficulty (1–5), and optional per-level overrides for timer duration, hold dwell, and hint opacity. An Arc picks Levels by shuffle-bag from those at equal or one step harder difficulty than the last Level beaten — there is no fixed ordering. Timer expiry triggers a Blow-Up; beating a Level only escalates difficulty.
 _Avoid_: "round", "stage", "difficulty step"
+
+**Body Grid** (FundingCAPTCHA):
+The depth-camera input layer that maps a Player's silhouette to a grid of boolean cell states. Implemented by `BodyGridActivator`, which activates a cell when ≥ `cell_activation_threshold` of its pixels are covered by foreground pixels within any configured Depth Slab. Body Grid is independent of any specific Game — it can be exercised in isolation via `body_grid_tester.py`. A reusable grid overlay abstraction renders cell boundaries on screen; Games and the tester apply their own visual treatment on top.
+_Avoid_: conflating Body Grid with BodyCaptcha — Body Grid is the input layer; BodyCaptcha is the Game that uses it
 
 **Play Zone**:
 The set of depth ranges in front of the FundingCAPTCHA camera where Player pixels contribute to the silhouette. Defined as one or more Depth Slabs. Pixels outside all slabs appear as holes in the silhouette. A "too close" implicit exclusion zone (below the `near_mm` of the nearest slab) prevents Players from blocking the camera entirely.

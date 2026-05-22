@@ -108,7 +108,7 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 ### 3.4 FundingCAPTCHA
 
-**Status:** Interaction pivot complete (2026-05-12). Camera faces Players; silhouette body interaction live. BodyGrid game designed and in implementation. UpsideDown/Rhythm/Keepaway pending port to silhouette interaction. Festival debut May 29.
+**Status:** Interaction pivot complete (2026-05-12). Camera faces Players; silhouette body interaction live. BodyCaptcha game designed and in implementation. UpsideDown/Rhythm/Keepaway pending port to silhouette interaction. Festival debut May 29.
 
 **What it does:** A 7-foot kiosk styled as a CRT monitor. Players make shapes with their bodies in front of the kiosk; a depth camera captures their silhouettes and maps them to a projected grid. Games challenge Players to fill specific grid patterns simultaneously to "prove their humanity."
 
@@ -116,9 +116,9 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **Software architecture:** A single unified pygame process (`app.py`) owns the display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring WebSocket. No browser. See ADR-0012.
 
-**Games:** BodyGrid (active — silhouette CAPTCHA grid pattern matching, see `docs/games/bodygrid.md`). UpsideDown, Rhythm, Keepaway pending port to silhouette interaction (code deleted; design docs in `docs/games/`). All games must self-terminate via timer (see ADR-0003).
+**Games:** BodyCaptcha (active — silhouette CAPTCHA grid pattern matching, see `docs/games/bodycaptcha.md`). UpsideDown, Rhythm, Keepaway pending port to silhouette interaction (code deleted; design docs in `docs/games/`). All games must self-terminate via timer (see ADR-0003).
 
-**Level images:** Live in `images/`. BodyGrid levels defined in `bodygrid-levels.json`. Other per-game image configs (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) retained for future ports.
+**Level images:** Live in `images/`. BodyCaptcha levels defined in `bodycaptcha-levels.json`. Other per-game image configs (`pairs.json`, `rhythm-images.json`, `keepaway-images.json`) retained for future ports.
 
 **Screensavers:** Generative visual modules in `ScreenSavers/`. Config in `screensavers.json`. Rotate on each idle entry.
 
