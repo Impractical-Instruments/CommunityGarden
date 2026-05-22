@@ -3,7 +3,7 @@
 FundingCAPTCHA body grid tester.
 
 Displays silhouettes detected in configurable depth slabs on a configurable grid.
-Used to tune camera ROI, slab depths, and grid size for the BodyGrid game.
+Used to tune camera ROI, slab depths, and grid size for Body Grid.
 
 States:
   BG_CAL  → solid black; camera builds background depth model
@@ -48,13 +48,13 @@ sys.path.insert(0, str(DIR.parent.parent))
 sys.path.insert(0, str(DIR))
 
 try:
-    from IIVision import (MockCamera, OrbbecCamera, Calibrator, BlobTracker,
-                          DetectionConfig, Rotator, Transform, reproject_silhouette)
+    from IIVision import (MockCamera, OrbbecCamera, Calibrator, BlobTracker, DetectionConfig)
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
 
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
+from silhouette import build_cam_transform, apply_cam_transform
 
 log = logging.getLogger("bodygrid-tester")
 
@@ -206,7 +206,8 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
         max_depth_mm    = det_cfg.get("max_depth_mm",     4000),
     )
 
-    calib_frames = settings.get("calibration_frames", 60)
+    calib_frames  = settings.get("calibration_frames", 60)
+    cam_transform = build_cam_transform(settings)
     log.info("BG_CAL: collecting %d frames", calib_frames)
     calibrator = Calibrator(calib_frames)
     frame_idx = 0
@@ -240,11 +241,14 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
         for frame in camera.frames():
             if stop.is_set():
                 break
-            fg = tracker.detect_foreground(frame)
-            raw_arr = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
-            delta = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
-            cam_q.put({"type": "foreground", "frame": fg, "raw": raw_arr,
-                       "delta": delta, "intrinsics": frame.intrinsics})
+            fg        = tracker.detect_foreground(frame)
+            raw_arr   = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
+            delta     = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
+            corrected = apply_cam_transform(
+                fg, getattr(frame, "intrinsics", None), cam_transform
+            )
+            cam_q.put({"type": "foreground", "frame": corrected, "raw": raw_arr,
+                       "delta": delta})
 
 
 # ── Drawing ────────────────────────────────────────────────────────────────────
@@ -314,22 +318,6 @@ def _draw_silhouette(surf: pygame.Surface, foreground_roi: np.ndarray,
     sil_surf.set_colorkey((0, 0, 0))
     sil_surf = pygame.transform.scale(sil_surf, (gw, gh))
     surf.blit(sil_surf, (gx, gy))
-
-
-def _build_cam_transform(settings: dict) -> "Transform | None":
-    if not _CV_AVAILABLE:
-        return None
-    cam = settings.get("camera", {})
-    pos = cam.get("pos_cm", [0, 0, 0])
-    rot = cam.get("rotation", {})
-    return Transform(
-        translation=np.array(pos, dtype=float),
-        rotation=Rotator(
-            pitch=rot.get("pitch", 0.0),
-            yaw=rot.get("yaw", 0.0),
-            roll=rot.get("roll", 0.0),
-        ),
-    )
 
 
 _CAL_VIEW_LABELS = [
@@ -467,13 +455,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    settings      = load_settings()
-    bg_cfg        = _build_config(settings, args.cols, args.rows)
-    activator     = BodyGridActivator(bg_cfg)
-    slab_styles   = settings.get("slab_styles", {"0": {"color": [0, 220, 100]}})
-    cam_cfg       = settings.get("camera", {})
-    cam_transform = _build_cam_transform(settings)
-    use_mock   = args.mock_camera
+    settings    = load_settings()
+    bg_cfg      = _build_config(settings, args.cols, args.rows)
+    activator   = BodyGridActivator(bg_cfg)
+    slab_styles = settings.get("slab_styles", {"0": {"color": [0, 220, 100]}})
+    cam_cfg     = settings.get("camera", {})
+    use_mock    = args.mock_camera
     debug      = args.debug
 
     if (args.camera or use_mock) and not _CV_AVAILABLE:
@@ -485,7 +472,7 @@ def main() -> None:
     info   = pygame.display.Info()
     WW, WH = info.current_w, info.current_h
     screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
-    pygame.display.set_caption("BodyGrid Tester")
+    pygame.display.set_caption("Body Grid Tester")
     pygame.mouse.set_visible(False)
     clock  = pygame.time.Clock()
 
@@ -593,16 +580,11 @@ def main() -> None:
                     broadcast({"state": "live"})
 
                 elif mtype == "foreground":
-                    fg: np.ndarray = msg["frame"]
+                    fg: np.ndarray = msg["frame"]  # already corrected + mirrored
                     raw_frame = msg.get("raw")
                     raw_delta = msg.get("delta")
-                    if cam_transform is not None and "intrinsics" in msg:
-                        warped = reproject_silhouette(fg, msg["intrinsics"], cam_transform)
-                        foreground_roi = warped[:, ::-1]  # mirror for players
-                        activations = activator.activate(warped)
-                    else:
-                        foreground_roi = fg[:, ::-1]
-                        activations = activator.activate(fg)
+                    foreground_roi = fg
+                    activations    = activator.activate(fg)
                     broadcast({"state": "live", "active_cells": len(activations)})
 
                 elif mtype == "error":

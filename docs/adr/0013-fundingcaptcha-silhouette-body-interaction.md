@@ -12,7 +12,7 @@ The camera is remounted to face outward toward Players rather than at the Screen
 
 Key consequences:
 
-**ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map directly to display pixels (horizontal flip + configurable ROI crop; no 3D projection needed).
+**ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map to display pixels via a camera-mounting correction: the camera thread calls `apply_cam_transform()` (see `silhouette.py`) which reprojects the depth frame to appear as though the camera is centred on the screen — compensating for physical mounting position and orientation — then mirrors horizontally so players see a natural mirror view. ROI crop is applied downstream in `BodyGridActivator`. Games and screensavers receive a fully corrected, display-space frame and must not flip.
 
 **CORNER_CAL is removed.** The per-installation corner-touch calibration step (operator touching three screen corners) is eliminated. BG_CAL (background model collection at startup) remains.
 
@@ -42,13 +42,22 @@ Config shape:
 
 ```
 Screensaver
-  → (player detected in Play Zone for attract_dwell_s)
-  → Level 1 active (Arc begins)
-    → (pattern held for hold_s) → Level 2 active (harder)
-    → (timer expires) → Blow-Up → Screensaver
+  → (foreground pixel count ≥ min_foreground_pixels for attract_dwell_s)
+  → Arc begins — Level drawn from difficulty-1 pool
+    → (valid_cells covered exactly, held for hold_s)
+      → Level drawn from same-difficulty or +1 pool (shuffle-bag)
+    → (timer expires)
+      → Blow-Up (random taunt + confetti animation)
+      → Screensaver
 ```
 
-`attract_dwell_s` is a global config value. The Arc starts on the first frame after the dwell countdown completes.
+`attract_dwell_s` and `min_foreground_pixels` are global config values. The Arc starts on the first frame after the dwell countdown completes. There is no win condition — the Arc always ends in a Blow-Up.
+
+**Hold mechanic:** A Level is beaten when the Player's silhouette covers all `valid_cells` and no non-target cells simultaneously for a continuous `hold_s` duration. Covering any extra cell resets the hold timer.
+
+**Screensaver:** Rotates generative visual modules from `ScreenSavers/`. Each module is a Python file in that directory with a `create(settings)` factory and `update(dt, foreground_frame)` / `draw(surf)` interface. When a Player is detected during the Screensaver, their silhouette is rendered at configurable opacity with a "Game starts in…" countdown overlay. `foreground_frame` is always passed to screensaver modules (None when no camera) so modules may incorporate live depth data.
+
+**Blow-Up:** On timer expiry the current game image shatters into a confetti particle animation. A randomly selected taunt string (from `taunts.json`) is displayed. Defaults to "Too Slow! You're not a robot."
 
 ## Level format
 
@@ -56,14 +65,20 @@ Levels are authored as a JSON array in a per-Game config file. Each entry:
 
 ```json
 {
-  "timer_s": 30,
-  "hold_s": 0.8,
+  "prompt": "Select all motorcycles",
+  "image": "motorcycles.jpg",
+  "difficulty": 3,
   "grid": [4, 4],
-  "cells": [[col, row, slab_id], ...]
+  "valid_cells": [[col, row], ...],
+  "timer_s": 30,
+  "hold_s": 1.0,
+  "hint_opacity": 0.1
 }
 ```
 
-Arc plays Levels in index order. If all Levels are beaten, the Arc loops with a shorter effective timer (implementation-defined).
+`timer_s`, `hold_s`, and `hint_opacity` are optional per-Level overrides; game-wide defaults apply when absent. `difficulty` is designer-assigned 1–5 and drives both Arc progression and the Intensity signal.
+
+Arc progression uses a shuffle-bag over eligible Levels: after beating a Level, the next Level is drawn from all Levels whose `difficulty` equals the current Level's difficulty or is one higher. There is no fixed ordering and no overall win condition — the Arc always ends in a Blow-Up when a Level's timer expires.
 
 ## Alternatives considered
 
@@ -76,7 +91,8 @@ Arc plays Levels in index order. If all Levels are beaten, the Arc loops with a 
 - `screen_projector.py` is deleted.
 - `CornerCal` and `CORNER_CAL` state are removed from `app.py`.
 - Camera thread outputs foreground depth frames (numpy arrays) instead of blob track lists.
-- `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop + flip config). Screen corner fields are removed.
+- `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop, display-space coordinates). `camera.pos_cm` and `camera.rotation` (pitch/yaw/roll) drive the reprojection. Screen corner fields are removed.
+- `silhouette.py` provides `build_cam_transform(settings)` and `apply_cam_transform(fg, intrinsics, transform)`. Both camera entry points (`app.py`, `body_grid_tester.py`) use these. Games must not flip or reproject — frames arrive display-ready.
 - `games/grid.py` `blob_to_cell()` is replaced by pixel-to-cell logic operating on the slab mask.
 - UpsideDown, Rhythm, and Keepaway must be ported to the silhouette interaction model. Design docs in `docs/games/`. Code deleted pending port.
 - BodyGrid is the first Game built for this interaction model.
