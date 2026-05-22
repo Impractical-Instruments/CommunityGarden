@@ -24,8 +24,9 @@ Each show-control element runs as a systemd service with `Restart=always` and `R
 | `captcha` | FundingCAPTCHA | `ShowControl/FundingCAPTCHA/server.py` | 8080 | 192.168.1.12 |
 | `captcha-kiosk` | FundingCAPTCHA kiosk | Chromium (kiosk mode) | — | 192.168.1.12 |
 | `cg-dashboard` | Show Dashboard | `ShowControl/Dashboard/serve.py` | 9000 | 192.168.1.10 |
+| `pipes` | Playing the Pipes | `ShowControl/PlayingThePipes/` + Max/RNBO | 8767 (health) | 192.168.1.13 (Windows) |
 
-Playing the Pipes does not yet have a service file; one will be added once the element stub exists.
+Playing the Pipes runs on a **Windows mini PC** (not Linux). Service supervision uses NSSM or Task Scheduler instead of systemd — see [Playing the Pipes](#playing-the-pipes) below.
 
 ---
 
@@ -328,6 +329,79 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Record the serial numbers in `ShowControl/network.json` under `"firmware"` so they are not lost.
 
+### Playing the Pipes
+
+- **Machine:** Windows mini PC at `192.168.1.13` — **not Linux**; systemd commands do not apply
+- **Audio engine:** Cycling '74 Max/RNBO (Max for Windows)
+- **USB serial:** Two Pi Picos connect via USB and appear as Windows COM ports (e.g. `COM3` / `COM4`). Configure the port names in Max's `serial` object. COM port numbers are not stable by default — assign fixed numbers in Device Manager (Properties → Port Settings → Advanced → COM Port Number) and record them here once assigned.
+- **Health endpoint:** A standalone Python http server (`ShowControl/PlayingThePipes/health_server.py`) serves `GET /health` on port 8767. This must be running for the Dashboard to show Pipes as online.
+- **Service supervision:** No systemd. Use **NSSM** (Non-Sucking Service Manager) to run both the health server and Max as Windows services with auto-restart. Alternatively, Task Scheduler with `On startup` trigger.
+
+**First-time service install (NSSM):**
+
+Download NSSM from https://nssm.cc, place `nssm.exe` somewhere on `PATH`, then run once in an admin PowerShell:
+
+```powershell
+nssm install pipes-health python
+nssm set pipes-health AppParameters "C:\CommunityGarden\ShowControl\PlayingThePipes\health_server.py"
+nssm set pipes-health AppDirectory  "C:\CommunityGarden\ShowControl\PlayingThePipes"
+nssm set pipes-health AppStdout     "C:\logs\pipes-health.log"
+nssm set pipes-health AppStderr     "C:\logs\pipes-health.log"
+nssm set pipes-health Start         SERVICE_AUTO_START
+nssm start pipes-health
+```
+
+**Manual startup (dev):**
+
+```powershell
+cd ShowControl\PlayingThePipes
+pip install -r requirements.txt
+python health_server.py
+
+# Max — open the patch manually or via CLI
+"C:\Program Files\Cycling '74\Max 9\Max.exe" PlayingThePipes.maxpat
+```
+
+**Service management (NSSM):**
+
+```powershell
+# Status
+nssm status pipes-health
+
+# Restart
+nssm restart pipes-health
+
+# Logs
+Get-Content C:\logs\pipes-health.log -Tail 50
+```
+
+**Updating the software:**
+
+```powershell
+cd C:\CommunityGarden
+git pull
+# Restart health server service
+nssm restart pipes-health
+# Reload Max patch manually
+```
+
+**COM port identification (first-time setup):**
+
+```powershell
+# List all COM ports
+[System.IO.Ports.SerialPort]::GetPortNames()
+# Or: Device Manager → Ports (COM & LPT)
+```
+
+Plug Picos in one at a time, note which COM port appears, label each Pico and record here:
+
+| Pico | Board ID | COM port |
+|------|----------|----------|
+| Board 0 | 0 | TBD |
+| Board 1 | 1 | TBD |
+
+---
+
 ### FundingCAPTCHA
 
 - **Hardware:** Orbbec depth camera (USB, optional), Chromium kiosk browser
@@ -380,7 +454,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## Open questions / future work
 
-- **Playing the Pipes**: once the element stub exists, add `ShowControl/PlayingThePipes/deploy/pipes.service` following the same pattern and add it to `scripts/install-services.sh`.
+- **Playing the Pipes**: runs on Windows — needs `ShowControl/PlayingThePipes/health_server.py` (Python/FastAPI, port 8767), NSSM service config, and Max patch wired to health state. `scripts/install-services.sh` does not cover this machine; a separate Windows setup script or NSSM config export is needed.
 - **Multi-machine deploy**: the install script currently runs locally. A simple Ansible playbook or `pdsh` wrapper would let a single operator re-deploy all machines simultaneously.
 - **Health monitoring**: `Restart=always` handles crashes but doesn't alert operators. A lightweight watchdog that posts to a Slack/Discord webhook on repeated restarts would improve unattended operation.
 - **Orbbec SDK version pinning**: `pyorbbecsdk2` must match the SDK `.so` installed on the host. Document the exact version pairing per machine if they diverge.

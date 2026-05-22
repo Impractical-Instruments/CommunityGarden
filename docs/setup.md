@@ -12,6 +12,7 @@ For on-site crew. See [Operations Guide](operations.md) for full service managem
 | TreeHouse | 192.168.1.10 | http://192.168.1.10:8766 (visualizer) |
 | FlowerBeds | 192.168.1.11 | http://192.168.1.11:8765 (visualizer) |
 | FundingCAPTCHA | 192.168.1.12 | http://192.168.1.12:8080 |
+| Playing the Pipes | 192.168.1.13 (Windows) | http://192.168.1.13:8767/health |
 
 ---
 
@@ -135,6 +136,27 @@ See [Operations Guide — FundingCAPTCHA](operations.md#fundingcaptcha) for more
 
 ---
 
+### Playing the Pipes
+
+**Machine:** `192.168.1.13` (Windows mini PC) | **Health:** http://192.168.1.13:8767/health
+
+Max/RNBO patch runs the audio engine. Two Pi Picos connect via USB and appear as COM ports.
+
+**First-time provisioning (once per machine):**
+
+1. Assign fixed COM port numbers to each Pico in Device Manager → Ports (COM & LPT) → Properties → Port Settings → Advanced → COM Port Number. Record them in the [Operations Guide — Playing the Pipes](operations.md#playing-the-pipes) table.
+2. Install Python deps: `pip install -r ShowControl\PlayingThePipes\requirements.txt`
+3. Install NSSM and register the health server service (see Operations Guide).
+4. Open `ShowControl\PlayingThePipes\PlayingThePipes.maxpat` in Max and confirm encoder events arrive.
+
+**Startup (daily):**
+
+Services start automatically via NSSM. Open Max manually if the patch is not set to auto-launch.
+
+See [Operations Guide — Playing the Pipes](operations.md#playing-the-pipes) for service management detail.
+
+---
+
 ### Dashboard
 
 **URL:** http://192.168.1.10:9000 — runs on the TreeHouse machine.
@@ -158,6 +180,14 @@ sudo systemctl restart <service>  # restart if needed
 ```
 
 Service names: `flowerbeds` · `treehouse` · `captcha` · `cg-dashboard`
+
+For **Playing the Pipes** (Windows): open a PowerShell window on the mini PC and run:
+
+```powershell
+nssm status pipes-health
+nssm restart pipes-health
+Get-Content C:\logs\pipes-health.log -Tail 50
+```
 
 ### FlowerBeds flowers not moving
 
