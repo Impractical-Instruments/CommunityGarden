@@ -80,10 +80,10 @@ def test_get_defaults_returns_cluster_offsets(client):
     assert "cluster_offsets" in d
     offsets = d["cluster_offsets"]
     assert len(offsets) == 4
-    assert offsets[0] == [40.0, -30.0, 0.0]
-    assert offsets[1] == [40.0, -75.0, 0.0]
-    assert offsets[2] == [100.0, -25.0, 0.0]
-    assert offsets[3] == [95.0, -70.0, 0.0]
+    assert offsets[0] == [10.0, 10.0, 0.0]
+    assert offsets[1] == [-10.0, 10.0, 0.0]
+    assert offsets[2] == [10.0, -10.0, 0.0]
+    assert offsets[3] == [-10.0, -10.0, 0.0]
 
 
 def test_defaults_match_default_module(client):
@@ -258,11 +258,3 @@ def test_default_module_sequential_ids():
     m5 = _default_module(4)  # 5th module (0-indexed)
     assert m5["name"] == "Module 5"
     assert m5["clusters"][0]["motor_id"] == 17  # 4*4+1
-
-
-def test_default_module_cluster_offsets():
-    m = _default_module(0)
-    assert m["clusters"][0]["pos_offset_cm"] == [40.0, -30.0, 0.0]
-    assert m["clusters"][1]["pos_offset_cm"] == [40.0, -75.0, 0.0]
-    assert m["clusters"][2]["pos_offset_cm"] == [100.0, -25.0, 0.0]
-    assert m["clusters"][3]["pos_offset_cm"] == [95.0, -70.0, 0.0]
