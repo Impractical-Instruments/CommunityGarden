@@ -98,9 +98,9 @@ Throughout, the TreeHouse responds to activity across all Elements, updating its
 
 **Status:** Physical construction underway by a teammate.
 
-**What it does:** A Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with valves and switches. Visitors operate the controls to steer a music system running granulators and loop players on a Raspberry Pi (Cycling '74 Max/RNBO). Controls use Tiller Control — visitors change the direction and character of the music, not trigger discrete notes.
+**What it does:** A Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with valves and switches. Visitors operate the controls to steer a music system running granulators and loop players on a Windows mini PC (Cycling '74 Max/RNBO). Controls use Tiller Control — visitors change the direction and character of the music, not trigger discrete notes.
 
-**Hardware path (revised 2026-05-21):** Two Pi Pico microcontrollers read 6 quadrature rotary encoders each (12 total) and send encoder events over USB serial to the Pi. Max reads the Pico serial ports directly and routes encoder deltas into the RNBO patch. RNBO handles all audio DSP and emits `/pipes/activity` to the TreeHouse. See ADR-0014.
+**Hardware path (revised 2026-05-21):** Two Pi Pico microcontrollers read 6 quadrature rotary encoders each (12 total) and send encoder events over USB serial to the Windows mini PC. Max reads the Pico serial ports directly (as COM ports) and routes encoder deltas into the RNBO patch. RNBO handles all audio DSP and emits `/pipes/activity` to the TreeHouse. See ADR-0014.
 
 **OSC output to fabric:** Playing the Pipes is an emitter only — it sends activity signals outward (controls active, engagement level) and does not receive from other Elements. It is a pure sound piece; external OSC input would conflict with the Tiller Control experience.
 

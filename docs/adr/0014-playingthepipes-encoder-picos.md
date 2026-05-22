@@ -8,7 +8,7 @@ Playing the Pipes has 12 rotary encoders distributed across the physical pipe st
 
 ## Decision
 
-Two Pi Pico microcontrollers (one per section, 6 encoders each) read quadrature rotary encoders and send encoder delta events over USB serial to the Raspberry Pi. Max reads the two serial ports directly and routes events into the RNBO patch.
+Two Pi Pico microcontrollers (one per section, 6 encoders each) read quadrature rotary encoders and send encoder delta events over USB serial to the Windows mini PC. Max reads the two serial ports directly (as Windows COM ports, e.g. `COM3` / `COM4`) and routes events into the RNBO patch.
 
 ## Protocol
 
@@ -41,7 +41,7 @@ All encoder pins use internal pull-ups. Encoder common to Pico GND.
 
 ## Reasons
 
-- Picos sit physically near their encoders; only a USB cable runs back to the Pi
+- Picos sit physically near their encoders; only a USB cable runs back to the Windows mini PC
 - Identical pin layout on both boards simplifies construction and maintenance
 - MicroPython IRQ-based quadrature decoding is robust at human-speed turning rates
 - Consistent with the USB serial pattern established for TreeHouse (ADR-0005, ADR-0010)
