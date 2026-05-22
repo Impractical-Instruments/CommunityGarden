@@ -21,7 +21,7 @@ class LEDConfig:
 
 class LEDDisplay(LEDControllable):
     """
-    Generic SK6812 LED strip — diorama boxes, gable windows, dormer.
+    Generic SK6812 LED strip — diorama boxes, dormer, attic.
 
     Patterns
     --------

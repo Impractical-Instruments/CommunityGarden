@@ -51,7 +51,7 @@ Speed tracks a weighted sum of all four signals.
 
 `LookingGlass.SCENES` is updated from `("bloom", "fractal", "mycelium", "cosmos")` to include `"overload"`.
 
-### Dioramas, gable windows, dormer (all `LEDDisplay`)
+### Dioramas, dormer, attic (all `LEDDisplay`)
 
 **Personality: config-driven shared logic.**
 

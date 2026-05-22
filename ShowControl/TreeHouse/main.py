@@ -4,7 +4,6 @@ TreeHouse show control — entry point.
 Drives the per-frame update loop for all display elements:
   2× diorama boxes   (House Swarming, Club)
   2× garage windows  (Looking Glass, Forge & Flora)
-  2× gable windows   (Front Gable, Back Gable)
   1× dormer window   (Dormer)
 
 Receives OSC from the festival network to manage show modes.
