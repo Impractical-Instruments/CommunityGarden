@@ -33,6 +33,13 @@
     "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 
+  "keepaway_body": {
+    "grid": [8, 6],
+    "grace_s": 3.0,
+    "abandon_s": 5.0,
+    "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
+  },
+
   "camera": {
     "_comment": "Leave serial blank for first detected device.",
     "serial":  "",

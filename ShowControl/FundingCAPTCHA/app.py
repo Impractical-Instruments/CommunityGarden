@@ -313,7 +313,7 @@ class _NoGame(Game):
 
 def _load_games(settings: dict) -> list[Game]:
     games: list[Game] = []
-    for name in ("bodycaptcha",):
+    for name in ("bodycaptcha", "body_keepaway"):
         path = DIR / "games" / f"{name}.py"
         if not path.exists():
             log.warning("Game not found: %s", path)
@@ -606,9 +606,9 @@ def main() -> None:
             intensity, event = cur_game.update(current_foreground, dt)
             cur_game.draw(screen)
 
-            if event == "loss":
-                log.info("Blow-Up — returning to screensaver")
-                if fabric:
+            if event in ("loss", "win"):
+                log.info("Arc ended (%s) — returning to screensaver", event)
+                if fabric and event == "loss":
                     fabric.send_event("blowup")
                 state     = AppState.SCREENSAVER
                 cur_saver = saver_bag.next() or no_saver
