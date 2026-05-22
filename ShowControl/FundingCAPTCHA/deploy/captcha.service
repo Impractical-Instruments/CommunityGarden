@@ -6,7 +6,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 # Use --mock-camera to emit fake blobs for testing without hardware.
 
 [Service]
-WorkingDirectory=%h/CommunityGarden/ShowControl/FundingCAPTCHA
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FundingCAPTCHA
 ExecStart=/usr/bin/python3 server.py 8080 --camera
 Restart=always
 RestartSec=5

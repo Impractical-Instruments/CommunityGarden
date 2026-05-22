@@ -3,7 +3,7 @@ Description=Looking Glass video renderer
 After=graphical.target
 
 [Service]
-WorkingDirectory=%h/CommunityGarden/ShowControl/TreeHouse/looking_glass
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse/looking_glass
 ExecStart=/usr/bin/python3 renderer.py
 Restart=on-failure
 RestartSec=5

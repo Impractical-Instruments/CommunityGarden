@@ -6,7 +6,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 # Add --no-osc to disable the OSC listener.
 
 [Service]
-WorkingDirectory=%h/CommunityGarden/ShowControl/TreeHouse
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse
 ExecStart=/usr/bin/python3 main.py --config settings.json
 Environment=WAYLAND_DISPLAY=wayland-1
 Environment=XDG_RUNTIME_DIR=/run/user/%U

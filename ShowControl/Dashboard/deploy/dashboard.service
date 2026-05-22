@@ -4,7 +4,7 @@ After=network.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 
 [Service]
-WorkingDirectory=%h/CommunityGarden/ShowControl/Dashboard
+WorkingDirectory=/home/ii/CommunityGarden/ShowControl/Dashboard
 ExecStart=/usr/bin/python3 serve.py 9000
 Restart=always
 RestartSec=5
