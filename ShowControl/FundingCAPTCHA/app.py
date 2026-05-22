@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013).
+FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013, ADR-0016).
 
 Usage:
-  python3 app.py [--camera | --mock-camera] [--port 8080]
+  python3 app.py [--camera | --mock-camera | --test-input [--test-depth N]] [--port 8080]
 
 States:
   BG_CAL      → solid black; camera builds background depth model
@@ -13,6 +13,7 @@ States:
 Keys:
   R          → restart from BG_CAL
   Q / Escape → quit
+  C          → clear paint canvas (--test-input only)
 """
 
 from __future__ import annotations
@@ -287,6 +288,62 @@ def _silhouette_surf(foreground: np.ndarray, slabs_cfg: list[dict],
     return pygame.transform.scale(surf, (display_w, display_h))
 
 
+# ── Test input handler ────────────────────────────────────────────────────────
+
+class TestInputHandler:
+    """Mouse-paint foreground canvas for --test-input mode (ADR-0016).
+
+    Left-drag paints pixels at test_depth_mm; right-drag erases; C clears.
+    Canvas is pushed to cam_q each tick as a normal foreground frame so the
+    full BodyGridActivator pipeline is exercised without any game code changes.
+    """
+
+    BRUSH_R = 15  # brush radius in camera pixels
+
+    def __init__(self, cam_w: int, cam_h: int, test_depth_mm: int) -> None:
+        self._cam_w = cam_w
+        self._cam_h = cam_h
+        self._depth = test_depth_mm
+        self.canvas = np.zeros((cam_h, cam_w), dtype=np.uint16)
+
+    def clear(self) -> None:
+        self.canvas[:] = 0
+
+    def tick(self, game_w: int, screen_h: int) -> None:
+        buttons = pygame.mouse.get_pressed()
+        if not (buttons[0] or buttons[2]):
+            return
+        mx, my = pygame.mouse.get_pos()
+        if mx < 0 or mx >= game_w or my < 0 or my >= screen_h:
+            return
+        cx = int(mx / game_w * self._cam_w)
+        cy = int(my / screen_h * self._cam_h)
+        val = np.uint16(self._depth) if buttons[0] else np.uint16(0)
+        y_idx, x_idx = np.ogrid[:self._cam_h, :self._cam_w]
+        disc = (x_idx - cx) ** 2 + (y_idx - cy) ** 2 <= self.BRUSH_R ** 2
+        self.canvas[disc] = val
+
+    def push_frame(self, cam_q: queue.Queue) -> None:
+        try:
+            cam_q.put_nowait({"type": "foreground", "frame": self.canvas.copy()})
+        except queue.Full:
+            pass
+
+    def draw_overlay(self, screen: pygame.Surface, game_w: int, screen_h: int) -> None:
+        mask = self.canvas > 0
+        if not mask.any():
+            return
+        rgb = np.zeros((self._cam_w, self._cam_h, 3), dtype=np.uint8)
+        t = mask.T  # surfarray wants (W, H, 3)
+        rgb[t, 0] = CYAN[0]
+        rgb[t, 1] = CYAN[1]
+        rgb[t, 2] = CYAN[2]
+        surf = pygame.surfarray.make_surface(rgb)
+        surf = pygame.transform.scale(surf, (game_w, screen_h))
+        surf.set_alpha(128)
+        screen.blit(surf, (0, 0))
+
+
 # ── Game interface ────────────────────────────────────────────────────────────
 
 class Game:
@@ -381,9 +438,14 @@ def _load_screensavers(settings: dict) -> list:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="FundingCAPTCHA unified pygame app")
-    ap.add_argument("--camera",      action="store_true")
-    ap.add_argument("--mock-camera", action="store_true")
-    ap.add_argument("--port",        type=int, default=8080)
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--camera",      action="store_true")
+    mode.add_argument("--mock-camera", action="store_true")
+    mode.add_argument("--test-input",  action="store_true",
+                      help="Camera-free dev mode: mouse-paint foreground canvas (ADR-0016)")
+    ap.add_argument("--test-depth",    type=int, default=None,
+                    help="Depth value (mm) painted by left-drag in --test-input mode")
+    ap.add_argument("--port",          type=int, default=8080)
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -392,7 +454,8 @@ def main() -> None:
 
     settings = load_settings()
     cam_cfg  = settings.get("camera", {})
-    use_mock = args.mock_camera
+    use_mock       = args.mock_camera
+    use_test_input = args.test_input
 
     if (args.camera or use_mock) and not _CV_AVAILABLE:
         sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
@@ -408,6 +471,20 @@ def main() -> None:
     sil_opacity   = float(settings.get("silhouette_opacity", 0.5))
     attract_dwell = float(settings.get("attract_dwell_s", 3.0))
     min_fg_px     = int(settings.get("min_foreground_pixels", 2000))
+
+    # ── Test input handler ────────────────────────────────────────────────────
+    test_handler: TestInputHandler | None = None
+    if use_test_input:
+        cam_w = cam_cfg.get("width",  640)
+        cam_h = cam_cfg.get("height", 400)
+        if args.test_depth is not None:
+            depth_mm = args.test_depth
+        else:
+            first_slab = slabs_cfg[0] if slabs_cfg else {"near_mm": 800, "far_mm": 2500}
+            depth_mm   = (first_slab["near_mm"] + first_slab["far_mm"]) // 2
+        test_handler = TestInputHandler(cam_w, cam_h, depth_mm)
+        log.info("Test-input mode: cam %dx%d  paint depth %dmm  (brush r=%dpx)",
+                 cam_w, cam_h, depth_mm, TestInputHandler.BRUSH_R)
 
     # ── OSC fabric ────────────────────────────────────────────────────────────
     fabric: Any = None
@@ -443,7 +520,7 @@ def main() -> None:
     WW, WH = info.current_w, info.current_h
     screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
     pygame.display.set_caption("FundingCAPTCHA")
-    pygame.mouse.set_visible(False)
+    pygame.mouse.set_visible(use_test_input)
     clock  = pygame.time.Clock()
 
     font_big = pygame.font.SysFont("monospace", 36, bold=True)
@@ -524,6 +601,8 @@ def main() -> None:
                     attract_elapsed    = 0.0
                     intensity          = 0.0
                     threading.Thread(target=_do_restart, daemon=True).start()
+                elif event.key == pygame.K_c and test_handler:
+                    test_handler.clear()
 
         # HTTP restart
         if _http_restart.is_set():
@@ -533,6 +612,11 @@ def main() -> None:
             attract_elapsed    = 0.0
             intensity          = 0.0
             threading.Thread(target=_do_restart, daemon=True).start()
+
+        # Test-input: update paint canvas and push as foreground frame
+        if test_handler:
+            test_handler.tick(game_w, WH)
+            test_handler.push_frame(cam["q"])
 
         # Drain camera queue
         try:
@@ -619,6 +703,13 @@ def main() -> None:
             if now - t_last_osc >= 0.1 and fabric:
                 t_last_osc = now
                 fabric.report("intensity", float(intensity))
+
+        # Test-input overlay
+        if test_handler:
+            test_handler.draw_overlay(screen, game_w, WH)
+            hint = font_sml.render(
+                "TEST MODE  |  LMB: paint  RMB: erase  C: clear", True, CYAN)
+            screen.blit(hint, (8, 8))
 
         pygame.display.flip()
 
