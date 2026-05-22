@@ -1,0 +1,22 @@
+[
+  {
+    "survive_s": 10,
+    "defenders": [{"speed": 1.5}]
+  },
+  {
+    "survive_s": 15,
+    "defenders": [{"speed": 2.0}]
+  },
+  {
+    "survive_s": 20,
+    "defenders": [{"speed": 2.0}, {"speed": 2.0}]
+  },
+  {
+    "survive_s": 25,
+    "defenders": [{"speed": 2.5}, {"speed": 2.5}]
+  },
+  {
+    "survive_s": 30,
+    "defenders": [{"speed": 2.5}, {"speed": 2.5}, {"speed": 2.5}]
+  }
+]
