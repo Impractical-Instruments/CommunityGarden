@@ -15,7 +15,7 @@ import json
 import logging
 import threading
 from datetime import datetime
-from typing import Any, Callable, TypedDict
+from typing import Any, TypedDict
 
 import uvicorn  # type: ignore[import]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
@@ -74,12 +74,6 @@ _HTML = """<!DOCTYPE html>
   #legend { font-size:.75em; color:#aaa; margin:.4em; display:flex; gap:1.5em; }
   .dot { display:inline-block; width:10px; height:10px; border-radius:50%;
          margin-right:4px; vertical-align:middle; }
-  #cal-bar { margin:.3em 0; display:flex; align-items:center; gap:.8em; }
-  #cal-btn { background:#2a4a7f; color:#eee; border:1px solid #4a7abf; border-radius:4px;
-             padding:.3em .9em; cursor:pointer; font-family:monospace; font-size:.85em; }
-  #cal-btn:hover { background:#3a5a9f; }
-  #cal-btn:disabled { opacity:.4; cursor:default; }
-  #cal-msg { font-size:.8em; color:#aaa; }
 </style>
 </head>
 <body>
@@ -90,10 +84,6 @@ _HTML = """<!DOCTYPE html>
   <span><span class="dot" style="background:#ff6b6b"></span>cluster (no target)</span>
   <span><span class="dot" style="background:#51cf66"></span>cluster (has target)</span>
   <span><span class="dot" style="background:#ffd43b"></span>camera</span>
-</div>
-<div id="cal-bar">
-  <button id="cal-btn" onclick="startLayoutCalibrate()">Layout Calibrate</button>
-  <span id="cal-msg"></span>
 </div>
 <canvas id="c"></canvas>
 <script>
@@ -273,7 +263,6 @@ function connect() {
   ws.onmessage = (ev) => {
     lastState = JSON.parse(ev.data);
     draw(lastState);
-    updateCalUI(lastState);
     const nb = (lastState.blobs || []).length;
     const nc = (lastState.clusters || []).length;
     status.textContent =
@@ -284,47 +273,6 @@ function connect() {
 }
 
 connect();
-
-// ------------------------------------------------------------------ layout calibrate
-const calBtn = document.getElementById('cal-btn');
-const calMsg = document.getElementById('cal-msg');
-
-function startLayoutCalibrate() {
-  calBtn.disabled = true;
-  calMsg.textContent = 'starting…';
-  fetch('/layout-calibrate/start', { method: 'POST' })
-    .then(r => r.json())
-    .then(d => {
-      if (d.ok) {
-        calMsg.textContent = 'capturing frames…';
-      } else {
-        calMsg.textContent = 'error: ' + (d.error || 'unknown');
-        calBtn.disabled = false;
-      }
-    })
-    .catch(() => {
-      calMsg.textContent = 'request failed';
-      calBtn.disabled = false;
-    });
-}
-
-// Update cal-msg from calibration_state field in WS messages
-function updateCalUI(state) {
-  const cs = state.calibration_state || '';
-  if (cs.startsWith('layout_calibrating:')) {
-    const prog = cs.slice('layout_calibrating:'.length);
-    calMsg.textContent = 'capturing ' + prog;
-    calBtn.disabled = true;
-  } else if (cs === 'layout_calibrated') {
-    calMsg.textContent = 'layout saved';
-    calBtn.disabled = false;
-  } else if (cs === 'layout_calibrate_error') {
-    calMsg.textContent = 'calibration error — check logs';
-    calBtn.disabled = false;
-  } else {
-    calBtn.disabled = false;
-  }
-}
 
 // Redraw on resize in case canvas size changed
 window.addEventListener('resize', () => { resize(); if (lastState) draw(lastState); });
@@ -342,13 +290,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"])
 _connections: set[WebSocket] = set()
 _log_queues: list[asyncio.Queue] = []
 _loop: asyncio.AbstractEventLoop | None = None
-_layout_calibrate_cb: Callable[[], None] | None = None
-
-
-def register_layout_calibrate_callback(cb: Callable[[], None]) -> None:
-    """Register the function to call when /layout-calibrate/start is hit."""
-    global _layout_calibrate_cb
-    _layout_calibrate_cb = cb
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -376,17 +317,6 @@ async def index():
 
 @app.get("/health")
 async def health():
-    return JSONResponse({"ok": True})
-
-
-@app.post("/layout-calibrate/start")
-async def start_layout_calibrate():
-    if _layout_calibrate_cb is None:
-        return JSONResponse(
-            {"ok": False, "error": "calibration not available (mock mode or no callback)"},
-            status_code=503,
-        )
-    _layout_calibrate_cb()
     return JSONResponse({"ok": True})
 
 

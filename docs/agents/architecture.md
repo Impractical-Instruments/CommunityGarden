@@ -57,6 +57,27 @@ OrbbecCamera.frames() / MockCamera.frames()
   → visualizer.broadcast(state)          # WebSocket → browser dashboard
 ```
 
+## FlowerBeds layout tool
+
+`ShowControl/FlowerBeds/layout_tool.py` — run on the operator's Windows laptop before
+show to configure module positions. Not used on the show Pi.
+
+```
+python layout_tool.py   →  http://localhost:8764
+```
+
+Reads and writes `coordinator.modules[]` in `settings.json` (all other fields preserved).
+Backs up `settings.json.bak` before any write. Reads controller IPs from `network.json`.
+
+Key features:
+- Drag-place modules on a top-down canvas; set yaw via rotate handle or numeric input
+- Per-cluster motor ID editing; default offsets match standard 4-cluster hardware layout
+- Manual aim: click canvas point → sends `/cg/ff/rot` directly to controller via OSC
+- Test move: sends a 30°→0° command to a single motor to confirm it responds
+- Controller status: TCP-ping each controller, auto-refreshes every 10 s
+
+See ADR-0015 for full design and implementation plan.
+
 ## Blob detection (BlobTracker)
 
 Runs per frame once calibrated:

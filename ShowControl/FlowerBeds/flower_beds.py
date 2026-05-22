@@ -98,7 +98,7 @@ class ModuleConfig:
     registration_point_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
     clusters: list[ClusterConfig] = field(default_factory=list)
-    marker_id: int | None = None
+    name: str = ""
 
     @classmethod
     def from_dict(cls, raw: dict) -> "ModuleConfig":

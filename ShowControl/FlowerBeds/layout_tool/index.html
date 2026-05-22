@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FlowerBeds Layout Tool</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="toolbar">
+  <h1>🌸 Layout Tool</h1>
+  <button id="btn-edit" class="active" onclick="setMode('edit')">Place/Edit</button>
+  <button id="btn-aim" onclick="setMode('aim')">Aim</button>
+  <button onclick="addModule()">+ Add Module</button>
+  <button onclick="fitView()">Fit View</button>
+  <button class="btn-green" onclick="saveLayout()" id="btn-save">Save settings.json</button>
+  <span id="save-msg"></span>
+  <div id="ctrl-status">
+    <span id="ctrl-dots"></span>
+    <button onclick="refreshControllerStatus()" style="padding:2px 6px;font-size:11px">Refresh</button>
+  </div>
+</div>
+<div id="main">
+  <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
+  <div id="sidebar">
+    <div id="no-sel">Click a module to select it</div>
+    <div id="mod-panel" style="display:none">
+      <h3 id="mod-title">Module</h3>
+      <div class="field-row">
+        <label>Name</label>
+        <input type="text" id="mod-name" oninput="onModNameInput()">
+        <button class="btn-danger" onclick="deleteSelectedModule()" style="padding:2px 6px">Delete</button>
+      </div>
+      <div class="field-row">
+        <label>X (cm)</label><input type="number" id="mod-x" step="1" oninput="onModPosInput()">
+        <label style="width:auto">Y</label><input type="number" id="mod-y" step="1" oninput="onModPosInput()">
+      </div>
+      <div class="field-row">
+        <label>Yaw (°)</label><input type="number" id="mod-yaw" step="1" oninput="onModYawInput()">
+      </div>
+      <hr class="sep">
+      <h3>Clusters</h3>
+      <div id="cluster-list"></div>
+    </div>
+  </div>
+</div>
+<script src="/static/layout.js" defer></script>
+</body>
+</html>
