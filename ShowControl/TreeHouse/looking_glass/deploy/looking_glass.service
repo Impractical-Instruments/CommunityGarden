@@ -7,7 +7,7 @@ WorkingDirectory=%h/CommunityGarden/ShowControl/TreeHouse/looking_glass
 ExecStart=/usr/bin/python3 renderer.py
 Restart=on-failure
 RestartSec=5
-User=pi
+User=ii
 SupplementaryGroups=video render
 Environment=WAYLAND_DISPLAY=wayland-1
 Environment=XDG_RUNTIME_DIR=/run/user/%U

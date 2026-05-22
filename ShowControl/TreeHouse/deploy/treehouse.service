@@ -14,7 +14,7 @@ Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
 RestartSec=5
-User=pi
+User=ii
 # Pi Pico appears as /dev/ttyACM0 (USB CDC); dialout gives unprivileged access.
 SupplementaryGroups=dialout
 StandardOutput=journal

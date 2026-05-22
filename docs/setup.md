@@ -80,7 +80,7 @@ Servo-motor flowers follow visitors using a depth camera.
    - **CLI (SSH to FlowerBeds machine):**
      ```bash
      sudo systemctl stop flowerbeds
-     cd /home/pi/CommunityGarden/ShowControl/FlowerBeds
+     cd /home/ii/CommunityGarden/ShowControl/FlowerBeds
      python main.py --config settings.json --layout-calibrate
      sudo systemctl start flowerbeds
      ```

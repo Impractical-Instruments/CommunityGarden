@@ -8,7 +8,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 APP_DIR="$REPO_ROOT/ShowControl/Dashboard"
-SERVICE_USER="${SUDO_USER:-pi}"
+SERVICE_USER="${SUDO_USER:-ii}"
 
 echo "=== Dashboard install ==="
 echo "App dir: $APP_DIR"
@@ -22,7 +22,7 @@ pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."
 DEST="/etc/systemd/system/cg-dashboard.service"
-sed "s|User=pi|User=$SERVICE_USER|g" \
+sed "s|User=ii|User=$SERVICE_USER|g" \
     "$SCRIPT_DIR/dashboard.service" > "$DEST"
 echo "   written: $DEST"
 

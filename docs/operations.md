@@ -56,7 +56,7 @@ sudo bash install.sh
 2. Copies the service file to `/etc/systemd/system/`, patching the working directory to match the actual repo location
 3. Runs `systemctl enable` + `systemctl restart`
 
-The service user defaults to the invoking user (`$SUDO_USER`) and falls back to `pi`.
+The service user defaults to the invoking user (`$SUDO_USER`) and falls back to `ii`.
 
 ---
 
@@ -282,7 +282,7 @@ journalctl -u treehouse -f | grep looking_glass
 
 **Wayland environment (systemd context):**
 
-The service runs as `User=pi` outside the desktop session. The service file injects the required Wayland vars:
+The service runs as `User=ii` outside the desktop session. The service file injects the required Wayland vars:
 
 ```
 WAYLAND_DISPLAY=wayland-0
@@ -340,7 +340,7 @@ Record the serial numbers in `ShowControl/network.json` under `"firmware"` so th
 ## Updating the software
 
 ```bash
-cd /home/pi/CommunityGarden   # or wherever the repo lives
+cd /home/ii/CommunityGarden   # or wherever the repo lives
 git pull
 
 # Restart affected services

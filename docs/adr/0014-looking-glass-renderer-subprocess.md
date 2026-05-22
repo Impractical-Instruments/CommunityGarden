@@ -56,7 +56,7 @@ author iterate visually on [shadertoy.com](https://www.shadertoy.com) and paste 
 
 ### Wayland environment
 
-The systemd unit runs as `User=pi` but not inside the desktop session, so Wayland socket vars
+The systemd unit runs as `User=ii` but not inside the desktop session, so Wayland socket vars
 are absent. The service file must inject them explicitly:
 
 ```ini
