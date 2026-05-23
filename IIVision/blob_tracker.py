@@ -186,7 +186,6 @@ class Calibrator:
         frames = np.stack(self._frames, axis=0).astype(np.uint16)  # (N, H*W)
         valid = (
             (frames >= self._config.min_depth_mm)
-            & (frames <= self._config.max_depth_mm)
         )
         num_valid = valid.sum(axis=0)  # (H*W,)
         valid_mask = num_valid >= _MIN_FRAMES_VALID
