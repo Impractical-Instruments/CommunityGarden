@@ -35,11 +35,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--visualizer-port", type=int, default=8766, metavar="N",
                    help="Visualizer HTTP port (default: 8766)")
     p.add_argument("--no-renderer", action="store_true", help="Skip Looking Glass renderer subprocess (dev mode)")
+    p.add_argument("--no-club-screen", action="store_true", help="Skip Club diorama screen subprocess (dev mode)")
     p.add_argument("--verbose", "-v", action="store_true", help="Enable DEBUG logging")
     return p.parse_args()
 
 
 _RENDERER_PATH = Path(__file__).parent / "looking_glass" / "renderer.py"
+_CLUB_SCREEN_PATH = Path(__file__).parent / "club_screen.py"
 
 
 async def _renderer_subprocess(renderer_path: Path) -> None:
@@ -119,6 +121,8 @@ async def _run(args: argparse.Namespace) -> None:
         tasks.append(asyncio.create_task(visualizer.serve(coordinator=coordinator, port=args.visualizer_port)))
     if not args.no_renderer:
         tasks.append(asyncio.create_task(_renderer_subprocess(_RENDERER_PATH)))
+    if not args.no_club_screen:
+        tasks.append(asyncio.create_task(_renderer_subprocess(_CLUB_SCREEN_PATH)))
 
     try:
         await asyncio.gather(*tasks)

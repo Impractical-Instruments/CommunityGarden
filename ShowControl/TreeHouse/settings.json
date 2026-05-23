@@ -89,6 +89,11 @@
     "pattern": "incandescent"
   },
 
+  "club_screen": {
+    "interval_seconds": 10,
+    "messages_file": "club_messages.txt"
+  },
+
   "branch_controller": {
     "port": "/dev/treehouse-branches",
     "baud": 115200,
