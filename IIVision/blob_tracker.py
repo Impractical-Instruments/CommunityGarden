@@ -47,7 +47,6 @@ class FramePacket:
 @dataclass
 class CalibrationConfig:
     min_depth_mm: int = 50
-    max_depth_mm: int = 6000
 
 
 @dataclass
@@ -184,10 +183,11 @@ class Calibrator:
                 f"Calibrator needs {self._num_frames} frames, has {len(self._frames)}"
             )
         frames = np.stack(self._frames, axis=0).astype(np.uint16)  # (N, H*W)
-        valid = (
-            (frames >= self._config.min_depth_mm)
-            & (frames <= self._config.max_depth_mm)
-        )
+        # No upper cap: a far wall past DetectionConfig.max_depth_mm is still
+        # a real background — clipping it here makes those pixels invalid and
+        # punches holes in the foreground when people stand in front. Flaky
+        # pixels are handled downstream by the noise_floor (IQR) threshold.
+        valid = frames >= self._config.min_depth_mm
         num_valid = valid.sum(axis=0)  # (H*W,)
         valid_mask = num_valid >= _MIN_FRAMES_VALID
 

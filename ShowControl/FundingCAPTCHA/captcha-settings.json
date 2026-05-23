@@ -9,7 +9,7 @@
   },
 
   "depth_slabs": [
-    {"near_mm": 800, "far_mm": 2000, "slab_id": 0}
+    {"near_mm": 500, "far_mm": 3000, "slab_id": 0}
   ],
 
   "slab_styles": {
@@ -46,7 +46,7 @@
     "width":   640,
     "height":  400,
     "fps":     10,
-    "pos_cm":  [0, 0, 50],
-    "rotation": {"pitch": -30, "yaw": 0, "roll": 0}
+    "pos_cm":  [0, 0, 78],
+    "rotation": {"pitch": -24, "yaw": 0, "roll": 0}
   }
 }
