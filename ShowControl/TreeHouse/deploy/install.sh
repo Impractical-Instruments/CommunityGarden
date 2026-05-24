@@ -15,6 +15,10 @@ echo "App dir: $APP_DIR"
 echo "User:    $SERVICE_USER"
 echo ""
 
+# ── System dependencies ───────────────────────────────────────────────────────
+echo "→ Installing system dependencies..."
+apt-get install -y libx11-dev
+
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
