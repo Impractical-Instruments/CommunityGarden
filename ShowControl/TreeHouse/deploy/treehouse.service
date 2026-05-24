@@ -1,6 +1,6 @@
 [Unit]
 Description=TreeHouse Show Control
-After=network.target graphical.target
+After=network.target seatd.service
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 # Add --no-pico if the Pi Pico is not connected on this install.
 # Add --no-osc to disable the OSC listener.
@@ -22,4 +22,4 @@ StandardError=journal
 SyslogIdentifier=treehouse
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target
