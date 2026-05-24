@@ -17,7 +17,7 @@ echo ""
 
 # ── System dependencies ───────────────────────────────────────────────────────
 echo "→ Installing system dependencies..."
-apt-get install -y libx11-dev
+apt-get install -y libx11-dev weston
 
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
