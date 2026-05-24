@@ -22,6 +22,7 @@ FPS = 30
 ACCENT = (0, 255, 200)
 BG = (0, 0, 0)
 SCANLINE_ALPHA = 40
+SCANLINE_THICKNESS_PX = 2
 FONT_SIZE = 96
 
 _DIR = Path(__file__).parent
@@ -55,8 +56,11 @@ def _find_display(target: tuple[int, int]) -> int:
 
 def _make_scanlines(width: int, height: int) -> pygame.Surface:
     surf = pygame.Surface((width, height), pygame.SRCALPHA)
-    for y in range(0, height, 2):
+    for y in range(0, height, SCANLINE_THICKNESS_PX * 2):
+        if y + SCANLINE_THICKNESS_PX >= height:
+            break
         pygame.draw.line(surf, (0, 0, 0, SCANLINE_ALPHA), (0, y), (width - 1, y))
+        pygame.draw.line(surf, (0, 0, 0, SCANLINE_ALPHA), (0, y+1), (width - 1, y))
     return surf
 
 
