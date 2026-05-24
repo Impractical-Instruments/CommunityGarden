@@ -210,13 +210,14 @@ python3 -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-### FundingCAPTCHA kiosk stuck on loading
+### FundingCAPTCHA projector black or game stuck
+
+`captcha` is a single pygame process (ADR-0012) — no browser involved. Restart the service:
 
 ```bash
 sudo systemctl restart captcha
+journalctl -u captcha -f
 ```
-
-Chromium retries automatically once the server responds.
 
 ### Updating the software
 
