@@ -67,9 +67,7 @@ def _build_vao(ctx: moderngl.Context, prog: moderngl.Program):
 
 class LookingGlassWindow(pyglet.window.Window):
     def __init__(self):
-        display = pyglet.canvas.get_display()
-        screen = display.get_screens()[0]
-        super().__init__(WIDTH, HEIGHT, caption="Looking Glass", fullscreen=True, screen=screen, vsync=True)
+        super().__init__(WIDTH, HEIGHT, caption="Looking Glass", fullscreen=True, vsync=True)
         self.set_mouse_visible(False)
         self.ctx = moderngl.create_context()
         log.info("OpenGL %s", self.ctx.version_code)
