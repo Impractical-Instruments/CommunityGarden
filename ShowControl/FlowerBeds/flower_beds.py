@@ -139,7 +139,6 @@ class CameraConfig:
     name: str = ""
     pos_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
-    serial: str = ""
     width: int = 640
     height: int = 400
     framerate: int = 30
