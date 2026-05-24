@@ -31,15 +31,12 @@ Playing the Pipes runs on a **Windows mini PC** (not Linux). Service supervision
 
 ## Quick start (first deploy)
 
-Run on each show computer **as root** after cloning the repo:
+Run on each show computer **as root** after cloning the repo. Pass the element(s) installed on that machine — the script requires at least one:
 
 ```bash
-sudo bash scripts/install-services.sh
-```
-
-To install only specific elements:
-
-```bash
+sudo bash scripts/install-services.sh FlowerBeds
+sudo bash scripts/install-services.sh FundingCAPTCHA
+# Multiple at once (rare — each Pi normally runs one element):
 sudo bash scripts/install-services.sh FlowerBeds TreeHouse
 ```
 
@@ -52,11 +49,13 @@ sudo bash install.sh
 
 ### What the install script does
 
-1. Installs Python dependencies (`pip3 install -r requirements.txt`)
-2. Copies the service file to `/etc/systemd/system/`, patching the working directory to match the actual repo location
-3. Runs `systemctl enable` + `systemctl restart`
+1. Installs Python dependencies (`pip3 install --break-system-packages -r requirements.txt`; `python3-numpy` and `python3-scipy` first via apt where available)
+2. Copies the service file to `/etc/systemd/system/`, patching `User=` to the invoking user
+3. Runs `systemctl daemon-reload` + `systemctl enable` + `systemctl restart`
 
-The service user defaults to the invoking user (`$SUDO_USER`) and falls back to `ii`.
+The service user defaults to the invoking user (`$SUDO_USER`) and falls back to `ii`. `WorkingDirectory=` in the unit is hard-coded to `/home/ii/CommunityGarden/...` — edit the service file if the repo lives elsewhere.
+
+FundingCAPTCHA's `install.sh` additionally drops an Orbbec udev rule (`/etc/udev/rules.d/99-orbbec.rules`) and reloads udev. FlowerBeds' `install.sh` does not — see [Orbbec camera udev rules](#orbbec-camera-udev-rules) if the FlowerBeds camera fails to open.
 
 ---
 
@@ -384,7 +383,8 @@ Plug Picos in one at a time, note which COM port appears, label each Pico and re
 - **Hardware:** Orbbec depth camera (USB), short-throw laser projector
 - **Service:** One unit — `captcha` runs `app.py`, a single pygame process that owns the projector display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring HTTP/WebSocket server on port 8080 (ADR-0012). No browser, no kiosk service.
 - **Flags:** Edit `/etc/systemd/system/captcha.service` to switch `--camera` → `--mock-camera` (synthetic depth frames) or `--test-input` (mouse-paint depth frames; ADR-0016).
-- **Photo / level assets:** Live in `ShowControl/FundingCAPTCHA/images/`. Levels in `bodycaptcha-levels.json`. The standalone Windows editor for non-git teammates lives in `distribution/` (see ADR's plus `distribution/README.md`).
+- **Settings:** `captcha-settings.json` (main config — camera, depth slabs, ROI, screensaver list, OSC targets). `captcha-settings.local.json` overrides for per-machine tweaks.
+- **Level assets:** Per-game JSON files alongside `app.py` — `bodycaptcha-levels.json`, `keepaway-body-levels.json`, plus `taunts.json` / `keepaway-body-taunts.json` and `screensavers.json`. Photos live in `ShowControl/FundingCAPTCHA/images/`. The standalone Windows BodyCaptcha editor for non-git teammates lives in `distribution/` (see `distribution/README.md`).
 
 ### Show Dashboard
 
@@ -418,13 +418,19 @@ sudo systemctl restart flowerbeds treehouse captcha
 
 ## Orbbec camera udev rules
 
-The Orbbec SDK ships udev rules that grant USB access without root. If the camera doesn't open, install the rules (one-time, per machine):
+FundingCAPTCHA's `install.sh` writes `/etc/udev/rules.d/99-orbbec.rules` (vendor `2bc5`, product `0807`, `MODE="0666"`) automatically. FlowerBeds' `install.sh` does **not** — install the rule manually on the FlowerBeds Pi if the camera fails to open:
 
 ```bash
-# Locate the rules file in the pyorbbecsdk2 package:
-python3 -c "import pyorbbecsdk2; import os; print(os.path.dirname(pyorbbecsdk2.__file__))"
-# Then copy the .rules file to /etc/udev/rules.d/ and reload:
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0807", MODE="0666"' \
+    | sudo tee /etc/udev/rules.d/99-orbbec.rules
 sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+If your Orbbec device has a different product ID, the SDK ships its own rules file inside the `pyorbbecsdk2` package:
+
+```bash
+python3 -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__))"
+# Copy the .rules file from that path to /etc/udev/rules.d/ and reload.
 ```
 
 ---
