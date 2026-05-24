@@ -1,22 +1,16 @@
-# FundingCAPTCHA server dependencies
+# FundingCAPTCHA dependencies
 # Install with: pip install -r requirements.txt
 #
-# On Raspberry Pi, prefer system packages for numpy/scipy (faster ARM builds):
+# On Raspberry Pi, prefer system packages for numpy (faster ARM builds):
 #   sudo apt-get install python3-numpy python3-scipy
 
-# ── Core server (always required) ─────────────────────────────────────────────
-fastapi>=0.100
-uvicorn[standard]>=0.23
+# ── Always required ────────────────────────────────────────────────────────────
+pygame>=2.1
 websockets>=11
+numpy>=1.24
 python-osc>=1.8
+Pillow>=9.0          # JPEG fallback for SDL_image builds without JPEG (Pi)
 
 # ── CV pipeline (required only for --camera or --mock-camera) ─────────────────
-numpy>=1.24
 scipy>=1.10
-
-# Orbbec camera SDK
 pyorbbecsdk2
-
-# ── Touch calibration (touch_calibration.py) ─────────────────────────────────
-pygame>=2.1
-Pillow>=9.0          # image fallback for SDL_image builds without JPEG (Pi)

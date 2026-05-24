@@ -116,6 +116,15 @@ See [Operations Guide — TreeHouse](operations.md#treehouse) for more detail.
 
 A single pygame app (`app.py`) owns the projector display, depth camera pipeline, and a lightweight monitoring HTTP/WebSocket server (ADR-0012). No browser, no kiosk service.
 
+**First-time provisioning (once per machine):**
+
+Runs Pi OS Lite — no desktop session. pygame uses `SDL_VIDEODRIVER=kmsdrm` (direct DRM access, no compositor). No extra packages needed beyond what `install.sh` handles; the `render` group is granted at runtime via `SupplementaryGroups` in the service unit.
+
+```bash
+cd ShowControl/FundingCAPTCHA/deploy
+sudo bash install.sh
+```
+
 Verify the projector shows the screensaver or an active game. If the screen is black or stuck, check the `captcha` service logs:
 
 ```bash

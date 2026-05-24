@@ -57,14 +57,6 @@ class Grid:
     def inner_rect(self, col: int, row: int) -> pygame.Rect:
         return self.cell_rect(col, row).inflate(-CELL_PAD * 2, -CELL_PAD * 2)
 
-    def blob_to_cell(self, blob: dict, projector,
-                     max_plane_dist: float) -> tuple[int, int] | None:
-        xyz = [blob["x"], blob["y"], blob["z"]]
-        if not projector.in_bounds_3d(xyz, max_plane_dist):
-            return None
-        u, v = projector.project(xyz)
-        return projector.uv_to_cell(u, v, self.cols, self.rows)
-
     def flash(self, col: int, row: int,
               color: tuple, duration_ms: int, alpha: int = 160) -> None:
         self._flashes[(col, row)] = (color, pygame.time.get_ticks() + duration_ms, alpha)
@@ -98,21 +90,6 @@ class Grid:
                   img: pygame.Surface, col: int, row: int) -> None:
         r = self.inner_rect(col, row)
         surf.blit(pygame.transform.scale(img, (r.w, r.h)), r.topleft)
-
-
-class TapTracker:
-    """Edge-detects new blob IDs as discrete taps."""
-
-    def __init__(self) -> None:
-        self._prev: set[int] = set()
-
-    def update(self, active_ids: set[int]) -> set[int]:
-        new = active_ids - self._prev
-        self._prev = set(active_ids)
-        return new
-
-    def reset(self) -> None:
-        self._prev = set()
 
 
 def hud_font(size: int = 20) -> pygame.font.Font:

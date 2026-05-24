@@ -1,19 +1,22 @@
 [Unit]
 Description=FundingCAPTCHA Game Server
-After=network.target
+After=network.target graphical.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 # Remove --camera if the Orbbec camera is not present on this install.
 # Use --mock-camera to emit fake blobs for testing without hardware.
 
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FundingCAPTCHA
-ExecStart=/usr/bin/python3 server.py 8080 --camera
+ExecStart=/usr/bin/python3 app.py --camera --port 8080
 Restart=always
 RestartSec=5
 TimeoutStopSec=10
 User=ii
-# Orbbec camera appears as a USB device; video + plugdev give unprivileged access.
-SupplementaryGroups=video plugdev
+# SDL2/kmsdrm direct DRM access (Pi OS Lite, no compositor).
+Environment=SDL_VIDEODRIVER=kmsdrm
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+# Orbbec camera: video + plugdev; kmsdrm rendering: render
+SupplementaryGroups=video plugdev render
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=captcha
