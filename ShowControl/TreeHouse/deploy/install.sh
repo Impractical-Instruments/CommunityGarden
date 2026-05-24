@@ -17,11 +17,17 @@ echo ""
 
 # ── System dependencies ───────────────────────────────────────────────────────
 echo "→ Installing system dependencies..."
-apt-get install -y libx11-dev weston seatd
+apt-get install -y libx11-dev weston seatd libgl1-mesa-dri libegl1 libegl-mesa0 libgl1
 
 # ── Seat management (weston drm-backend requires seatd or logind) ─────────────
 echo "→ Enabling seatd..."
 systemctl enable --now seatd
+
+# ── EGL symlinks (moderngl dlopen("libEGL.so") — Pi OS ships only versioned .so.1) ──
+echo "→ Creating EGL/GL symlinks..."
+ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
+ln -sf /lib/aarch64-linux-gnu/libGL.so.1  /lib/aarch64-linux-gnu/libGL.so
+ldconfig
 
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
