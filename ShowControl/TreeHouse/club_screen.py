@@ -87,7 +87,8 @@ def main() -> None:
 
     pygame.init()
     display_index = _find_display((WIDTH, HEIGHT))
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN | pygame.NOFRAME, display=display_index)
+    log.info("Club screen on display %d", display_index)
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN, display=display_index)
     pygame.display.set_caption("Club Screen")
     pygame.mouse.set_visible(False)
     clock = pygame.time.Clock()
