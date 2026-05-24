@@ -298,3 +298,36 @@ def _project_box(box: _Box, cam_pos: np.ndarray, R: np.ndarray,
 
 def create(settings: dict) -> VinesScreensaver:
     return VinesScreensaver(settings)
+
+
+# ── standalone runner ────────────────────────────────────────────────────────
+# Run this file directly to preview the screensaver in a window without launching
+# the rest of FundingCAPTCHA: `python ScreenSavers/pipes_3d.py [--fullscreen]`.
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    ap = argparse.ArgumentParser(description="Preview the 3D vines screensaver")
+    ap.add_argument("--fullscreen", action="store_true")
+    ap.add_argument("--width",  type=int, default=1280)
+    ap.add_argument("--height", type=int, default=720)
+    args = ap.parse_args()
+
+    pygame.init()
+    flags  = pygame.FULLSCREEN if args.fullscreen else 0
+    size   = (args.width, args.height)
+    screen = pygame.display.set_mode(size, flags)
+    pygame.display.set_caption("FundingCAPTCHA — Vines preview")
+    clock  = pygame.time.Clock()
+
+    saver = create({})
+    while True:
+        dt = clock.tick(30) / 1000.0
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit(0)
+            if event.type == pygame.KEYDOWN and event.key in (pygame.K_q, pygame.K_ESCAPE):
+                pygame.quit(); sys.exit(0)
+        saver.update(dt, None)
+        saver.draw(screen)
+        pygame.display.flip()
