@@ -4,3 +4,4 @@ moderngl
 pyglet
 numpy
 uvicorn
+fastapi
