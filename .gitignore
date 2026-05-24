@@ -17,3 +17,7 @@ layout_calibrated.json
 
 # Local calibration data (machine-specific, written by touch_test_pygame.py)
 captcha-settings.local.json
+
+# BodyCaptcha editor build artifacts (PyInstaller output)
+ShowControl/FundingCAPTCHA/distribution/dist/
+ShowControl/FundingCAPTCHA/distribution/build_work/

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
+import sys
 from copy import deepcopy
 from pathlib import Path
 
 import pygame
 
-_DIR    = Path(__file__).parent
+# When frozen by PyInstaller, data lives next to the .exe, not inside the
+# unpacked bundle (which is a temp dir and read-only across launches).
+if getattr(sys, "frozen", False):
+    _DIR = Path(sys.executable).parent
+else:
+    _DIR = Path(__file__).parent
 _LEVELS = _DIR / "bodycaptcha-levels.json"
 _IMAGES = _DIR / "images"
 
@@ -74,8 +80,13 @@ def _load() -> list[dict]:
     return [deepcopy(DEFAULT_LEVEL)]
 
 
+def _sort_key(lv: dict) -> tuple[str, str]:
+    return (lv.get("image") or "", lv.get("prompt") or "")
+
+
 def _save(levels: list[dict]) -> None:
-    _LEVELS.write_text(json.dumps(levels, indent=2) + "\n")
+    ordered = sorted(levels, key=_sort_key)
+    _LEVELS.write_text(json.dumps(ordered, indent=2) + "\n")
 
 
 def _wrap(text: str, max_chars: int) -> list[str]:
@@ -380,6 +391,9 @@ class Editor:
         if self._editing:
             self._lv["prompt"] = self._buf
             self._editing = False
+        current = self._lv
+        self._levels.sort(key=_sort_key)
+        self._idx = self._levels.index(current)
         _save(self._levels)
         self._dirty = False
         self._flash("Saved!")
