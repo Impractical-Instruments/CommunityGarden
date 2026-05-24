@@ -70,6 +70,8 @@ async def _start_weston() -> asyncio.subprocess.Process:
         await asyncio.sleep(0.1)
 
     os.environ["WAYLAND_DISPLAY"] = _WESTON_SOCKET
+    os.environ["XDG_SESSION_TYPE"] = "wayland"
+    os.environ.pop("DISPLAY", None)
     log.info("weston ready")
     return proc
 
