@@ -10,12 +10,6 @@
 <nav class="nav">
   <a href="index.html">← Dashboard</a>
   <h1>Flower Beds</h1>
-  <button id="cal-btn" onclick="startLayoutCalibrate()"
-          style="margin-left:auto;background:#2a4a7f;color:#eee;border:1px solid #4a7abf;
-                 border-radius:4px;padding:.3em .9em;cursor:pointer;font-family:monospace;font-size:.85em;">
-    Layout Calibrate
-  </button>
-  <span id="cal-msg" style="font-size:.8em;color:#aaa;margin-left:.5em;"></span>
 </nav>
 <div class="detail-body">
   <iframe id="frame" class="content-frame" src=""></iframe>
@@ -60,21 +54,6 @@ function connectLogs() {
 }
 
 connectLogs();
-
-const calBtn = document.getElementById('cal-btn');
-const calMsg = document.getElementById('cal-msg');
-
-function startLayoutCalibrate() {
-  calBtn.disabled = true;
-  calMsg.textContent = 'starting…';
-  fetch(`http://${HOST}:${PORT}/layout-calibrate/start`, { method: 'POST' })
-    .then(r => r.json())
-    .then(d => {
-      calMsg.textContent = d.ok ? 'capturing frames…' : ('error: ' + (d.error || '?'));
-      if (!d.ok) calBtn.disabled = false;
-    })
-    .catch(() => { calMsg.textContent = 'request failed'; calBtn.disabled = false; });
-}
 </script>
 </body>
 </html>

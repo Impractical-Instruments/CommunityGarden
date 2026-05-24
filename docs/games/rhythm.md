@@ -1,6 +1,6 @@
 # Rhythm — game design
 
-**Status:** Code deleted (2026-05-11). Port to silhouette interaction TODO.
+**Status:** Old tap-based code deleted. Port to silhouette interaction TODO.
 
 ## Concept
 

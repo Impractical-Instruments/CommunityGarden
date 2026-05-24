@@ -1,13 +1,13 @@
 # ADR-0018 — pygame/SDL2 + weston for dual-display rendering
 
-**Status:** Accepted  
-**Supersedes:** ADR-0014 (compositor and renderer sections)
+**Status:** Accepted
+**Supersedes:** the original Looking Glass renderer ADR (cage + pyglet — see git history at `docs/adr/0014-looking-glass-renderer-subprocess.md`, removed 2026-05-23). ADR-0014 now refers exclusively to Playing the Pipes encoder Picos.
 
 ---
 
 ## Context
 
-ADR-0014 established `cage` as the Wayland compositor for the Looking Glass renderer, with
+The original Looking Glass renderer ADR established `cage` as the Wayland compositor with
 `pyglet` as the windowing/OpenGL library. The Club diorama screen (ADR-0017) added a second
 renderer subprocess using the same cage-launch pattern.
 
@@ -73,7 +73,7 @@ independent of subprocess startup order or connection timing.
 Xwayland is not used. `DISPLAY` is explicitly unset in the treehouse process after weston
 starts to prevent any SDL2 fallback to xlib.
 
-### Process model (unchanged from ADR-0014)
+### Process model (unchanged from the original renderer ADR)
 
 Both renderers remain asyncio subprocesses of `main.py`, watched with exponential backoff.
 `--no-renderer` and `--no-club-screen` flags skip the respective subprocess; both being

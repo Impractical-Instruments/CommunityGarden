@@ -46,7 +46,7 @@ Drawn as a pygame surface overlay: semi-transparent horizontal lines every 2px, 
 
 ### Process management
 
-Launched as a subprocess by `main.py` alongside the LookingGlass renderer subprocess (see ADR-0014 pattern). If TreeHouse Pi cannot sustain both, move club screen to a spare 8GB Pi.
+Launched as a subprocess by `main.py` alongside the LookingGlass renderer subprocess (see ADR-0018 pattern). If TreeHouse Pi cannot sustain both, move club screen to a spare 8GB Pi.
 
 ## Reasons
 
@@ -54,7 +54,7 @@ Launched as a subprocess by `main.py` alongside the LookingGlass renderer subpro
 - Standalone loop (no OSC) — Club screen has no reactive story to tell, simplicity wins
 - File-based messages versioned in GitHub — content updates without code deploys
 - Hot-reload on rotation — update the file, next message cycle picks it up
-- ADR-0014 subprocess pattern already established for video rendering on the TreeHouse Pi
+- ADR-0018 subprocess pattern already established for video rendering on the TreeHouse Pi
 
 ## Consequences
 

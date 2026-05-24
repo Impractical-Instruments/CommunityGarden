@@ -40,9 +40,9 @@ Open **http://192.168.1.10:9000** from any laptop on the show network. All eleme
 
 If any element shows offline, see [Troubleshooting](#troubleshooting).
 
-### 5. Run FlowerBeds layout calibration
+### 5. Run FlowerBeds layout tool (operator laptop)
 
-Required any time flower modules have been repositioned. See [FlowerBeds setup](#flowerbeds) below.
+Required any time flower modules have been repositioned. The layout tool is a browser GUI run on the operator's Windows laptop — see [FlowerBeds setup](#flowerbeds) below.
 
 ### 6. Done
 
@@ -67,28 +67,23 @@ Services restart automatically on crash — no babysitting needed.
 
 Servo-motor flowers follow visitors using a depth camera.
 
-**Layout calibration** — run every venue setup after placing flower modules.
-
-**What you need:** 12 ArUco markers, `DICT_4X4_50`, one per module, printed **40 cm square** (laminate if possible). Each marker's ID must match its module's `marker_id` in `settings.json` (IDs 0–11 by default).
-
-**Tag orientation:** Point the **top edge** (the edge opposite the printed ID number) toward the direction you want that module's flowers to face at rest.
+**Layout tool** — run on the operator's Windows laptop every venue setup after placing flower modules (ADR-0015). The on-pi service does not need to be stopped to use it.
 
 **Steps:**
 
-1. Place all markers flat on the floor at each module's registration point, oriented as above.
-2. Trigger layout calibration — choose one:
-   - **Dashboard:** http://192.168.1.11:8765 → click **Layout Calibrate**
-   - **CLI (SSH to FlowerBeds machine):**
-     ```bash
-     sudo systemctl stop flowerbeds
-     cd /home/ii/CommunityGarden/ShowControl/FlowerBeds
-     python main.py --config settings.json --layout-calibrate
-     sudo systemctl start flowerbeds
-     ```
-3. Wait ~3 seconds. The visualizer's **CAL:** badge turns green when done.
-4. Remove all markers. Show resumes automatically with updated positions.
-
-Any module whose tag wasn't detected keeps its existing position from `settings.json` — a warning is logged. Re-run calibration if you see unexpected positions.
+1. Copy/clone the repo on the operator laptop (or use the prepared installation).
+2. Plug the laptop into the show network.
+3. From `ShowControl/FlowerBeds/`:
+   ```powershell
+   python layout_tool.py
+   ```
+   The tool opens at **http://localhost:8764** (drag modules on the top-down canvas; set yaw with the rotate handle; edit motor IDs per cluster).
+4. Use **Test move** / **Hold at …°** per cluster to verify physical motors respond. The tool sends OSC directly to the controller IPs in `network.json`.
+5. Click **Save** when done. The tool writes `coordinator.modules[]` into `settings.json` and backs up `settings.json.bak`.
+6. Restart the FlowerBeds service so it picks up the new layout:
+   ```bash
+   sudo systemctl restart flowerbeds
+   ```
 
 See [Operations Guide — FlowerBeds](operations.md#flowerbeds) for more detail.
 
@@ -105,10 +100,10 @@ Drives LEDs, branch motors, and video displays. Also runs the Dashboard on the s
 
 **First-time provisioning (once per machine):**
 
-The Looking Glass renderer depends on `moderngl` → `glcontext`, which requires X11 development headers to compile. Install before running `pip3 install -r requirements.txt`:
+The Looking Glass + Club screen renderers use pygame/SDL2 against weston (ADR-0018). Install weston before running `pip3 install -r requirements.txt`:
 
 ```bash
-sudo apt-get install -y libx11-dev
+sudo apt-get install -y weston libgl1-mesa-dri
 ```
 
 See [Operations Guide — TreeHouse](operations.md#treehouse) for more detail.
@@ -117,16 +112,11 @@ See [Operations Guide — TreeHouse](operations.md#treehouse) for more detail.
 
 ### FundingCAPTCHA
 
-**Machine:** `192.168.1.12` | **URL:** http://192.168.1.12:8080
+**Machine:** `192.168.1.12` | **Monitoring:** http://192.168.1.12:8080
 
-Browser kiosk showing proof-of-humanity games. Two services run:
+A single pygame app (`app.py`) owns the projector display, depth camera pipeline, and a lightweight monitoring HTTP/WebSocket server (ADR-0012). No browser, no kiosk service.
 
-| Service | Role |
-|---|---|
-| `captcha` | Python game server |
-| `captcha-kiosk` | Chromium in kiosk mode (waits for server before opening) |
-
-Verify the kiosk screen shows a screensaver or active game. If stuck on a loading screen, the `captcha` service may not have started — check:
+Verify the projector shows the screensaver or an active game. If the screen is black or stuck, check the `captcha` service logs:
 
 ```bash
 journalctl -u captcha -f

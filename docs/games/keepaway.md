@@ -1,6 +1,6 @@
 # Keepaway — game design
 
-**Status:** Redesigned for Body Grid input (2026-05-22). Implementation TODO.
+**Status:** Implemented as `ShowControl/FundingCAPTCHA/games/body_keepaway.py` (Body Grid input, ADR-0013).
 
 ## Concept
 
