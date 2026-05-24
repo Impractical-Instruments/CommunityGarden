@@ -1,12 +1,15 @@
 [Unit]
 Description=TreeHouse Show Control
-After=network.target graphical.target
+After=network.target seatd.service systemd-logind.service
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 # Add --no-pico if the Pi Pico is not connected on this install.
 # Add --no-osc to disable the OSC listener.
 
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse
+ExecStartPre=/bin/mkdir -p /run/user/1000
+ExecStartPre=/bin/chown ii:ii /run/user/1000
+ExecStartPre=/bin/chmod 700 /run/user/1000
 ExecStart=/usr/bin/python3 main.py --config settings.json
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=LIBSEAT_BACKEND=seatd
@@ -22,4 +25,4 @@ StandardError=journal
 SyslogIdentifier=treehouse
 
 [Install]
-WantedBy=graphical.target
+WantedBy=multi-user.target

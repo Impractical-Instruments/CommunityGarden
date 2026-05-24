@@ -63,6 +63,8 @@ async def _start_weston() -> asyncio.subprocess.Process:
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 10.0
     while not socket_path.exists():
+        if proc.returncode is not None:
+            raise RuntimeError(f"weston exited early (code {proc.returncode})")
         if loop.time() > deadline:
             proc.terminate()
             await proc.wait()
