@@ -13,6 +13,7 @@ Sends LED pixel data to the Pi Pico over USB serial each frame.
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -35,18 +36,50 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--visualizer-port", type=int, default=8766, metavar="N",
                    help="Visualizer HTTP port (default: 8766)")
     p.add_argument("--no-renderer", action="store_true", help="Skip Looking Glass renderer subprocess (dev mode)")
+    p.add_argument("--no-club-screen", action="store_true", help="Skip Club diorama screen subprocess (dev mode)")
     p.add_argument("--verbose", "-v", action="store_true", help="Enable DEBUG logging")
     return p.parse_args()
 
 
 _RENDERER_PATH = Path(__file__).parent / "looking_glass" / "renderer.py"
+_CLUB_SCREEN_PATH = Path(__file__).parent / "club_screen.py"
+_WESTON_CONFIG = Path(__file__).parent / "deploy" / "weston.ini"
+_WESTON_SOCKET = "weston-treehouse"
+
+
+async def _start_weston() -> asyncio.subprocess.Process:
+    runtime_dir = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    socket_path = runtime_dir / _WESTON_SOCKET
+    if socket_path.exists():
+        socket_path.unlink()
+
+    log.info("Starting weston on socket %s", _WESTON_SOCKET)
+    proc = await asyncio.create_subprocess_exec(
+        "/usr/bin/weston",
+        f"--config={_WESTON_CONFIG}",
+        f"--socket={_WESTON_SOCKET}",
+    )
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 10.0
+    while not socket_path.exists():
+        if loop.time() > deadline:
+            proc.terminate()
+            await proc.wait()
+            raise RuntimeError("weston socket not ready after 10 s")
+        await asyncio.sleep(0.1)
+
+    os.environ["WAYLAND_DISPLAY"] = _WESTON_SOCKET
+    os.environ.pop("DISPLAY", None)
+    log.info("weston ready")
+    return proc
 
 
 async def _renderer_subprocess(renderer_path: Path) -> None:
     backoff = 1.0
     while True:
-        log.info("Starting renderer subprocess")
-        proc = await asyncio.create_subprocess_exec("/usr/bin/cage", "--", sys.executable, str(renderer_path))
+        log.info("Starting renderer subprocess: %s", renderer_path.name)
+        proc = await asyncio.create_subprocess_exec(sys.executable, str(renderer_path))
         try:
             exit_code = await proc.wait()
         except asyncio.CancelledError:
@@ -117,12 +150,28 @@ async def _run(args: argparse.Namespace) -> None:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
         tasks.append(asyncio.create_task(visualizer.serve(coordinator=coordinator, port=args.visualizer_port)))
+
+    weston_proc = None
+    if not args.no_renderer or not args.no_club_screen:
+        weston_proc = await _start_weston()
+
+        async def _weston_watcher():
+            code = await weston_proc.wait()
+            raise RuntimeError(f"weston exited with code {code}")
+
+        tasks.append(asyncio.create_task(_weston_watcher()))
+
     if not args.no_renderer:
         tasks.append(asyncio.create_task(_renderer_subprocess(_RENDERER_PATH)))
+    if not args.no_club_screen:
+        tasks.append(asyncio.create_task(_renderer_subprocess(_CLUB_SCREEN_PATH)))
 
     try:
         await asyncio.gather(*tasks)
     finally:
+        if weston_proc is not None and weston_proc.returncode is None:
+            weston_proc.terminate()
+            await weston_proc.wait()
         driver.close()
         branch.close()
 

@@ -1,5 +1,9 @@
+# OBSOLETE — superseded by ADR-0018. Looking Glass is now managed by the
+# treehouse service alongside the club screen under a shared weston compositor.
+# This file is kept for reference only; do not install or enable it.
+
 [Unit]
-Description=Looking Glass video renderer
+Description=Looking Glass video renderer (OBSOLETE — see ADR-0018)
 After=multi-user.target
 
 [Service]

@@ -1,21 +1,24 @@
 """
-Looking Glass video renderer — runs as a standalone process, receives scene
-parameters from the TreeHouse coordinator via OSC on localhost:9002, renders
-a GLSL fragment shader fullscreen on the 7" HDMI display (1024×600).
+Looking Glass video renderer — standalone subprocess (ADR-0014, superseded by ADR-0018).
 
-Uses pyglet for windowing (native Wayland+EGL on Pi 5).
-Requires MESA_GL_VERSION_OVERRIDE=3.3 on Pi 5 (set below before moderngl import).
+Renders a GLSL fragment shader fullscreen on the 7" HDMI display (1024×600).
+Receives scene parameters from the TreeHouse coordinator via OSC on localhost:9002.
+
+Uses pygame + moderngl (SDL2/Wayland + EGL). Targets the 1024×600 weston output
+by resolution matching, making assignment independent of connection order.
 """
 import os
+import sys
+import struct
 import threading
 import logging
 from pathlib import Path
 
+os.environ.setdefault("SDL_VIDEODRIVER", "wayland")
 os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
 
-import numpy as np
-import pyglet
+import pygame
 import moderngl
 from pythonosc.dispatcher import Dispatcher
 from pythonosc.osc_server import ThreadingOSCUDPServer
@@ -59,60 +62,78 @@ def _load_frag(name: str) -> str:
     return (SHADER_DIR / f"{name}.glsl").read_text()
 
 
-def _build_vao(ctx: moderngl.Context, prog: moderngl.Program):
-    verts = np.array([-1, -1, 1, -1, -1, 1, 1, 1], dtype="f4")
-    vbo = ctx.buffer(verts.tobytes())
-    return ctx.vertex_array(prog, [(vbo, "2f", "in_vert")])
+def _build_program(ctx: moderngl.Context, scene: str) -> tuple[moderngl.Program, moderngl.VertexArray]:
+    try:
+        frag = _load_frag(scene)
+    except FileNotFoundError:
+        log.warning("Shader %r missing, falling back to bloom", scene)
+        scene = "bloom"
+        frag = _load_frag("bloom")
+    prog = ctx.program(vertex_shader=VERT, fragment_shader=frag)
+    vbo = ctx.buffer(struct.pack("8f", -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0))
+    vao = ctx.vertex_array(prog, [(vbo, "2f", "in_vert")])
+    return prog, vao
 
 
-class LookingGlassWindow(pyglet.window.Window):
-    def __init__(self):
-        super().__init__(WIDTH, HEIGHT, caption="Looking Glass", fullscreen=True, vsync=True)
-        self.set_mouse_visible(False)
-        self.ctx = moderngl.create_context()
-        log.info("OpenGL %s", self.ctx.version_code)
-        self._current_scene = _state["scene"]
-        self._load_scene(self._current_scene)
-
-    def _load_scene(self, name: str) -> None:
-        try:
-            frag = _load_frag(name)
-        except FileNotFoundError:
-            log.warning("Shader %r missing, falling back to bloom", name)
-            name = "bloom"
-            frag = _load_frag("bloom")
-        if hasattr(self, "vao"):
-            self.vao.release()
-            self.prog.release()
-        self.prog = self.ctx.program(vertex_shader=VERT, fragment_shader=frag)
-        self.vao = _build_vao(self.ctx, self.prog)
-        self._current_scene = name
-        log.info("Shader loaded: %s", name)
-
-    def on_draw(self):
-        if _state["scene"] != self._current_scene:
-            try:
-                self._load_scene(_state["scene"])
-            except Exception as exc:
-                log.error("Shader swap failed: %s", exc)
-                _state["scene"] = self._current_scene
-
-        self.ctx.clear()
-        self.prog["iResolution"].value = (float(WIDTH), float(HEIGHT))
-        self.prog["iTime"].value = _state["time"]
-        self.prog["iIntensity"].value = _state["intensity"]
-        self.vao.render(moderngl.TRIANGLE_STRIP)
-
-    def on_key_press(self, symbol, modifiers):
-        if symbol == pyglet.window.key.ESCAPE:
-            pyglet.app.exit()
+def _find_display(target: tuple[int, int]) -> int:
+    sizes = pygame.display.get_desktop_sizes()
+    for i, size in enumerate(sizes):
+        if size == target:
+            return i
+    log.warning("Display %s not found, using 0. Available: %s", target, sizes)
+    return 0
 
 
 def main() -> None:
     threading.Thread(target=_osc_thread, daemon=True).start()
-    window = LookingGlassWindow()
-    pyglet.clock.schedule_interval(lambda dt: window.dispatch_event("on_draw"), 1 / FPS)
-    pyglet.app.run()
+
+    pygame.init()
+    display_index = _find_display((WIDTH, HEIGHT))
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 3)
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 3)
+    pygame.display.gl_set_attribute(pygame.GL_CONTEXT_PROFILE_MASK, pygame.GL_CONTEXT_PROFILE_CORE)
+    pygame.display.set_mode(
+        (WIDTH, HEIGHT),
+        pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN,
+        display=display_index,
+    )
+    pygame.mouse.set_visible(False)
+
+    ctx = moderngl.create_context()
+    log.info("OpenGL %s on display %d", ctx.version_code, display_index)
+
+    current_scene = _state["scene"]
+    prog, vao = _build_program(ctx, current_scene)
+    clock = pygame.time.Clock()
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit(0)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                sys.exit(0)
+
+        if _state["scene"] != current_scene:
+            try:
+                vao.release()
+                prog.release()
+                prog, vao = _build_program(ctx, _state["scene"])
+                current_scene = _state["scene"]
+                log.info("Shader loaded: %s", current_scene)
+            except Exception as exc:
+                log.error("Shader swap failed: %s", exc)
+                _state["scene"] = current_scene
+
+        ctx.clear()
+        prog["iResolution"].value = (float(WIDTH), float(HEIGHT))
+        prog["iTime"].value = _state["time"]
+        prog["iIntensity"].value = _state["intensity"]
+        vao.render(moderngl.TRIANGLE_STRIP)
+        pygame.display.flip()
+
+        clock.tick(FPS)
 
 
 if __name__ == "__main__":
