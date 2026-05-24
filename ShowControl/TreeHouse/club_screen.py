@@ -22,7 +22,7 @@ FPS = 30
 ACCENT = (0, 255, 200)
 BG = (0, 0, 0)
 SCANLINE_ALPHA = 40
-SCANLINE_THICKNESS_PX = 2
+SCANLINE_THICKNESS_PX = 4
 FONT_SIZE = 96
 
 _DIR = Path(__file__).parent
@@ -59,8 +59,8 @@ def _make_scanlines(width: int, height: int) -> pygame.Surface:
     for y in range(0, height, SCANLINE_THICKNESS_PX * 2):
         if y + SCANLINE_THICKNESS_PX >= height:
             break
-        pygame.draw.line(surf, (0, 0, 0, SCANLINE_ALPHA), (0, y), (width - 1, y))
-        pygame.draw.line(surf, (0, 0, 0, SCANLINE_ALPHA), (0, y+1), (width - 1, y))
+        for yy in range(y, y + SCANLINE_THICKNESS_PX):
+            pygame.draw.line(surf, (0, 0, 0, SCANLINE_ALPHA), (0, yy), (width - 1, yy))
     return surf
 
 
