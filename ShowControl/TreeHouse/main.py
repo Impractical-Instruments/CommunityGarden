@@ -58,6 +58,7 @@ async def _start_weston() -> asyncio.subprocess.Process:
         "/usr/bin/weston",
         f"--config={_WESTON_CONFIG}",
         f"--socket={_WESTON_SOCKET}",
+        "--xwayland",
     )
 
     loop = asyncio.get_running_loop()
@@ -71,7 +72,7 @@ async def _start_weston() -> asyncio.subprocess.Process:
 
     os.environ["WAYLAND_DISPLAY"] = _WESTON_SOCKET
     os.environ["XDG_SESSION_TYPE"] = "wayland"
-    os.environ.pop("DISPLAY", None)
+    os.environ["DISPLAY"] = ":0"
     log.info("weston ready")
     return proc
 

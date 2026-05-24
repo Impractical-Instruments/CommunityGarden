@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "wayland")
-os.environ.setdefault("SDL_VIDEO_FULLSCREEN_DISPLAY", "1")
+os.environ.setdefault("SDL_VIDEO_FULLSCREEN_DISPLAY", "0")
 
 import pygame
 
