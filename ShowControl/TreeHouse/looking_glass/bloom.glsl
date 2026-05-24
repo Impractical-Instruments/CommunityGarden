@@ -25,7 +25,7 @@ void main() {
     brightness *= 0.4 + iIntensity * 0.6;
 
     // Bright gold background, warm highlights on animation
-    vec3 col = mix(vec3(0.85, 0.65, 0.0), vec3(0.9, 0.0, 0.8), brightness);
+    vec3 col = mix(vec3(0.85, 0.65, 0.0), vec3(0.4, 0.0, 0.8), brightness);
 
     fragColor = vec4(col, 1.0);
 }
