@@ -93,14 +93,16 @@ async def _renderer_subprocess(renderer_path: Path) -> None:
                 await proc.wait()
             raise
         if exit_code == 0:
-            log.info("Renderer exited cleanly")
-            return
-        log.warning("Renderer crashed (exit %d), restarting in %.0fs", exit_code, backoff)
+            log.warning("Renderer exited cleanly (compositor closed window?), restarting in 1s")
+            delay = 1.0
+        else:
+            log.warning("Renderer crashed (exit %d), restarting in %.0fs", exit_code, backoff)
+            delay = backoff
+            backoff = min(backoff * 2, 30.0)
         try:
-            await asyncio.sleep(backoff)
+            await asyncio.sleep(delay)
         except asyncio.CancelledError:
             raise
-        backoff = min(backoff * 2, 30.0)
 
 
 async def _frame_loop(
