@@ -3,3 +3,4 @@ pyserial
 moderngl
 pyglet
 numpy
+uvicorn
