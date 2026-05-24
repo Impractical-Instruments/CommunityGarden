@@ -22,7 +22,6 @@ apt-get install -y libx11-dev weston seatd
 # ── Seat management (weston drm-backend requires seatd or logind) ─────────────
 echo "→ Enabling seatd..."
 systemctl enable --now seatd
-usermod -aG seat "$SERVICE_USER"
 
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
