@@ -73,7 +73,7 @@ All network addressing (element IPs, OSC listen ports, HTTP ports, firmware IPs/
 }
 ```
 
-Firmware targets read their config via a generated `config.h` produced by `scripts/generate_firmware_config.py` before flashing. The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
+Firmware targets read their config via a generated `config.h` produced by `scripts/hooks/firmware_config_gen.py` before flashing. The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
 
 ## Reasons
 
@@ -86,7 +86,7 @@ Firmware targets read their config via a generated `config.h` produced by `scrip
 ## Consequences
 
 - Each element that sends fabric signals needs a fabric OSC client reading `network.json` for the TreeHouse address.
-- Each element needs an OSC listener on its `osc_port` for inbound mode commands (new for FlowerBeds, CAPTCHA, and Pipes). CAPTCHA's listener (port 9003) is implemented in `server.py`; it handles `/captcha/restart` (hard-restart the CV pipeline / background calibration) in addition to any future mode commands.
+- Each element needs an OSC listener on its `osc_port` for inbound mode commands (new for FlowerBeds, CAPTCHA, and Pipes). CAPTCHA's listener (port 9003) is implemented in `app.py` (see ADR-0012); it handles `/captcha/restart` (hard-restart the CV pipeline / background calibration) in addition to any future mode commands.
 - The dashboard `serve.py` must be upgraded from a static file server to a FastAPI app with a mode-relay endpoint that reads `network.json` and sends OSC.
 - TreeHouse `ShowMode` enum values change: `"full"` → `"active"`, `"off"` → `"inactive"`. Any TouchOSC layouts sending `/treehouse/mode` need updating.
 - `/captcha/intensity` is a discrete signal stepping in increments of `1/total_levels`; on-change sends will fire at level transitions, not continuously.

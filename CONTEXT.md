@@ -30,7 +30,7 @@ Fields:
 - `captcha_intensity` (float 0–1) — Arc progress toward Blow-Up from FundingCAPTCHA
 - `captcha_blowup` (bool) — one-shot flag, true on the frame a Blow-Up fires
 - `pipes_activity` (float 0–1) — normalised music engagement from Playing the Pipes
-- `show_mode` (enum: full/dim/off) — global show control state
+- `show_mode` (enum: active/dim/inactive) — global show control state (per ADR-0007)
 - `brightness` (float 0–1) — global brightness override
 
 ### Elements
@@ -117,7 +117,7 @@ The bonus score applied to the Visitor a FlowerCluster targeted last frame. Prev
 ### TreeHouse Domain
 
 **Diorama**:
-A self-contained miniature room visible through a TreeHouse window. Three dioramas exist: House Swarming (ground floor), Club (second floor), and Mycelium (second floor). Each is its own LEDControllable with distinct Garden-State-reactive animation.
+A self-contained miniature room visible through a TreeHouse window. Four dioramas exist: House Swarming (ground floor), Club (second floor), Mycelium (second floor), and Forge & Flora (arc-to-bloom crossfade — see ADR-0010). Each is its own LEDControllable with distinct Garden-State-reactive animation.
 
 **House Swarming**:
 Ground floor diorama. Lit with SK6812 RGBW strips using an incandescent-style pattern.
@@ -143,7 +143,7 @@ A Controllable subclass for anything that drives SK6812 RGBW LED strips via a Pi
 _Avoid_: "LEDDisplay" (the old name — being replaced), conflating with `Controllable`
 
 **GardenState**:
-A dataclass passed to every `Controllable.update()` each frame. Fields: `bloom` (0.0–1.0 Branch extension target), `intensity` (0.0–1.0 aggregate visitor activity), `blowup_triggered` (bool, one-shot per Blow-Up event). Each Controllable reads only the fields relevant to it.
+A dataclass passed to every `Controllable.update()` each frame. Fields: `flowerbeds_activity` (float 0–1), `captcha_intensity` (float 0–1), `captcha_blowup` (bool, one-shot), `pipes_activity` (float 0–1), `show_mode` (enum active/dim/inactive), `brightness` (float 0–1). Each Controllable reads only the fields relevant to it and decides how to aggregate them (see ADR-0008).
 
 **Attic Lamps**:
 One or two physical lamp props (floor or table lamps) mounted upside-down in the Attic. Provide warm ambient fill light. Share an SK6812 channel with the Attic TV (8 LEDs total across both TV and lamps).
@@ -180,7 +180,7 @@ Established OSC addresses (inbound to TreeHouse):
 
 | Address | Type | Sender | Meaning |
 |---|---|---|---|
-| `/treehouse/mode` | string | operator | `"full"` / `"dim"` / `"off"` — show mode override |
+| `/treehouse/mode` | string | operator | `"active"` / `"dim"` / `"inactive"` — show mode override (ADR-0007) |
 | `/treehouse/brightness` | float 0–1 | operator | dim level override |
 | `/captcha/intensity` | float 0–1 | FundingCAPTCHA | Arc progress toward Blow-Up |
 | `/captcha/blowup` | (no args) | FundingCAPTCHA | one-shot Blow-Up event |

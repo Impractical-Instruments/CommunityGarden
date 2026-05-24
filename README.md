@@ -18,6 +18,8 @@ Show systems for [Connect Beyond Festival](https://www.connectbeyondfestival.com
 | Element | Description |
 |---|---|
 | **FlowerBeds** | Servo-driven flowers that follow visitors (depth camera → OSC → Dynamixel) |
-| **Tree House** | LED + video effects in a diorama dollhouse structure |
-| **FundingCAPTCHA** | Browser-based proof-of-humanity kiosk game suite |
-| **Dashboard** | Web UI for monitoring and controlling all elements |
+| **TreeHouse** | LED + video effects in a diorama dollhouse structure (Hub for the OSC Fabric) |
+| **FundingCAPTCHA** | Pygame kiosk where Players activate a projected grid with body silhouettes |
+| **Playing the Pipes** | Max/RNBO music system steered by rotary encoders on physical valves/switches |
+
+The **Show Dashboard** (browser UI for monitoring and mode control) runs on the TreeHouse machine — see [docs/setup.md](docs/setup.md).

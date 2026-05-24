@@ -21,8 +21,7 @@ Each show-control element runs as a systemd service with `Restart=always` and `R
 |---|---|---|---|---|
 | `flowerbeds` | FlowerBeds | `ShowControl/FlowerBeds/main.py` | 8765 (viz) | 192.168.1.11 |
 | `treehouse` | TreeHouse | `ShowControl/TreeHouse/main.py` | 8766 (viz) | 192.168.1.10 |
-| `captcha` | FundingCAPTCHA | `ShowControl/FundingCAPTCHA/server.py` | 8080 | 192.168.1.12 |
-| `captcha-kiosk` | FundingCAPTCHA kiosk | Chromium (kiosk mode) | — | 192.168.1.12 |
+| `captcha` | FundingCAPTCHA | `ShowControl/FundingCAPTCHA/app.py` | 8080 (monitoring) | 192.168.1.12 |
 | `cg-dashboard` | Show Dashboard | `ShowControl/Dashboard/serve.py` | 9000 | 192.168.1.10 |
 | `pipes` | Playing the Pipes | `ShowControl/PlayingThePipes/` + Max/RNBO | 8767 (health) | 192.168.1.13 (Windows) |
 
@@ -89,7 +88,7 @@ python main.py --config settings.json
 ### FundingCAPTCHA
 ```bash
 cd ShowControl/FundingCAPTCHA
-python server.py
+python app.py
 ```
 
 ---
@@ -102,12 +101,13 @@ Every element has a dev mode — no camera, no LEDs, no servos required.
 |---|---|
 | TreeHouse | `--no-pico --no-branch --no-renderer` |
 | FlowerBeds | `--mock-camera --no-osc` |
-| FundingCAPTCHA | `--mock-camera` |
+| FundingCAPTCHA | `--mock-camera` or `--test-input` (see ADR-0016) |
 
 ```bash
 python3 main.py --no-pico --no-branch --no-renderer   # TreeHouse, no hardware or display
 python3 main.py --mock-camera --no-osc                # FlowerBeds, no camera or servos
-python3 server.py --mock-camera                       # FundingCAPTCHA, no depth camera
+python3 app.py --mock-camera                          # FundingCAPTCHA, synthetic depth frames
+python3 app.py --test-input                           # FundingCAPTCHA, mouse-paint depth frames
 ```
 
 ---
@@ -160,52 +160,35 @@ sudo systemctl disable flowerbeds
 - **Flags:** Edit `/etc/systemd/system/flowerbeds.service` and add `--no-osc` (no Arduino), `--no-visualizer` (headless), or `--mock-camera` (software testing), then `sudo systemctl daemon-reload && sudo systemctl restart flowerbeds`
 - **Visualizer:** `http://<host>:8765/` — live top-down blob view
 
-#### Layout calibration (ArUco auto-layout)
+#### Layout tool (operator laptop)
 
-The physical position and orientation of each flower module can be auto-detected from ArUco markers placed at each module's registration point, rather than measured and typed into `settings.json` by hand. Use this any time modules are repositioned.
+Module positions are configured visually with a browser GUI run on the operator's Windows laptop (ADR-0015). The ArUco-marker auto-layout (ADR-0009) is superseded — no markers, no overhead RGB pass, no `layout_calibrated.json`.
 
-**What you need**
+`settings.json` is the single source of layout at runtime. The tool reads/writes only `coordinator.modules[]` and backs up `settings.json.bak` before each save.
 
-- 12 printed ArUco markers, **DICT_4X4_50**, one per module, **40 cm square** (laminate if possible)
-- Each module's `marker_id` in `settings.json` must match the printed tag ID (IDs 0–11 by default)
-- The Orbbec camera must be mounted and powered (layout calibration uses the color sensor)
+**Run it:**
 
-**Tag orientation convention**
-
-Point the **top edge of the tag** (the edge opposite the printed ID number) toward the direction you want the module's flowers to face at rest. That direction becomes `yaw = 0°` for that module.
-
-**Step-by-step workflow**
-
-1. Place all tags flat on the floor at each module's registration point, oriented as above.
-2. Run layout calibration (choose one):
-   - **CLI:** `python main.py --config settings.json --layout-calibrate`
-   - **Dashboard:** open `http://<show-ip>:8765/` and click **Layout Calibrate**
-3. Wait ~3 seconds while the camera captures 30 frames (progress shown in the visualizer).
-4. Remove all tags.
-5. Restart (or continue) the show normally — `layout_calibrated.json` is loaded automatically.
-
-The visualizer's **CAL:** badge turns green and shows `layout_calibrated` when done. Any module whose tag wasn't detected keeps its existing position from `settings.json`; a warning is logged.
-
-**Files**
-
-| File | Purpose |
-|---|---|
-| `settings.json` | Manual/default positions — versioned, never overwritten by calibration |
-| `layout_calibrated.json` | Auto-detected overrides — gitignored, auto-loaded at startup |
-
-Delete `layout_calibrated.json` to revert to the manual positions in `settings.json`.
-
-**Recalibrating after a move**
-
-Stop the service, re-place tags, run `--layout-calibrate` again, remove tags, restart. The new `layout_calibrated.json` replaces the old one.
-
-```bash
-sudo systemctl stop flowerbeds
-python main.py --config settings.json --layout-calibrate
-sudo systemctl start flowerbeds
+```powershell
+cd ShowControl\FlowerBeds
+python layout_tool.py
+# opens http://localhost:8764
 ```
 
-Or trigger from the dashboard without stopping the service — the show pauses ~3 s and resumes automatically with the updated layout.
+Key features:
+
+- Drag-place modules on a top-down canvas; rotate handle or numeric input for yaw
+- Per-cluster motor ID editing (defaults are sequential placeholders — always override)
+- **Manual aim** mode: click on canvas → sends `/cg/ff/rot [motor_id, yaw_deg]` directly to the controller IP from `network.json`
+- **Test move** per cluster: sends 30° → 0° to confirm the motor responds
+- Controller status: TCP-ping the controllers' OSC port every 10 s
+
+The laptop must be on the show network for manual aim and controller-status features. Save and offline editing work without network.
+
+After saving, restart the show:
+
+```bash
+sudo systemctl restart flowerbeds
+```
 
 ### TreeHouse
 
@@ -283,23 +266,17 @@ journalctl -u treehouse -f | grep looking_glass
 
 **Wayland compositor (systemd context):**
 
-The Pi runs Raspberry Pi OS Lite — no desktop session, no compositor. The renderer is wrapped in `cage`, a minimal Wayland kiosk compositor that runs a single app fullscreen and provides the Wayland socket itself:
+The Pi runs Raspberry Pi OS Lite — no desktop session. `main.py` starts a single `weston` compositor before launching the Looking Glass renderer and Club screen subprocesses (ADR-0018 — supersedes the previous `cage` setup). Both renderers run under `SDL_VIDEODRIVER=wayland`; each picks its target output by resolution match against `pygame.display.get_desktop_sizes()`.
 
-```
-ExecStart=/usr/bin/cage -- /usr/bin/python3 renderer.py
-```
+Install:
 
-cage must be installed: `sudo apt install cage libgl1-mesa-dri`
-
-The service user (`ii`) must be in the `video` and `render` groups for DRM access (handled by `SupplementaryGroups=video render` in the unit file).
-
-**Multiple displays:** run a second cage instance targeting the other output. To target a specific output, add the `-d` flag:
-
-```
-ExecStart=/usr/bin/cage -d HDMI-A-2 -- /usr/bin/python3 renderer.py
+```bash
+sudo apt install weston libgl1-mesa-dri
 ```
 
-List available outputs: `wlr-randr` (run from inside a cage session) or check kernel logs (`dmesg | grep -i hdmi`).
+The service user (`ii`) must be in the `video` and `render` groups for DRM access (handled by `SupplementaryGroups=video render` in the unit file). `weston.ini` lives in `looking_glass/deploy/` and declares both HDMI outputs explicitly. If only one screen is connected, weston still starts and the renderer that can't find its declared resolution falls back to index 0 with a warning.
+
+List available outputs from a running weston session: `wlr-randr`. Or check kernel logs: `dmesg | grep -i hdmi`.
 
 #### USB device naming (udev)
 
@@ -404,10 +381,10 @@ Plug Picos in one at a time, note which COM port appears, label each Pico and re
 
 ### FundingCAPTCHA
 
-- **Hardware:** Orbbec depth camera (USB, optional), Chromium kiosk browser
-- **Services:** Two units — `captcha` (Python server) and `captcha-kiosk` (Chromium browser). The kiosk waits for the server to respond before opening.
-- **Flags:** Edit `/etc/systemd/system/captcha.service` to change `--camera` → `--mock-camera` (no hardware) or remove it entirely (pointer-only mode)
-- **Uploads:** Photos saved to `ShowControl/FundingCAPTCHA/uploads/`
+- **Hardware:** Orbbec depth camera (USB), short-throw laser projector
+- **Service:** One unit — `captcha` runs `app.py`, a single pygame process that owns the projector display, camera pipeline, BG calibration, game rotation, and a lightweight monitoring HTTP/WebSocket server on port 8080 (ADR-0012). No browser, no kiosk service.
+- **Flags:** Edit `/etc/systemd/system/captcha.service` to switch `--camera` → `--mock-camera` (synthetic depth frames) or `--test-input` (mouse-paint depth frames; ADR-0016).
+- **Photo / level assets:** Live in `ShowControl/FundingCAPTCHA/images/`. Levels in `bodycaptcha-levels.json`. The standalone Windows editor for non-git teammates lives in `distribution/` (see ADR's plus `distribution/README.md`).
 
 ### Show Dashboard
 

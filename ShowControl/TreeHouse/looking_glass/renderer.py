@@ -1,5 +1,5 @@
 """
-Looking Glass video renderer — standalone subprocess (ADR-0014, superseded by ADR-0018).
+Looking Glass video renderer — standalone subprocess (ADR-0018).
 
 Renders a GLSL fragment shader fullscreen on the 7" HDMI display (1024×600).
 Receives scene parameters from the TreeHouse coordinator via OSC on localhost:9002.
