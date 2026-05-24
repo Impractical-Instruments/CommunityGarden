@@ -99,7 +99,6 @@ def main() -> None:
     messages = _load_messages(messages_file)
     idx = 0
     last_rotate = time.monotonic()
-    _render(screen, font, messages[idx], scanlines)
 
     while True:
         for event in pygame.event.get():
@@ -110,12 +109,13 @@ def main() -> None:
                 pygame.quit()
                 sys.exit(0)
 
-        if time.monotonic() - last_rotate >= interval:
+        now = time.monotonic()
+        if now - last_rotate >= interval:
             messages = _load_messages(messages_file)
             idx = (idx + 1) % max(len(messages), 1)
-            _render(screen, font, messages[idx], scanlines)
-            last_rotate = time.monotonic()
+            last_rotate = now
 
+        _render(screen, font, messages[idx], scanlines)
         clock.tick(FPS)
 
 
