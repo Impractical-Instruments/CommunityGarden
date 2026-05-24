@@ -75,9 +75,7 @@ async def _start_weston() -> asyncio.subprocess.Process:
     return proc
 
 
-async def _renderer_subprocess(renderer_path: Path, startup_delay: float = 0.0) -> None:
-    if startup_delay:
-        await asyncio.sleep(startup_delay)
+async def _renderer_subprocess(renderer_path: Path) -> None:
     backoff = 1.0
     while True:
         log.info("Starting renderer subprocess: %s", renderer_path.name)
@@ -166,8 +164,7 @@ async def _run(args: argparse.Namespace) -> None:
     if not args.no_renderer:
         tasks.append(asyncio.create_task(_renderer_subprocess(_RENDERER_PATH)))
     if not args.no_club_screen:
-        # Delay so Looking Glass claims HDMI-A-1 first; kiosk-shell then gives HDMI-A-2 to club screen.
-        tasks.append(asyncio.create_task(_renderer_subprocess(_CLUB_SCREEN_PATH, startup_delay=3.0)))
+        tasks.append(asyncio.create_task(_renderer_subprocess(_CLUB_SCREEN_PATH)))
 
     try:
         await asyncio.gather(*tasks)
