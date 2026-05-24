@@ -5,3 +5,4 @@ python-osc
 fastapi>=0.100
 httpx>=0.24
 uvicorn
+pygame>=2.1
