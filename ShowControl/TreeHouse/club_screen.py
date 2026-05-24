@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "wayland")
-os.environ.setdefault("SDL_VIDEO_FULLSCREEN_DISPLAY", "0")
 
 import pygame
 
@@ -44,6 +43,14 @@ def _load_messages(path: Path) -> list[str]:
     except Exception:
         log.warning("Could not read messages from %s", path)
         return ["NO SIGNAL"]
+
+
+def _find_display(target: tuple[int, int]) -> int:
+    sizes = pygame.display.get_desktop_sizes()
+    for i, size in enumerate(sizes):
+        if size == target:
+            return i
+    return 0
 
 
 def _make_scanlines(width: int, height: int) -> pygame.Surface:
@@ -79,7 +86,8 @@ def main() -> None:
         messages_file = _DIR / messages_file
 
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN | pygame.NOFRAME)
+    display_index = _find_display((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN | pygame.NOFRAME, display=display_index)
     pygame.display.set_caption("Club Screen")
     pygame.mouse.set_visible(False)
     clock = pygame.time.Clock()

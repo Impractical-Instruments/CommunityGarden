@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — set up Looking Glass renderer as an auto-starting systemd service.
+# install.sh — set up TreeHouse display stack (weston + both renderers).
 # Run once after cloning the repo:
 #   cd ShowControl/TreeHouse/looking_glass/deploy
 #   sudo bash install.sh
@@ -7,16 +7,15 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
-APP_DIR="$REPO_ROOT/ShowControl/TreeHouse/looking_glass"
 SERVICE_USER="${SUDO_USER:-ii}"
 
-echo "=== Looking Glass install ==="
-echo "App dir: $APP_DIR"
-echo "User:    $SERVICE_USER"
+echo "=== TreeHouse display stack install ==="
+echo "Repo:  $REPO_ROOT"
+echo "User:  $SERVICE_USER"
 echo ""
 
 echo "→ Installing system dependencies..."
-apt-get install -y cage libgl1-mesa-dri libegl1 libegl-mesa0 libgl1 seatd
+apt-get install -y weston libgl1-mesa-dri libegl1 libegl-mesa0 libgl1 seatd
 systemctl enable --now seatd
 usermod -aG _seat "$SERVICE_USER"
 # moderngl requires unversioned .so symlinks; Pi OS ships only the versioned runtime libs
@@ -25,19 +24,10 @@ ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
 ldconfig
 
 echo "→ Installing Python dependencies..."
-pip3 install --break-system-packages moderngl pyglet numpy python-osc
-
-echo "→ Installing systemd unit..."
-DEST="/etc/systemd/system/looking_glass.service"
-sed "s|User=ii|User=$SERVICE_USER|g" \
-    "$SCRIPT_DIR/looking_glass.service" > "$DEST"
-echo "   written: $DEST"
-
-systemctl daemon-reload
-systemctl enable looking_glass.service
-systemctl restart looking_glass.service
+pip3 install --break-system-packages moderngl pygame python-osc
 
 echo ""
 echo "=== Done ==="
-echo "Status:  sudo systemctl status looking_glass"
-echo "Logs:    journalctl -u looking_glass -f"
+echo "Renderers are managed by the treehouse service — no separate unit needed."
+echo "Status:  sudo systemctl status treehouse"
+echo "Logs:    journalctl -fu treehouse"

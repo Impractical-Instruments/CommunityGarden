@@ -1,6 +1,6 @@
 # ADR-0014 — Looking Glass: renderer as asyncio subprocess
 
-**Status:** Accepted  
+**Status:** Partially superseded by ADR-0018  
 **Date:** 2026-05-22
 
 ---
