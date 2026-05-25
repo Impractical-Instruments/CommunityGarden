@@ -1,4 +1,4 @@
-"""BodyCaptcha — silhouette CAPTCHA grid-matching game (ADR-0013)."""
+"""BodyCaptcha — silhouette CAPTCHA grid-matching game (ADR-0013, ADR-0019)."""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,8 @@ log = logging.getLogger(__name__)
 from games.grid import (
     Grid,
     BLACK, WHITE, DK_GREY, MID_GREY, LT_GREY, GREEN, YELLOW, RED, CYAN, ORANGE,
-    HUD_W, hud_font, draw_hud_label, draw_progress_bar,
+    HOLD_RING_COLOR,
+    top_bar_height, draw_top_bar, draw_hold_ring, draw_center_text,
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 
@@ -28,7 +29,6 @@ _TAUNTS = _DIR / "taunts.json"
 HINT_COLOR   = (100, 180, 255)
 COVER_VALID  = (  0, 220,  80)
 COVER_EXTRA  = (220,  50,  50)
-HOLD_COLOR   = (  0, 255, 130)
 
 _WIN_FLASH_S = 0.5
 _BLOWUP_S    = 2.8
@@ -175,9 +175,6 @@ class BodyCaptchaGame:
         WW, WH           = pygame.display.get_surface().get_size()
         self._WW         = WW
         self._WH         = WH
-        self._font_big   = hud_font(22)
-        self._font_sml   = hud_font(16)
-        self._font_taunt = pygame.font.SysFont("monospace", 22, bold=True)
 
         # Live state (set by _load_level)
         self._level:       dict             = {}
@@ -202,9 +199,9 @@ class BodyCaptchaGame:
     def _load_level(self, level: dict) -> None:
         self._level      = level
         cols, rows       = level.get("grid", [4, 4])
-        game_w           = self._WW - HUD_W
         self._grid       = Grid(self._WW, self._WH, cols, rows)
-        self._bg_img     = _load_bg(level.get("image"), game_w, self._WH)
+        bounds           = self._grid.bounds_rect
+        self._bg_img     = _load_bg(level.get("image"), bounds.width, bounds.height)
         self._activator  = _make_activator(level, self._settings)
         self._valid_set  = {tuple(c) for c in level.get("valid_cells", [])}
         self._elapsed    = 0.0
@@ -328,27 +325,30 @@ class BodyCaptchaGame:
             return
 
         surf.fill(BLACK)
-        game_w = self._WW - HUD_W
-
-        # Background image or dark fill
-        if self._bg_img:
-            surf.blit(self._bg_img, (0, 0))
-        else:
-            pygame.draw.rect(surf, DK_GREY, (0, 0, game_w, self._WH))
+        bounds  = g.bounds_rect
+        bar_h   = g.top_reserve
+        prompt  = self._level.get("prompt", "")
 
         if self._state == _State.BLOWUP:
             self._draw_confetti(surf)
-            self._draw_hud(surf)
+            draw_center_text(surf, self._taunt, RED,
+                             self._WW, bar_h, self._WH, max_font=120)
+            draw_top_bar(surf, self._WW, bar_h, prompt, None)
             return
 
-        # Silhouette overlay (faint — helps player see their body in context)
+        # Photo, clipped to grid bounds
+        if self._bg_img is not None:
+            surf.blit(self._bg_img, bounds.topleft)
+
+        # Silhouette overlay (faint), scaled to grid bounds
         if self._foreground is not None:
             slab_color  = tuple(self._settings.get("slab_styles", {})
                                 .get("0", {}).get("color", [0, 220, 100]))
             sil = _foreground_surf(self._foreground, self._slabs_cfg,
-                                   self._roi, slab_color, game_w, self._WH)
+                                   self._roi, slab_color,
+                                   bounds.width, bounds.height)
             sil.set_alpha(60)
-            surf.blit(sil, (0, 0))
+            surf.blit(sil, bounds.topleft)
 
         # Cell overlays
         covered     = set(self._activations.keys())
@@ -370,7 +370,7 @@ class BodyCaptchaGame:
                     else:
                         continue
                 elif is_covered and is_valid:
-                    color, alpha = (HOLD_COLOR if hold_active else COVER_VALID), 190
+                    color, alpha = (HOLD_RING_COLOR if hold_active else COVER_VALID), 190
                 elif is_covered and not is_valid:
                     color, alpha = COVER_EXTRA, 160
                 elif is_valid and not is_covered:
@@ -387,7 +387,18 @@ class BodyCaptchaGame:
             for c in range(g.cols):
                 pygame.draw.rect(surf, MID_GREY, g.cell_rect(c, r), 1)
 
-        self._draw_hud(surf)
+        # Hold-progress ring on grid perimeter
+        if self._state == _State.PLAYING and self._hold_elapsed > 0:
+            draw_hold_ring(surf, bounds, self._hold_elapsed / max(self._hold_s, 0.001))
+
+        # Win flash centered text
+        if self._state == _State.WIN_FLASH:
+            draw_center_text(surf, "LEVEL CLEAR!", GREEN,
+                             self._WW, bar_h, self._WH, max_font=140)
+
+        # Top bar (prompt + timer)
+        remaining = max(0.0, self._timer_s - self._elapsed)
+        draw_top_bar(surf, self._WW, bar_h, prompt, remaining)
 
     def _draw_confetti(self, surf: pygame.Surface) -> None:
         for p in self._particles:
@@ -396,70 +407,6 @@ class BodyCaptchaGame:
             tile  = pygame.Surface((s * 2, s * 2), pygame.SRCALPHA)
             tile.fill((*p.color, alpha))
             surf.blit(tile, (int(p.x) - s, int(p.y) - s))
-
-    def _draw_hud(self, surf: pygame.Surface) -> None:
-        g = self._grid
-        if g is None:
-            return
-        g.draw_hud_bg(surf)
-        x = g.hud_rect.x
-        w = g.hud_rect.width
-        y = 20
-
-        if self._state == _State.BLOWUP:
-            y = 80
-            for line in _wrap(self._taunt, 18):
-                t = self._font_taunt.render(line, True, RED)
-                surf.blit(t, (x + 8, y))
-                y += t.get_height() + 4
-            return
-
-        if self._state == _State.WIN_FLASH:
-            t = self._font_big.render("LEVEL CLEAR!", True, GREEN)
-            surf.blit(t, (x + 8, y))
-            y += t.get_height() + 14
-
-        remaining = max(0.0, self._timer_s - self._elapsed)
-        vc = RED if remaining <= 10 else GREEN
-        y  = draw_hud_label(surf, self._font_big, "TIME", f"{int(remaining)}s",
-                            x, y, value_color=vc)
-        draw_progress_bar(surf, x + 8, y, w - 24, 12, remaining / max(self._timer_s, 1), color=vc)
-        y += 22
-
-        diff = self._level.get("difficulty", 1)
-        y    = draw_hud_label(surf, self._font_big, "DIFFICULTY", f"{diff}/5", x, y)
-
-        if self._hold_elapsed > 0 and self._state == _State.PLAYING:
-            hold_pct = min(1.0, self._hold_elapsed / self._hold_s)
-            draw_progress_bar(surf, x + 8, y, w - 24, 16, hold_pct, color=HOLD_COLOR)
-            t = self._font_sml.render("HOLD", True, HOLD_COLOR)
-            surf.blit(t, (x + 8, y + 2))
-            y += 26
-
-        # Prompt at bottom of HUD
-        prompt = self._level.get("prompt", "")
-        if prompt:
-            lh    = self._font_sml.get_height() + 2
-            lines = _wrap(prompt, 18)
-            py    = g.hud_rect.bottom - len(lines) * lh - 20
-            for line in lines:
-                t = self._font_sml.render(line, True, WHITE)
-                surf.blit(t, (x + 8, py))
-                py += lh
-
-
-def _wrap(text: str, width: int) -> list[str]:
-    words, lines, cur = text.split(), [], ""
-    for word in words:
-        candidate = (cur + " " + word).strip()
-        if len(candidate) > width and cur:
-            lines.append(cur)
-            cur = word
-        else:
-            cur = candidate
-    if cur:
-        lines.append(cur)
-    return lines
 
 
 def create(settings: dict) -> BodyCaptchaGame:
