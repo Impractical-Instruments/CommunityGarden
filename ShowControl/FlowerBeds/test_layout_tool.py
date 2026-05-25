@@ -80,10 +80,10 @@ def test_get_defaults_returns_cluster_offsets(client):
     assert "cluster_offsets" in d
     offsets = d["cluster_offsets"]
     assert len(offsets) == 4
-    assert offsets[0] == [10.0, 10.0, 0.0]
-    assert offsets[1] == [-10.0, 10.0, 0.0]
-    assert offsets[2] == [10.0, -10.0, 0.0]
-    assert offsets[3] == [-10.0, -10.0, 0.0]
+    assert offsets[0] == [30.0, 30.0, 0.0]
+    assert offsets[1] == [-30.0, 30.0, 0.0]
+    assert offsets[2] == [30.0, -30.0, 0.0]
+    assert offsets[3] == [-30.0, -30.0, 0.0]
 
 
 def test_defaults_match_default_module(client):

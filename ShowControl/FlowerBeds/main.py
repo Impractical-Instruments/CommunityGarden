@@ -46,6 +46,7 @@ from flower_beds import (
     ModuleConfig,
     MotorCommand,
 )
+from diag import osc_ping, parse_found_ids
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
 # OSCFabric lives one level above FlowerBeds, inside ShowControl/
@@ -78,6 +79,40 @@ def _build_controllers(network: dict, no_osc: bool) -> list[SimpleUDPClient]:
         if key.startswith("flowerbeds_controller_") and fw.get("ip") and fw.get("osc_port"):
             clients.append(SimpleUDPClient(fw["ip"], fw["osc_port"]))
     return clients
+
+
+def _diagnose_controllers(network: dict, expected_motor_ids: set[int]) -> list[int]:
+    """
+    Ping every flowerbeds controller, log scanned servo IDs + packet counters,
+    and return motor IDs from coordinator config that no controller reported.
+
+    Empty list = healthy.  Non-empty list = some configured motors will not move.
+    """
+    seen: set[int] = set()
+    for key, fw in network.get("firmware", {}).items():
+        if not key.startswith("flowerbeds_controller_"):
+            continue
+        ip, port = fw.get("ip"), fw.get("osc_port")
+        if not (ip and port):
+            continue
+        pong = osc_ping(ip, port, timeout=0.5)
+        if pong is None:
+            log.warning("ctrl %s (%s:%d) — no pong (offline or unreachable)", key, ip, port)
+            continue
+        ids = parse_found_ids(pong["found_ids"])
+        seen |= ids
+        log.info(
+            "ctrl %s (%s) — baud=%d, %d servo(s): %s | rx=%d drop=%d",
+            key, ip, pong["baud"], pong["found_count"],
+            sorted(ids) or "-", pong["pkt_rx_count"], pong["pkt_drop_count"],
+        )
+    missing = sorted(expected_motor_ids - seen)
+    if missing:
+        log.warning(
+            "Configured motor IDs not found on any controller: %s "
+            "(these flowers will NOT move)", missing,
+        )
+    return missing
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +151,18 @@ def run(args: argparse.Namespace) -> None:
         log.info("OSC output → %d controller(s)", len(controllers))
     else:
         log.info("OSC output disabled (--no-osc)")
+
+    # --- diagnose: ping each controller, surface missing motor IDs ---
+    coord_cfg_preview = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
+    expected_motor_ids: set[int] = {
+        cluster.motor_id
+        for module in coord_cfg_preview.modules
+        for cluster in module.clusters
+    }
+    if controllers and not args.no_osc:
+        missing_motor_ids = _diagnose_controllers(network, expected_motor_ids)
+    else:
+        missing_motor_ids = []
 
     # --- OSC fabric (TreeHouse activity signal) ---
     activity_max_blobs = settings.get("activity_max_blobs", 10)
@@ -222,6 +269,7 @@ def run(args: argparse.Namespace) -> None:
                     }
                 ],
                 "calibration_state": calibration_state,
+                "missing_motor_ids": missing_motor_ids,
             }
             broadcast(state)
 
