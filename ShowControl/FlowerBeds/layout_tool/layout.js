@@ -364,6 +364,11 @@ function buildClusterList() {
         <input type="number" value="${cl.pos_offset_cm[1].toFixed(1)}" step="1"
                onchange="onClusterField(${j},'oy',this.value,'float')">
       </div>
+      <div class="field-row">
+        <label>Yaw limit ±°</label>
+        <input type="number" value="${(cl.yaw_limit_deg ?? 60).toFixed(1)}" step="1" min="0" max="180"
+               onchange="onClusterField(${j},'yaw_limit_deg',this.value,'float')">
+      </div>
       <div class="cluster-btns">
         <button onclick="testMove(${cl.motor_id})" class="btn-green">Test Move</button>
       </div>
@@ -382,9 +387,10 @@ function onClusterField(j, field, rawVal, type) {
   const cl  = state.modules[state.sel].clusters[j];
   const val = type === 'int' ? parseInt(rawVal) : parseFloat(rawVal);
   if (isNaN(val)) return;
-  if      (field === 'motor_id') cl.motor_id = val;
-  else if (field === 'ox')       cl.pos_offset_cm[0] = val;
-  else if (field === 'oy')       cl.pos_offset_cm[1] = val;
+  if      (field === 'motor_id')      cl.motor_id = val;
+  else if (field === 'ox')            cl.pos_offset_cm[0] = val;
+  else if (field === 'oy')            cl.pos_offset_cm[1] = val;
+  else if (field === 'yaw_limit_deg') cl.yaw_limit_deg = val;
   render();
 }
 
@@ -407,6 +413,7 @@ function addModule() {
       motor_id: idx * 4 + i + 1,
       pos_offset_cm: off.slice(),
       rotation_offset: {pitch: 0, yaw: 0, roll: 0},
+      yaw_limit_deg: 60.0,
     })),
   });
   state.sel = idx;
@@ -484,6 +491,7 @@ async function loadLayout() {
             motor_id: i * 4 + k + 1,
             pos_offset_cm: off.slice(),
             rotation_offset: {pitch: 0, yaw: 0, roll: 0},
+            yaw_limit_deg: 60.0,
           })),
         });
       }

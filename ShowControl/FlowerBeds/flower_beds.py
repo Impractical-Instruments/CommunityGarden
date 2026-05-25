@@ -85,6 +85,7 @@ class ClusterConfig:
     motor_id: int = 0
     pos_offset_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     rotation_offset: dict = field(default_factory=lambda: {"pitch": 0, "yaw": 0, "roll": 0})
+    yaw_limit_deg: float = 60.0  # symmetric ±cap on motor command (local frame)
 
     @classmethod
     def from_dict(cls, raw: dict) -> "ClusterConfig":
@@ -181,11 +182,21 @@ class FlowerCluster:
         motor_id: int,
         world_pos_cm: np.ndarray,
         attraction: Attraction | None = None,
+        yaw_limit_deg: float = 60.0,
+        module_yaw_deg: float = 0.0,
+        cluster_yaw_offset_deg: float = 0.0,
     ) -> None:
         self.motor_id = motor_id
         self.world_pos_cm = world_pos_cm.copy()
-        self.current_yaw_deg: float = 0.0
+        self.yaw_limit_deg = float(yaw_limit_deg)
+        self.module_yaw_deg = float(module_yaw_deg)
+        self.cluster_yaw_offset_deg = float(cluster_yaw_offset_deg)
+        # Direction the cluster is trying to look (world frame, unclamped).
+        self.current_world_yaw_deg: float = 0.0
+        # Angle commanded to the motor (local frame, clamped to ±yaw_limit_deg).
+        self.current_motor_yaw_deg: float = 0.0
         self.has_target: bool = False
+        self.clamped: bool = False
         self.attraction = attraction or Attraction()
 
         # Consecutive frames each blob has been within influence_radius_cm.
@@ -239,14 +250,18 @@ class FlowerCluster:
                 best_pos = pos
 
         self._current_target_id = best_id
-        yaw = look_yaw_degrees(self.world_pos_cm, best_pos)
-        if yaw > 60:
-            yaw = 60
-        if yaw < -60:
-            yaw = -60
-        self.current_yaw_deg = yaw
+        world_yaw = look_yaw_degrees(self.world_pos_cm, best_pos)
+        # Transform world look direction into the motor's local frame: subtract
+        # the module's yaw (cluster mounts rotate with the module) and wrap to
+        # (-180, 180].
+        local_yaw = world_yaw - self.module_yaw_deg - self.cluster_yaw_offset_deg
+        local_yaw = ((local_yaw + 180.0) % 360.0) - 180.0
+        motor_yaw = max(-self.yaw_limit_deg, min(self.yaw_limit_deg, local_yaw))
+        self.current_world_yaw_deg = world_yaw
+        self.current_motor_yaw_deg = motor_yaw
+        self.clamped = motor_yaw != local_yaw
         self.has_target = True
-        return MotorCommand(motor_id=self.motor_id, rotation_deg=yaw)
+        return MotorCommand(motor_id=self.motor_id, rotation_deg=motor_yaw)
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +278,7 @@ class FlowerModule:
             rotation=rot,
         )
         rot_matrix = rotator_to_matrix(rot)
+        module_yaw_deg = float(config.rotation.get("yaw", 0))
 
         self.clusters: list[FlowerCluster] = []
         for cc in config.clusters:
@@ -273,6 +289,9 @@ class FlowerModule:
                     motor_id=cc.motor_id,
                     world_pos_cm=world_pos,
                     attraction=attraction,
+                    yaw_limit_deg=cc.yaw_limit_deg,
+                    module_yaw_deg=module_yaw_deg,
+                    cluster_yaw_offset_deg=float(cc.rotation_offset.get("yaw", 0)),
                 )
             )
 
@@ -348,7 +367,9 @@ class Coordinator:
                     "motor_id": cluster.motor_id,
                     "x": float(cluster.world_pos_cm[0]),
                     "y": float(cluster.world_pos_cm[1]),
-                    "yaw_deg": float(cluster.current_yaw_deg),
+                    "world_yaw_deg": float(cluster.current_world_yaw_deg),
+                    "motor_yaw_deg": float(cluster.current_motor_yaw_deg),
+                    "clamped": bool(cluster.clamped),
                     "has_target": cluster.has_target,
                     "target_id": cluster._current_target_id,
                 })
