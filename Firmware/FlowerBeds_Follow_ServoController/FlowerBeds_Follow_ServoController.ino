@@ -29,14 +29,41 @@ const uint16_t localPort = 9000;   // the port you will SEND OSC TO
 EthernetUDP Udp;
 const int ETH_CS_PIN = 5;
 
+// --- Diagnostic state ---
+// Broadcast destination for 1Hz heartbeat. Layout tool + main.py listen here.
+const IPAddress HB_BROADCAST(255, 255, 255, 255);
+const uint16_t HB_PORT = 9100;
+const unsigned long HB_INTERVAL_MS = 1000;
+
+uint32_t pktRxCount   = 0;     // successfully parsed OSC messages
+uint32_t pktDropCount = 0;     // packets that failed OSC parse
+int      lastMotorId  = -1;    // last /cg/ff/rot motor id we acted on
+float    lastMotorDeg = 0.0f;  // last /cg/ff/rot value we acted on
+int32_t  scanBaud     = 0;     // Dynamixel bus baud rate selected at boot scan
+uint8_t  foundCount   = 0;     // number of servos detected on bus
+char     foundIdsCsv[256] = ""; // comma-separated list of detected servo IDs
+unsigned long lastHbMs = 0;
+
 void setup() {
   scanForServos();
   setUpOsc();
+  lastHbMs = millis();
 }
 
 void loop() {
+  // ---- diagnostic heartbeat (1Hz broadcast on HB_PORT) ----
+  const unsigned long now = millis();
+  if (now - lastHbMs >= HB_INTERVAL_MS) {
+    lastHbMs = now;
+    sendStatus(HB_BROADCAST, HB_PORT, "/cg/ff/hb");
+  }
+
   int packetSize = Udp.parsePacket();
   if (packetSize <= 0) return;
+
+  // Snapshot sender info before next parsePacket() overwrites it.
+  IPAddress  remoteIp   = Udp.remoteIP();
+  uint16_t   remotePort = Udp.remotePort();
 
   // Keep buffers small-ish; OpenRB-150 (SAMD21) has limited RAM.
   // 512 is usually fine for typical OSC messages.
@@ -48,14 +75,38 @@ void loop() {
   msg.fill(buf, len);
 
   if (!msg.hasError()) {
-    msg.route("/cg/ff/rot", onFlowerRot);
-  } 
+    pktRxCount++;
+    if (msg.fullMatch("/cg/ff/ping")) {
+      sendStatus(remoteIp, remotePort, "/cg/ff/pong");
+    } else {
+      msg.route("/cg/ff/rot", onFlowerRot);
+    }
+  }
   else {
-    // Optional: print parse errors
+    pktDropCount++;
     OSCErrorCode e = msg.getError();
     DEBUG_SERIAL.print("OSC error: ");
     DEBUG_SERIAL.println((int)e);
   }
+}
+
+// Build + send the diagnostic OSC payload to (dest, port) under `addr`.
+// Used for both periodic /cg/ff/hb broadcast and /cg/ff/pong unicast reply.
+void sendStatus(IPAddress dest, uint16_t port, const char* addr) {
+  OSCMessage out(addr);
+  out.add((int32_t)mac[5]);          // ctrl_id from MAC last byte (unique per board)
+  out.add((int32_t)scanBaud);
+  out.add((int32_t)foundCount);
+  out.add(foundIdsCsv);
+  out.add((int32_t)pktRxCount);
+  out.add((int32_t)pktDropCount);
+  out.add((int32_t)lastMotorId);
+  out.add(lastMotorDeg);
+
+  Udp.beginPacket(dest, port);
+  out.send(Udp);
+  Udp.endPacket();
+  out.empty();
 }
 
 void setUpOsc() {
@@ -84,6 +135,10 @@ void scanForServos() {
   DEBUG_SERIAL.print("SCAN PROTOCOL ");
   DEBUG_SERIAL.println(DXL_PROTOCOL_VERSION);
   
+  // Reset diagnostic state before scan.
+  foundIdsCsv[0] = '\0';
+  size_t csvLen = 0;
+
   for(index = 0; index < MAX_BAUD; index++) {
     bool useThisBaud = false;
     // Set Port baudrate.
@@ -94,7 +149,7 @@ void scanForServos() {
       //iterate until all ID in each baudrate is scanned.
       const bool detected = dxl.ping(id);
       activeServos[id] = detected;
-      
+
       if(detected) {
         DEBUG_SERIAL.print("ID : ");
         DEBUG_SERIAL.print(id);
@@ -108,26 +163,38 @@ void scanForServos() {
         dxl.torqueOn(id);
 
         useThisBaud = true;
+
+        // Append "id," to foundIdsCsv (bounded by buffer size).
+        if (csvLen + 5 < sizeof(foundIdsCsv)) {
+          csvLen += snprintf(foundIdsCsv + csvLen,
+                             sizeof(foundIdsCsv) - csvLen,
+                             "%u,", (unsigned)id);
+        }
       }
     }
 
     if (useThisBaud) {
+      scanBaud = baud[index];
       break;
     }
   }
-  
+
+  // Strip trailing comma if any.
+  if (csvLen > 0 && foundIdsCsv[csvLen - 1] == ',') {
+    foundIdsCsv[csvLen - 1] = '\0';
+  }
+  foundCount = found_dynamixel;
+
   DEBUG_SERIAL.print("Total ");
   DEBUG_SERIAL.print(found_dynamixel);
   DEBUG_SERIAL.println(" DYNAMIXEL(s) found!");
 }
 
 void onFlowerRot(OSCMessage& msg, int addressOffset) {
-  DEBUG_SERIAL.print("Rotating ");
   const int id = msg.getInt(0);
-  DEBUG_SERIAL.print(id);
-  DEBUG_SERIAL.print(", ");
   const float rot = msg.getFloat(1);
-  DEBUG_SERIAL.println(rot);
+  lastMotorId  = id;
+  lastMotorDeg = rot;
   setRotDeg(id, rot);
 }
 

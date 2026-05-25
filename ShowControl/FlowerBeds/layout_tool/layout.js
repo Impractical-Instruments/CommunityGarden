@@ -524,12 +524,25 @@ async function refreshControllerStatus() {
       el.textContent = '(no controllers in network.json)';
       return;
     }
-    el.innerHTML = d.controllers.map(c =>
-      `<span class="ctrl-dot ${c.online ? 'online' : 'offline'}" title="${c.name}"></span> ` +
-      `<span title="${c.ip}" style="color:${c.online ? '#51cf66' : '#ff6b6b'}">` +
-      `${c.name.replace('flowerbeds_controller_', 'ctrl ')} ${c.online ? 'ONLINE' : 'OFFLINE'}` +
-      `</span>`
-    ).join('&nbsp;&nbsp;');
+    el.innerHTML = d.controllers.map(c => {
+      const label = c.name.replace('flowerbeds_controller_', 'ctrl ');
+      const color = c.online ? '#51cf66' : '#ff6b6b';
+      const stateText = c.online ? 'ONLINE' : 'OFFLINE';
+      const tooltip = c.online
+        ? `${c.ip} | baud=${c.baud} | servos=[${c.found_ids || '-'}] | ` +
+          `rx=${c.pkt_rx_count} drop=${c.pkt_drop_count} | ` +
+          `last_motor=${c.last_motor_id}@${(c.last_motor_deg||0).toFixed(1)}°`
+        : c.ip;
+      const detail = c.online
+        ? ` <span style="color:#888;font-size:.85em">` +
+          `${c.found_count} servo${c.found_count===1?'':'s'} ` +
+          `rx ${c.pkt_rx_count}` +
+          (c.pkt_drop_count > 0 ? ` <span style="color:#ff6b6b">drop ${c.pkt_drop_count}</span>` : '') +
+          `</span>`
+        : '';
+      return `<span class="ctrl-dot ${c.online ? 'online' : 'offline'}" title="${c.name}"></span> ` +
+        `<span title="${tooltip}" style="color:${color}">${label} ${stateText}</span>${detail}`;
+    }).join('&nbsp;&nbsp;');
   } catch (err) {
     document.getElementById('ctrl-dots').textContent = 'status unavailable';
   }

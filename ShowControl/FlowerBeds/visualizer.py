@@ -55,6 +55,7 @@ class VisualizerState(TypedDict):
     clusters: list[ClusterState]
     cameras: list[CameraState]
     calibration_state: str
+    missing_motor_ids: list[int]
 
 # ---------------------------------------------------------------------------
 # Embedded HTML/JS client
@@ -79,6 +80,8 @@ _HTML = """<!DOCTYPE html>
 <body>
 <h1>🌸 Flower Beds — Live View</h1>
 <div id="status">connecting…</div>
+<div id="banner" style="display:none; background:#5a1e1e; color:#ffd0d0; padding:.4em .8em;
+     border:1px solid #ff6b6b; border-radius:4px; font-size:.85em; margin:.3em 0; max-width:90%;"></div>
 <div id="legend">
   <span><span class="dot" style="background:#00d4ff"></span>blob</span>
   <span><span class="dot" style="background:#ff6b6b"></span>cluster (no target)</span>
@@ -269,6 +272,16 @@ function connect() {
       (lastState.calibration_state || '?') +
       ' | ' + nb + ' blob' + (nb!==1?'s':'') +
       ' | ' + nc + ' cluster' + (nc!==1?'s':'');
+    const banner = document.getElementById('banner');
+    const missing = lastState.missing_motor_ids || [];
+    if (missing.length > 0) {
+      banner.style.display = 'block';
+      banner.textContent = '⚠ ' + missing.length + ' motor ID' +
+        (missing.length===1?'':'s') + ' configured but not found on any controller: [' +
+        missing.join(', ') + ']  — those flowers will not move.';
+    } else {
+      banner.style.display = 'none';
+    }
   };
 }
 

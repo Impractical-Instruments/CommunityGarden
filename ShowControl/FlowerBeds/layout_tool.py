@@ -13,7 +13,6 @@ import argparse
 import asyncio
 import json
 import shutil
-import socket
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -26,6 +25,8 @@ from fastapi.responses import FileResponse, JSONResponse  # type: ignore[import]
 from fastapi.staticfiles import StaticFiles  # type: ignore[import]
 from pydantic import BaseModel  # type: ignore[import]
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
+
+from diag import osc_ping
 
 _OSC_ADDRESS = "/cg/ff/rot"
 STATIC_DIR   = Path(__file__).resolve().parent / "layout_tool"
@@ -58,14 +59,6 @@ def _flowerbeds_controllers(network: dict) -> list[dict]:
         if name.startswith("flowerbeds_controller_") and fw.get("ip") and fw.get("osc_port"):
             out.append({"name": name, "ip": fw["ip"], "osc_port": fw["osc_port"]})
     return out
-
-
-def _tcp_ping(ip: str, port: int, timeout: float = 0.5) -> bool:
-    try:
-        with socket.create_connection((ip, port), timeout=timeout):
-            return True
-    except OSError:
-        return False
 
 
 def _osc_clients(network: dict) -> list[SimpleUDPClient]:
@@ -186,14 +179,17 @@ async def controller_status():
     results = []
     loop = asyncio.get_event_loop()
     for c in controllers:
-        online = await loop.run_in_executor(None, _tcp_ping, c["ip"], c["osc_port"])
-        results.append({
+        pong = await loop.run_in_executor(None, osc_ping, c["ip"], c["osc_port"])
+        entry = {
             "name":       c["name"],
             "ip":         c["ip"],
             "osc_port":   c["osc_port"],
-            "online":     online,
+            "online":     pong is not None,
             "checked_at": datetime.now(timezone.utc).isoformat(),
-        })
+        }
+        if pong is not None:
+            entry.update(pong)
+        results.append(entry)
     return JSONResponse({"controllers": results})
 
 
