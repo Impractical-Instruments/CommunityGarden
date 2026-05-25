@@ -1,6 +1,7 @@
 [Unit]
 Description=CommunityGarden Show Dashboard
-After=network.target
+After=network-online.target
+Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 
 [Service]

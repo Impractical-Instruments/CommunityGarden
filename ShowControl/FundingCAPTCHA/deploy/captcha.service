@@ -1,6 +1,7 @@
 [Unit]
 Description=FundingCAPTCHA Game Server
-After=network.target graphical.target
+After=network-online.target graphical.target
+Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
 # Remove --camera if the Orbbec camera is not present on this install.
 # Use --mock-camera to emit fake blobs for testing without hardware.
