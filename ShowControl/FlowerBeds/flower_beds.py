@@ -240,6 +240,10 @@ class FlowerCluster:
 
         self._current_target_id = best_id
         yaw = look_yaw_degrees(self.world_pos_cm, best_pos)
+        if yaw > 60:
+            yaw = 60
+        if yaw < -60:
+            yaw = -60
         self.current_yaw_deg = yaw
         self.has_target = True
         return MotorCommand(motor_id=self.motor_id, rotation_deg=yaw)
