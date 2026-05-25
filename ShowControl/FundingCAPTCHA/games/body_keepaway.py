@@ -1,4 +1,4 @@
-"""BodyKeepaway — silhouette survival game (ADR-0013)."""
+"""BodyKeepaway — silhouette survival game (ADR-0013, ADR-0019)."""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 from games.grid import (
     Grid,
     BLACK, WHITE, DK_GREY, MID_GREY, LT_GREY, GREEN, YELLOW, RED, BLUE,
-    HUD_W, hud_font, draw_hud_label, draw_progress_bar,
+    hud_font, top_bar_height, draw_top_bar, draw_center_text,
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 
@@ -31,7 +31,6 @@ WIN_COLOR      = (0, 220, 80)
 _WIN_FLASH_S = 0.5
 _WIN_FINAL_S = 2.0
 _BLOWUP_S    = 2.8
-_TIMER_BAR_H = 10
 
 
 class _State(Enum):
@@ -208,14 +207,6 @@ def _draw_stick_figure(surf: pygame.Surface, cx: int, cy: int,
     pygame.draw.line(surf, color, (cx, body_bot), (cx + leg_len, body_bot + leg_len), lw)
 
 
-def _lerp_color(a: tuple, b: tuple, t: float) -> tuple:
-    return (
-        int(a[0] + t * (b[0] - a[0])),
-        int(a[1] + t * (b[1] - a[1])),
-        int(a[2] + t * (b[2] - a[2])),
-    )
-
-
 class BodyKeepawayGame:
     def __init__(self, settings: dict) -> None:
         self._settings   = settings
@@ -230,10 +221,6 @@ class BodyKeepawayGame:
         WW, WH       = pygame.display.get_surface().get_size()
         self._WW     = WW
         self._WH     = WH
-        self._font_big   = hud_font(22)
-        self._font_sml   = hud_font(16)
-        self._font_huge  = pygame.font.SysFont("monospace", 56, bold=True)
-        self._font_taunt = pygame.font.SysFont("monospace", 28, bold=True)
 
         self._level_idx:   int                      = 0
         self._grid:        Grid | None              = None
@@ -421,22 +408,26 @@ class BodyKeepawayGame:
             return
 
         surf.fill(BLACK)
-        game_w = self._WW - HUD_W
+        bounds = g.bounds_rect
+        bar_h  = g.top_reserve
+        prompt = self._level.get("prompt", "")  # optional — Keepaway levels have none today
 
         if self._state == _State.BLOWUP:
             self._draw_confetti(surf)
-            self._draw_taunt(surf, game_w)
-            self._draw_hud(surf)
+            draw_center_text(surf, self._taunt, RED,
+                             self._WW, bar_h, self._WH, max_font=120)
+            draw_top_bar(surf, self._WW, bar_h, prompt, None)
             return
 
-        # Silhouette overlay
+        # Silhouette overlay (faint), scaled to grid bounds
         if self._foreground is not None:
             slab_color = tuple(self._settings.get("slab_styles", {})
                                .get("0", {}).get("color", [0, 220, 100]))
             sil = _foreground_surf(self._foreground, self._slabs_cfg,
-                                   self._roi, slab_color, game_w, self._WH)
+                                   self._roi, slab_color,
+                                   bounds.width, bounds.height)
             sil.set_alpha(60)
-            surf.blit(sil, (0, 0))
+            surf.blit(sil, bounds.topleft)
 
         # Runner cell highlights
         tile = pygame.Surface((g.cell_size, g.cell_size), pygame.SRCALPHA)
@@ -463,61 +454,51 @@ class BodyKeepawayGame:
                 py = int(gy + d.y * g.cell_size + g.cell_size * 0.5)
                 _draw_stick_figure(surf, px, py, g.cell_size, DEFENDER_COLOR)
 
-        # Timer bar across top of game area
-        if self._state in (_State.GRACE, _State.PLAYING, _State.NO_RUNNERS):
-            self._draw_timer_bar(surf, game_w)
-
-        # State overlays
+        # State overlays (centered text inside grid area)
         if self._state == _State.GRACE:
-            self._draw_grace_overlay(surf, game_w)
+            remaining = max(0.0, self._grace_s - self._state_t)
+            n         = math.ceil(remaining)
+            label     = str(n) if n > 0 else "GO!"
+            draw_center_text(surf, label, WHITE,
+                             self._WW, bar_h, self._WH, max_font=180)
         elif self._state == _State.NO_RUNNERS:
-            self._draw_no_runners_overlay(surf, game_w)
+            self._draw_no_runners_overlay(surf, bar_h)
+        elif self._state == _State.WIN_FLASH:
+            draw_center_text(surf, "LEVEL CLEAR!", GREEN,
+                             self._WW, bar_h, self._WH, max_font=140)
         elif self._state == _State.WIN_FINAL:
-            self._draw_win_overlay(surf, game_w)
+            draw_center_text(surf, "YOU SURVIVED", WHITE,
+                             self._WW, bar_h, self._WH, max_font=140)
 
-        self._draw_hud(surf)
-
-    def _draw_timer_bar(self, surf: pygame.Surface, game_w: int) -> None:
-        remaining = max(0.0, self._survive_s - self._elapsed)
-        pct       = remaining / max(self._survive_s, 0.001)
-        if pct > 0.5:
-            col = _lerp_color(YELLOW, GREEN, (pct - 0.5) * 2)
+        # Top bar: prompt (optional) + level timer
+        if self._state in (_State.GRACE, _State.PLAYING, _State.NO_RUNNERS):
+            remaining: float | None = max(0.0, self._survive_s - self._elapsed)
         else:
-            col = _lerp_color(RED, YELLOW, pct * 2)
-        pygame.draw.rect(surf, MID_GREY, (0, 0, game_w, _TIMER_BAR_H))
-        pygame.draw.rect(surf, col, (0, 0, max(0, int(game_w * pct)), _TIMER_BAR_H))
+            remaining = None
+        draw_top_bar(surf, self._WW, bar_h, prompt, remaining, timer_warn_s=5.0)
 
-    def _draw_grace_overlay(self, surf: pygame.Surface, game_w: int) -> None:
-        remaining = max(0.0, self._grace_s - self._state_t)
-        n         = math.ceil(remaining)
-        label     = str(n) if n > 0 else "GO!"
-        t = self._font_huge.render(label, True, WHITE)
-        surf.blit(t, t.get_rect(center=(game_w // 2, self._WH // 2)))
-
-    def _draw_no_runners_overlay(self, surf: pygame.Surface, game_w: int) -> None:
-        overlay = pygame.Surface((game_w, self._WH), pygame.SRCALPHA)
+    def _draw_no_runners_overlay(self, surf: pygame.Surface, bar_h: int) -> None:
+        area_h  = self._WH - bar_h
+        overlay = pygame.Surface((self._WW, area_h), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
-        surf.blit(overlay, (0, 0))
+        surf.blit(overlay, (0, bar_h))
 
-        t1 = self._font_huge.render("GET ON THE FIELD", True, YELLOW)
-        surf.blit(t1, t1.get_rect(center=(game_w // 2, self._WH // 2 - 40)))
+        # "GET ON THE FIELD" + abandon countdown bar, centered
+        font_huge = pygame.font.SysFont("monospace", 72, bold=True)
+        t1 = font_huge.render("GET ON THE FIELD", True, YELLOW)
+        cx = self._WW // 2
+        cy = bar_h + area_h // 2 - 40
+        surf.blit(t1, t1.get_rect(center=(cx, cy)))
 
         remaining = max(0.0, self._abandon_s - self._abandon_t)
         pct       = remaining / max(self._abandon_s, 0.001)
-        bar_w     = game_w * 2 // 3
-        bar_h     = 16
-        bx        = (game_w - bar_w) // 2
-        by        = self._WH // 2 + 20
-        pygame.draw.rect(surf, MID_GREY, (bx, by, bar_w, bar_h))
-        pygame.draw.rect(surf, RED, (bx, by, max(0, int(bar_w * pct)), bar_h))
-        pygame.draw.rect(surf, WHITE, (bx, by, bar_w, bar_h), 1)
-
-    def _draw_win_overlay(self, surf: pygame.Surface, game_w: int) -> None:
-        overlay = pygame.Surface((game_w, self._WH), pygame.SRCALPHA)
-        overlay.fill((0, 200, 80, 80))
-        surf.blit(overlay, (0, 0))
-        t = self._font_huge.render("YOU SURVIVED", True, WHITE)
-        surf.blit(t, t.get_rect(center=(game_w // 2, self._WH // 2)))
+        bar_w     = self._WW * 2 // 3
+        bar_h_px  = 20
+        bx        = (self._WW - bar_w) // 2
+        by        = bar_h + area_h // 2 + 30
+        pygame.draw.rect(surf, MID_GREY, (bx, by, bar_w, bar_h_px))
+        pygame.draw.rect(surf, RED, (bx, by, max(0, int(bar_w * pct)), bar_h_px))
+        pygame.draw.rect(surf, WHITE, (bx, by, bar_w, bar_h_px), 1)
 
     def _draw_confetti(self, surf: pygame.Surface) -> None:
         for p in self._particles:
@@ -526,41 +507,6 @@ class BodyKeepawayGame:
             tile  = pygame.Surface((s * 2, s * 2), pygame.SRCALPHA)
             tile.fill((*p.color, alpha))
             surf.blit(tile, (int(p.x) - s, int(p.y) - s))
-
-    def _draw_taunt(self, surf: pygame.Surface, game_w: int) -> None:
-        t = self._font_taunt.render(self._taunt, True, RED)
-        surf.blit(t, t.get_rect(center=(game_w // 2, self._WH // 2)))
-
-    def _draw_hud(self, surf: pygame.Surface) -> None:
-        g = self._grid
-        if g is None:
-            return
-        g.draw_hud_bg(surf)
-        x = g.hud_rect.x
-        y = 20
-
-        level_num = self._level_idx + 1
-        y = draw_hud_label(surf, self._font_big, "LEVEL",
-                           f"{level_num}/{len(self._all_levels)}", x, y)
-
-        if self._state in (_State.GRACE, _State.PLAYING, _State.NO_RUNNERS):
-            remaining = max(0.0, self._survive_s - self._elapsed)
-            vc = RED if remaining <= 5 else GREEN
-            y  = draw_hud_label(surf, self._font_big, "SURVIVE",
-                                f"{int(remaining)}s", x, y, value_color=vc)
-
-            if self._state == _State.NO_RUNNERS:
-                ab_remaining = max(0.0, self._abandon_s - self._abandon_t)
-                draw_hud_label(surf, self._font_sml, "ABANDON IN",
-                               f"{int(ab_remaining)}s", x, y, value_color=RED)
-
-        elif self._state == _State.WIN_FLASH:
-            t = self._font_big.render("LEVEL CLEAR!", True, GREEN)
-            surf.blit(t, (x + 8, y))
-
-        elif self._state == _State.WIN_FINAL:
-            t = self._font_big.render("YOU WIN!", True, GREEN)
-            surf.blit(t, (x + 8, y))
 
 
 def create(settings: dict) -> BodyKeepawayGame:

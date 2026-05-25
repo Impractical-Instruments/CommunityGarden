@@ -526,9 +526,8 @@ def main() -> None:
     font_big = pygame.font.SysFont("monospace", 36, bold=True)
     font_sml = pygame.font.SysFont("monospace", 22)
 
-    # HUD width matches games/grid.py constant
-    from games.grid import HUD_W
-    game_w = WW - HUD_W
+    # Full-screen game area (no HUD column — ADR-0019)
+    game_w = WW
 
     # ── Games ─────────────────────────────────────────────────────────────────
     games      = _load_games(settings)
