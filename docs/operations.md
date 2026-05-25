@@ -395,23 +395,94 @@ Plug Picos in one at a time, note which COM port appears, label each Pico and re
 
 ---
 
-## Updating the software
+## Deploying code updates
 
-```bash
-cd /home/ii/CommunityGarden   # or wherever the repo lives
-git pull
+Two flows, depending on whether the show network has internet.
 
-# Restart affected services
-sudo systemctl restart flowerbeds treehouse captcha cg-dashboard
+### From the dev laptop on the show LAN (primary — no internet required)
+
+This is the standard venue workflow. Your laptop is the source of truth; show machines receive a `git push` directly over the show LAN, bypassing GitHub.
+
+#### One-time laptop setup
+
+`~/.ssh/config` — short host aliases:
+
+```
+Host flowerbeds
+    HostName 192.168.1.11
+    User ii
+Host treehouse
+    HostName 192.168.1.10
+    User ii
+Host captcha
+    HostName 192.168.1.12
+    User ii
+Host pipes
+    HostName 192.168.1.13
+    User charlie
 ```
 
-If Python dependencies changed:
+`C:\Windows\System32\drivers\etc\hosts` (admin) — optional, for ping/browser:
+
+```
+192.168.1.10  treehouse dashboard
+192.168.1.11  flowerbeds
+192.168.1.12  captcha
+192.168.1.13  pipes
+```
+
+#### One-time per show machine (Linux)
+
+After the initial GitHub clone during imaging, run on each Linux show machine:
 
 ```bash
-pip3 install --break-system-packages -r ShowControl/FlowerBeds/requirements.txt
-pip3 install --break-system-packages -r ShowControl/TreeHouse/requirements.txt
-pip3 install --break-system-packages -r ShowControl/FundingCAPTCHA/requirements.txt
-sudo systemctl restart flowerbeds treehouse captcha
+cd /home/ii/CommunityGarden
+bash scripts/bootstrap-deploy.sh
+```
+
+This sets `receive.denyCurrentBranch=updateInstead` on the working repo and writes `/etc/sudoers.d/cg-deploy` to allow NOPASSWD invocation of the per-element install scripts.
+
+For Pipes (Windows), see [Pipes bootstrap](#pipes-windows-bootstrap) below.
+
+#### Deploy
+
+From the repo root on the laptop:
+
+```bash
+scripts/deploy.sh flowerbeds FlowerBeds
+scripts/deploy.sh treehouse  TreeHouse
+scripts/deploy.sh treehouse  Dashboard       # same machine, other element
+scripts/deploy.sh captcha    FundingCAPTCHA
+```
+
+The script pushes your current laptop branch to the show machine (force-with-lease, same branch name), ssh's in, checks out that branch, and runs the element's `deploy/install.sh` — which handles `pip install` and `systemctl restart`. One command, no manual restart step.
+
+If the show machine's working tree is dirty (someone edited a file there) the `git checkout` will refuse; ssh in and resolve (`git stash` or `git checkout -- .`) before retrying.
+
+#### Pipes (Windows) bootstrap
+
+Pipes has no `install.sh` equivalent and is not handled by `deploy.sh`. Pipes Python rarely changes; when it does, deploy manually:
+
+1. **First time only** — Settings → Apps → Optional Features → install + start **OpenSSH Server**. Add laptop ssh pubkey to `C:\Users\charlie\.ssh\authorized_keys`. Then:
+   ```powershell
+   cd C:\CommunityGarden
+   git config receive.denyCurrentBranch updateInstead
+   ```
+2. **Each update**:
+   ```bash
+   # From laptop:
+   git push --force-with-lease pipes:CommunityGarden $(git branch --show-current):$(git branch --show-current)
+   ssh pipes "cd C:/CommunityGarden && git checkout <branch> && nssm restart pipes-health"
+   ```
+
+### From the show machine pulling from GitHub (home/dev environments with internet)
+
+Use this when the show machine has internet (testing at home/desk before tour). Same effect as `deploy.sh`, but pulled instead of pushed:
+
+```bash
+cd /home/ii/CommunityGarden
+git pull
+sudo bash ShowControl/<Element>/deploy/install.sh
 ```
 
 ---
