@@ -22,8 +22,8 @@
       {
         "name": "Module 1",
         "registration_point_cm": [
-          -40,
-          -84,
+          0,
+          0,
           0
         ],
         "rotation": {
@@ -33,11 +33,11 @@
         },
         "clusters": [
           {
-            "motor_id": 14,
+            "motor_id": 47,
             "pos_offset_cm": [
-              40.0,
-              -30.0,
-              0.0
+              30,
+              30,
+              0
             ],
             "rotation_offset": {
               "pitch": 0,
@@ -46,11 +46,11 @@
             }
           },
           {
-            "motor_id": 22,
+            "motor_id": 39,
             "pos_offset_cm": [
-              40.0,
-              -75.0,
-              0.0
+              -30,
+              30,
+              0
             ],
             "rotation_offset": {
               "pitch": 0,
@@ -59,11 +59,11 @@
             }
           },
           {
-            "motor_id": 16,
+            "motor_id": 31,
             "pos_offset_cm": [
-              100.0,
-              -25.0,
-              0.0
+              30,
+              -30,
+              0
             ],
             "rotation_offset": {
               "pitch": 0,
@@ -72,11 +72,748 @@
             }
           },
           {
-            "motor_id": 6,
+            "motor_id": 51,
             "pos_offset_cm": [
-              95.0,
-              -70.0,
-              0.0
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 2",
+        "registration_point_cm": [
+          130,
+          0,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 42,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 54,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 48,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 29,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 3",
+        "registration_point_cm": [
+          260,
+          0,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 37,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 30,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 49,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 45,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 4",
+        "registration_point_cm": [
+          390,
+          0,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 46,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 25,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 13,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 43,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 5",
+        "registration_point_cm": [
+          520,
+          0,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 19,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 10,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 8,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 9,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 6",
+        "registration_point_cm": [
+          650,
+          0,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 0,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 11,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 26,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 41,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 27,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 7",
+        "registration_point_cm": [
+          0,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 55,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 38,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 50,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 32,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 8",
+        "registration_point_cm": [
+          130,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 40,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 34,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 53,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 35,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 9",
+        "registration_point_cm": [
+          260,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 7,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 36,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 15,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 18,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 10",
+        "registration_point_cm": [
+          390,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 56,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 44,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 52,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 33,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 11",
+        "registration_point_cm": [
+          520,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 20,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 5,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 28,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 17,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          }
+        ]
+      },
+      {
+        "name": "Module 12",
+        "registration_point_cm": [
+          650,
+          240,
+          0
+        ],
+        "rotation": {
+          "pitch": 0,
+          "yaw": 180,
+          "roll": 0
+        },
+        "clusters": [
+          {
+            "motor_id": 24,
+            "pos_offset_cm": [
+              30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 12,
+            "pos_offset_cm": [
+              -30,
+              30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 23,
+            "pos_offset_cm": [
+              30,
+              -30,
+              0
+            ],
+            "rotation_offset": {
+              "pitch": 0,
+              "yaw": 0,
+              "roll": 0
+            }
+          },
+          {
+            "motor_id": 21,
+            "pos_offset_cm": [
+              -30,
+              -30,
+              0
             ],
             "rotation_offset": {
               "pitch": 0,
@@ -93,8 +830,8 @@
     {
       "name": "Camera",
       "pos_cm": [
-        0,
-        0.0,
+        300,
+        120.0,
         275.0
       ],
       "rotation": {

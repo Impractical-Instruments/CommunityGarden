@@ -22,8 +22,8 @@ const int32_t baud[MAX_BAUD] = {57600, 115200, 1000000, 2000000, 3000000};
 bool activeServos[DXL_BROADCAST_ID];
 
 // --- Network config ---
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x15, 0x00 };
-IPAddress ip(192, 168, 1, 50);     // set for your LAN
+byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x15, 0x01 };
+IPAddress ip(192, 168, 1, 51);     // set for your LAN
 const uint16_t localPort = 9000;   // the port you will SEND OSC TO
 
 EthernetUDP Udp;

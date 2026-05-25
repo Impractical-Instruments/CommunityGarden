@@ -31,10 +31,10 @@ _OSC_ADDRESS = "/cg/ff/rot"
 STATIC_DIR   = Path(__file__).resolve().parent / "layout_tool"
 
 _DEFAULT_CLUSTER_OFFSETS = [
-    [10.0,  10.0, 0.0],
-    [-10.0,  10.0, 0.0],
-    [10.0, -10.0, 0.0],
-    [-10.0,  -10.0, 0.0],
+    [30.0,  30.0, 0.0],
+    [-30.0,  30.0, 0.0],
+    [30.0, -30.0, 0.0],
+    [-30.0,  -30.0, 0.0],
 ]
 
 # Paths set by main() before the server starts

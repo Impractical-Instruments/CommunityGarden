@@ -22,3 +22,6 @@ captcha-settings.local.json
 # BodyCaptcha editor build artifacts (PyInstaller output)
 ShowControl/FundingCAPTCHA/distribution/dist/
 ShowControl/FundingCAPTCHA/distribution/build_work/
+
+# Backup settings
+*settings.json.bak
