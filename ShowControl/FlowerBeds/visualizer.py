@@ -37,7 +37,9 @@ class ClusterState(TypedDict):
     motor_id: int
     x: float
     y: float
-    yaw_deg: float
+    world_yaw_deg: float       # real-world look direction (arrow points here)
+    motor_yaw_deg: float       # commanded motor angle in local frame
+    clamped: bool              # True when the yaw cap is fighting the target
     has_target: bool
     target_id: int | None
 
@@ -206,8 +208,12 @@ function draw(state) {
   // ---- clusters ----
   (state.clusters || []).forEach(cl => {
     const [cx, cy]  = toCanvas(cl.x, cl.y);
-    const yawRad    = (cl.yaw_deg || 0) * Math.PI / 180;
+    // Arrow points in real-world look direction so rotated modules read correctly.
+    const worldYaw  = cl.world_yaw_deg || 0;
+    const motorYaw  = cl.motor_yaw_deg || 0;
+    const yawRad    = worldYaw * Math.PI / 180;
     const hasTarget = cl.has_target;
+    const clamped   = !!cl.clamped;
 
     // Circle
     ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI*2);
@@ -215,19 +221,24 @@ function draw(state) {
     ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
 
-    // Arrow showing yaw
+    // Arrow (world look direction). Yellow when clamped — flower wants to look
+    // further but the motor cap is holding it back.
     const arrowLen = 18;
     const ax = cx + Math.sin(yawRad) * arrowLen;
     const ay = cy + Math.cos(yawRad) * arrowLen;
-    ctx.strokeStyle = hasTarget ? '#51cf66' : '#ff6b6b';
+    ctx.strokeStyle = clamped ? '#ffd43b' : (hasTarget ? '#51cf66' : '#ff6b6b');
     ctx.lineWidth   = 2;
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke();
 
-    // Motor ID and current yaw
+    // Motor ID and yaw labels: motor / world  (with CLAMPED marker when capped)
     ctx.fillStyle = '#fff'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
     ctx.fillText('M' + cl.motor_id, cx, cy - 11);
-    ctx.fillStyle = hasTarget ? '#51cf66' : '#888';
-    ctx.fillText((cl.yaw_deg || 0).toFixed(1) + '°', cx, cy + 20);
+    ctx.fillStyle = clamped ? '#ffd43b' : (hasTarget ? '#51cf66' : '#888');
+    ctx.fillText(motorYaw.toFixed(1) + '° / ' + worldYaw.toFixed(1) + '°', cx, cy + 20);
+    if (clamped) {
+      ctx.fillStyle = '#ffd43b';
+      ctx.fillText('CLAMPED', cx, cy + 30);
+    }
   });
 
   // ---- blobs ----

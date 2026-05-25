@@ -86,6 +86,7 @@ def _default_module(index: int) -> dict:
                 "motor_id": (index * 4) + i + 1,
                 "pos_offset_cm": list(_DEFAULT_CLUSTER_OFFSETS[i]),
                 "rotation_offset": {"pitch": 0, "yaw": 0, "roll": 0},
+                "yaw_limit_deg": 60.0,
             }
             for i in range(4)
         ],
