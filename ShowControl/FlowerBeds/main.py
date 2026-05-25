@@ -341,6 +341,73 @@ def run_calibrate(args: argparse.Namespace) -> None:
         time.sleep(0.5)
 
 
+def run_calibrate_sweep(args: argparse.Namespace) -> None:
+    """
+    Sweep every motor through -yaw_limit_deg, 0, +yaw_limit_deg, 0 at a fixed
+    period.  Crew watches the physical motion to confirm per-cluster limits
+    match physical travel before showtime.
+
+    Each cluster uses ITS OWN yaw_limit_deg from settings.json — so a cluster
+    that has been locally tightened in the layout tool will sweep within the
+    tighter cone, not the global default.
+    """
+    settings = load_settings(args.config)
+    try:
+        network = load_network_config()
+    except FileNotFoundError as exc:
+        log.warning("%s — OSC fabric disabled", exc)
+        network = {}
+
+    coordinator_cfg = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
+    # (motor_id, yaw_limit_deg) for every cluster.
+    motors: list[tuple[int, float]] = [
+        (cluster.motor_id, float(cluster.yaw_limit_deg))
+        for module in coordinator_cfg.modules
+        for cluster in module.clusters
+    ]
+    if not motors:
+        log.error("No motors found in config")
+        return
+
+    controllers = _build_controllers(network, args.no_osc)
+
+    period_s = max(0.5, args.sweep_period_s)
+    phase_s  = period_s / 4.0
+
+    log.info(
+        "Sweep mode — %d motor(s), %.1fs period (±limit → 0 → +limit → 0). Ctrl+C to exit.",
+        len(motors), period_s,
+    )
+    log.info("Motor IDs + limits: %s", motors)
+    if not controllers:
+        log.info("(OSC disabled — no commands will be sent)")
+
+    _running = True
+
+    def _stop(*_):
+        nonlocal _running
+        _running = False
+
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+
+    # 4-phase cycle scaled per-motor by its own yaw_limit_deg.
+    phase_scales = [-1.0, 0.0, 1.0, 0.0]
+    phase_idx = 0
+    while _running:
+        scale = phase_scales[phase_idx]
+        commands = [
+            MotorCommand(motor_id=mid, rotation_deg=scale * limit)
+            for mid, limit in motors
+        ]
+        for ctrl in controllers:
+            for cmd in commands:
+                ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
+        log.info("phase %d/4 — scale=%+.1f × limit", phase_idx + 1, scale)
+        time.sleep(phase_s)
+        phase_idx = (phase_idx + 1) % 4
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Flower Beds standalone show control")
     ap.add_argument("--config", default="settings.json", help="Path to settings JSON")
@@ -356,6 +423,15 @@ def main() -> None:
         help="Calibration mode: hold all motors at this yaw (degrees) and exit when done. "
              "0=forward, 90=right, -90=left. No camera needed.",
     )
+    ap.add_argument(
+        "--calibrate-yaw-sweep", action="store_true",
+        help="Sweep mode: cycle every motor through -limit, 0, +limit, 0 forever "
+             "so the crew can verify each cluster's yaw_limit_deg on site. No camera needed.",
+    )
+    ap.add_argument(
+        "--sweep-period-s", type=float, default=4.0,
+        help="Seconds for one full sweep cycle in --calibrate-yaw-sweep mode (default 4.0).",
+    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -363,7 +439,9 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if args.calibrate_yaw is not None:
+    if args.calibrate_yaw_sweep:
+        run_calibrate_sweep(args)
+    elif args.calibrate_yaw is not None:
         run_calibrate(args)
     else:
         run(args)
