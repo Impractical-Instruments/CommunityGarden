@@ -40,19 +40,21 @@ Power-on order is independent — services retry until hardware comes up.
 
 1. **Network.** Show switch on first. Connect all show computers + OpenRB-150 boards to switch via Ethernet **before powering them on** (OpenRB boards fail to init network if switch is absent at boot — [issue #56](https://github.com/Impractical-Instruments/CommunityGarden/issues/56)).
 2. **Power on.** Any order. Services auto-start.
-3. **Wait ~60 s.** FlowerBeds is slowest — it builds a 60-frame background depth model before tracking.
-4. **Verify Dashboard.** Open http://192.168.1.10:9000. All elements should be green. Red → see [troubleshooting](#troubleshooting).
-5. **Run FlowerBeds layout tool** on the operator laptop if modules moved since last venue. See [FlowerBeds.md](FlowerBeds.md#layout-tool).
-6. Done.
+3. **Hide.** Get out of view of the Flower Beds and Funding CAPTCHA cameras. Tell other staff, animals, robots to hide as well.
+4. **Wait ~60 s.** FlowerBeds and Funding CAPTCHA are slowest — they build a 60-frame background depth model before tracking.
+5. **Verify Dashboard.** Open http://192.168.1.10:9000. All elements should be green. Red → see [troubleshooting](#troubleshooting).
+6. **Run FlowerBeds layout tool** on the operator laptop if modules moved since last venue. See [FlowerBeds.md](FlowerBeds.md#layout-tool).
+7. Done.
 
 ---
 
 ## Daily startup
 
 1. Power everything on (any order).
-2. Wait ~60 s.
-3. Open Dashboard, verify green across the board.
-4. If anything is red, see [troubleshooting](#troubleshooting).
+3. Hide.
+4. Wait ~60 s.
+5. Open Dashboard, verify green across the board.
+6. If anything is red, see [troubleshooting](#troubleshooting).
 
 Services restart automatically on crash. No babysitting needed.
 
