@@ -2,7 +2,7 @@
 Description=CommunityGarden Show Dashboard
 After=network-online.target
 Wants=network-online.target
-Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
+Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/Dashboard.md
 
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/Dashboard

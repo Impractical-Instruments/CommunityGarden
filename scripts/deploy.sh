@@ -3,7 +3,7 @@
 # show LAN and run the per-element install.sh (pip install + service restart).
 #
 # Use this at the venue when show machines have no internet (the standard
-# show workflow). See docs/operations.md → "Deploying code updates".
+# show workflow). See docs/showtime.md → "Deploying code updates".
 #
 #   scripts/deploy.sh <target> <element>
 #

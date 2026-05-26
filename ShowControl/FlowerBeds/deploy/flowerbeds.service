@@ -2,7 +2,7 @@
 Description=FlowerBeds Show Control
 After=network-online.target
 Wants=network-online.target
-Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
+Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/FlowerBeds.md
 # Remove --no-osc if OSC controllers are present on the network.
 # Remove --no-visualizer to enable the live WebSocket debug view.
 

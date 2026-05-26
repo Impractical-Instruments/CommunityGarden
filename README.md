@@ -5,11 +5,11 @@ Show systems for [Connect Beyond Festival](https://www.connectbeyondfestival.com
 
 ---
 
-## Site setup
+## Docs
 
-**On-site crew:** see the **[Site Setup Guide](docs/setup.md)** — first-time venue setup, show morning checklist, and common troubleshooting.
-
-**Developers and operators:** see the **[Operations Guide](docs/operations.md)** — service management, deployment, manual startup, and per-element detail.
+- **[bootstrap.md](docs/bootstrap.md)** — one-time hardware provisioning (fresh Pis, Windows host, operator laptop)
+- **[showtime.md](docs/showtime.md)** — install, start, debug, maintain — daily + venue ops, deploy, troubleshooting
+- Per-Element detail: [FlowerBeds](docs/FlowerBeds.md) · [TreeHouse](docs/TreeHouse.md) · [FundingCAPTCHA](docs/FundingCAPTCHA.md) · [PlayingThePipes](docs/PlayingThePipes.md) · [Dashboard](docs/Dashboard.md)
 
 ---
 
@@ -22,4 +22,4 @@ Show systems for [Connect Beyond Festival](https://www.connectbeyondfestival.com
 | **FundingCAPTCHA** | Pygame kiosk where Players activate a projected grid with body silhouettes |
 | **Playing the Pipes** | Max/RNBO music system steered by rotary encoders on physical valves/switches |
 
-The **Show Dashboard** (browser UI for monitoring and mode control) runs on the TreeHouse machine — see [docs/setup.md](docs/setup.md).
+The **Show Dashboard** (browser UI for monitoring and mode control) runs on the TreeHouse machine — see [docs/Dashboard.md](docs/Dashboard.md).

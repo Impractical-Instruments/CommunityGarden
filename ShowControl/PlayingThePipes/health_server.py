@@ -3,7 +3,7 @@
 Playing the Pipes — health server.
 
 Serves GET /health on port 8767 so the Dashboard can monitor this machine.
-Run via NSSM as a Windows background service; see docs/operations.md.
+Run via NSSM as a Windows background service; see docs/bootstrap.md.
 
 Usage:
   python health_server.py           # port 8767

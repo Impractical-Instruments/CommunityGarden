@@ -2,7 +2,7 @@
 Description=TreeHouse Show Control
 After=network-online.target seatd.service systemd-logind.service
 Wants=network-online.target
-Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/operations.md
+Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/TreeHouse.md
 # Add --no-pico if the Pi Pico is not connected on this install.
 # Add --no-osc to disable the OSC listener.
 
