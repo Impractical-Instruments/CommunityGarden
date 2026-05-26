@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bootstrap-deploy.sh — one-time per-machine setup to accept LAN deploys
-# from the dev laptop (see docs/operations.md → "Deploying code updates").
+# from the dev laptop (see docs/showtime.md → "Deploying code updates").
 #
 # Run once on each Linux show machine, AFTER the initial git clone from
 # GitHub during machine imaging. Run as the service user (ii) — not root;
@@ -16,7 +16,7 @@
 #      install.sh scripts, so deploy.sh on the laptop can run them over ssh
 #      without prompting for a password mid-script.
 #
-# Pipes (Windows) is bootstrapped manually — see docs/operations.md.
+# Pipes (Windows) is bootstrapped manually — see docs/bootstrap.md.
 set -e
 
 if [ "$EUID" -eq 0 ]; then

@@ -62,4 +62,4 @@ Launched as a subprocess by `main.py` alongside the LookingGlass renderer subpro
 - `treehouse/club_messages.txt` — initial message set, versioned
 - `settings.json` gains `club_screen.interval_seconds` and `club_screen.messages_file`
 - `main.py` launches club screen subprocess (mirrors LookingGlass pattern)
-- If 2GB Pi can't run both subprocesses, assign club screen to a spare 8GB Pi and update `docs/operations.md`
+- If 2GB Pi can't run both subprocesses, assign club screen to a spare 8GB Pi and update `docs/TreeHouse.md`
