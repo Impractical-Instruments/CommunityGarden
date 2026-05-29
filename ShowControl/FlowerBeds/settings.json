@@ -831,13 +831,13 @@
       "_note": "Camera mounted on top of house (~290cm Z), ~244cm past module row 2 (Y≈484). Facing toward audience entrance (yaw=180). 30° down from horizontal (pitch=-30). Calibrate pos_cm and roll on-site with --visualizer.",
       "name": "Camera",
       "pos_cm": [
-        300,
-        484,
+        -484,
+        0,
         290
       ],
       "rotation": {
         "pitch": -30,
-        "yaw": 180,
+        "yaw": 90,
         "roll": 0
       },
       "width": 640,
