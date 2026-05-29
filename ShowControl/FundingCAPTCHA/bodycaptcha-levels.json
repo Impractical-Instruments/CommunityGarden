@@ -44,6 +44,30 @@
     "timer_s": 40
   },
   {
+    "prompt": "Cover Randy's Nose",
+    "image": "yeavl_may/4c5b0bda__Charlie__Randy.jpg",
+    "difficulty": 1,
+    "grid": [
+      4,
+      4
+    ],
+    "valid_cells": [
+      [
+        0,
+        2
+      ],
+      [
+        0,
+        3
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
     "prompt": "Select all squares containing a smile",
     "image": "yeavl_may/5cb2a4c5__untitled.jpg",
     "difficulty": 1,
@@ -111,26 +135,6 @@
       [
         3,
         3
-      ]
-    ],
-    "timer_s": 40
-  },
-  {
-    "prompt": "Select all squares *not* containing Mr. Lake",
-    "image": "yeavl_may/a95b93bd__untitled.jpg",
-    "difficulty": 5,
-    "grid": [
-      4,
-      4
-    ],
-    "valid_cells": [
-      [
-        0,
-        0
-      ],
-      [
-        3,
-        0
       ]
     ],
     "timer_s": 40
