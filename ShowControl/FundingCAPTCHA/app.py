@@ -378,6 +378,7 @@ def _load_games(settings: dict) -> list[Game]:
         try:
             spec = importlib.util.spec_from_file_location(f"games.{name}", path)
             mod  = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+            sys.modules[spec.name] = mod                  # dataclass field resolution needs this
             spec.loader.exec_module(mod)                  # type: ignore[union-attr]
             games.append(mod.create(settings))
             log.info("Loaded game: %s", name)
@@ -426,6 +427,7 @@ def _load_screensavers(settings: dict) -> list:
         try:
             spec = importlib.util.spec_from_file_location(f"ss.{Path(name).stem}", path)
             mod  = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+            sys.modules[spec.name] = mod                  # dataclass field resolution needs this
             spec.loader.exec_module(mod)                  # type: ignore[union-attr]
             savers.append(mod.create(settings))
             log.info("Loaded screensaver: %s", name)
