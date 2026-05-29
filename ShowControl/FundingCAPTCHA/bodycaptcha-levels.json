@@ -1,5 +1,49 @@
 [
   {
+    "prompt": "Select all squares containing hair",
+    "image": "yeavl_may/0a8cf758__untitled.jpg",
+    "difficulty": 4,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "timer_s": 45
+  },
+  {
+    "prompt": "Cover the liquid",
+    "image": "yeavl_may/125fbe28__untitled.jpg",
+    "difficulty": 2,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
     "prompt": "Select all squares containing a smile",
     "image": "yeavl_may/5cb2a4c5__untitled.jpg",
     "difficulty": 1,
@@ -11,13 +55,33 @@
       [
         1,
         1
+      ],
+      [
+        1,
+        2
       ]
     ],
     "timer_s": 45
   },
   {
-    "prompt": "Select all squares containing hair",
-    "image": "yeavl_may/0a8cf758__untitled.jpg",
+    "prompt": "Cover the hole in the wall",
+    "image": "yeavl_may/8b8e23a4__Charlie__Wall.jpg",
+    "difficulty": 1,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        1,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Cover the ground",
+    "image": "yeavl_may/982c012c__untitled.jpg",
     "difficulty": 3,
     "grid": [
       4,
@@ -34,18 +98,42 @@
       ],
       [
         2,
+        3
+      ],
+      [
+        3,
         1
       ],
       [
         3,
+        2
+      ],
+      [
+        3,
+        3
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all squares *not* containing Mr. Lake",
+    "image": "yeavl_may/a95b93bd__untitled.jpg",
+    "difficulty": 5,
+    "grid": [
+      4,
+      4
+    ],
+    "valid_cells": [
+      [
+        0,
         0
       ],
       [
         3,
-        1
+        0
       ]
     ],
-    "timer_s": 45
+    "timer_s": 40
   },
   {
     "prompt": "Select all squares containing teh lettor 'O'",
@@ -61,28 +149,36 @@
         1
       ],
       [
+        1,
+        2
+      ],
+      [
         2,
         1
+      ],
+      [
+        2,
+        2
       ]
     ],
     "timer_s": 45
   },
   {
-    "prompt": "Select all squares *not* containing Mr. Lake",
-    "image": "yeavl_may/a95b93bd__untitled.jpg",
-    "difficulty": 4,
+    "prompt": "Cover Shanti's Nose",
+    "image": "yeavl_may/f7d509f2__Charlie__Shanti.jpg",
+    "difficulty": 2,
     "grid": [
-      4,
-      4
+      3,
+      3
     ],
     "valid_cells": [
       [
-        0,
-        0
+        1,
+        2
       ],
       [
-        3,
-        0
+        2,
+        2
       ]
     ],
     "timer_s": 40
