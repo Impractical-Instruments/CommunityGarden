@@ -156,7 +156,7 @@ class OrbbecCamera(BaseCamera):
 
             device = self._pipeline.get_device()
             prop = OBPropertyID.OB_PROP_DEPTH_MIRROR_BOOL
-            if not device.is_property_supported(prop, OBPermissionType.OB_PERMISSION_WRITE):
+            if not device.is_property_supported(prop, OBPermissionType.PERMISSION_WRITE):
                 log.warning("Depth mirror property not writable on this device — leaving as-is")
                 return
             device.set_bool_property(prop, mirror)
