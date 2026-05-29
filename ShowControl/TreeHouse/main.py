@@ -107,7 +107,8 @@ async def _renderer_subprocess(renderer_path: Path) -> None:
 
 async def _frame_loop(
     coordinator: Coordinator,
-    driver: PicoDriver,
+    driver_dioramas: PicoDriver,
+    driver_structure: PicoDriver,
     branch: BranchController,
     fps: int,
 ) -> None:
@@ -117,7 +118,24 @@ async def _frame_loop(
     while True:
         t0 = loop.time()
         coordinator.update(dt)
-        driver.send_frames(coordinator.get_all_frames(), coordinator.brightness)
+
+        brightness = coordinator.brightness
+        all_frames = coordinator.get_all_frames()
+        driver_dioramas.send_frames(
+            [f for f in all_frames if f.pico_id == "dioramas"], brightness
+        )
+        driver_structure.send_frames(
+            [f for f in all_frames if f.pico_id == "structure"], brightness
+        )
+
+        all_pwm = coordinator.get_all_pwm_frames()
+        driver_dioramas.send_pwm_frames([f for f in all_pwm if f.pico_id == "dioramas"])
+        driver_structure.send_pwm_frames([f for f in all_pwm if f.pico_id == "structure"])
+
+        all_gpio = coordinator.get_all_gpio_frames()
+        driver_dioramas.send_gpio_frames([f for f in all_gpio if f.pico_id == "dioramas"])
+        driver_structure.send_gpio_frames([f for f in all_gpio if f.pico_id == "structure"])
+
         for motor_id, degrees in coordinator.get_branch_positions():
             branch.set_position(motor_id, degrees)
         frame += 1
@@ -136,9 +154,11 @@ async def _run(args: argparse.Namespace) -> None:
     )
     coordinator._dim_level = config.show.dim_level
 
-    driver = PicoDriver(config.pico.port, config.pico.baud)
+    driver_dioramas = PicoDriver(config.pico_dioramas.port, config.pico_dioramas.baud)
+    driver_structure = PicoDriver(config.pico_structure.port, config.pico_structure.baud)
     if not args.no_pico:
-        driver.connect()
+        driver_dioramas.connect()
+        driver_structure.connect()
 
     branch = BranchController(config.branch.port, config.branch.baud)
     if not args.no_branch:
@@ -149,7 +169,9 @@ async def _run(args: argparse.Namespace) -> None:
     for name in coordinator.display_names:
         log.info("  • %s", name)
 
-    tasks = [asyncio.create_task(_frame_loop(coordinator, driver, branch, config.show.fps))]
+    tasks = [asyncio.create_task(_frame_loop(
+        coordinator, driver_dioramas, driver_structure, branch, config.show.fps
+    ))]
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
@@ -176,7 +198,8 @@ async def _run(args: argparse.Namespace) -> None:
         if weston_proc is not None and weston_proc.returncode is None:
             weston_proc.terminate()
             await weston_proc.wait()
-        driver.close()
+        driver_dioramas.close()
+        driver_structure.close()
         branch.close()
 
 

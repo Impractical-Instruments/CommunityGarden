@@ -12,13 +12,16 @@ from displays import (
     ForgeAndFloraConfig,
     ForgeAndFloraDisplay,
     GardenState,
+    GPIOFrame,
     LEDConfig,
     LEDControllable,
     LEDDisplay,
     LookingGlassConfig,
     LookingGlassDisplay,
-    PorchLightsConfig,
-    PorchLightsDisplay,
+    PWMConfig,
+    PWMControllable,
+    PWMDisplay,
+    PWMFrame,
     ShowMode,
 )
 
@@ -33,6 +36,19 @@ log = logging.getLogger("treehouse")
 class PicoConfig:
     port: str = "/dev/ttyACM0"
     baud: int = 115200
+
+
+@dataclass
+class PWMDisplayConfig:
+    name: str
+    pico_pin: int
+    pico_id: str = "dioramas"
+    min_value: int = 8000
+    max_value: int = 65535
+    pulse_period: float = 8.0
+    signal_weight_captcha: float = 0.0
+    signal_weight_flowerbeds: float = 0.5
+    signal_weight_pipes: float = 0.5
 
 
 @dataclass
@@ -74,33 +90,27 @@ class DioramaConfig:
     name: str
     pico_pin: int
     led_count: int
+    pico_id: str = "dioramas"
     brightness: float = 1.0
     color: Color = (0, 0, 0, 255)
     pattern: str = "solid"
     pulse_period: float = 20.0
     pulse_min: float = 0.5
-
-
-@dataclass
-class DormerConfig:
-    name: str
-    pico_pin: int
-    led_count: int
-    brightness: float = 1.0
-    color: Color = (0, 0, 0, 255)
-    pattern: str = "solid"
+    transistor_pin: int = -1
+    transistor_pico_id: str = "dioramas"
+    transistor_threshold: float = 0.6
 
 
 @dataclass
 class TreehouseConfig:
-    pico: PicoConfig
+    pico_dioramas: PicoConfig
+    pico_structure: PicoConfig
     osc: OSCConfig
     show: ShowConfig
     dioramas: list[DioramaConfig]
+    pwm_displays: list[PWMDisplayConfig]
     looking_glass: LookingGlassConfig
     forge_and_flora: ForgeAndFloraConfig
-    dormer: DormerConfig
-    porch_lights: PorchLightsConfig
     branch: BranchConfig = None
 
     def __post_init__(self) -> None:
@@ -130,21 +140,42 @@ def load_config(path: str) -> TreehouseConfig:
     else:
         log.warning("network.json not found at %s", network_path)
 
-    pico_raw = raw.get("pico", {})
     show_raw = raw.get("show", {})
+
+    pd_raw = raw.get("pico_dioramas", {})
+    ps_raw = raw.get("pico_structure", {})
 
     dioramas = [
         DioramaConfig(
             name=d["name"],
             pico_pin=d["pico_pin"],
             led_count=d["led_count"],
+            pico_id=d.get("pico_id", "dioramas"),
             brightness=d.get("brightness", 1.0),
             color=_color(d.get("color", [0, 0, 0, 255])),
             pattern=d.get("pattern", "solid"),
             pulse_period=d.get("pulse_period", 20.0),
             pulse_min=d.get("pulse_min", 0.5),
+            transistor_pin=d.get("transistor_pin", -1),
+            transistor_pico_id=d.get("transistor_pico_id", "dioramas"),
+            transistor_threshold=d.get("transistor_threshold", 0.6),
         )
         for d in raw.get("dioramas", [])
+    ]
+
+    pwm_displays = [
+        PWMDisplayConfig(
+            name=p["name"],
+            pico_pin=p["pico_pin"],
+            pico_id=p.get("pico_id", "dioramas"),
+            min_value=p.get("min_value", 8000),
+            max_value=p.get("max_value", 65535),
+            pulse_period=p.get("pulse_period", 8.0),
+            signal_weight_captcha=p.get("signal_weight_captcha", 0.0),
+            signal_weight_flowerbeds=p.get("signal_weight_flowerbeds", 0.5),
+            signal_weight_pipes=p.get("signal_weight_pipes", 0.5),
+        )
+        for p in raw.get("pwm_displays", [])
     ]
 
     lg = raw["garage_windows"]["looking_glass"]
@@ -161,30 +192,13 @@ def load_config(path: str) -> TreehouseConfig:
         name=ff.get("name", "Forge & Flora"),
         arc_pin=ff["arc_pin"],
         bloom_pin=ff["bloom_pin"],
-        led_count=ff.get("led_count", 48),
+        led_count=ff.get("led_count", 20),
         blend=ff.get("blend", 0.0),
         transition_speed=ff.get("transition_speed", 0.1),
         base_flicker_intensity=ff.get("base_flicker_intensity", 0.1),
         max_flicker_intensity=ff.get("max_flicker_intensity", 0.6),
-    )
-
-    dw = raw["dormer"]
-    dormer = DormerConfig(
-        name=dw.get("name", "Dormer"),
-        pico_pin=dw["pico_pin"],
-        led_count=dw["led_count"],
-        brightness=dw.get("brightness", 1.0),
-        color=_color(dw.get("color", [0, 0, 0, 255])),
-        pattern=dw.get("pattern", "solid"),
-    )
-
-    pl = raw.get("porch_lights", {})
-    porch_lights = PorchLightsConfig(
-        name=pl.get("name", "Porch Lights"),
-        pico_pin=pl.get("pico_pin", 8),
-        led_count=pl.get("led_count", 2),
-        blowup_duration=pl.get("blowup_duration", 3.0),
-        aftermath_duration=pl.get("aftermath_duration", 10.0),
+        arc_flash_pin=ff.get("arc_flash_pin", -1),
+        arc_flash_pico_id=ff.get("arc_flash_pico_id", "dioramas"),
     )
 
     bc = raw.get("branch_controller", {})
@@ -207,9 +221,13 @@ def load_config(path: str) -> TreehouseConfig:
     )
 
     return TreehouseConfig(
-        pico=PicoConfig(
-            port=pico_raw.get("port", "/dev/ttyACM0"),
-            baud=pico_raw.get("baud", 115200),
+        pico_dioramas=PicoConfig(
+            port=pd_raw.get("port", "/dev/treehouse-pico-a"),
+            baud=pd_raw.get("baud", 115200),
+        ),
+        pico_structure=PicoConfig(
+            port=ps_raw.get("port", "/dev/treehouse-pico-b"),
+            baud=ps_raw.get("baud", 115200),
         ),
         osc=OSCConfig(
             listen_port=network.get("elements", {}).get("treehouse", {}).get("osc_port", 9001),
@@ -220,10 +238,9 @@ def load_config(path: str) -> TreehouseConfig:
             dim_level=show_raw.get("dim_level", 0.25),
         ),
         dioramas=dioramas,
+        pwm_displays=pwm_displays,
         looking_glass=looking_glass,
         forge_and_flora=forge_and_flora,
-        dormer=dormer,
-        porch_lights=porch_lights,
         branch=branch,
     )
 
@@ -240,26 +257,32 @@ def build_displays(config: TreehouseConfig) -> list[Controllable]:
             name=d.name,
             pico_pin=d.pico_pin,
             led_count=d.led_count,
+            pico_id=d.pico_id,
             brightness=d.brightness,
             color=d.color,
             pattern=d.pattern,
             pulse_period=d.pulse_period,
             pulse_min=d.pulse_min,
+            transistor_pin=d.transistor_pin,
+            transistor_pico_id=d.transistor_pico_id,
+            transistor_threshold=d.transistor_threshold,
+        )))
+
+    for p in config.pwm_displays:
+        displays.append(PWMDisplay(PWMConfig(
+            name=p.name,
+            pico_pin=p.pico_pin,
+            pico_id=p.pico_id,
+            min_value=p.min_value,
+            max_value=p.max_value,
+            pulse_period=p.pulse_period,
+            signal_weight_captcha=p.signal_weight_captcha,
+            signal_weight_flowerbeds=p.signal_weight_flowerbeds,
+            signal_weight_pipes=p.signal_weight_pipes,
         )))
 
     displays.append(LookingGlassDisplay(config.looking_glass))
     displays.append(ForgeAndFloraDisplay(config.forge_and_flora))
-
-    displays.append(LEDDisplay(LEDConfig(
-        name=config.dormer.name,
-        pico_pin=config.dormer.pico_pin,
-        led_count=config.dormer.led_count,
-        brightness=config.dormer.brightness,
-        color=config.dormer.color,
-        pattern=config.dormer.pattern,
-    )))
-
-    displays.append(PorchLightsDisplay(config.porch_lights))
 
     return displays
 
@@ -285,9 +308,7 @@ class Coordinator:
         self._looking_glass: LookingGlassDisplay | None = next(
             (d for d in displays if isinstance(d, LookingGlassDisplay)), None
         )
-        self._porch_lights: PorchLightsDisplay | None = next(
-            (d for d in displays if isinstance(d, PorchLightsDisplay)), None
-        )
+
         self.mode = ShowMode.ACTIVE
         self._dim_level = 0.25
         self._captcha_blowup_pending = False
@@ -352,9 +373,7 @@ class Coordinator:
         self._last_received[sender] = self._clock()
         self._stale_warned.discard(sender)
 
-    def reset_porch_lights(self) -> None:
-        if self._porch_lights:
-            self._porch_lights.reset()
+
 
     def get(self, name: str) -> Controllable:
         return self._displays[name]
@@ -419,6 +438,20 @@ class Coordinator:
         for controllable in self._displays.values():
             if isinstance(controllable, LEDControllable):
                 frames.extend(controllable.get_pixels())
+        return frames
+
+    def get_all_pwm_frames(self) -> list[PWMFrame]:
+        frames: list[PWMFrame] = []
+        for controllable in self._displays.values():
+            if isinstance(controllable, PWMControllable):
+                frames.extend(controllable.get_pwm_frames())
+        return frames
+
+    def get_all_gpio_frames(self) -> list[GPIOFrame]:
+        frames: list[GPIOFrame] = []
+        for controllable in self._displays.values():
+            if hasattr(controllable, "get_gpio_frames"):
+                frames.extend(controllable.get_gpio_frames())
         return frames
 
     def get_all_states(self) -> list[ControllableState]:
