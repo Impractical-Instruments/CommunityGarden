@@ -22,13 +22,13 @@
       {
         "name": "Module 1",
         "registration_point_cm": [
-          0,
-          0,
+          -260,
+          140,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": -90,
           "roll": 0
         },
         "clusters": [
@@ -89,13 +89,13 @@
       {
         "name": "Module 2",
         "registration_point_cm": [
-          130,
-          0,
+          -140,
+          120,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": 180,
           "roll": 0
         },
         "clusters": [
@@ -156,13 +156,13 @@
       {
         "name": "Module 3",
         "registration_point_cm": [
+          -260,
           260,
-          0,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": -90,
           "roll": 0
         },
         "clusters": [
@@ -223,13 +223,13 @@
       {
         "name": "Module 4",
         "registration_point_cm": [
-          390,
           0,
+          260,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": 90,
           "roll": 0
         },
         "clusters": [
@@ -290,13 +290,13 @@
       {
         "name": "Module 5",
         "registration_point_cm": [
-          520,
-          0,
+          -140,
+          240,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": 180,
           "roll": 0
         },
         "clusters": [
@@ -357,13 +357,13 @@
       {
         "name": "Module 6",
         "registration_point_cm": [
-          650,
           0,
+          140,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 0,
+          "yaw": 90,
           "roll": 0
         },
         "clusters": [
@@ -424,13 +424,13 @@
       {
         "name": "Module 7",
         "registration_point_cm": [
-          0,
-          240,
+          -260,
+          -140,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": -90,
           "roll": 0
         },
         "clusters": [
@@ -491,13 +491,13 @@
       {
         "name": "Module 8",
         "registration_point_cm": [
-          130,
-          240,
+          -140,
+          -120,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": 0,
           "roll": 0
         },
         "clusters": [
@@ -558,13 +558,13 @@
       {
         "name": "Module 9",
         "registration_point_cm": [
-          260,
-          240,
+          0,
+          -260.8,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": 90,
           "roll": 0
         },
         "clusters": [
@@ -625,13 +625,13 @@
       {
         "name": "Module 10",
         "registration_point_cm": [
-          390,
-          240,
+          -140,
+          -240,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": 0,
           "roll": 0
         },
         "clusters": [
@@ -692,13 +692,13 @@
       {
         "name": "Module 11",
         "registration_point_cm": [
-          520,
-          240,
+          -260,
+          -260,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": -90,
           "roll": 0
         },
         "clusters": [
@@ -759,13 +759,13 @@
       {
         "name": "Module 12",
         "registration_point_cm": [
-          650,
-          240,
+          0,
+          -140,
           0
         ],
         "rotation": {
           "pitch": 0,
-          "yaw": 180,
+          "yaw": 90,
           "roll": 0
         },
         "clusters": [
@@ -831,9 +831,15 @@
       "_note": "Camera mounted on top of house (~290cm Z), ~244cm past module row 2 (Y≈484). Facing toward audience entrance (yaw=180). 30° down from horizontal (pitch=-30). Calibrate pos_cm and roll on-site with --visualizer.",
       "name": "Camera",
       "pos_cm": [
+<<<<<<< Updated upstream
         300,
         484,
         290
+=======
+        0,
+        0,
+        275.0
+>>>>>>> Stashed changes
       ],
       "rotation": {
         "pitch": -30,
