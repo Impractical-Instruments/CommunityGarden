@@ -576,6 +576,8 @@ def main() -> None:
     current_foreground: np.ndarray | None = None
     fg_pixel_count     = 0
     attract_elapsed    = 0.0
+    saver_elapsed      = 0.0
+    SAVER_DWELL        = 120.0
     cal_frame          = 0
     cal_total          = settings.get("calibration_frames", 60)
     t_last_osc         = time.monotonic()
@@ -632,7 +634,8 @@ def main() -> None:
                 elif mtype == "cal_done":
                     state = AppState.SCREENSAVER
                     log.info("BG_CAL complete — entering SCREENSAVER")
-                    cur_saver = saver_bag.next() or no_saver
+                    cur_saver     = saver_bag.next() or no_saver
+                    saver_elapsed = 0.0
                     broadcast({"state": "screensaver"})
 
                 elif mtype == "foreground":
@@ -655,6 +658,12 @@ def main() -> None:
             pass  # solid black — minimise projector output during BG calibration
 
         elif state == AppState.SCREENSAVER:
+            saver_elapsed += dt
+            if saver_elapsed >= SAVER_DWELL:
+                saver_elapsed = 0.0
+                cur_saver = saver_bag.next() or no_saver
+                log.info("Screensaver dwell elapsed — rotating to %s", type(cur_saver).__name__)
+
             cur_saver.update(dt, current_foreground)
             cur_saver.draw(screen)
 
@@ -693,9 +702,10 @@ def main() -> None:
                 log.info("Arc ended (%s) — returning to screensaver", event)
                 if fabric and event == "loss":
                     fabric.send_event("blowup")
-                state     = AppState.SCREENSAVER
-                cur_saver = saver_bag.next() or no_saver
-                intensity = 0.0
+                state         = AppState.SCREENSAVER
+                cur_saver     = saver_bag.next() or no_saver
+                saver_elapsed = 0.0
+                intensity     = 0.0
                 broadcast({"state": "screensaver"})
 
             now = time.monotonic()
