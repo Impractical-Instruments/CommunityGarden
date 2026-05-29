@@ -109,6 +109,11 @@ def _load_taunts() -> list[str]:
 
 def _img_load(path: Path) -> pygame.Surface:
     """Load image via pygame, falling back to Pillow for unsupported formats (e.g. JPEG on Pi)."""
+    with open(path, "rb") as f:
+        if f.read(20).startswith(b"version https://git-"):
+            raise RuntimeError(
+                f"Git LFS pointer at {path} — run `git lfs pull` in the repo root"
+            )
     try:
         return pygame.image.load(str(path)).convert()
     except Exception:
