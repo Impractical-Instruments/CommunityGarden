@@ -23,6 +23,12 @@ echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", ATTR{idProduct}=="0807", MODE="0
 udevadm control --reload-rules
 udevadm trigger
 
+# ── Git LFS ───────────────────────────────────────────────────────────────────
+echo "→ Installing git-lfs and pulling LFS assets (background images)..."
+apt-get install -y git-lfs 2>/dev/null || true
+git -C "$REPO_ROOT" lfs install
+git -C "$REPO_ROOT" lfs pull
+
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
