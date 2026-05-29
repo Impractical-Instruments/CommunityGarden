@@ -843,7 +843,7 @@
       "width": 640,
       "height": 400,
       "framerate": 10,
-      "mirror": true
+      "mirror": false
     }
   ]
 }
