@@ -143,6 +143,9 @@ class CameraConfig:
     width: int = 640
     height: int = 400
     framerate: int = 30
+    # False = un-mirrored depth (correct for BlobTracker's pinhole unproject).
+    # Set True only if the device delivers a non-mirrored image by default.
+    mirror: bool = False
 
     @classmethod
     def from_dict(cls, raw: dict) -> "CameraConfig":
