@@ -142,8 +142,11 @@ def run(args: argparse.Namespace) -> None:
         camera = MockCamera(width=cam_cfg.width, height=cam_cfg.height, fps=cam_cfg.framerate)
         log.info("Using mock camera")
     else:
-        camera = OrbbecCamera(width=cam_cfg.width, height=cam_cfg.height, fps=cam_cfg.framerate)
-        log.info("Using Orbbec camera (auto-discover)")
+        camera = OrbbecCamera(
+            width=cam_cfg.width, height=cam_cfg.height, fps=cam_cfg.framerate,
+            mirror=cam_cfg.mirror,
+        )
+        log.info("Using Orbbec camera (auto-discover, mirror=%s)", cam_cfg.mirror)
 
     # --- OSC controllers (servo hardware) ---
     controllers = _build_controllers(network, args.no_osc)

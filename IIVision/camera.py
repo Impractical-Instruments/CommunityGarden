@@ -85,6 +85,7 @@ class OrbbecCamera(BaseCamera):
         width: int = 640,
         height: int = 400,
         fps: int = 30,
+        mirror: bool = False,
     ) -> None:
         try:
             from pyorbbecsdk import (  # type: ignore[import]
@@ -104,6 +105,7 @@ class OrbbecCamera(BaseCamera):
         self._width = width
         self._height = height
         self._fps = fps
+        self._mirror = mirror
 
         self._Pipeline = Pipeline
         self._Config = Config
@@ -137,7 +139,30 @@ class OrbbecCamera(BaseCamera):
         config = self._Config()
         config.enable_stream(profile)
         self._pipeline.start(config)
+        self._apply_depth_mirror(self._mirror)
         return self
+
+    def _apply_depth_mirror(self, mirror: bool) -> None:
+        """
+        Force the device's depth-mirror property to a known value.
+
+        Orbbec depth streams frequently default to horizontally mirrored. A
+        mirrored image flips the unprojected camera X axis, which BlobTracker's
+        pinhole math (x3d = (xx - cx) * z / fx) assumes is NOT mirrored — so we
+        set the property explicitly rather than trusting the device default.
+        """
+        try:
+            from pyorbbecsdk import OBPropertyID, OBPermissionType  # type: ignore[import]
+
+            device = self._pipeline.get_device()
+            prop = OBPropertyID.OB_PROP_DEPTH_MIRROR_BOOL
+            if not device.is_property_supported(prop, OBPermissionType.OB_PERMISSION_WRITE):
+                log.warning("Depth mirror property not writable on this device — leaving as-is")
+                return
+            device.set_bool_property(prop, mirror)
+            log.info("Depth mirror set to %s", mirror)
+        except Exception as exc:
+            log.warning("Could not set depth mirror (%s) — leaving device default", exc)
 
     def __exit__(self, *_) -> None:
         if self._pipeline is not None:
