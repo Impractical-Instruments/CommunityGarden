@@ -576,6 +576,7 @@ def main() -> None:
     # ── State ─────────────────────────────────────────────────────────────────
     state:             AppState          = AppState.BG_CAL
     current_foreground: np.ndarray | None = None
+    sil_cache:         pygame.Surface | None = None   # scaled silhouette, rebuilt on new frames
     fg_pixel_count     = 0
     attract_elapsed    = 0.0
     saver_elapsed      = 0.0
@@ -601,6 +602,7 @@ def main() -> None:
                 elif event.key == pygame.K_r:
                     state = AppState.BG_CAL
                     current_foreground = None
+                    sil_cache          = None
                     attract_elapsed    = 0.0
                     intensity          = 0.0
                     threading.Thread(target=_do_restart, daemon=True).start()
@@ -622,6 +624,7 @@ def main() -> None:
             test_handler.push_frame(cam["q"])
 
         # Drain camera queue
+        fg_new = False   # did a fresh foreground frame arrive this tick?
         try:
             while True:
                 msg   = cam["q"].get_nowait()
@@ -642,6 +645,7 @@ def main() -> None:
 
                 elif mtype == "foreground":
                     current_foreground = msg["frame"]
+                    fg_new             = True
                     fg_pixel_count     = int(np.count_nonzero(current_foreground))
                     broadcast({"state": state.name.lower(),
                                "fg_pixels": fg_pixel_count})
@@ -673,12 +677,15 @@ def main() -> None:
             if player_present:
                 attract_elapsed += dt
 
-                # Silhouette overlay
+                # Silhouette overlay — rebuild only when a fresh camera frame
+                # arrived (camera ≈15 fps vs 30 fps render), else reuse the cached
+                # scaled surface instead of re-masking + re-scaling to full HD.
                 if current_foreground is not None:
-                    sil = _silhouette_surf(current_foreground, slabs_cfg,
-                                           roi, slab_color, game_w, WH)
-                    sil.set_alpha(int(sil_opacity * 255))
-                    screen.blit(sil, (0, 0))
+                    if fg_new or sil_cache is None:
+                        sil_cache = _silhouette_surf(current_foreground, slabs_cfg,
+                                                     roi, slab_color, game_w, WH)
+                        sil_cache.set_alpha(int(sil_opacity * 255))
+                    screen.blit(sil_cache, (0, 0))
 
                 # Countdown text
                 remaining = max(0.0, attract_dwell - attract_elapsed)
