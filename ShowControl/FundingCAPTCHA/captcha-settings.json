@@ -25,6 +25,8 @@
   "silhouette_opacity": 0.35,
 
   "calibration_frames": 60,
+  "calibration_countdown_s": 10.0,
+  "calibration_standback_s": 5.0,
 
   "bodycaptcha": {
     "timer_s": 35,

@@ -6,7 +6,7 @@ Usage:
   python3 app.py [--camera | --mock-camera | --test-input [--test-depth N]] [--port 8080]
 
 States:
-  BG_CAL      → solid black; camera builds background depth model
+  BG_CAL      → "stand back / calibrating" countdown; camera builds depth model
   SCREENSAVER → idle; detects player and counts down attract dwell
   GAME        → active Arc
 
@@ -216,28 +216,38 @@ def _run_monitoring(port: int) -> None:
 # ── Camera thread ─────────────────────────────────────────────────────────────
 
 def _camera_thread(camera: Any, settings: dict,
-                   cam_q: queue.Queue, stop: threading.Event) -> None:
+                   cam_q: queue.Queue, stop: threading.Event,
+                   collect: threading.Event) -> None:
     try:
-        _camera_inner(camera, settings, cam_q, stop)
+        _camera_inner(camera, settings, cam_q, stop, collect)
     except Exception as exc:
         log.error("Camera thread crashed: %s", exc, exc_info=True)
         cam_q.put({"type": "error", "msg": str(exc)})
 
 
 def _camera_inner(camera: Any, settings: dict,
-                  cam_q: queue.Queue, stop: threading.Event) -> None:
+                  cam_q: queue.Queue, stop: threading.Event,
+                  collect: threading.Event) -> None:
     det_cfg      = settings.get("detection", {})
     calib_frames = settings.get("calibration_frames", 60)
-    log.info("BG_CAL: collecting %d frames", calib_frames)
 
     calibrator    = Calibrator(calib_frames)
     cam_transform = build_cam_transform(settings)
     frame_idx     = 0
 
     with camera:
+        collecting = False
         for frame in camera.frames():
             if stop.is_set():
                 return
+            # Keep the stream warm but discard frames until the main loop's
+            # standback countdown clears, so the background model is only built
+            # from frames taken after people have had time to leave the ROI.
+            if not collecting:
+                if not collect.is_set():
+                    continue
+                collecting = True
+                log.info("BG_CAL: collecting %d frames", calib_frames)
             frame_idx += 1
             cam_q.put({"type": "cal_progress",
                        "frame": frame_idx, "total": calib_frames})
@@ -474,6 +484,16 @@ def main() -> None:
     attract_dwell = float(settings.get("attract_dwell_s", 3.0))
     min_fg_px     = int(settings.get("min_foreground_pixels", 2000))
 
+    # Calibration countdown (ADR-0013): show a "stand back / calibrating" screen
+    # for calibration_countdown_s total, holding off frame collection for the
+    # first calibration_standback_s so people can clear the ROI.
+    cal_countdown_s = float(settings.get("calibration_countdown_s", 10.0))
+    cal_standback_s = float(settings.get("calibration_standback_s",  5.0))
+    if cal_standback_s >= cal_countdown_s:
+        log.warning("calibration_standback_s (%.1f) >= calibration_countdown_s (%.1f); "
+                    "clamping standback to countdown - 1", cal_standback_s, cal_countdown_s)
+        cal_standback_s = max(0.0, cal_countdown_s - 1.0)
+
     # ── Test input handler ────────────────────────────────────────────────────
     test_handler: TestInputHandler | None = None
     if use_test_input:
@@ -521,12 +541,12 @@ def main() -> None:
     info   = pygame.display.Info()
     WW, WH = info.current_w, info.current_h
     screen = pygame.display.set_mode((WW, WH), pygame.FULLSCREEN | pygame.NOFRAME)
-    pygame.display.set_caption("FundingCAPTCHA")
+    pygame.display.set_caption("CAPTCHA")
     pygame.mouse.set_visible(use_test_input)
     clock  = pygame.time.Clock()
 
-    font_big = pygame.font.SysFont("monospace", 36, bold=True)
-    font_sml = pygame.font.SysFont("monospace", 22)
+    font_big = pygame.font.SysFont("monospace", 48, bold=True)
+    font_sml = pygame.font.SysFont("monospace", 32)
 
     # Full-screen game area (no HUD column — ADR-0019)
     game_w = WW
@@ -545,18 +565,20 @@ def main() -> None:
 
     # ── Camera thread state ───────────────────────────────────────────────────
     cam: dict[str, Any] = {
-        "q":      queue.Queue(maxsize=32),
-        "stop":   threading.Event(),
-        "thread": None,
+        "q":       queue.Queue(maxsize=32),
+        "stop":    threading.Event(),
+        "collect": threading.Event(),
+        "thread":  None,
     }
 
     def _start_camera() -> None:
-        cam["q"]    = queue.Queue(maxsize=32)
-        cam["stop"] = threading.Event()
+        cam["q"]       = queue.Queue(maxsize=32)
+        cam["stop"]    = threading.Event()
+        cam["collect"] = threading.Event()
         if args.camera or use_mock:
             t = threading.Thread(
                 target=_camera_thread,
-                args=(_make_camera(), settings, cam["q"], cam["stop"]),
+                args=(_make_camera(), settings, cam["q"], cam["stop"], cam["collect"]),
                 daemon=True,
             )
             t.start()
@@ -583,6 +605,9 @@ def main() -> None:
     SAVER_DWELL        = 120.0
     cal_frame          = 0
     cal_total          = settings.get("calibration_frames", 60)
+    cal_elapsed        = 0.0
+    cal_started        = False    # have we signalled the camera to collect yet?
+    cal_done_seen      = False    # has the camera finished building the model?
     t_last_osc         = time.monotonic()
     intensity          = 0.0
 
@@ -604,6 +629,9 @@ def main() -> None:
                     current_foreground = None
                     sil_cache          = None
                     attract_elapsed    = 0.0
+                    cal_elapsed        = 0.0
+                    cal_started        = False
+                    cal_done_seen      = False
                     intensity          = 0.0
                     threading.Thread(target=_do_restart, daemon=True).start()
                 elif event.key == pygame.K_c and test_handler:
@@ -615,6 +643,9 @@ def main() -> None:
             state = AppState.BG_CAL
             current_foreground = None
             attract_elapsed    = 0.0
+            cal_elapsed        = 0.0
+            cal_started        = False
+            cal_done_seen      = False
             intensity          = 0.0
             threading.Thread(target=_do_restart, daemon=True).start()
 
@@ -637,11 +668,12 @@ def main() -> None:
                                "progress": cal_frame / max(cal_total, 1)})
 
                 elif mtype == "cal_done":
-                    state = AppState.SCREENSAVER
-                    log.info("BG_CAL complete — entering SCREENSAVER")
-                    cur_saver     = saver_bag.next() or no_saver
-                    saver_elapsed = 0.0
-                    broadcast({"state": "screensaver"})
+                    # Model built. Don't advance yet — the BG_CAL branch holds the
+                    # screen until the countdown also elapses (gates a fast camera),
+                    # and keeps holding past the countdown if this never arrives
+                    # (gates a slow camera).
+                    cal_done_seen = True
+                    log.info("BG_CAL frames collected")
 
                 elif mtype == "foreground":
                     current_foreground = msg["frame"]
@@ -661,7 +693,44 @@ def main() -> None:
         screen.fill(BLACK)
 
         if state == AppState.BG_CAL:
-            pass  # solid black — minimise projector output during BG calibration
+            cal_elapsed += dt
+
+            # Once the standback window passes, tell the camera to start
+            # collecting frames for the background model.
+            if not cal_started and cal_elapsed >= cal_standback_s:
+                cam["collect"].set()
+                cal_started = True
+                log.info("BG_CAL: standback elapsed — signalling camera to collect")
+
+            in_standback = cal_elapsed < cal_standback_s
+            if in_standback:
+                title     = "PLEASE STAND BACK"
+                remaining = cal_standback_s - cal_elapsed
+            else:
+                title     = "CALIBRATING…"
+                remaining = cal_countdown_s - cal_elapsed
+
+            t_title = font_big.render(title, True, WHITE)
+            screen.blit(t_title, t_title.get_rect(center=(game_w // 2, WH // 2 - 40)))
+
+            # Count 5→1, then drop the number. If the clock runs out before the
+            # camera reports cal_done, the screen freezes on "CALIBRATING…" with
+            # no number rather than advancing with a dirty model.
+            if remaining > 0.0:
+                t_num = font_big.render(f"{int(remaining) + 1}", True, WHITE)
+                screen.blit(t_num, t_num.get_rect(center=(game_w // 2, WH // 2 + 20)))
+
+            broadcast({"state":       "bg_cal",
+                       "phase":       "standback" if in_standback else "collect",
+                       "remaining_s": round(max(0.0, remaining), 1),
+                       "progress":    cal_frame / max(cal_total, 1)})
+
+            if cal_elapsed >= cal_countdown_s and cal_done_seen:
+                state         = AppState.SCREENSAVER
+                cur_saver     = saver_bag.next() or no_saver
+                saver_elapsed = 0.0
+                log.info("BG_CAL complete — entering SCREENSAVER")
+                broadcast({"state": "screensaver"})
 
         elif state == AppState.SCREENSAVER:
             saver_elapsed += dt
