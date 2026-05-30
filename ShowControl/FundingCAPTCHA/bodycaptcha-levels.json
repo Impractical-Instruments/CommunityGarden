@@ -116,27 +116,7 @@
     "timer_s": 40
   },
   {
-    "prompt": "Select all squares *not* containing Mr. Lake",
-    "image": "yeavl_may/a95b93bd__untitled.jpg",
-    "difficulty": 5,
-    "grid": [
-      4,
-      4
-    ],
-    "valid_cells": [
-      [
-        0,
-        0
-      ],
-      [
-        3,
-        0
-      ]
-    ],
-    "timer_s": 40
-  },
-  {
-    "prompt": "Select all squares containing teh lettor 'O'",
+    "prompt": "Select all squares containing the letter 'O'",
     "image": "yeavl_may/e2e93e8d__untitled.jpg",
     "difficulty": 2,
     "grid": [
