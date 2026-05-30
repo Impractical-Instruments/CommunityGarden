@@ -25,6 +25,16 @@ HIGHLIGHT_COLOR = CYAN
 
 CELL_PAD = 4
 
+# Render caches. `draw_top_bar`/`draw_center_text` run every frame with a prompt
+# and screen size that are constant for the whole game, yet the originals rebuilt
+# SysFont objects (the priciest pygame call on a Pi) and re-rendered text 30×/sec.
+# Keyed by the inputs that fully determine the result; the set of distinct
+# prompts/taunts/sizes is tiny, so these stay small.
+_FONT_CACHE: dict[int, "pygame.font.Font"] = {}
+_FIT_CACHE: dict[tuple[str, int, int], "pygame.font.Font"] = {}
+_PROMPT_SURF_CACHE: dict[tuple[str, int, int], "pygame.Surface"] = {}
+_CENTER_CACHE: dict[tuple, tuple[list["pygame.Surface"], int]] = {}
+
 # Shell layout (ADR-0019)
 TOP_BAR_FRACTION = 0.12        # 12% of screen height
 PROMPT_FONT_CAP  = 72          # max prompt font size — short prompts don't become billboards
@@ -111,7 +121,11 @@ class Grid:
 
 
 def hud_font(size: int = 20) -> pygame.font.Font:
-    return pygame.font.SysFont("monospace", size, bold=True)
+    f = _FONT_CACHE.get(size)
+    if f is None:
+        f = pygame.font.SysFont("monospace", size, bold=True)
+        _FONT_CACHE[size] = f
+    return f
 
 
 # ── Shell rendering (ADR-0019) ────────────────────────────────────────────────
@@ -119,8 +133,14 @@ def hud_font(size: int = 20) -> pygame.font.Font:
 
 def _fit_prompt_font(text: str, max_w: int, max_h: int) -> pygame.font.Font:
     """Largest monospace-bold font that fits text on one line within max_w × max_h."""
+    key = (text, max_w, max_h)
+    cached = _FIT_CACHE.get(key)
+    if cached is not None:
+        return cached
     if not text:
-        return hud_font(min(PROMPT_FONT_CAP, max(8, max_h)))
+        result = hud_font(min(PROMPT_FONT_CAP, max(8, max_h)))
+        _FIT_CACHE[key] = result
+        return result
     lo, hi = 8, min(PROMPT_FONT_CAP, max(8, max_h))
     best = lo
     while lo <= hi:
@@ -132,7 +152,9 @@ def _fit_prompt_font(text: str, max_w: int, max_h: int) -> pygame.font.Font:
             lo = mid + 1
         else:
             hi = mid - 1
-    return hud_font(best)
+    result = hud_font(best)
+    _FIT_CACHE[key] = result
+    return result
 
 
 def draw_top_bar(surf: pygame.Surface,
@@ -158,8 +180,11 @@ def draw_top_bar(surf: pygame.Surface,
     if prompt:
         avail_w = max(40, screen_w - 2 * timer_reserve)
         avail_h = int(bar_h * 0.7)
-        font_p  = _fit_prompt_font(prompt, avail_w, avail_h)
-        p_surf  = font_p.render(prompt, True, WHITE)
+        key     = (prompt, avail_w, avail_h)
+        p_surf  = _PROMPT_SURF_CACHE.get(key)
+        if p_surf is None:
+            p_surf = _fit_prompt_font(prompt, avail_w, avail_h).render(prompt, True, WHITE)
+            _PROMPT_SURF_CACHE[key] = p_surf
         px      = (screen_w - p_surf.get_width()) // 2
         py      = (bar_h - p_surf.get_height()) // 2
         surf.blit(p_surf, (px, py))
@@ -198,29 +223,36 @@ def draw_center_text(surf: pygame.Surface, text: str, color: tuple,
     """Big multi-line centered text inside the grid area below the top bar (ADR-0019)."""
     if not text:
         return
-    area_h  = screen_h - top_y
-    avail_w = int(screen_w * (1.0 - padding * 2))
-    avail_h = int(area_h * (1.0 - padding * 2))
+    area_h = screen_h - top_y
 
-    lo, hi = 16, max_font
-    best_font  = hud_font(lo)
-    best_lines = [text]
-    while lo <= hi:
-        mid   = (lo + hi) // 2
-        f     = hud_font(mid)
-        lines = _wrap_to_width(text, f, avail_w)
-        h     = len(lines) * f.get_height()
-        if h <= avail_h and all(f.size(ln)[0] <= avail_w for ln in lines):
-            best_font, best_lines = f, lines
-            lo = mid + 1
-        else:
-            hi = mid - 1
+    key    = (text, color, screen_w, top_y, screen_h, max_font, padding)
+    cached = _CENTER_CACHE.get(key)
+    if cached is None:
+        avail_w = int(screen_w * (1.0 - padding * 2))
+        avail_h = int(area_h * (1.0 - padding * 2))
 
-    line_h  = best_font.get_height()
-    total_h = line_h * len(best_lines)
+        lo, hi = 16, max_font
+        best_font  = hud_font(lo)
+        best_lines = [text]
+        while lo <= hi:
+            mid   = (lo + hi) // 2
+            f     = hud_font(mid)
+            lines = _wrap_to_width(text, f, avail_w)
+            h     = len(lines) * f.get_height()
+            if h <= avail_h and all(f.size(ln)[0] <= avail_w for ln in lines):
+                best_font, best_lines = f, lines
+                lo = mid + 1
+            else:
+                hi = mid - 1
+
+        surfs  = [best_font.render(line, True, color) for line in best_lines]
+        cached = (surfs, best_font.get_height())
+        _CENTER_CACHE[key] = cached
+
+    surfs, line_h = cached
+    total_h = line_h * len(surfs)
     y       = top_y + (area_h - total_h) // 2
-    for line in best_lines:
-        s  = best_font.render(line, True, color)
+    for s in surfs:
         sx = (screen_w - s.get_width()) // 2
         surf.blit(s, (sx, y))
         y += line_h
