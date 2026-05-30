@@ -44,8 +44,8 @@
     "_comment": "Leave serial blank for first detected device.",
     "serial":  "",
     "width":   640,
-    "height":  400,
-    "fps":     10,
+    "height":  480,
+    "fps":     15,
     "pos_cm":  [0, 0, 78],
     "rotation": {"pitch": -30, "yaw": 0, "roll": 0}
   }
