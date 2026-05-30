@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pygame
@@ -33,6 +33,7 @@ _PIPE_HALF_W      = 0.18         # vine half-thickness
 _JOINT_HALF       = 0.28         # leaf-bud knuckle half-size
 
 _MAX_PIPES_ALIVE  = 4
+_MAX_PIPES_RETAINED = 10         # incl. finished vines still on screen; caps draw cost
 _MAX_SEGS_PER_PIPE = 60
 _STEP_HZ          = 12.0         # growth steps per second
 _FULL_RESET_S     = 30.0         # blank canvas + respawn cadence
@@ -61,6 +62,11 @@ _CUBE_FACES: list[tuple[tuple[int, int, int, int], np.ndarray]] = [
     ((3, 2, 6, 7), np.array([ 0,  1,  0], dtype=np.float32)),
 ]
 
+# Batched-projection lookups derived from _CUBE_FACES: per-face vertex indices
+# (6×4) and outward normals (6×3). Used to vectorise face culling/shading.
+_FACE_VIDX    = np.array([f[0] for f in _CUBE_FACES], dtype=np.intp)
+_FACE_NORMALS = np.stack([f[1] for f in _CUBE_FACES]).astype(np.float32)
+
 _DIRS = [
     np.array([ 1, 0, 0], dtype=np.int32),
     np.array([-1, 0, 0], dtype=np.int32),
@@ -76,6 +82,28 @@ class _Box:
     center: np.ndarray
     half:   np.ndarray
     color:  tuple[int, int, int]
+    # Derived once at construction — these are constant for the life of the box
+    # (world-space geometry + fixed-light flat shading), so they never need to be
+    # recomputed per frame.
+    verts_world:  np.ndarray = field(init=False)   # (8, 3) world-space corners
+    face_centers: np.ndarray = field(init=False)   # (6, 3) world-space face centres
+    face_colors:  list       = field(init=False)   # 6 pre-shaded (r, g, b) tuples
+
+    def __post_init__(self) -> None:
+        self.verts_world = _UNIT_CUBE_VERTS * self.half + self.center
+        centers: list[np.ndarray] = []
+        colors:  list[tuple[int, int, int]] = []
+        for face_idx, normal in _CUBE_FACES:
+            centers.append(self.verts_world[list(face_idx)].mean(axis=0))
+            lambert = max(0.0, float(np.dot(normal, _LIGHT_DIR)))
+            shade   = _AMBIENT + (1.0 - _AMBIENT) * lambert
+            colors.append((
+                int(self.color[0] * shade),
+                int(self.color[1] * shade),
+                int(self.color[2] * shade),
+            ))
+        self.face_centers = np.stack(centers).astype(np.float32)
+        self.face_colors  = colors
 
 
 def _shift(color: tuple[int, int, int], delta: int) -> tuple[int, int, int]:
@@ -104,6 +132,7 @@ class _Pipe:
 
     def __init__(self, occupied: set[tuple[int, int, int]]) -> None:
         self._occupied = occupied
+        self.cells: set[tuple[int, int, int]] = set()   # cells this pipe owns
         self._color    = random.choice(_VINE_PALETTE)
         self._joint_color = _shift(self._color, 25)
         cell = self._spawn_cell()
@@ -113,7 +142,9 @@ class _Pipe:
             return
         self._cell = cell
         self._dir  = random.choice(_DIRS).copy()
-        self._occupied.add(tuple(int(v) for v in cell))
+        key = tuple(int(v) for v in cell)
+        self._occupied.add(key)
+        self.cells.add(key)
         self.alive = True
         self.boxes = [_joint_box(cell, self._joint_color)]
         self._segs_made = 0
@@ -144,7 +175,9 @@ class _Pipe:
             self.boxes.append(_joint_box(self._cell, self._joint_color))
         self._cell = new_cell
         self._dir  = chosen
-        self._occupied.add(tuple(int(v) for v in new_cell))
+        key = tuple(int(v) for v in new_cell)
+        self._occupied.add(key)
+        self.cells.add(key)
         self._segs_made += 1
         if self._segs_made >= _MAX_SEGS_PER_PIPE:
             self.boxes.append(_joint_box(new_cell, self._joint_color))
@@ -181,12 +214,24 @@ class VinesScreensaver:
         self._pipes: list[_Pipe] = []
         self._title_font: pygame.font.Font | None = None
         self._sub_font:   pygame.font.Font | None = None
+        # Cached static overlay surfaces (built lazily once the fonts exist).
+        self._title_shadow: pygame.Surface | None = None
+        self._sub_surf:     pygame.Surface | None = None
+        self._sub_shadow:   pygame.Surface | None = None
+        # Batched geometry cache: rebuilt only when the box set changes (on a
+        # growth step / reset), not every frame.
+        self._geo_dirty = True
+        self._verts: np.ndarray | None = None
+        self._face_centers: np.ndarray | None = None
+        self._face_colors_flat: list[tuple[int, int, int]] = []
+        self._n_boxes = 0
         self._spawn_initial()
 
     # ── lifecycle ────────────────────────────────────────────────────────────
     def _spawn_initial(self) -> None:
         self._occupied = set()
         self._pipes = [_Pipe(self._occupied) for _ in range(_MAX_PIPES_ALIVE)]
+        self._geo_dirty = True
 
     def update(self, dt: float, foreground_frame) -> None:
         self._t        += dt
@@ -207,6 +252,18 @@ class VinesScreensaver:
         alive = sum(1 for p in self._pipes if p.alive)
         for _ in range(_MAX_PIPES_ALIVE - alive):
             self._pipes.append(_Pipe(self._occupied))
+        # Cap total retained pipes: evict the oldest *finished* vine (freeing the
+        # grid cells it held) so geometry reaches a steady state instead of
+        # growing monotonically until the next full reset.
+        while len(self._pipes) > _MAX_PIPES_RETAINED:
+            for i, p in enumerate(self._pipes):
+                if not p.alive:
+                    dead = self._pipes.pop(i)
+                    self._occupied.difference_update(dead.cells)
+                    break
+            else:
+                break  # nothing finished yet — leave the live vines be
+        self._geo_dirty = True
 
     # ── rendering ────────────────────────────────────────────────────────────
     def draw(self, surf: pygame.Surface) -> None:
@@ -217,38 +274,90 @@ class VinesScreensaver:
         focal = (WH * 0.5) / math.tan(math.radians(_FOV_DEG) * 0.5)
         cx, cy = WW * 0.5, WH * 0.5
 
-        face_records: list[tuple[float, list, tuple[int, int, int]]] = []
-        for p in self._pipes:
-            for box in p.boxes:
-                _project_box(box, cam_pos, R, focal, cx, cy, face_records)
-
-        face_records.sort(key=lambda r: -r[0])
-        for _z, pts, col in face_records:
-            pygame.draw.polygon(surf, col, pts)
+        if self._geo_dirty:
+            self._rebuild_geometry()
+        if self._verts is not None:
+            self._draw_boxes(surf, cam_pos, R, focal, cx, cy)
 
         self._draw_overlay(surf)
+
+    def _rebuild_geometry(self) -> None:
+        """Restack the per-box constants into contiguous arrays for batched
+        projection. Runs only when the box set changes (≈12 Hz), not per frame."""
+        self._geo_dirty = False
+        boxes = [b for p in self._pipes for b in p.boxes]
+        self._n_boxes = len(boxes)
+        if not boxes:
+            self._verts = None
+            self._face_centers = None
+            self._face_colors_flat = []
+            return
+        self._verts        = np.stack([b.verts_world  for b in boxes])   # (N, 8, 3)
+        self._face_centers = np.stack([b.face_centers for b in boxes])   # (N, 6, 3)
+        colors: list[tuple[int, int, int]] = []
+        for b in boxes:
+            colors.extend(b.face_colors)                                 # 6 per box
+        self._face_colors_flat = colors                                  # len N*6
+
+    def _draw_boxes(self, surf: pygame.Surface, cam_pos: np.ndarray, R: np.ndarray,
+                    focal: float, cx: float, cy: float) -> None:
+        N = self._n_boxes
+        # Transform every cube corner into camera space in one matmul, then the
+        # perspective divide — all boxes at once.
+        cam_local = ((self._verts.reshape(-1, 3) - cam_pos) @ R.T).reshape(N, 8, 3)
+        zs = cam_local[..., 2]                                           # (N, 8)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            inv_z = np.where(zs > _NEAR, 1.0 / zs, 0.0)
+        xs2 =  cam_local[..., 0] * focal * inv_z + cx                    # (N, 8)
+        ys2 = -cam_local[..., 1] * focal * inv_z + cy                    # (N, 8)
+
+        # Per-face: keep only faces whose 4 corners are all in front of the near
+        # plane, and which face the camera (back-face cull).
+        z_face  = zs[:, _FACE_VIDX]                                      # (N, 6, 4)
+        near_ok = np.all(z_face > _NEAR, axis=2)                         # (N, 6)
+        facing  = np.sum((self._face_centers - cam_pos) * _FACE_NORMALS, axis=2)
+        visible = near_ok & (facing < 0.0)                              # (N, 6)
+
+        idx = np.flatnonzero(visible.reshape(-1))
+        if idx.size == 0:
+            return
+
+        # Painter's algorithm: draw far faces first. argsort on a flat depth array
+        # replaces the per-record Python lambda sort.
+        depth = z_face.mean(axis=2).reshape(-1)                          # (N*6,)
+        order = idx[np.argsort(-depth[idx])]
+
+        sx  = xs2[:, _FACE_VIDX]                                         # (N, 6, 4)
+        sy  = ys2[:, _FACE_VIDX]
+        pts = np.stack([sx, sy], axis=3).reshape(-1, 4, 2)              # (N*6, 4, 2)
+        colors = self._face_colors_flat
+        draw_polygon = pygame.draw.polygon
+        for k in order:
+            # .tolist() per *visible* face — pygame needs Python number-pairs,
+            # not numpy rows. The heavy maths above stays fully vectorised.
+            draw_polygon(surf, colors[k], pts[k].tolist())
 
     def _draw_overlay(self, surf: pygame.Surface) -> None:
         WW, WH = surf.get_size()
         if self._title_font is None:
             self._title_font = pygame.font.SysFont("monospace", 42, bold=True)
             self._sub_font   = pygame.font.SysFont("monospace", 20)
+            # Everything except the pulsing title colour is static — render once.
+            self._title_shadow = self._title_font.render("FundingCAPTCHA", True, (0, 0, 0))
+            self._sub_surf     = self._sub_font.render("Step into frame to begin", True, (210, 210, 210))
+            self._sub_shadow   = self._sub_font.render("Step into frame to begin", True, (0, 0, 0))
 
         pulse = int(190 + 50 * math.sin(self._t * 1.2))
         color = (pulse, pulse, pulse)
 
         title = self._title_font.render("FundingCAPTCHA", True, color)
         rect  = title.get_rect(center=(WW // 2, WH // 2))
-        shadow = self._title_font.render("FundingCAPTCHA", True, (0, 0, 0))
-        surf.blit(shadow, rect.move(3, 3))
+        surf.blit(self._title_shadow, rect.move(3, 3))
         surf.blit(title, rect)
 
-        sub_rect = pygame.Rect(0, 0, 0, 0)
-        sub = self._sub_font.render("Step into frame to begin", True, (210, 210, 210))
-        sub_rect = sub.get_rect(center=(WW // 2, WH // 2 + 60))
-        sub_shadow = self._sub_font.render("Step into frame to begin", True, (0, 0, 0))
-        surf.blit(sub_shadow, sub_rect.move(2, 2))
-        surf.blit(sub, sub_rect)
+        sub_rect = self._sub_surf.get_rect(center=(WW // 2, WH // 2 + 60))
+        surf.blit(self._sub_shadow, sub_rect.move(2, 2))
+        surf.blit(self._sub_surf, sub_rect)
 
 
 def _camera(t: float) -> tuple[np.ndarray, np.ndarray]:
@@ -264,36 +373,6 @@ def _camera(t: float) -> tuple[np.ndarray, np.ndarray]:
     # rows: world→camera basis. cam_local[:,2] = dot(point, forward) is positive in front.
     R = np.stack([right, up, forward], axis=0)
     return cam_pos, R
-
-
-def _project_box(box: _Box, cam_pos: np.ndarray, R: np.ndarray,
-                 focal: float, cx: float, cy: float,
-                 out: list[tuple[float, list, tuple[int, int, int]]]) -> None:
-    verts_world = _UNIT_CUBE_VERTS * box.half + box.center
-    cam_local = (verts_world - cam_pos) @ R.T
-    zs = cam_local[:, 2]
-    if not np.any(zs > _NEAR):
-        return
-    inv_z = np.where(zs > _NEAR, 1.0 / zs, 0.0)
-    xs2 = cam_local[:, 0] * focal * inv_z + cx
-    ys2 = -cam_local[:, 1] * focal * inv_z + cy
-
-    for face_idx, normal in _CUBE_FACES:
-        face_center = verts_world[list(face_idx)].mean(axis=0)
-        if np.dot(face_center - cam_pos, normal) >= 0:
-            continue
-        z_face = zs[list(face_idx)]
-        if np.any(z_face <= _NEAR):
-            continue
-        pts = [(float(xs2[i]), float(ys2[i])) for i in face_idx]
-        lambert = max(0.0, float(np.dot(normal, _LIGHT_DIR)))
-        shade = _AMBIENT + (1.0 - _AMBIENT) * lambert
-        col = (
-            int(box.color[0] * shade),
-            int(box.color[1] * shade),
-            int(box.color[2] * shade),
-        )
-        out.append((float(z_face.mean()), pts, col))
 
 
 def create(settings: dict) -> VinesScreensaver:
