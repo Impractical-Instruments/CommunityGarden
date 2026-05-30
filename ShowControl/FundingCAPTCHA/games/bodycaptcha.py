@@ -86,25 +86,31 @@ class _LevelBag:
         return self._bag.pop()
 
 
-def _load_levels() -> list[dict]:
-    try:
-        data = json.loads(_LEVELS.read_text())
-        if data:
-            return data
-    except Exception:
-        pass
-    return [{"prompt": "Cover the center", "image": None, "difficulty": 1,
-             "grid": [3, 3], "valid_cells": [[1, 1]]}]
+_DEFAULT_LEVEL = {"prompt": "Cover the center", "image": None, "difficulty": 1,
+                  "grid": [3, 3], "valid_cells": [[1, 1]]}
+_DEFAULT_TAUNT = "Too Slow! You're not a robot."
 
 
-def _load_taunts() -> list[str]:
+def _read_levels(path: Path = _LEVELS) -> list[dict] | None:
+    """Read the levels file. Returns None on ANY failure — missing, bad JSON,
+    empty, or not a non-empty list — so callers choose fallback vs keep-last-good.
+
+    Reloaded at every arc start (BodyCaptchaGame.reset), so a malformed or
+    half-pulled file must never silently collapse the show to a default level.
+    """
     try:
-        data = json.loads(_TAUNTS.read_text())
-        if isinstance(data, list) and data:
-            return data
+        data = json.loads(path.read_text())
     except Exception:
-        pass
-    return ["Too Slow! You're not a robot."]
+        return None
+    return data if isinstance(data, list) and data else None
+
+
+def _read_taunts(path: Path = _TAUNTS) -> list[str] | None:
+    try:
+        data = json.loads(path.read_text())
+    except Exception:
+        return None
+    return data if isinstance(data, list) and data else None
 
 
 def _img_load(path: Path) -> pygame.Surface:
@@ -170,8 +176,8 @@ class BodyCaptchaGame:
     def __init__(self, settings: dict) -> None:
         self._settings   = settings
         self._defaults   = settings.get("bodycaptcha", {})
-        self._all_levels = _load_levels()
-        self._taunts     = _load_taunts()
+        self._all_levels = _read_levels() or [_DEFAULT_LEVEL]
+        self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
         self._w_diff     = self._defaults.get("intensity_weights", {}).get("difficulty",     0.4)
         self._w_time     = self._defaults.get("intensity_weights", {}).get("time_pressure",  0.6)
@@ -233,7 +239,30 @@ class BodyCaptchaGame:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
+    def _reload_data(self) -> None:
+        """Re-read levels + taunts from disk at arc start (hot-reload, ADR pending).
+
+        Levels arrive via `git pull` on the box; this picks them up on the next
+        arc with no service restart. A missing/malformed/empty file keeps the
+        last-known-good set in memory so a bad pull never degrades a live show.
+        """
+        levels = _read_levels()
+        if levels is not None:
+            self._all_levels = levels
+            self._bag        = _LevelBag(levels)
+        else:
+            log.warning("bodycaptcha-levels.json missing/invalid — keeping %d loaded levels",
+                        len(self._all_levels))
+
+        taunts = _read_taunts()
+        if taunts is not None:
+            self._taunts = taunts
+
+        log.info("BodyCaptcha data: %d levels, %d taunts active",
+                 len(self._all_levels), len(self._taunts))
+
     def reset(self) -> None:
+        self._reload_data()
         self._bag.reset()
         self._load_level(self._bag.next())
 
