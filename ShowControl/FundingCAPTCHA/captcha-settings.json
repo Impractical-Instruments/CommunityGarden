@@ -49,6 +49,6 @@
     "height":  480,
     "fps":     15,
     "pos_cm":  [0, 0, 78],
-    "rotation": {"pitch": -30, "yaw": 0, "roll": 0}
+    "rotation": {"pitch": -35, "yaw": 0, "roll": 0}
   }
 }
