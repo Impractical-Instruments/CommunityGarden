@@ -24,10 +24,12 @@ TWO_PI = 2.0 * math.pi
 filament = PWM(Pin(PWM_PIN))
 filament.freq(PWM_FREQ)
 
+step = TWO_PI * (FRAME_MS / 1000.0) / PERIOD_S
+
+led = Pin(25, Pin.OUT)
 
 def main():
     phase = 0.0
-    step = TWO_PI * (FRAME_MS / 1000.0) / PERIOD_S
     while True:
         s = (math.sin(phase) + 1.0) * 0.5          # 0 .. 1
         level = FLOOR + (CEIL - FLOOR) * s         # perceived 0.30 .. 0.80
@@ -37,6 +39,7 @@ def main():
         if phase > TWO_PI:
             phase -= TWO_PI
         time.sleep_ms(FRAME_MS)
+        led.value(phase < math.pi)
 
 
 main()
