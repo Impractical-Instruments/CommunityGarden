@@ -21,6 +21,7 @@ from games.grid import (
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 from silhouette import render_silhouette
+from arc import blend_intensity
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
@@ -278,10 +279,8 @@ class BodyCaptchaGame:
         difficulty     = self._level.get("difficulty", 1)
         timer_s        = self._timer_s
 
-        self._intensity = max(0.0, min(1.0,
-            self._w_diff * difficulty / 5.0 +
-            self._w_time * self._elapsed / max(timer_s, 0.001)
-        ))
+        self._intensity = blend_intensity(difficulty, self._elapsed, timer_s,
+                                          self._w_diff, self._w_time)
 
         if self._elapsed >= timer_s:
             self._begin_blowup()
