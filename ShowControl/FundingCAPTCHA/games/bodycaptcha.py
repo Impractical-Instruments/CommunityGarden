@@ -20,6 +20,7 @@ from games.grid import (
     top_bar_height, draw_top_bar, draw_hold_ring, draw_center_text,
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
+from silhouette import render_silhouette
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
@@ -155,21 +156,6 @@ def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
         cols=cols, rows=rows, camera_roi=roi,
         slabs=slabs, cell_activation_threshold=threshold,
     ))
-
-
-def _foreground_surf(foreground: np.ndarray, slabs_cfg: list[dict],
-                     roi: dict, color: tuple, w: int, h: int) -> pygame.Surface:
-    cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
-    H, W    = cropped.shape
-    mask    = np.zeros((H, W), dtype=bool)
-    for s in slabs_cfg:
-        mask |= (cropped >= s["near_mm"]) & (cropped < s["far_mm"])
-    rgb        = np.zeros((W, H, 3), dtype=np.uint8)
-    rgb[mask.T, 0] = color[0]
-    rgb[mask.T, 1] = color[1]
-    rgb[mask.T, 2] = color[2]
-    surf = pygame.surfarray.make_surface(rgb)
-    return pygame.transform.scale(surf, (w, h))
 
 
 class BodyCaptchaGame:
@@ -378,9 +364,9 @@ class BodyCaptchaGame:
         if self._foreground is not None:
             slab_color  = tuple(self._settings.get("slab_styles", {})
                                 .get("0", {}).get("color", [0, 220, 100]))
-            sil = _foreground_surf(self._foreground, self._slabs_cfg,
-                                   self._roi, slab_color,
-                                   bounds.width, bounds.height)
+            sil = render_silhouette(self._foreground, self._slabs_cfg,
+                                    self._roi, slab_color,
+                                    bounds.width, bounds.height)
             sil.set_alpha(60)
             surf.blit(sil, bounds.topleft)
 

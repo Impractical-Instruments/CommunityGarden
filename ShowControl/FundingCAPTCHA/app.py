@@ -44,7 +44,7 @@ sys.path.insert(0, str(DIR.parent.parent))  # IIVision
 sys.path.insert(0, str(DIR.parent))         # OSCFabric
 sys.path.insert(0, str(DIR))                # body_grid, games
 
-from silhouette import build_cam_transform, apply_cam_transform
+from silhouette import build_cam_transform, apply_cam_transform, render_silhouette
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
@@ -280,23 +280,6 @@ def _camera_inner(camera: Any, settings: dict,
 
 
 # ── Silhouette rendering ──────────────────────────────────────────────────────
-
-def _silhouette_surf(foreground: np.ndarray, slabs_cfg: list[dict],
-                     roi: dict, color: tuple,
-                     display_w: int, display_h: int) -> pygame.Surface:
-    """Render foreground depth frame as a colored mask, scaled to display size."""
-    cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
-    H, W    = cropped.shape
-    mask    = np.zeros((H, W), dtype=bool)
-    for s in slabs_cfg:
-        mask |= (cropped >= s["near_mm"]) & (cropped < s["far_mm"])
-    rgb = np.zeros((W, H, 3), dtype=np.uint8)
-    rgb[mask.T, 0] = color[0]
-    rgb[mask.T, 1] = color[1]
-    rgb[mask.T, 2] = color[2]
-    surf = pygame.surfarray.make_surface(rgb)
-    return pygame.transform.scale(surf, (display_w, display_h))
-
 
 # ── Test input handler ────────────────────────────────────────────────────────
 
@@ -751,8 +734,8 @@ def main() -> None:
                 # scaled surface instead of re-masking + re-scaling to full HD.
                 if current_foreground is not None:
                     if fg_new or sil_cache is None:
-                        sil_cache = _silhouette_surf(current_foreground, slabs_cfg,
-                                                     roi, slab_color, game_w, WH)
+                        sil_cache = render_silhouette(current_foreground, slabs_cfg,
+                                                      roi, slab_color, game_w, WH)
                         sil_cache.set_alpha(int(sil_opacity * 255))
                     screen.blit(sil_cache, (0, 0))
 
