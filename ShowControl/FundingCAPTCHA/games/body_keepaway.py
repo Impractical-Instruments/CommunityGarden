@@ -19,6 +19,7 @@ from games.grid import (
     hud_font, top_bar_height, draw_top_bar, draw_center_text,
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
+from silhouette import render_silhouette
 
 _DIR    = Path(__file__).parent.parent
 _LEVELS = _DIR / "keepaway-body-levels.json"
@@ -166,21 +167,6 @@ def _spawn_defenders(defender_cfgs: list[dict], cols: int, rows: int) -> list[_D
         _Defender(positions[i][0], positions[i][1], cfg["speed"], cols, rows)
         for i, cfg in enumerate(defender_cfgs)
     ]
-
-
-def _foreground_surf(foreground: np.ndarray, slabs_cfg: list[dict],
-                     roi: dict, color: tuple, w: int, h: int) -> pygame.Surface:
-    cropped = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
-    H, W    = cropped.shape
-    mask    = np.zeros((H, W), dtype=bool)
-    for s in slabs_cfg:
-        mask |= (cropped >= s["near_mm"]) & (cropped < s["far_mm"])
-    rgb        = np.zeros((W, H, 3), dtype=np.uint8)
-    rgb[mask.T, 0] = color[0]
-    rgb[mask.T, 1] = color[1]
-    rgb[mask.T, 2] = color[2]
-    surf = pygame.surfarray.make_surface(rgb)
-    return pygame.transform.scale(surf, (w, h))
 
 
 def _draw_stick_figure(surf: pygame.Surface, cx: int, cy: int,
@@ -423,9 +409,9 @@ class BodyKeepawayGame:
         if self._foreground is not None:
             slab_color = tuple(self._settings.get("slab_styles", {})
                                .get("0", {}).get("color", [0, 220, 100]))
-            sil = _foreground_surf(self._foreground, self._slabs_cfg,
-                                   self._roi, slab_color,
-                                   bounds.width, bounds.height)
+            sil = render_silhouette(self._foreground, self._slabs_cfg,
+                                    self._roi, slab_color,
+                                    bounds.width, bounds.height)
             sil.set_alpha(60)
             surf.blit(sil, bounds.topleft)
 
