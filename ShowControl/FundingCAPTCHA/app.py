@@ -24,7 +24,6 @@ import importlib.util
 import json
 import logging
 import queue
-import random
 import sys
 import threading
 import time
@@ -45,6 +44,7 @@ sys.path.insert(0, str(DIR.parent))         # OSCFabric
 sys.path.insert(0, str(DIR))                # body_grid, games
 
 from silhouette import build_cam_transform, apply_cam_transform, render_silhouette
+from arc import Arc, Game, ShuffleBag
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
@@ -337,29 +337,10 @@ class TestInputHandler:
         screen.blit(surf, (0, 0))
 
 
-# ── Game interface ────────────────────────────────────────────────────────────
-
-class Game:
-    """Base class for FundingCAPTCHA games.
-
-    update() args: foreground (uint16 H×W numpy array or None), dt (seconds)
-    update() returns: (intensity 0–1, event 'loss' | None)
-    """
-
-    def update(self, foreground: np.ndarray | None, dt: float) -> tuple[float, str | None]:
-        return 0.0, None
-
-    def draw(self, surf: pygame.Surface) -> None:
-        pass
-
-    def reset(self) -> None:
-        pass
-
-
-class _NoGame(Game):
-    def draw(self, surf: pygame.Surface) -> None:
-        surf.fill(DK_GREY)
-
+# ── Game loading ──────────────────────────────────────────────────────────────
+# The Game interface, _NoGame stand-in, ShuffleBag, and the Arc lifecycle now
+# live in arc.py — imported above. This module only knows how to find and load
+# Games from disk; selecting and running them is the Arc's job.
 
 def _load_games(settings: dict) -> list[Game]:
     games: list[Game] = []
@@ -378,20 +359,6 @@ def _load_games(settings: dict) -> list[Game]:
         except Exception as exc:
             log.warning("Could not load game %s: %s", name, exc)
     return games
-
-
-class _ShuffleBag:
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._bag:  list = []
-
-    def next(self) -> Any | None:
-        if not self._items:
-            return None
-        if not self._bag:
-            self._bag = list(self._items)
-            random.shuffle(self._bag)
-        return self._bag.pop()
 
 
 # ── Screensaver interface ─────────────────────────────────────────────────────
@@ -534,15 +501,12 @@ def main() -> None:
     # Full-screen game area (no HUD column — ADR-0019)
     game_w = WW
 
-    # ── Games ─────────────────────────────────────────────────────────────────
-    games      = _load_games(settings)
-    game_bag   = _ShuffleBag(games)
-    no_game    = _NoGame()
-    cur_game   = no_game
+    # ── Arc ───────────────────────────────────────────────────────────────────
+    arc        = Arc(_load_games(settings))
 
     # ── Screensavers ──────────────────────────────────────────────────────────
     savers     = _load_screensavers(settings)
-    saver_bag  = _ShuffleBag(savers)
+    saver_bag  = ShuffleBag(savers)
     no_saver   = _NoSaver()
     cur_saver  = saver_bag.next() or no_saver
 
@@ -592,7 +556,6 @@ def main() -> None:
     cal_started        = False    # have we signalled the camera to collect yet?
     cal_done_seen      = False    # has the camera finished building the model?
     t_last_osc         = time.monotonic()
-    intensity          = 0.0
 
     _start_camera()
 
@@ -615,7 +578,6 @@ def main() -> None:
                     cal_elapsed        = 0.0
                     cal_started        = False
                     cal_done_seen      = False
-                    intensity          = 0.0
                     threading.Thread(target=_do_restart, daemon=True).start()
                 elif event.key == pygame.K_c and test_handler:
                     test_handler.clear()
@@ -629,7 +591,6 @@ def main() -> None:
             cal_elapsed        = 0.0
             cal_started        = False
             cal_done_seen      = False
-            intensity          = 0.0
             threading.Thread(target=_do_restart, daemon=True).start()
 
         # Test-input: update paint canvas and push as foreground frame
@@ -745,34 +706,31 @@ def main() -> None:
                 screen.blit(t_big, t_big.get_rect(center=(game_w // 2, WH // 2 - 40)))
 
                 if attract_elapsed >= attract_dwell:
-                    state         = AppState.GAME
+                    state           = AppState.GAME
                     attract_elapsed = 0.0
-                    cur_game      = game_bag.next() or no_game
-                    cur_game.reset()
-                    intensity     = 0.0
-                    log.info("Player detected — starting Arc (%s)", type(cur_game).__name__)
+                    game_name       = arc.start()
+                    log.info("Player detected — starting Arc (%s)", game_name)
                     broadcast({"state": "game"})
             else:
                 attract_elapsed = 0.0
 
         elif state == AppState.GAME:
-            intensity, event = cur_game.update(current_foreground, dt)
-            cur_game.draw(screen)
+            status = arc.update(current_foreground, dt)
+            arc.draw(screen)
 
-            if event in ("loss", "win"):
-                log.info("Arc ended (%s) — returning to screensaver", event)
-                if fabric and event == "loss":
+            if status.finished:
+                log.info("Arc ended — returning to screensaver")
+                if fabric and status.blewup:
                     fabric.send_event("blowup")
                 state         = AppState.SCREENSAVER
                 cur_saver     = saver_bag.next() or no_saver
                 saver_elapsed = 0.0
-                intensity     = 0.0
                 broadcast({"state": "screensaver"})
 
             now = time.monotonic()
             if now - t_last_osc >= 0.1 and fabric:
                 t_last_osc = now
-                fabric.report("intensity", float(intensity))
+                fabric.report("intensity", float(status.intensity))
 
         # Test-input overlay
         if test_handler:

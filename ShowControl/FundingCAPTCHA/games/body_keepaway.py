@@ -20,6 +20,7 @@ from games.grid import (
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 from silhouette import render_silhouette
+from arc import blend_intensity
 
 _DIR    = Path(__file__).parent.parent
 _LEVELS = _DIR / "keepaway-body-levels.json"
@@ -331,10 +332,8 @@ class BodyKeepawayGame:
         self._elapsed += dt
         level_idx      = self._level_idx + 1  # 1-based
 
-        self._intensity = max(0.0, min(1.0,
-            self._w_diff * level_idx / 5.0 +
-            self._w_time * self._elapsed / max(self._survive_s, 0.001)
-        ))
+        self._intensity = blend_intensity(level_idx, self._elapsed, self._survive_s,
+                                          self._w_diff, self._w_time)
 
         for d in self._defenders:
             d.move(dt, runner_cells)
