@@ -2,9 +2,12 @@ import logging
 import math
 from dataclasses import dataclass
 
-from .base import ChannelFrame, Color, ControllableState, GardenState, LEDControllable, scale_color
+from .base import ChannelFrame, Color, ControllableState, GardenState, GPIOFrame, LEDControllable, scale_color
 
 log = logging.getLogger("treehouse")
+
+
+_ARC_FLASH_DURATION = 0.35  # seconds the GPIO flash stays on after blowup
 
 
 @dataclass
@@ -17,6 +20,8 @@ class ForgeAndFloraConfig:
     transition_speed: float = 0.1  # blend units per second
     base_flicker_intensity: float = 0.1   # flicker when garden is quiet
     max_flicker_intensity: float = 0.6    # flicker at peak captcha+flowerbeds activity
+    arc_flash_pin: int = -1           # -1 = no arc flash transistor
+    arc_flash_pico_id: str = "dioramas"
 
 
 class ForgeAndFloraDisplay(LEDControllable):
@@ -46,6 +51,9 @@ class ForgeAndFloraDisplay(LEDControllable):
         self._max_flicker = config.max_flicker_intensity
         self.flicker_intensity = self._base_flicker
         self._target_blend = config.blend
+        self._arc_flash_pin = config.arc_flash_pin
+        self._arc_flash_pico_id = config.arc_flash_pico_id
+        self._arc_flash_remaining = 0.0
         self._time = 0.0
 
     def set_mode(self, mode: str) -> None:
@@ -74,6 +82,11 @@ class ForgeAndFloraDisplay(LEDControllable):
         if not self.enabled:
             return
         self._time += dt
+
+        if state.captcha_blowup and self._arc_flash_pin >= 0:
+            self._arc_flash_remaining = _ARC_FLASH_DURATION
+
+        self._arc_flash_remaining = max(0.0, self._arc_flash_remaining - dt)
 
         # pipes_activity drives the arc→bloom crossfade
         self._target_blend = state.pipes_activity
@@ -115,6 +128,15 @@ class ForgeAndFloraDisplay(LEDControllable):
             ChannelFrame(pin=self.arc_pin,   pixels=[arc_color]   * self.led_count),
             ChannelFrame(pin=self.bloom_pin, pixels=[bloom_color]  * self.led_count),
         ]
+
+    def get_gpio_frames(self) -> list[GPIOFrame]:
+        if self._arc_flash_pin < 0:
+            return []
+        return [GPIOFrame(
+            pin=self._arc_flash_pin,
+            value=self._arc_flash_remaining > 0,
+            pico_id=self._arc_flash_pico_id,
+        )]
 
     def get_state(self) -> ControllableState:
         return ControllableState(

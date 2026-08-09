@@ -3,7 +3,7 @@ import logging
 
 import serial
 
-from displays.base import ChannelFrame, Color, scale_color
+from displays.base import ChannelFrame, Color, GPIOFrame, PWMFrame, scale_color
 
 log = logging.getLogger("treehouse")
 
@@ -42,6 +42,30 @@ class PicoDriver:
         for frame in frames:
             scaled: list[list[int]] = [list(scale_color(p, brightness)) for p in frame.pixels]
             line = json.dumps({"pin": frame.pin, "pixels": scaled}) + "\n"
+            try:
+                self._serial.write(line.encode())
+            except serial.SerialException as e:
+                log.error("Pico write error: %s — LED output suspended", e)
+                self._serial = None
+                return
+
+    def send_pwm_frames(self, frames: list[PWMFrame]) -> None:
+        if not self._serial or not self._serial.is_open:
+            return
+        for frame in frames:
+            line = json.dumps({"pin": frame.pin, "pwm": frame.value}) + "\n"
+            try:
+                self._serial.write(line.encode())
+            except serial.SerialException as e:
+                log.error("Pico write error: %s — LED output suspended", e)
+                self._serial = None
+                return
+
+    def send_gpio_frames(self, frames: list[GPIOFrame]) -> None:
+        if not self._serial or not self._serial.is_open:
+            return
+        for frame in frames:
+            line = json.dumps({"pin": frame.pin, "gpio": 1 if frame.value else 0}) + "\n"
             try:
                 self._serial.write(line.encode())
             except serial.SerialException as e:

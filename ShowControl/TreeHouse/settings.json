@@ -16,7 +16,9 @@
 
   "dioramas": [
     {
+      "_note": "House Swarming: 3× SK6812 strips. TODO: confirm chained (1 pin) vs separate pins. Set led_count to total pixels.",
       "name": "House Swarming",
+      "pico_id": "dioramas",
       "pico_pin": 0,
       "led_count": 20,
       "brightness": 1.0,
@@ -24,22 +26,44 @@
       "pattern": "incandescent"
     },
     {
+      "_note": "Club: 2× SK6812 strips + transistor superbright LED. TODO: set led_count, transistor_pin when wired.",
       "name": "Club",
+      "pico_id": "dioramas",
       "pico_pin": 1,
       "led_count": 20,
       "brightness": 1.0,
       "color": [180, 0, 255, 0],
-      "pattern": "chase"
-    },
+      "pattern": "chase",
+      "transistor_pin": -1,
+      "transistor_pico_id": "dioramas",
+      "transistor_threshold": 0.6
+    }
+  ],
+
+  "pwm_displays": [
     {
+      "_note": "Mycelium: PWM/transistor LED filament on Pico A pin 2. Reacts to flowerbeds+pipes activity.",
       "name": "Mycelium",
       "pico_pin": 2,
-      "led_count": 224,
-      "brightness": 1.0,
-      "color": [80, 255, 120, 50],
-      "pattern": "mycelium",
-      "pulse_period": 20.0,
-      "pulse_min": 0.5
+      "pico_id": "dioramas",
+      "min_value": 10000,
+      "max_value": 65535,
+      "pulse_period": 10.0,
+      "signal_weight_captcha": 0.0,
+      "signal_weight_flowerbeds": 0.6,
+      "signal_weight_pipes": 0.4
+    },
+    {
+      "_note": "Dormer: PWM/transistor LED filament on Pico B pin 0. Gentle ambient glow.",
+      "name": "Dormer",
+      "pico_pin": 0,
+      "pico_id": "structure",
+      "min_value": 20000,
+      "max_value": 65535,
+      "pulse_period": 15.0,
+      "signal_weight_captcha": 0.2,
+      "signal_weight_flowerbeds": 0.4,
+      "signal_weight_pipes": 0.4
     }
   ],
 
@@ -52,46 +76,18 @@
       "renderer_port": 9002
     },
     "forge_and_flora": {
+      "_note": "2× SK6812 strips on pins 3+4 + transistor arc flash on pin TBD. Set arc_flash_pin when wired.",
       "name": "Forge & Flora",
       "arc_pin": 3,
-      "arc_led_count": 20,
       "bloom_pin": 4,
-      "bloom_led_count": 20,
+      "led_count": 20,
       "blend": 0.0,
       "transition_speed": 0.1,
-      "flicker_intensity": 0.3
+      "base_flicker_intensity": 0.1,
+      "max_flicker_intensity": 0.6,
+      "arc_flash_pin": -1,
+      "arc_flash_pico_id": "dioramas"
     }
-  },
-
-  "dormer": {
-    "name": "Dormer",
-    "pico_pin": 0,
-    "led_count": 4,
-    "brightness": 0.8,
-    "color": [0, 0, 0, 255],
-    "pattern": "solid"
-  },
-
-  "porch_lights": {
-    "name": "Porch Lights",
-    "pico_pin": 1,
-    "led_count": 2,
-    "blowup_duration": 3.0,
-    "aftermath_duration": 10.0
-  },
-
-  "attic": {
-    "name": "Attic TV & Lamps",
-    "pico_pin": 2,
-    "led_count": 8,
-    "brightness": 1.0,
-    "color": [180, 210, 255, 0],
-    "pattern": "incandescent"
-  },
-
-  "club_screen": {
-    "interval_seconds": 10,
-    "messages_file": "club_messages.txt"
   },
 
   "branch_controller": {

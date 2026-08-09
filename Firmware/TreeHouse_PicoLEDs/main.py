@@ -2,7 +2,7 @@ import sys
 import json
 import rp2
 import array
-from machine import Pin
+from machine import Pin, PWM
 
 
 @rp2.asm_pio(sideset_init=rp2.PIO.OUT_LOW, out_shiftdir=rp2.PIO.SHIFT_LEFT,
@@ -48,15 +48,29 @@ def _write(sm, pixels: list) -> None:
 
 
 def main() -> None:
+    _pwm: dict = {}
+    _gpio: dict = {}
+
     while True:
         line = sys.stdin.readline()
         if not line:
             continue
         try:
             msg = json.loads(line)
-            sm = _get_sm(msg["pin"])
-            if sm is not None:
-                _write(sm, msg["pixels"])
+            pin = msg["pin"]
+            if "pixels" in msg:
+                sm = _get_sm(pin)
+                if sm is not None:
+                    _write(sm, msg["pixels"])
+            elif "pwm" in msg:
+                if pin not in _pwm:
+                    _pwm[pin] = PWM(Pin(pin))
+                    _pwm[pin].freq(1000)
+                _pwm[pin].duty_u16(max(0, min(65535, int(msg["pwm"]))))
+            elif "gpio" in msg:
+                if pin not in _gpio:
+                    _gpio[pin] = Pin(pin, Pin.OUT)
+                _gpio[pin].value(1 if msg["gpio"] else 0)
         except Exception:
             pass
 

@@ -27,6 +27,23 @@ class ChannelFrame:
     """One LED strip's worth of pixel data bound to a specific Pico GPIO pin."""
     pin: int
     pixels: list[Color]
+    pico_id: str = "dioramas"
+
+
+@dataclass
+class PWMFrame:
+    """Single PWM duty-cycle command for a transistor-driven filament or dim circuit."""
+    pin: int
+    value: int  # 0–65535
+    pico_id: str = "dioramas"
+
+
+@dataclass
+class GPIOFrame:
+    """Single on/off GPIO command for a transistor switch."""
+    pin: int
+    value: bool
+    pico_id: str = "dioramas"
 
 
 @dataclass
@@ -76,3 +93,11 @@ class LEDControllable(Controllable):
     @abstractmethod
     def get_pixels(self) -> list[ChannelFrame]:
         """Return pixel data for all LED channels owned by this Controllable."""
+
+
+class PWMControllable(Controllable):
+    """Controllable subclass for PWM-driven circuits (LED filaments, dim channels)."""
+
+    @abstractmethod
+    def get_pwm_frames(self) -> list[PWMFrame]:
+        """Return PWM duty-cycle commands for this frame."""
