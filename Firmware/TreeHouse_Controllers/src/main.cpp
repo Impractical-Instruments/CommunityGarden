@@ -7,6 +7,9 @@
 //
 // Which location this binary is depends on the CG_TARGET_* macro set by the
 // platformio.ini environment.  See src/targets/.
+//
+// Building with CG_SELFTEST replaces all of that with a fixed hardware test
+// sequence and no networking at all — see src/SelfTest.h.
 
 #include <Arduino.h>
 
@@ -17,18 +20,30 @@
 #include "Patterns.h"
 #include "targets/target.h"
 
+#ifdef CG_SELFTEST
+#include "SelfTest.h"
+#endif
+
 namespace {
 
 constexpr uint32_t kFrameIntervalMs = 16;    // ~60 fps
-constexpr uint32_t kHeartbeatMs = 5000;      // serial status line
+
+cg::StripOutput g_strips[cg::target::kChannelCount];
+cg::DimmerOutput g_dimmers[cg::target::kChannelCount];
+uint32_t g_last_frame_ms = 0;
+
+#ifdef CG_SELFTEST
+
+cg::SelfTest g_selftest;
+
+#else
+
+constexpr uint32_t kHeartbeatMs = 5000;  // serial status line
 
 cg::Net g_net;
 cg::GardenStateStore g_state;
 cg::ChannelAnimator g_animators[cg::target::kChannelCount];
-cg::StripOutput g_strips[cg::target::kChannelCount];
-cg::DimmerOutput g_dimmers[cg::target::kChannelCount];
 
-uint32_t g_last_frame_ms = 0;
 uint32_t g_last_heartbeat_ms = 0;
 uint32_t g_packets = 0;
 
@@ -50,6 +65,8 @@ void logHeartbeat(const cg::GardenState& state, bool stale) {
   Serial.println();
 }
 
+#endif  // CG_SELFTEST
+
 }  // namespace
 
 void setup() {
@@ -62,7 +79,9 @@ void setup() {
   size_t dimmer_slot = 0;
   for (size_t i = 0; i < cg::target::kChannelCount; ++i) {
     const cg::ChannelSpec& spec = cg::target::kChannels[i];
+#ifndef CG_SELFTEST
     g_animators[i].configure(spec);
+#endif
 
     if (spec.kind == cg::ChannelKind::Strip) {
       if (strip_slot >= cg::kMaxStrips) {
@@ -78,13 +97,26 @@ void setup() {
     }
   }
 
+#ifdef CG_SELFTEST
+  g_selftest.begin(cg::target::kChannels, cg::target::kChannelCount, g_strips, g_dimmers,
+                   millis());
+#else
   g_net.begin(cg::target::kName, cg::target::kIp, cg::target::kOscPort);
+#endif
+
   g_last_frame_ms = millis();
 }
 
 void loop() {
   const uint32_t now = millis();
 
+#ifdef CG_SELFTEST
+  if (now - g_last_frame_ms >= kFrameIntervalMs) {
+    g_last_frame_ms = now;
+    g_selftest.update(now);
+  }
+  return;
+#else
   g_net.poll(now);
   g_packets += static_cast<uint32_t>(g_net.receive(onOscMessage, &g_state));
 
@@ -113,4 +145,5 @@ void loop() {
     g_last_heartbeat_ms = now;
     logHeartbeat(state, stale);
   }
+#endif  // CG_SELFTEST
 }

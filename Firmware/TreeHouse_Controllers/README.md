@@ -33,6 +33,59 @@ Debugging uses the S3's built-in USB JTAG (`debug_tool = esp-builtin`) — the
 same cable you flash with. Start it from the VSCode **Run and Debug** panel with
 the environment selected.
 
+## Self-test — proving the hardware without the show
+
+Each location has a `-selftest` environment that walks every channel through a
+fixed colour sequence with the network, Garden State and the whole animation
+engine compiled out. If a fixture stays dark under self-test, there is nothing
+left in the path but wiring, power, level shifting or the strip itself.
+
+```bash
+pio run -e jess-selftest -t upload
+pio device monitor -b 115200      # each phase is announced on serial
+```
+
+Or pick `jess-selftest` from the PlatformIO environment switcher in VSCode.
+
+It needs no `secrets.h` — the self-test builds exclude `Net.cpp` entirely — so
+this is the right thing to flash onto a bench before the Show Network exists.
+
+The sequence loops:
+
+| Phase | Duration | Strips | Dimmers |
+|---|---|---|---|
+| Red | 2 s | all pixels red | 25 % |
+| Green | 2 s | all pixels green | 50 % |
+| Blue | 2 s | all pixels blue | 75 % |
+| White | 2 s | all pixels white, **W element only** | 100 % |
+| Walk | 150 ms per pixel | one white pixel at a time, head to tail | blinking |
+| Dark | 1 s | off | off |
+
+Strips run at 35 %, and dimmers are still capped by that channel's `max_level`.
+Proving a strip works should not require peak current from a bench supply, and
+the Jess flash channel at full power is genuinely painful to look at.
+
+### Reading the result
+
+| What you see | What it means |
+|---|---|
+| Nothing at all, on every channel | Power or ground. Measure 5 V at the head **and** the tail of the run under load — voltage sag at the far end is the most common "dead strip" that isn't. |
+| Red, green and blue fine, white phase dark | The W leg. Either the strip is RGB rather than RGBW, or the white element is not wired. This is exactly why the white phase uses W alone instead of faking white from R+G+B. |
+| Colours wrong (red shows green, etc.) | Colour order. The firmware assumes GRBW (`NeoGrbwFeature` in `src/Outputs.cpp`). |
+| First pixel dark, rest fine | Dead lead pixel. It will also corrupt everything behind it in normal operation — resolder DIN onto pixel 2 to confirm. |
+| Walk stops partway along the run | Broken link at that pixel, or the strip is shorter than `kPixels` in `src/targets/<location>.h`. |
+| Whole run flickers or shows garbage | Signal integrity: 3.3 V data over a long run. Try it with a short jumper at the strip head — if it behaves up close, you need a level shifter, not a code change. |
+| Dimmer channel on at every step, no visible steps | MOSFET gate wired to a permanently-high pin, or the fixture is on the wrong side of the switch. |
+
+### Why you cannot just put 5 V on the data pin
+
+The SK6812's DIN is a clocked serial input, not a brightness control. Each chip
+waits for a >80 µs low, consumes the next 32 bits and forwards the rest down the
+line. Steady DC is neither a reset nor a valid bit, so the chip sits in whatever
+state it powered up in — which is off. There is no voltage that produces a
+colour, and applying 5 V to DIN while the strip's own V+ is *off* pushes current
+through the chip's ESD diode and can kill the first pixel. Use the self-test.
+
 ## Tests
 
 ```bash
@@ -52,6 +105,9 @@ this reason; `src/` is the hardware binding and is not part of the test build.
 - **MOSFET channels.** Use a logic-level N-channel MOSFET low-side switching the
   12 V return, with a gate resistor (~100 Ω) and a pulldown (~10 kΩ) so the
   fixture stays off while the S3 boots. Grounds must be common with the S3.
+- **Power-up state.** SK6812 registers reset to zero, so a strip that is dark
+  the instant power arrives is behaving correctly. A brief flash of random
+  colour on some clones is also normal.
 - **Pins.** Strips use GPIO 4/5/6, dimmers GPIO 7. These avoid the strapping
   pins (0, 3, 45, 46), the USB pair (19, 20) and the flash/PSRAM range. Change
   them in `src/targets/<location>.h` if the board layout demands it.
