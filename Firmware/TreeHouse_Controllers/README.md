@@ -16,12 +16,28 @@ channels, so a lost packet or a dropped access point costs nothing.
 
 ## First build
 
+PlatformIO only sees a project when the folder holding `platformio.ini` is the
+workspace root, so **open this folder directly** in VSCode — not the repo root:
+
+```bash
+code Firmware/TreeHouse_Controllers
+```
+
+Then:
+
 ```bash
 cp include/secrets.h.example include/secrets.h   # then fill in the WiFi credentials
 python3 ../../scripts/hooks/firmware_config_gen.py   # refresh include/net_config.h
 ```
 
-Then pick the environment in the PlatformIO toolbar in VSCode, or:
+To build and flash, click the alien-head PlatformIO icon in the sidebar →
+**PROJECT TASKS** → the environment you want (`jess`, say) → **General →
+Upload**, then **Monitor**. The environment switcher in the bottom status bar
+sets which one the ✓ / → / plug icons act on.
+
+The VSCode extension ships PlatformIO Core, so there is nothing extra to
+install. For a shell that already has `pio` on PATH, use Command Palette →
+**PlatformIO: New Terminal**:
 
 ```bash
 pio run -e jess              # build
@@ -33,6 +49,10 @@ Debugging uses the S3's built-in USB JTAG (`debug_tool = esp-builtin`) — the
 same cable you flash with. Start it from the VSCode **Run and Debug** panel with
 the environment selected.
 
+If a board is misbehaving before any of this works, flash
+[`../ESP32S3_SignsOfLife`](../ESP32S3_SignsOfLife) first. It has no networking
+and no config headers, so it isolates the board from everything here.
+
 ## Self-test — proving the hardware without the show
 
 Each location has a `-selftest` environment that walks every channel through a
@@ -40,12 +60,13 @@ fixed colour sequence with the network, Garden State and the whole animation
 engine compiled out. If a fixture stays dark under self-test, there is nothing
 left in the path but wiring, power, level shifting or the strip itself.
 
+Pick `jess-selftest` under **PROJECT TASKS → General → Upload** in the
+PlatformIO sidebar, or from the PlatformIO terminal:
+
 ```bash
 pio run -e jess-selftest -t upload
 pio device monitor -b 115200      # each phase is announced on serial
 ```
-
-Or pick `jess-selftest` from the PlatformIO environment switcher in VSCode.
 
 It needs no `secrets.h` — the self-test builds exclude `Net.cpp` entirely — so
 this is the right thing to flash onto a bench before the Show Network exists.
@@ -87,6 +108,8 @@ colour, and applying 5 V to DIN while the strip's own V+ is *off* pushes current
 through the chip's ESD diode and can kill the first pixel. Use the self-test.
 
 ## Tests
+
+From the PlatformIO terminal (Command Palette → **PlatformIO: New Terminal**):
 
 ```bash
 pio test -e native
