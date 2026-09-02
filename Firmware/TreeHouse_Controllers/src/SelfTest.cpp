@@ -30,7 +30,7 @@ void SelfTest::begin(const ChannelSpec* channels, size_t count, StripOutput* str
     if (channels_[i].pixel_count > max_pixels_) max_pixels_ = channels_[i].pixel_count;
   }
 
-  Serial.println("[selftest] network disabled — driving channels from the built-in sequence");
+  Serial.println("[selftest] network disabled - driving channels from the built-in sequence");
   Serial.printf("[selftest] red > green > blue > white > walk (%u px) > dark, repeating\n",
                 max_pixels_);
 }
@@ -71,7 +71,7 @@ const char* SelfTest::phaseName() const {
     case Phase::Green: return "green";
     case Phase::Blue: return "blue";
     case Phase::White: return "white (W element only)";
-    case Phase::Walk: return "walk — one pixel at a time";
+    case Phase::Walk: return "walk - one pixel at a time";
     case Phase::Dark: return "dark";
   }
   return "?";

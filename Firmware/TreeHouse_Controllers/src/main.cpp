@@ -85,7 +85,7 @@ void setup() {
 
     if (spec.kind == cg::ChannelKind::Strip) {
       if (strip_slot >= cg::kMaxStrips) {
-        Serial.printf("[setup] too many strips — %s not driven\n", spec.name);
+        Serial.printf("[setup] too many strips - %s not driven\n", spec.name);
         continue;
       }
       g_strips[i].begin(strip_slot++, spec.pin, spec.pixel_count);

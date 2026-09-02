@@ -34,7 +34,7 @@ void Net::begin(const char* hostname, const uint8_t ip[4], uint16_t osc_port) {
 
   if (!WiFi.config(fromOctets(ip), fromOctets(kGateway), fromOctets(kNetmask),
                    fromOctets(kGateway))) {
-    Serial.println("[net] static IP config rejected — falling back to DHCP");
+    Serial.println("[net] static IP config rejected - falling back to DHCP");
   }
 
   connect(millis());
@@ -58,7 +58,7 @@ void Net::poll(uint32_t now_ms) {
     }
     Serial.printf("[net] up as %s on %s:%u\n", hostname_, localIp().toString().c_str(), port_);
   } else if (!connected && was_connected_) {
-    Serial.println("[net] link lost — animating from last known Garden State");
+    Serial.println("[net] link lost - animating from last known Garden State");
   }
   was_connected_ = connected;
 

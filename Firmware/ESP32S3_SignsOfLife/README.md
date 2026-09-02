@@ -62,6 +62,25 @@ Every boot prints `esp_reset_reason()`, which is what actually names the fault:
 | `BROWNOUT` | LED current pulled the rail down. Most likely if the loop only starts once the strip is connected. |
 | `PANIC` | The sketch crashed; the backtrace prints just above that line, decoded to file and line by `esp32_exception_decoder`. |
 
+A boot loop with no reset reason at all — because it never reaches the sketch —
+looks like this:
+
+```
+E (83) spi_flash: Detected size(4096k) smaller than the size in the binary image header(8192k). Probe failed.
+assert failed: do_core_init startup.c:328 (flash_ret == ESP_OK)
+```
+
+That is a 4 MB module running an image built for 8 MB. PlatformIO's stock
+`esp32-s3-devkitc-1` definition assumes 8 MB; both firmware projects here
+override it back to 4 MB. If you meet a board that is neither, the three
+`board_upload.flash_size` / `board_upload.maximum_size` /
+`board_build.partitions` lines in `platformio.ini` are what to change.
+
+Note that a board stuck in this loop re-enumerates its USB port every cycle, so
+uploads fail with *"device reports readiness to read but returned no data"*.
+Erasing (**PROJECT TASKS → Platform → Erase Flash**) leaves it with nothing to
+run, which holds the port still long enough to flash it.
+
 Brightness is capped at 40/255 — about 100 mA for 8 RGBW pixels, which USB alone
 can supply. At full white those same 8 pixels want roughly 650 mA and will brown
 out a USB port. For anything brighter, power the strip from its own 5 V supply
