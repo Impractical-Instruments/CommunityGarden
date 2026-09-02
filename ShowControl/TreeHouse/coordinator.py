@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from location_sender import LocationTarget
 from displays import (
     ChannelFrame,
     Color,
@@ -64,6 +65,19 @@ class OSCConfig:
 
 
 @dataclass
+class LocationsConfig:
+    """ESP32-S3 location controllers (ADR-0020). Addresses come from network.json."""
+    targets: list = None
+    send_hz: float = 20.0
+    heartbeat_interval_s: float = 5.0
+    change_epsilon: float = 0.01
+
+    def __post_init__(self) -> None:
+        if self.targets is None:
+            self.targets = []
+
+
+@dataclass
 class ShowConfig:
     fps: int = 30
     dim_level: float = 0.25
@@ -102,10 +116,13 @@ class TreehouseConfig:
     dormer: DormerConfig
     porch_lights: PorchLightsConfig
     branch: BranchConfig = None
+    locations: LocationsConfig = None
 
     def __post_init__(self) -> None:
         if self.branch is None:
             self.branch = BranchConfig()
+        if self.locations is None:
+            self.locations = LocationsConfig()
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +133,33 @@ def _color(raw: list[int]) -> Color:
     if len(raw) != 4:
         raise ValueError(f"Color must be [R, G, B, W], got {raw!r}")
     return (raw[0], raw[1], raw[2], raw[3])
+
+
+def _load_locations(raw: dict, network: dict) -> LocationsConfig:
+    """
+    Resolves each named controller against network.json.
+
+    settings.json names controllers; it never carries their addresses
+    (AGENTS.md constraint #3).  A name with no matching firmware entry is
+    skipped with a warning rather than raising — the other controllers should
+    still come up.
+    """
+    firmware = network.get("firmware", {})
+    targets: list[LocationTarget] = []
+
+    for name in raw.get("controllers", []):
+        entry = firmware.get(name)
+        if not entry or not entry.get("ip") or not entry.get("osc_port"):
+            log.warning("locations: no usable network.json firmware entry for %r", name)
+            continue
+        targets.append(LocationTarget(name=name, ip=entry["ip"], port=int(entry["osc_port"])))
+
+    return LocationsConfig(
+        targets=targets,
+        send_hz=float(raw.get("send_hz", 20.0)),
+        heartbeat_interval_s=float(network.get("heartbeat_interval_s", 5.0)),
+        change_epsilon=float(network.get("change_epsilon", 0.01)),
+    )
 
 
 def load_config(path: str) -> TreehouseConfig:
@@ -206,6 +250,8 @@ def load_config(path: str) -> TreehouseConfig:
         motors=branch_motors,
     )
 
+    locations = _load_locations(raw.get("locations", {}), network)
+
     return TreehouseConfig(
         pico=PicoConfig(
             port=pico_raw.get("port", "/dev/ttyACM0"),
@@ -225,6 +271,7 @@ def load_config(path: str) -> TreehouseConfig:
         dormer=dormer,
         porch_lights=porch_lights,
         branch=branch,
+        locations=locations,
     )
 
 
@@ -300,6 +347,12 @@ class Coordinator:
         self._clock = _clock or time.monotonic
         self._last_received: dict[str, float] = {}
         self._stale_warned: set[str] = set()
+        self._last_state = GardenState()
+
+    @property
+    def garden_state(self) -> GardenState:
+        """The GardenState the most recent update() ran on."""
+        return self._last_state
 
     @property
     def brightness(self) -> float:
@@ -390,6 +443,9 @@ class Coordinator:
             brightness=self.brightness,
         )
         self._captcha_blowup_pending = False
+        # Held for LocationSender, which reads it after update() returns and
+        # needs to see the one-shot blowup flag this frame was built with.
+        self._last_state = state
         for controllable in self._displays.values():
             controllable.update(dt, state)
         self._update_branch_positions(state)
