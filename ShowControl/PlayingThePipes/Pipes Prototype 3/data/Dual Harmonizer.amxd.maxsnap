@@ -1,0 +1,43 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Dual Harmonizer.amxd",
+    "origin": "Dual Harmonizer.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Dual Harmonizer.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Dual Harmonizer.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Dry/Wet": 0.0,
+                "EchoEnable": 0.0,
+                "EchoFeedback": 49.65618909976557,
+                "EchoMode": 0.0,
+                "EchoMultL": 0.0,
+                "EchoMultR": 0.0,
+                "EchoSyncL": 10.0,
+                "EchoSyncR": 10.0,
+                "EchoTimeL": 999.2388365359849,
+                "EchoTimeR": 999.2388365359901,
+                "Gain": 0.0,
+                "Glide": 2040.2854490659167,
+                "Latency": 1.0,
+                "Quality": 0.0,
+                "TranspL": -330.0,
+                "TranspR": 360.0,
+                "VibDepth": 50.0,
+                "VibDirection": 0.0,
+                "VibEnable": 0.0,
+                "VibNoiseAmount": 0.0,
+                "VibNoiseEnable": 1.0,
+                "VibOscAmount": 100.0,
+                "VibOscEnable": 1.0,
+                "VibRate": 38.073075097742
+            }
+        },
+        "active": 1
+    }
+}

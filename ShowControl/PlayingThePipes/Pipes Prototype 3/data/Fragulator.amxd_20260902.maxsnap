@@ -1,0 +1,28 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Fragulator.amxd",
+    "origin": "Fragulator.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 1,
+    "snapshot": {
+        "name": "Fragulator.amxd",
+        "origname": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Fragulator.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Playback Speed": 3.8,
+                "amp variation": 0.0,
+                "buffer size": 30.0,
+                "declick": 0.0,
+                "direction": 0.0,
+                "drop out": 0.0,
+                "feedback": 0.0,
+                "repetition": 0.0,
+                "wet_dry": 100.0
+            }
+        },
+        "active": 1
+    }
+}
