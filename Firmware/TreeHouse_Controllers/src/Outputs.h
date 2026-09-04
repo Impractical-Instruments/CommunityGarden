@@ -29,9 +29,18 @@ class StripOutput {
 
 class DimmerOutput {
  public:
-  // 20 kHz keeps switching noise out of the audible band — these MOSFETs sit
-  // inside a quiet room with a 12 V supply that will otherwise sing.
-  static constexpr uint32_t kPwmFrequencyHz = 20000;
+  // The LEDC timer can only run where frequency x 2^resolution fits inside its
+  // clock, and on the ESP32-S3 the Arduino core feeds it from the 40 MHz XTAL
+  // (SOC_LEDC_SUPPORT_XTAL_CLOCK).  So 13 bits caps out at 4.88 kHz:
+  //
+  //    4000 Hz x 8192 =  32.8 MHz — fits
+  //   20000 Hz x 8192 = 163.8 MHz — does not, and the timer never starts
+  //
+  // Resolution wins here because dimmers fade filaments over seconds, where
+  // coarse duty steps read as banding rather than as a smooth swell.  The cost
+  // is that 4 kHz is inside the audible band: if the MOSFETs sing in a quiet
+  // room, trade bits back for pitch — 10 bits buys 39 kHz.
+  static constexpr uint32_t kPwmFrequencyHz = 4000;
   static constexpr uint8_t kPwmResolutionBits = 13;
 
   bool begin(size_t slot, uint8_t pin);

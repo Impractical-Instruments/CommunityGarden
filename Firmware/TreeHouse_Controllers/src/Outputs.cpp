@@ -76,14 +76,32 @@ bool DimmerOutput::begin(size_t slot, uint8_t pin) {
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   ready_ = ledcAttach(pin_, kPwmFrequencyHz, kPwmResolutionBits);
 #else
-  ledcSetup(channel_, kPwmFrequencyHz, kPwmResolutionBits);
-  ledcAttachPin(pin_, channel_);
-  ready_ = true;
+  // ledcSetup returns the frequency it actually achieved, or 0 when the timer
+  // could not be configured at all.  Discarding it hides the one mistake that
+  // is easy to make here — an impossible frequency/resolution pair, see the
+  // clock budget in Outputs.h — as a channel that simply stays dark.
+  const uint32_t actual_hz = ledcSetup(channel_, kPwmFrequencyHz, kPwmResolutionBits);
+  ready_ = actual_hz != 0;
+  if (ready_) {
+    ledcAttachPin(pin_, channel_);
+    if (actual_hz != kPwmFrequencyHz) {
+      Serial.printf("[out] pin %u PWM settled at %u Hz, not %u Hz\n", pin_,
+                    static_cast<unsigned>(actual_hz),
+                    static_cast<unsigned>(kPwmFrequencyHz));
+    }
+  }
 #endif
 
-  if (!ready_) Serial.printf("[out] LEDC attach failed on pin %u\n", pin_);
+  if (!ready_) {
+    Serial.printf("[out] LEDC setup failed on pin %u: %u Hz at %u bits needs a %u Hz clock\n",
+                  pin_, static_cast<unsigned>(kPwmFrequencyHz),
+                  static_cast<unsigned>(kPwmResolutionBits),
+                  static_cast<unsigned>(kPwmFrequencyHz << kPwmResolutionBits));
+    return false;
+  }
+
   write(0.0f);
-  return ready_;
+  return true;
 }
 
 void DimmerOutput::write(float level) {
