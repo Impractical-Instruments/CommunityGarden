@@ -16,9 +16,9 @@ constexpr uint16_t kPixels = 8;  // per strip — provisional
 
 constexpr ChannelSpec kChannels[] = {
     {
-        .name = "Swannatopia A",
+        .name = "Overhead",
         .kind = ChannelKind::Strip,
-        .pin = 4,
+        .pin = 11,
         .pixel_count = kPixels,
         .base = Rgbw{255, 180, 80, 255},  // warm white with an amber cast
         .pattern = PatternId::Incandescent,
@@ -30,9 +30,9 @@ constexpr ChannelSpec kChannels[] = {
         .idle_level = 0.18f,
     },
     {
-        .name = "Swannatopia B",
+        .name = "Fireplace",
         .kind = ChannelKind::Strip,
-        .pin = 5,
+        .pin = 12,
         .pixel_count = kPixels,
         .base = Rgbw{180, 40, 255, 0},  // violet, no white — reads as colour
         .pattern = PatternId::Chase,
@@ -44,10 +44,10 @@ constexpr ChannelSpec kChannels[] = {
         .idle_level = 0.12f,
     },
     {
-        .name = "Swannatopia C",
+        .name = "Chandelier",
         .kind = ChannelKind::Strip,
-        .pin = 6,
-        .pixel_count = kPixels,
+        .pin = 13,
+        .pixel_count = 46,
         .base = Rgbw{80, 255, 120, 40},  // green with a touch of white
         .pattern = PatternId::Mycelium,
         .weights = {.flowerbeds = 0.5f, .captcha = 0.2f, .pipes = 0.3f, .bias = 0.10f},
