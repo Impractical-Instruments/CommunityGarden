@@ -13,6 +13,17 @@
         "boxes": [
             {
                 "box": {
+                    "id": "obj-8",
+                    "maxclass": "newobj",
+                    "numinlets": 2,
+                    "numoutlets": 1,
+                    "outlettype": [ "float" ],
+                    "patching_rect": [ 132.0, 137.0, 33.0, 22.0 ],
+                    "text": "* 0.8"
+                }
+            },
+            {
+                "box": {
                     "id": "obj-11",
                     "maxclass": "message",
                     "numinlets": 2,
@@ -68,17 +79,6 @@
             },
             {
                 "box": {
-                    "id": "obj-12",
-                    "maxclass": "button",
-                    "numinlets": 1,
-                    "numoutlets": 1,
-                    "outlettype": [ "bang" ],
-                    "parameter_enable": 0,
-                    "patching_rect": [ 339.0, 68.0, 24.0, 24.0 ]
-                }
-            },
-            {
-                "box": {
                     "id": "obj-10",
                     "maxclass": "newobj",
                     "numinlets": 0,
@@ -130,7 +130,7 @@
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "signal" ],
-                    "patching_rect": [ 142.0, 119.0, 30.0, 30.0 ]
+                    "patching_rect": [ 93.0, 80.0, 30.0, 30.0 ]
                 }
             },
             {
@@ -164,7 +164,7 @@
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 39.0, 99.0, 30.0, 30.0 ]
+                    "patching_rect": [ 39.0, 80.0, 30.0, 30.0 ]
                 }
             },
             {
@@ -200,7 +200,7 @@
                     "saved_attribute_attributes": {
                         "valueof": {
                             "parameter_invisible": 1,
-                            "parameter_longname": "amxd~[14]",
+                            "parameter_longname": "amxd~[27]",
                             "parameter_modmode": 0,
                             "parameter_shortname": "amxd~[10]",
                             "parameter_type": 3
@@ -209,7 +209,7 @@
                     "saved_object_attributes": {
                         "parameter_enable": 1,
                         "patchername": "Max SpectralHarm.amxd",
-                        "patchername_fallback": "Package:/Max for Live/patchers/Max Audio Effect/Max SpectralHarm/Max SpectralHarm.amxd"
+                        "patchername_fallback": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Max SpectralHarm.amxd"
                     },
                     "snapshot": {
                         "filetype": "C74Snapshot",
@@ -222,12 +222,12 @@
                         "embed": 1,
                         "snapshot": {
                             "name": "Max SpectralHarm.amxd",
-                            "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max SpectralHarm/Max SpectralHarm.amxd",
+                            "origname": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Max SpectralHarm.amxd",
                             "valuedictionary": {
                                 "parameter_values": {
                                     "DetuneL": 0.0,
                                     "DetuneR": 0.0,
-                                    "Dry/Wet": 100.0,
+                                    "Dry/Wet": 0.0,
                                     "Feedback": 0.0,
                                     "Gain": 0.0,
                                     "ModeL": 0.0,
@@ -236,8 +236,8 @@
                                     "PanR": 50.0,
                                     "ShiftL": 0.0,
                                     "ShiftR": 0.0,
-                                    "TranspL": 0.0,
-                                    "TranspR": 0.0,
+                                    "TranspL": 12.479999999999997,
+                                    "TranspR": 12.479999999999997,
                                     "BeatL": 0.0,
                                     "BeatR": 0.0,
                                     "DelayL": 0.0,
@@ -260,12 +260,12 @@
                                     "embed": 1,
                                     "snapshot": {
                                         "name": "Max SpectralHarm.amxd",
-                                        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max SpectralHarm/Max SpectralHarm.amxd",
+                                        "origname": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Max SpectralHarm.amxd",
                                         "valuedictionary": {
                                             "parameter_values": {
                                                 "DetuneL": 0.0,
                                                 "DetuneR": 0.0,
-                                                "Dry/Wet": 100.0,
+                                                "Dry/Wet": 0.0,
                                                 "Feedback": 0.0,
                                                 "Gain": 0.0,
                                                 "ModeL": 0.0,
@@ -274,8 +274,8 @@
                                                 "PanR": 50.0,
                                                 "ShiftL": 0.0,
                                                 "ShiftR": 0.0,
-                                                "TranspL": 0.0,
-                                                "TranspR": 0.0,
+                                                "TranspL": 12.479999999999997,
+                                                "TranspR": 12.479999999999997,
                                                 "BeatL": 0.0,
                                                 "BeatR": 0.0,
                                                 "DelayL": 0.0,
@@ -311,14 +311,22 @@
             },
             {
                 "patchline": {
-                    "destination": [ "obj-6", 0 ],
+                    "destination": [ "obj-8", 0 ],
                     "order": 0,
                     "source": [ "obj-1", 0 ]
                 }
             },
             {
                 "patchline": {
-                    "destination": [ "obj-12", 0 ],
+                    "destination": [ "obj-11", 0 ],
+                    "order": 1,
+                    "source": [ "obj-10", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-16", 0 ],
+                    "order": 0,
                     "source": [ "obj-10", 0 ]
                 }
             },
@@ -334,20 +342,6 @@
                     "destination": [ "obj-6", 0 ],
                     "order": 0,
                     "source": [ "obj-11", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-11", 0 ],
-                    "order": 1,
-                    "source": [ "obj-12", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-16", 0 ],
-                    "order": 0,
-                    "source": [ "obj-12", 0 ]
                 }
             },
             {
@@ -404,6 +398,12 @@
                 "patchline": {
                     "destination": [ "obj-97", 0 ],
                     "source": [ "obj-7", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-6", 0 ],
+                    "source": [ "obj-8", 0 ]
                 }
             },
             {

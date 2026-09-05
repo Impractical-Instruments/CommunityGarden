@@ -13,13 +13,35 @@
         "boxes": [
             {
                 "box": {
+                    "id": "obj-19",
+                    "maxclass": "message",
+                    "numinlets": 2,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 890.0, 72.0, 29.5, 22.0 ],
+                    "text": "20"
+                }
+            },
+            {
+                "box": {
+                    "id": "obj-12",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 890.0, 120.0, 83.0, 22.0 ],
+                    "text": "prepend Input"
+                }
+            },
+            {
+                "box": {
                     "id": "obj-17",
                     "maxclass": "message",
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
                     "patching_rect": [ 774.0, 72.0, 29.5, 22.0 ],
-                    "text": "85"
+                    "text": "90"
                 }
             },
             {
@@ -41,7 +63,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "" ],
                     "patching_rect": [ 643.0, 72.0, 29.5, 22.0 ],
-                    "text": "85"
+                    "text": "90"
                 }
             },
             {
@@ -222,7 +244,7 @@
                     "saved_attribute_attributes": {
                         "valueof": {
                             "parameter_invisible": 1,
-                            "parameter_longname": "amxd~[5]",
+                            "parameter_longname": "amxd~[3]",
                             "parameter_modmode": 0,
                             "parameter_shortname": "amxd~[9]",
                             "parameter_type": 3
@@ -253,10 +275,10 @@
                                     "Detune4": 0.0,
                                     "Detune5": 0.0,
                                     "Dry/Wet": 0.0,
-                                    "Feedback": 85.0,
-                                    "Feedfwd": 85.0,
+                                    "Feedback": 90.0,
+                                    "Feedfwd": 90.0,
                                     "Gain": 0.0,
-                                    "Input": 0.0,
+                                    "Input": 20.0,
                                     "Pitch1": 36.0,
                                     "Pitch2": 48.0,
                                     "Pitch3": 60.0,
@@ -290,10 +312,10 @@
                                                 "Detune4": 0.0,
                                                 "Detune5": 0.0,
                                                 "Dry/Wet": 0.0,
-                                                "Feedback": 85.0,
-                                                "Feedfwd": 85.0,
+                                                "Feedback": 90.0,
+                                                "Feedfwd": 90.0,
                                                 "Gain": 0.0,
-                                                "Input": 0.0,
+                                                "Input": 20.0,
                                                 "Pitch1": 36.0,
                                                 "Pitch2": 48.0,
                                                 "Pitch3": 60.0,
@@ -337,29 +359,42 @@
             {
                 "patchline": {
                     "destination": [ "obj-10", 0 ],
-                    "order": 2,
-                    "source": [ "obj-11", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-13", 0 ],
                     "order": 3,
                     "source": [ "obj-11", 0 ]
                 }
             },
             {
                 "patchline": {
+                    "destination": [ "obj-13", 0 ],
+                    "order": 4,
+                    "source": [ "obj-11", 0 ]
+                }
+            },
+            {
+                "patchline": {
                     "destination": [ "obj-15", 0 ],
-                    "order": 1,
+                    "order": 2,
                     "source": [ "obj-11", 0 ]
                 }
             },
             {
                 "patchline": {
                     "destination": [ "obj-17", 0 ],
+                    "order": 1,
+                    "source": [ "obj-11", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-19", 0 ],
                     "order": 0,
                     "source": [ "obj-11", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-87", 0 ],
+                    "source": [ "obj-12", 0 ]
                 }
             },
             {
@@ -398,6 +433,12 @@
                 "patchline": {
                     "destination": [ "obj-16", 0 ],
                     "source": [ "obj-17", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-12", 0 ],
+                    "source": [ "obj-19", 0 ]
                 }
             },
             {

@@ -18,8 +18,8 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 349.0, 127.0, 35.0, 22.0 ],
-                    "text": "bang"
+                    "patching_rect": [ 349.0, 127.0, 29.5, 22.0 ],
+                    "text": "1."
                 }
             },
             {
@@ -203,8 +203,8 @@
                             "origname": "Package:/Max for Live/patchers/Max Audio Effect/Phone Filter/Phone Filter.amxd",
                             "valuedictionary": {
                                 "parameter_values": {
-                                    "dropout_length": 21.0,
-                                    "hiss": 0.01,
+                                    "dropout_length": 1.0,
+                                    "hiss": 0.0,
                                     "quality": 50.0,
                                     "wet/dry": 0.0
                                 }
@@ -228,8 +228,8 @@
                                         "origname": "Package:/Max for Live/patchers/Max Audio Effect/Phone Filter/Phone Filter.amxd",
                                         "valuedictionary": {
                                             "parameter_values": {
-                                                "dropout_length": 21.0,
-                                                "hiss": 0.01,
+                                                "dropout_length": 1.0,
+                                                "hiss": 0.0,
                                                 "quality": 50.0,
                                                 "wet/dry": 0.0
                                             }

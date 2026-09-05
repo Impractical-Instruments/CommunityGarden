@@ -4,13 +4,23 @@
         "appversion": {
             "major": 9,
             "minor": 1,
-            "revision": 4,
+            "revision": 5,
             "architecture": "x64",
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 886.0, 158.0, 1000.0, 780.0 ],
+        "rect": [ 332.0, 119.0, 573.0, 344.0 ],
         "boxes": [
+            {
+                "box": {
+                    "id": "obj-4",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 520.0, 466.0, 100.0, 22.0 ]
+                }
+            },
             {
                 "box": {
                     "id": "obj-2",
@@ -215,7 +225,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "bang" ],
                     "patching_rect": [ 137.0, 474.0, 67.0, 22.0 ],
-                    "text": "delay 2000"
+                    "text": "delay 1000"
                 }
             },
             {

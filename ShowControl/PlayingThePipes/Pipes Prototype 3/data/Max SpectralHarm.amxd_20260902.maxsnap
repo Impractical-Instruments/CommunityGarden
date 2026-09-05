@@ -9,12 +9,12 @@
     "embed": 1,
     "snapshot": {
         "name": "Max SpectralHarm.amxd",
-        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max SpectralHarm/Max SpectralHarm.amxd",
+        "origname": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Max SpectralHarm.amxd",
         "valuedictionary": {
             "parameter_values": {
                 "DetuneL": 0.0,
                 "DetuneR": 0.0,
-                "Dry/Wet": 100.0,
+                "Dry/Wet": 0.0,
                 "Feedback": 0.0,
                 "Gain": 0.0,
                 "ModeL": 0.0,
@@ -23,8 +23,8 @@
                 "PanR": 50.0,
                 "ShiftL": 0.0,
                 "ShiftR": 0.0,
-                "TranspL": 0.0,
-                "TranspR": 0.0,
+                "TranspL": 12.479999999999997,
+                "TranspR": 12.479999999999997,
                 "BeatL": 0.0,
                 "BeatR": 0.0,
                 "DelayL": 0.0,
