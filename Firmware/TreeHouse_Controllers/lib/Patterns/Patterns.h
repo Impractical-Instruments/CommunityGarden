@@ -33,7 +33,8 @@ enum class PatternId {
   Mycelium,      // travelling wave along the strip
   Breathe,       // slow uniform swell — also the idle fallback
   Filament,      // dimmer: slow-slewing level with a hint of flicker
-  Flash,         // dimmer: dark, with bursts that get more frequent under drive
+  Flash,         // dimmer: binary strobe — a burst of blinks, then a dark pause;
+                 // drive-free, so it runs unchanged when Garden State is stale
 };
 
 // Per-channel weighting over Garden State.  Weights need not sum to 1 — the

@@ -37,6 +37,19 @@ float flicker(float time_s, float offset) {
   return 0.5f + 0.25f * a + 0.25f * b;  // 0–1
 }
 
+// The idle fallback swaps a channel to Breathe when Garden State goes stale,
+// because a stale controller can no longer trust its drive value.  A pattern
+// that never reads drive has nothing to fall back from, so it keeps running
+// as it is — see patternLevel().
+bool usesDrive(PatternId pattern) { return pattern != PatternId::Flash; }
+
+// Flash: four 250 ms bursts, evenly spaced, then a four-second pause.
+constexpr float kFlashOnS = 0.25f;
+constexpr float kFlashPeriodS = 0.5f;  // on, then an equal gap
+constexpr int kFlashBursts = 4;
+constexpr float kFlashPauseS = 4.0f;
+constexpr float kFlashCycleS = kFlashBursts * kFlashPeriodS + kFlashPauseS;
+
 }  // namespace
 
 float Weights::apply(const GardenState& state) const {
@@ -105,7 +118,8 @@ void ChannelAnimator::update(float dt, const GardenState& state, bool stale) {
 }
 
 float ChannelAnimator::patternLevel(uint16_t index) const {
-  const PatternId pattern = stale_ ? PatternId::Breathe : spec_.pattern;
+  const PatternId pattern =
+      (stale_ && usesDrive(spec_.pattern)) ? PatternId::Breathe : spec_.pattern;
   const float count = spec_.pixel_count > 0 ? static_cast<float>(spec_.pixel_count) : 1.0f;
   float value = 0.0f;
 
@@ -157,12 +171,15 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
     }
 
     case PatternId::Flash: {
-      // Dark most of the time.  Bursts are a narrow window of the phase ramp
-      // that widens with drive, so the fixture goes from an occasional blink
-      // to near-continuous strobing as the Arc escalates.
-      const float window = 0.02f + 0.10f * drive_;
-      const bool armed = drive_ > 0.02f;  // truly dark, not a slow blink, at rest
-      value = (armed && phase_ < window) ? spec_.max_level : 0.0f;
+      // A strobe burst on a fixed schedule: kFlashBursts on/off pairs, then a
+      // long dark pause.  Binary — off, or the channel ceiling — so it reads
+      // as a strobe and not as a lamp being faded up and down.  Timed off
+      // time_s_ rather than phase_, so the burst length does not change with
+      // drive; tying the burst rate to the Arc comes later.
+      const float t = time_s_ - std::floor(time_s_ / kFlashCycleS) * kFlashCycleS;
+      const float train = kFlashBursts * kFlashPeriodS;
+      const bool lit = t < train && (t - std::floor(t / kFlashPeriodS) * kFlashPeriodS) < kFlashOnS;
+      value = lit ? spec_.max_level : 0.0f;
       break;
     }
   }

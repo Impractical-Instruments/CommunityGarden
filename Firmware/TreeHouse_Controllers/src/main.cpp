@@ -60,7 +60,14 @@ void logHeartbeat(const cg::GardenState& state, bool stale) {
       raw.flowerbeds_activity, raw.captcha_intensity, raw.pipes_activity,
       state.masterBrightness(), g_packets);
   for (size_t i = 0; i < cg::target::kChannelCount; ++i) {
-    Serial.printf(" %s=%.2f", g_animators[i].spec().name, g_animators[i].drive());
+    // Dimmers report the level actually written to the pin, not the drive: on a
+    // stale channel those differ, and the pin is the thing being doubted.
+    const cg::ChannelAnimator& animator = g_animators[i];
+    if (animator.spec().kind == cg::ChannelKind::Dimmer) {
+      Serial.printf(" %s=%.2f(pin)", animator.spec().name, animator.level());
+    } else {
+      Serial.printf(" %s=%.2f", animator.spec().name, animator.drive());
+    }
   }
   Serial.println();
 }

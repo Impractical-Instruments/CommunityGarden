@@ -157,11 +157,11 @@ void test_blowup_spikes_then_decays() {
   TEST_ASSERT_TRUE(animator.level() < 0.1f);
 }
 
-// A stale controller has no idea whether a Blow-Up is real, and the flash
-// fixture is bright enough that guessing wrong is unpleasant.
+// A stale controller has no idea whether a Blow-Up is real, and the fixtures
+// it would spike are bright enough that guessing wrong is unpleasant.
 void test_blowup_is_ignored_while_stale() {
-  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
-  spec.idle_level = 0.0f;  // as the Jess flash channel is configured
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Filament);
+  spec.idle_level = 0.0f;
   cg::ChannelAnimator animator;
   animator.configure(spec);
 
@@ -171,19 +171,55 @@ void test_blowup_is_ignored_while_stale() {
   TEST_ASSERT_EQUAL_FLOAT(0.0f, animator.level());
 }
 
-void test_flash_channel_stays_dark_without_drive() {
+// The idle fallback exists to replace a drive that can no longer be trusted.
+// Flash does not read drive, so a stale controller keeps strobing rather than
+// going dark — which is what a location looks like when its Pi is missing.
+void test_flash_keeps_strobing_while_stale() {
   cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
-  spec.weights.captcha = 1.0f;  // nothing else drives it
-  spec.speed = 2.5f;
+  spec.max_level = 0.8f;
+  spec.idle_level = 0.0f;  // as the Jess flash channel is configured
   cg::ChannelAnimator animator;
   animator.configure(spec);
 
-  float peak = 0.0f;
-  for (int i = 0; i < 500; ++i) {
-    animator.update(0.02f, active(), false);
-    if (animator.level() > peak) peak = animator.level();
+  cg::GardenState blowup = active();
+  blowup.captcha_blowup = true;
+
+  int lit_ms = 0;
+  for (int ms = 0; ms < 6000; ++ms) {
+    animator.update(0.001f, blowup, /*stale=*/true);
+    if (animator.level() > 0.0f) {
+      ++lit_ms;
+      // Still binary: a stale blowup must not spike it to full either.
+      TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());
+    }
   }
-  TEST_ASSERT_EQUAL_FLOAT(0.0f, peak);
+  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);
+}
+
+void test_flash_channel_strobes_in_bursts() {
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
+  spec.max_level = 0.8f;
+  spec.weights.captcha = 1.0f;  // nothing drives it; the burst runs regardless
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+
+  // Sample one 6 s cycle at 1 ms and count the on/off runs: four bursts of
+  // 250 ms, then a 4 s pause.
+  int edges = 0;
+  int lit_ms = 0;
+  bool lit = false;
+  for (int ms = 0; ms < 6000; ++ms) {
+    animator.update(0.001f, active(), false);
+    const bool now_lit = animator.level() > 0.0f;
+    if (now_lit) {
+      ++lit_ms;
+      TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());  // binary, at the ceiling
+    }
+    if (now_lit != lit) ++edges;
+    lit = now_lit;
+  }
+  TEST_ASSERT_EQUAL_INT(8, edges);       // four rising, four falling
+  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);  // 4 x 250 ms lit per cycle
 }
 
 void test_max_level_caps_even_the_blowup_spike() {
@@ -250,7 +286,8 @@ int main(int, char**) {
   RUN_TEST(test_stale_state_breathes_instead_of_going_dark);
   RUN_TEST(test_blowup_spikes_then_decays);
   RUN_TEST(test_blowup_is_ignored_while_stale);
-  RUN_TEST(test_flash_channel_stays_dark_without_drive);
+  RUN_TEST(test_flash_keeps_strobing_while_stale);
+  RUN_TEST(test_flash_channel_strobes_in_bursts);
   RUN_TEST(test_max_level_caps_even_the_blowup_spike);
   RUN_TEST(test_chase_lights_one_end_of_the_strip_at_a_time);
   RUN_TEST(test_gamma_duty_endpoints_and_monotonicity);
