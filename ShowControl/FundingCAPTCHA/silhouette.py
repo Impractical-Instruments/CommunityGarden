@@ -2,7 +2,7 @@
 
 Camera-space correction:
   build_cam_transform(settings) → Transform | None
-  apply_cam_transform(fg, intrinsics, transform) → np.ndarray
+  apply_cam_transform(fg, intrinsics, transform, dilation_px) → np.ndarray
 
 Display rendering:
   render_silhouette(fg, slabs_cfg, roi, color, w, h) → pygame.Surface
@@ -56,13 +56,21 @@ def build_cam_transform(settings: dict):
     )
 
 
-def apply_cam_transform(fg: np.ndarray, intrinsics, transform) -> np.ndarray:
+def apply_cam_transform(fg: np.ndarray, intrinsics, transform,
+                        dilation_px: int = 1) -> np.ndarray:
     """Correct fg for camera mounting: reproject if possible, always mirror.
 
     Always mirrors horizontally — camera faces players, mirror gives natural view.
     Reprojects only when both intrinsics and transform are non-None.
+
+    `dilation_px` closes the scatter holes reprojection leaves behind (a solid
+    body forward-maps to only ~69% coverage). It also inflates stray pixels by
+    (2n+1)^2, so it relies on detect_foreground() having despeckled first; 1 is
+    enough once it has. Raise it if the silhouette looks holey at this camera
+    angle — steeper mounts scatter more.
     """
     if intrinsics is not None and transform is not None:
         from IIVision import reproject_silhouette
-        fg = reproject_silhouette(fg, intrinsics, transform)
+        fg = reproject_silhouette(fg, intrinsics, transform,
+                                  dilation_px=dilation_px)
     return fg[:, ::-1]

@@ -64,3 +64,66 @@ def test_roi_crop_and_scale_to_size():
     roi = {"x": 2, "y": 2, "w": 4, "h": 4}
     surf = render_silhouette(fg, _SLAB, roi, _COLOR, 200, 120)
     assert surf.get_size() == (200, 120)
+
+
+# ── Camera-space correction: reprojection fill ──────────────────────────────────
+# Reprojecting the silhouette forward-maps many source pixels onto one target,
+# leaving scatter holes — measured at ~69% fill on a solid body. dilation_px
+# closes those holes, so it stays on, but it also inflates anything stray by
+# (2n+1)^2. detect_foreground() now despeckles upstream, letting this run at a
+# much smaller radius. Operator-tunable because the right radius depends on the
+# camera's mounting angle.
+
+from IIVision.blob_tracker import CameraIntrinsics
+from IIVision import Rotator, Transform
+from silhouette import apply_cam_transform
+
+_INTR = CameraIntrinsics(fx=480.0, fy=480.0, cx=320.0, cy=240.0)
+
+
+def _transform():
+    return Transform(translation=np.array([0.0, 0.0, 78.0]),
+                     rotation=Rotator(pitch=-35.0, yaw=0.0, roll=0.0))
+
+
+def _body_frame():
+    fg = np.zeros((480, 640), dtype=np.uint16)
+    fg[120:420, 240:400] = 2000
+    return fg
+
+
+def test_dilation_px_zero_leaves_reprojection_scatter():
+    """Establishes the hole problem dilation_px exists to solve."""
+    out = apply_cam_transform(_body_frame(), _INTR, _transform(), dilation_px=0)
+    filled = np.count_nonzero(out)
+
+    out3 = apply_cam_transform(_body_frame(), _INTR, _transform(), dilation_px=3)
+    assert filled < np.count_nonzero(out3), "dilation must fill scatter holes"
+
+
+def test_larger_dilation_fills_more():
+    counts = [
+        np.count_nonzero(apply_cam_transform(_body_frame(), _INTR, _transform(),
+                                             dilation_px=n))
+        for n in (0, 1, 2)
+    ]
+    assert counts[0] < counts[1] <= counts[2]
+
+
+def test_dilation_px_defaults_to_one():
+    """Default must be the small radius the upstream despeckle makes safe."""
+    default = apply_cam_transform(_body_frame(), _INTR, _transform())
+    explicit = apply_cam_transform(_body_frame(), _INTR, _transform(), dilation_px=1)
+
+    assert np.array_equal(default, explicit)
+
+
+def test_mirrors_horizontally_without_intrinsics():
+    """No intrinsics → no reprojection, but the mirror still applies."""
+    fg = np.zeros((4, 4), dtype=np.uint16)
+    fg[1, 0] = 2000
+
+    out = apply_cam_transform(fg, None, None)
+
+    assert out[1, 3] == 2000
+    assert out[1, 0] == 0

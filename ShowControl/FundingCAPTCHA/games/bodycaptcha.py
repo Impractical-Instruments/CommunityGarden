@@ -250,6 +250,17 @@ class BodyCaptchaGame:
                      self._defaults.get("hold_s", 1.0)))
 
     @property
+    def _hold_decay_rate(self) -> float:
+        """How fast a wrong pose drains the hold, as a multiple of real time.
+
+        1.0 drains as fast as it fills; 3.0 empties a full hold in a third of
+        hold_s. Keeps the hold reachable when depth speckle trips a stray cell
+        for a frame — see the drain in update().
+        """
+        return float(self._level.get("hold_decay_rate",
+                     self._defaults.get("hold_decay_rate", 3.0)))
+
+    @property
     def _hint_opacity(self) -> float:
         return float(self._level.get("hint_opacity",
                      self._defaults.get("hint_opacity", 0.1)))
@@ -332,7 +343,11 @@ class BodyCaptchaGame:
                 self._state   = _State.WIN_FLASH
                 self._state_t = 0.0
         else:
-            self._hold_elapsed = 0.0
+            # Drain rather than reset: a single speckle-tripped cell must not
+            # cost a Player the whole hold. A genuinely wrong pose still runs
+            # the hold down to zero, just decay_rate× faster than it built up.
+            self._hold_elapsed = max(
+                0.0, self._hold_elapsed - dt * self._hold_decay_rate)
 
         return self._intensity, None
 

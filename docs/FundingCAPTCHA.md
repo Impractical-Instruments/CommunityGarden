@@ -15,7 +15,7 @@ State machine:
 - **SCREENSAVER** — idle animation; detects a Player and counts down `attract_dwell_s`
 - **GAME** — active Arc; ends with a Blow-Up, returns to SCREENSAVER
 
-Pipeline — Orbbec depth camera → IIVision background subtraction → silhouette warp → **Body Grid** activator (ADR-0013). The Body Grid maps depth pixels inside configured **Depth Slabs** to a boolean grid of cells; cells go active when `≥ cell_activation_threshold` of their pixels are covered by foreground inside any slab.
+Pipeline — Orbbec depth camera → IIVision background subtraction → despeckle → silhouette warp → **Body Grid** activator (ADR-0013). The Body Grid maps depth pixels inside configured **Depth Slabs** to a boolean grid of cells; cells go active when `≥ cell_activation_threshold` of their pixels are covered by foreground inside any slab.
 
 Display: pygame `FULLSCREEN | NOFRAME`. Direct DRM (`SDL_VIDEODRIVER=kmsdrm`) — Pi OS Lite, no compositor (ADR-0011).
 
@@ -66,15 +66,16 @@ Top-level fields:
 - `attract_dwell_s` — seconds a Player must dwell to exit Screensaver
 - `min_foreground_pixels` — anti-noise threshold for Player presence
 - `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
+- `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
 - `calibration_frames` — default 60
-- Per-game blocks: `bodycaptcha`, `keepaway_body` (timer_s, grace_s, abandon_s, weights for **Intensity** computation)
+- Per-game blocks: `bodycaptcha`, `keepaway_body` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
 
 ---
 
 ## Level assets (per-game JSON)
 
 Files live alongside `app.py`:
-- `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hint_opacity`/`crop_align`)
+- `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hold_decay_rate`/`hint_opacity`/`crop_align`)
 - `keepaway-body-levels.json` — Keepaway Levels
 - `taunts.json`, `keepaway-body-taunts.json` — per-Arc taunt strings
 - `screensavers.json` — list of screensaver modules to load

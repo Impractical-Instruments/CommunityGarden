@@ -5,11 +5,11 @@
     "depth_delta_mm":  30,
     "min_blob_pixels": 500,
     "min_depth_mm":    1000,
-    "max_depth_mm":    3000
+    "max_depth_mm":    4000
   },
 
   "depth_slabs": [
-    {"near_mm": 1000, "far_mm": 3000, "slab_id": 0}
+    {"near_mm": 1000, "far_mm": 4000, "slab_id": 0}
   ],
 
   "slab_styles": {
@@ -18,11 +18,14 @@
 
   "cell_activation_threshold": 0.25,
 
-  "camera_roi": {"x": 0, "y": 0, "w": 640, "h": 400},
+  "camera_roi": {"x": 0, "y": 0, "w": 480, "h": 480},
+
+  "_silhouette_dilation_px": "Closes reprojection scatter holes. Raise if the silhouette looks holey; each step also fattens it by a pixel.",
+  "silhouette_dilation_px": 1,
 
   "attract_dwell_s": 5.0,
   "min_foreground_pixels": 2000,
-  "silhouette_opacity": 0.35,
+  "silhouette_opacity": 0.55,
 
   "calibration_frames": 60,
   "calibration_countdown_s": 10.0,
@@ -31,7 +34,8 @@
   "bodycaptcha": {
     "timer_s": 35,
     "hold_s": 1.0,
-    "hint_opacity": 0.1,
+    "hold_decay_rate": 3.0,
+    "hint_opacity": 0.2,
     "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 
@@ -49,6 +53,6 @@
     "height":  480,
     "fps":     15,
     "pos_cm":  [0, 0, 78],
-    "rotation": {"pitch": -35, "yaw": 0, "roll": 0}
+    "rotation": {"pitch": -25, "yaw": 0, "roll": 0}
   }
 }
