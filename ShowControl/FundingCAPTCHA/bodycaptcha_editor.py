@@ -116,7 +116,7 @@ class Editor:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption("BodyCaptcha Level Editor")
-        self._surf    = pygame.display.set_mode((W, H))
+        self._surf    = pygame.display.set_mode((W, H), pygame.SCALED | pygame.RESIZABLE)
         self._clock   = pygame.time.Clock()
         self._f15     = pygame.font.SysFont("monospace", 15, bold=True)
         self._f12     = pygame.font.SysFont("monospace", 12)
