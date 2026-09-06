@@ -145,6 +145,67 @@ Logs stream over a separate WebSocket; `_LogHandler` in `app.py` pumps records t
 
 ---
 
+## Maintenance mode — getting a console on the Pi
+
+The kiosk is a systemd unit with `Restart=always` / `RestartSec=5`. Quitting the
+game with **Esc** or **Q** only makes `app.py` exit; systemd relaunches it five
+seconds later, forever. To actually get the machine back you have to stop the
+*unit*, not the process.
+
+### Getting a shell
+
+**Over ethernet (easiest).** Plug in a cable, `ssh ii@captcha`, then stop the
+service. No console fighting.
+
+**On the Pi's own keyboard.** `SDL_VIDEODRIVER=kmsdrm` means pygame renders
+straight to DRM and holds the tty, so VT switching usually does nothing while
+the game is up. Use the restart gap instead:
+
+1. Press **Esc** to quit the game.
+2. Immediately press **Ctrl+Alt+F2** — a login prompt appears on tty2 during the
+   ~5s `RestartSec` window.
+3. Log in as `ii` and run `sudo systemctl stop captcha`.
+
+**If neither works — SD card.** Mount the boot partition on another machine and
+append `systemd.mask=captcha.service` to the single line in `cmdline.txt`. The
+Pi then boots to a clean console every time. Remove it when you're done.
+
+### Stop vs. disable
+
+```bash
+sudo systemctl stop captcha            # down now, back up on next boot
+sudo systemctl disable --now captcha   # down now, stays down across reboots
+sudo systemctl enable  --now captcha   # back to show-ready — do this before load-in
+```
+
+`stop` deactivates the unit, so `Restart=always` no longer respawns it — but the
+unit is `enable`d, so a reboot brings the show straight back.
+
+### Joining wifi from the console
+
+```bash
+sudo nmtui                                             # menu-driven, easiest at a console
+sudo nmcli device wifi list
+sudo nmcli device wifi connect "SSID" password "..."
+ip addr show wlan0                                     # confirm an address
+```
+
+`sudo raspi-config` → System Options → Wireless LAN also works.
+
+### Updating the game
+
+```bash
+sudo systemctl stop captcha
+cd ~/CommunityGarden && git pull && git lfs pull
+sudo systemctl start captcha
+journalctl -u captcha -f
+```
+
+If the install uses private show content, also re-run the sync — see
+[Private content sets](#private-content-sets).
+
+---
+
 ## Body Grid tester
 
 `body_grid_tester.py` — standalone tool to exercise the Body Grid in isolation (no Game). Useful for verifying camera calibration + slab config visually.
@@ -166,6 +227,7 @@ python3 body_grid_tester.py
 | Game never escalates | Level set thin or shuffle bag favoring easy | Add Levels at higher `difficulty`; check `intensity_weights` |
 | Game refuses to end | Game lacks self-termination | Audit Game code against ADR-0003 |
 | Projector misaligned | Calibration drift | Re-do screen calibration per ADR-0011 |
+| Game relaunches after Esc, can't get a console | `Restart=always` in `captcha.service` | Stop the unit, not the process — see [Maintenance mode](#maintenance-mode--getting-a-console-on-the-pi) |
 | Need to dev away from hardware | — | `python3 app.py --test-input` — mouse paints depth (ADR-0016) |
 
 ---
