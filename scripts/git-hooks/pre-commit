@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# pre-commit — refuse to stage private show content into this public repo.
+#
+# ShowControl/FundingCAPTCHA/images/private/ holds a clone of the private
+# assets repo. .gitignore keeps it out of `git add`; this hook is the backstop
+# for `git add -f` and for a future edit that drops the ignore rule.
+#
+# *.jpg is LFS-tracked and pushed LFS objects are effectively permanent, so a
+# mistaken commit here is not recoverable by amending.
+#
+# Install: bash scripts/install-git-hooks.sh
+set -euo pipefail
+
+PRIVATE_PREFIX="ShowControl/FundingCAPTCHA/images/private/"
+
+offenders="$(git diff --cached --name-only -z \
+    | tr '\0' '\n' \
+    | grep -F "$PRIVATE_PREFIX" || true)"
+
+if [ -n "$offenders" ]; then
+    echo "pre-commit: refusing to commit private show content." >&2
+    echo "" >&2
+    echo "These staged paths are under $PRIVATE_PREFIX:" >&2
+    echo "$offenders" | sed 's/^/  /' >&2
+    echo "" >&2
+    echo "That directory is a clone of the private assets repo and must never" >&2
+    echo "enter this public repository. Unstage them:" >&2
+    echo "" >&2
+    echo "  git restore --staged -- '$PRIVATE_PREFIX'" >&2
+    echo "" >&2
+    exit 1
+fi
+
+exit 0
