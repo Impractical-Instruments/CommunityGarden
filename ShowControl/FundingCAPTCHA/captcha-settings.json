@@ -5,11 +5,11 @@
     "depth_delta_mm":  30,
     "min_blob_pixels": 500,
     "min_depth_mm":    1000,
-    "max_depth_mm":    3000
+    "max_depth_mm":    4000
   },
 
   "depth_slabs": [
-    {"near_mm": 1000, "far_mm": 3000, "slab_id": 0}
+    {"near_mm": 1000, "far_mm": 4000, "slab_id": 0}
   ],
 
   "slab_styles": {
@@ -53,6 +53,6 @@
     "height":  480,
     "fps":     15,
     "pos_cm":  [0, 0, 78],
-    "rotation": {"pitch": -35, "yaw": 0, "roll": 0}
+    "rotation": {"pitch": -25, "yaw": 0, "roll": 0}
   }
 }
