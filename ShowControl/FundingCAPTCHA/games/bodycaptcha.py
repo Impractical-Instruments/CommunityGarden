@@ -22,6 +22,7 @@ from games.grid import (
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 from silhouette import render_silhouette
 from arc import blend_intensity
+from crop import crop_scale
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
@@ -132,7 +133,8 @@ def _img_load(path: Path) -> pygame.Surface:
     return pygame.image.frombuffer(raw, pil.size, "RGB").convert()
 
 
-def _load_bg(image_name: str | None, w: int, h: int) -> pygame.Surface | None:
+def _load_bg(image_name: str | None, w: int, h: int,
+             align: object = None) -> pygame.Surface | None:
     if not image_name:
         return None
     path = _IMAGES / image_name
@@ -141,7 +143,7 @@ def _load_bg(image_name: str | None, w: int, h: int) -> pygame.Surface | None:
         return None
     try:
         img = _img_load(path)
-        return pygame.transform.scale(img, (w, h))
+        return crop_scale(img, w, h, align)
     except Exception as exc:
         log.warning("Failed to load background image %s: %s", path, exc)
         return None
@@ -199,7 +201,8 @@ class BodyCaptchaGame:
         cols, rows       = level.get("grid", [4, 4])
         self._grid       = Grid(self._WW, self._WH, cols, rows)
         bounds           = self._grid.bounds_rect
-        self._bg_img     = _load_bg(level.get("image"), bounds.width, bounds.height)
+        self._bg_img     = _load_bg(level.get("image"), bounds.width, bounds.height,
+                                    level.get("crop_align"))
         self._activator  = _make_activator(level, self._settings)
         self._valid_set  = {tuple(c) for c in level.get("valid_cells", [])}
         self._elapsed    = 0.0

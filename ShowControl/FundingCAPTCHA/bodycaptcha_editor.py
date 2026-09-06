@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pygame
 
+from crop import ANCHORS, DEFAULT_ALIGN, crop_scale
+
 # When frozen by PyInstaller, data lives next to the .exe, not inside the
 # unpacked bundle (which is a temp dir and read-only across launches).
 if getattr(sys, "frozen", False):
@@ -159,19 +161,31 @@ class Editor:
     def _grid_dims(self) -> tuple[int, int]:
         return tuple(self._lv.get("grid", [4, 4]))
 
+    def _align(self) -> str:
+        a = self._lv.get("crop_align")
+        return a if a in ANCHORS else DEFAULT_ALIGN
+
+    def _set_align(self, align: str) -> None:
+        # Center is the default; storing it would add a key to every level.
+        if align == DEFAULT_ALIGN:
+            self._lv.pop("crop_align", None)
+        else:
+            self._lv["crop_align"] = align
+        self._dirty = True
+
     # ── Image loading ──────────────────────────────────────────────────────
 
-    def _get_bg(self, name: str) -> pygame.Surface | None:
-        if name not in self._bg_cache:
+    def _get_bg(self, name: str, w: int, h: int, align: str) -> pygame.Surface | None:
+        key = f"{name}_{w}_{h}_{align}"
+        if key not in self._bg_cache:
             path = _IMAGES / name
             if not path.exists():
                 return None
             try:
-                img = _img_load(path)
-                self._bg_cache[name] = pygame.transform.scale(img, (GRID_W, H))
+                self._bg_cache[key] = crop_scale(_img_load(path), w, h, align)
             except Exception:
                 return None
-        return self._bg_cache.get(name)
+        return self._bg_cache.get(key)
 
     def _get_thumb(self, name: str, tw: int, th: int) -> pygame.Surface | None:
         key = f"{name}_{tw}_{th}"
@@ -180,8 +194,7 @@ class Editor:
             if not path.exists():
                 return None
             try:
-                img = _img_load(path)
-                self._thumb_cache[key] = pygame.transform.scale(img, (tw, th))
+                self._thumb_cache[key] = crop_scale(_img_load(path), tw, th)
             except Exception:
                 return None
         return self._thumb_cache.get(key)
@@ -196,6 +209,18 @@ class Editor:
         cols, rows = self._grid_dims()
         cell = self._cell_size()
         return (GRID_W - cell * cols) // 2, (H - cell * rows) // 2
+
+    def _preview_rect(self) -> pygame.Rect:
+        """Where a level image is drawn — the cell grid itself.
+
+        The game blits the photo into `Grid.bounds_rect`, so the editor must
+        use the same rect or the anchor you pick here frames a different crop
+        than the show renders.
+        """
+        cols, rows = self._grid_dims()
+        cell   = self._cell_size()
+        ox, oy = self._grid_origin()
+        return pygame.Rect(ox, oy, cell * cols, cell * rows)
 
     def _cell_rect(self, col: int, row: int) -> pygame.Rect:
         cell = self._cell_size()
@@ -411,15 +436,13 @@ class Editor:
         cell  = self._cell_size()
         has_image = bool(self._lv.get("image"))
 
-        # Background
+        # Background — photo confined to the cell grid, letterboxed around it
+        pygame.draw.rect(surf, DK_GREY, (0, 0, GRID_W, H))
         if has_image:
-            bg = self._get_bg(self._lv["image"])
+            rect = self._preview_rect()
+            bg   = self._get_bg(self._lv["image"], rect.w, rect.h, self._align())
             if bg:
-                surf.blit(bg, (0, 0))
-            else:
-                pygame.draw.rect(surf, DK_GREY, (0, 0, GRID_W, H))
-        else:
-            pygame.draw.rect(surf, DK_GREY, (0, 0, GRID_W, H))
+                surf.blit(bg, rect.topleft)
 
         # Cell overlays (always alpha)
         tile = pygame.Surface((cell, cell), pygame.SRCALPHA)
@@ -592,6 +615,12 @@ class Editor:
                 "PICK IMAGE ▶", lambda: setattr(self, "_picking", True))
         y += 4
 
+        # ── Crop alignment ─────────────────────────────────────────────────
+        if img:
+            y = self._label(surf, sx, y, "CROP ALIGN")
+            y = self._align_pad(surf, sx, y)
+            y += 4
+
         # ── Valid cells list ───────────────────────────────────────────────
         vset = self._vset
         if vset:
@@ -626,6 +655,31 @@ class Editor:
             msg_s = self._f15.render(self._flash_msg, True, WHITE)
             msg_s.set_alpha(alpha)
             surf.blit(msg_s, (sx + 8, H // 2 - 10))
+
+    def _align_pad(self, surf, sx, y) -> int:
+        """3x3 anchor pad — which part of an off-aspect photo survives the crop."""
+        cur   = self._align()
+        cell  = 26
+        pad   = 3
+        mx, my = pygame.mouse.get_pos()
+        names = [n for n, _ in sorted(ANCHORS.items(), key=lambda kv: (kv[1][1], kv[1][0]))]
+
+        for i, name in enumerate(names):
+            rect = pygame.Rect(sx + 8 + (i % 3) * (cell + pad),
+                               y + (i // 3) * (cell + pad), cell, cell)
+            on  = name == cur
+            hov = rect.collidepoint(mx, my)
+            col = CYAN if on else (BTN_HOV if hov else BTN_NRM)
+            pygame.draw.rect(surf, col, rect, border_radius=3)
+            # A dot marks the kept region's anchor within the cell.
+            fx, fy = ANCHORS[name]
+            dot = (rect.x + 5 + int((cell - 10) * fx), rect.y + 5 + int((cell - 10) * fy))
+            pygame.draw.circle(surf, (20, 20, 28) if on else LT_GREY, dot, 3)
+            self._btns.append((rect, lambda n=name: self._set_align(n)))
+
+        t = self._f11.render(cur, True, CYAN)
+        surf.blit(t, (sx + 8 + 3 * (cell + pad) + 6, y + cell))
+        return y + 3 * (cell + pad) + 2
 
     # ── Sidebar widget helpers ─────────────────────────────────────────────
 
