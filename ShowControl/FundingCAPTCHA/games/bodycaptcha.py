@@ -26,8 +26,25 @@ from crop import crop_scale
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
-_LEVELS = _DIR / "bodycaptcha-levels.json"
+_LEVELS_DEFAULT = _DIR / "bodycaptcha-levels.json"
+_levels_path: Path = _LEVELS_DEFAULT
 _TAUNTS = _DIR / "taunts.json"
+
+
+def set_levels_path(path: Path | str | None) -> None:
+    """Point the game at an alternate levels file, or None to restore the default.
+
+    Module-level on purpose: _reload_data() re-reads levels at every arc start,
+    so an instance-level override would revert the show to the default set at
+    the first arc boundary.
+    """
+    global _levels_path
+    _levels_path = _LEVELS_DEFAULT if path is None else Path(path)
+
+
+def get_levels_path() -> Path:
+    return _levels_path
+
 
 HINT_COLOR   = (100, 180, 255)
 COVER_VALID  = (  0, 220,  80)
@@ -94,13 +111,19 @@ _DEFAULT_LEVEL = {"prompt": "Cover the center", "image": None, "difficulty": 1,
 _DEFAULT_TAUNT = "Too Slow! You're not a robot."
 
 
-def _read_levels(path: Path = _LEVELS) -> list[dict] | None:
+def _read_levels(path: Path | None = None) -> list[dict] | None:
     """Read the levels file. Returns None on ANY failure — missing, bad JSON,
     empty, or not a non-empty list — so callers choose fallback vs keep-last-good.
+
+    `path` defaults to whatever set_levels_path() last selected, resolved per
+    call rather than bound as a default argument, because _reload_data() calls
+    this with no argument at every arc start.
 
     Reloaded at every arc start (BodyCaptchaGame.reset), so a malformed or
     half-pulled file must never silently collapse the show to a default level.
     """
+    if path is None:
+        path = get_levels_path()
     try:
         data = json.loads(path.read_text())
     except Exception:
@@ -165,7 +188,11 @@ class BodyCaptchaGame:
     def __init__(self, settings: dict) -> None:
         self._settings   = settings
         self._defaults   = settings.get("bodycaptcha", {})
-        self._all_levels = _read_levels() or [_DEFAULT_LEVEL]
+        self._all_levels = _read_levels()
+        if self._all_levels is None:
+            log.warning("%s missing/invalid — falling back to default level",
+                        get_levels_path())
+            self._all_levels = [_DEFAULT_LEVEL]
         self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
         self._w_diff     = self._defaults.get("intensity_weights", {}).get("difficulty",     0.4)
@@ -241,8 +268,8 @@ class BodyCaptchaGame:
             self._all_levels = levels
             self._bag        = _LevelBag(levels)
         else:
-            log.warning("bodycaptcha-levels.json missing/invalid — keeping %d loaded levels",
-                        len(self._all_levels))
+            log.warning("%s missing/invalid — keeping %d loaded levels",
+                        get_levels_path(), len(self._all_levels))
 
         taunts = _read_taunts()
         if taunts is not None:

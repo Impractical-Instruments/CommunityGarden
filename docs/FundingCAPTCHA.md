@@ -167,3 +167,132 @@ python3 body_grid_tester.py
 | Game refuses to end | Game lacks self-termination | Audit Game code against ADR-0003 |
 | Projector misaligned | Calibration drift | Re-do screen calibration per ADR-0011 |
 | Need to dev away from hardware | — | `python3 app.py --test-input` — mouse paints depth (ADR-0016) |
+
+---
+
+## Private content sets
+
+Some shows use artwork that cannot be published. That content lives in a
+separate **private** repository, never in this one.
+
+**Layout.** The private repo tracks its background images in Git LFS and holds
+one directory per show:
+
+```
+<show-name>/levels.json
+<show-name>/<background images>
+```
+
+It is cloned into `ShowControl/FundingCAPTCHA/images/private/`, which
+`.gitignore` excludes. Because the clone lands inside the existing image root,
+level entries reference backgrounds exactly as public levels do:
+
+```json
+{ "image": "private/<show-name>/<file>.jpg" }
+```
+
+Push the private repo to its own remote. This repo's `.gitignore` means the
+public repo never contains this content, so that remote — not this one — is
+the only backup and version history it gets. Images and their level
+definitions are versioned together there, so a restore is a single clone and
+the two can never drift apart. Skipping the push isn't optional
+housekeeping: content that exists only in the working copy at
+`images/private/` is content with no backup at all.
+
+**Running a private set.**
+
+```bash
+cd ShowControl/FundingCAPTCHA
+python3 app.py --camera --levels images/private/<show-name>/levels.json
+```
+
+Authoring works the same way:
+
+```bash
+cd ShowControl/FundingCAPTCHA
+python3 bodycaptcha_editor.py --levels images/private/<show-name>/levels.json
+```
+
+Without `--levels`, both use `bodycaptcha-levels.json` as before. In `app.py`,
+a missing or malformed file logs a warning (visible in the monitoring page's
+log stream) and falls back to a single built-in default level rather than
+refusing to start; a bad file discovered on a later Arc's reload logs a
+warning too but keeps whatever levels are already loaded, so a half-pulled
+clone mid-run does not blank the show out. The editor (`bodycaptcha_editor.py`)
+falls back the same way on a bad path — a single default level, no crash — but
+does not log a warning to a terminal that may not be watched. Instead, the
+window title always shows the active levels path (e.g.
+`BodyCaptcha Level Editor — images/private/<show-name>/levels.json`), so a
+typoed `--levels` argument is visible at a glance rather than only surfacing
+when a save looks wrong.
+
+**On the show Pi.** `deploy/install.sh` can sync the private repo into
+`images/private/` during install. It's entirely optional and controlled by two
+environment variables, documented in `deploy/private-assets.example.env`:
+
+- `PRIVATE_ASSETS_REPO` — SSH clone URL of the private repo.
+- `PRIVATE_ASSETS_KEY` — read-only deploy key for it. Defaults to
+  `<service user's home>/.ssh/private_assets_ed25519` — **not** `$HOME`,
+  because `install.sh` runs under `sudo` and `$HOME` there is root's home, not
+  the service user's.
+
+To use it, copy the example file, fill in both variables, and source it before
+running the installer:
+
+```bash
+cd ShowControl/FundingCAPTCHA/deploy
+cp private-assets.example.env private-assets.env
+# edit private-assets.env with the repo URL and key path
+set -a; . ./private-assets.env; set +a
+sudo -E bash install.sh
+```
+
+Leaving both variables unset skips the sync entirely and installs the default
+public set — a plain `sudo bash install.sh` with no env file still works.
+
+The sync is **non-fatal**. If the key is missing, unreadable by the service
+user, or the clone/pull fails for any reason (network down, diverged history,
+bad key), `install.sh` prints a loud warning and continues — it still installs
+and starts the systemd unit either way. That does not mean the show comes up
+on the default level set: if the systemd drop-in below already points
+`--levels` at `images/private/<show-name>/levels.json`, a failed sync leaves
+that path missing, and the game falls back to a single built-in placeholder
+level, not `bodycaptcha-levels.json`. Check the install output (or re-run
+`install.sh`) if the show is supposed to have private content but came up
+looking wrong.
+
+Once the content is on disk, point the running service at it with a systemd
+drop-in rather than editing the committed unit, which stays on the default set:
+
+```bash
+sudo systemctl edit captcha
+```
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/python3 app.py --camera --port 8080 --levels images/private/<show-name>/levels.json
+```
+
+**The empty `ExecStart=` line is required.** Without it, systemd appends this
+line to the committed `ExecStart=` instead of replacing it, and the unit fails
+to start with both sets of arguments on one command line.
+
+**Keeping it private.** LFS objects, once pushed, are effectively permanent —
+a mistaken commit of private content into this repo cannot be undone by
+amending. Two guards stop that from happening:
+
+1. `.gitignore` excludes `ShowControl/FundingCAPTCHA/images/private/`.
+2. `scripts/git-hooks/pre-commit` refuses any commit that stages a path under
+   that prefix (the backstop for `git add -f`, or for a future edit that drops
+   the `.gitignore` rule).
+
+The hook is tracked in the repo but not installed by default — install it once
+per clone:
+
+```bash
+bash scripts/install-git-hooks.sh
+```
+
+This symlinks the tracked hooks into `.git/hooks` (rather than setting
+`core.hooksPath`, which would disable Git LFS's own hooks there).

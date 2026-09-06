@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# pre-commit — refuse to stage private show content into this public repo.
+#
+# ShowControl/FundingCAPTCHA/images/private/ holds a clone of the private
+# assets repo. .gitignore keeps it out of `git add`; this hook is the backstop
+# for `git add -f` and for a future edit that drops the ignore rule.
+#
+# It also catches a second leak channel: the level editor's image picker
+# lists every file under images/ regardless of which levels file is open, so
+# it is possible to save a "private/<show>/..." image reference into the
+# *tracked* bodycaptcha-levels.json without ever touching a path under
+# images/private/ itself. That mistake is a content problem, not a path
+# problem, so it needs its own check below.
+#
+# *.jpg is LFS-tracked and pushed LFS objects are effectively permanent, so a
+# mistaken commit here is not recoverable by amending.
+#
+# Install: bash scripts/install-git-hooks.sh
+set -euo pipefail
+
+PRIVATE_PATH="ShowControl/FundingCAPTCHA/images/private"
+LEVELS_FILE="ShowControl/FundingCAPTCHA/bodycaptcha-levels.json"
+
+# ── Gather staged paths ─────────────────────────────────────────────────────
+# Read git diff's own exit status separately from the pipe (PIPESTATUS),
+# since `set -e` would otherwise abort the script on the assignment before we
+# get a chance to inspect it — and an unexpected error here must fail CLOSED,
+# not be silently swallowed.
+staged_paths="$(git diff --cached --name-only -z | tr '\0' '\n')"
+diff_rc=${PIPESTATUS[0]}
+if [ "$diff_rc" -ne 0 ]; then
+    echo "pre-commit: 'git diff --cached' failed (exit $diff_rc); refusing to commit." >&2
+    echo "This guard cannot verify the commit is safe, so it is refusing rather" >&2
+    echo "than risking a silent pass. Investigate the git error above and retry." >&2
+    exit 1
+fi
+
+# ── Check 1: a staged path under the private directory itself ──────────────
+# Anchored at the start and matching either "<prefix>/..." or the bare
+# "<prefix>" (a gitlink, which is what `git add -f` on a directory containing
+# its own .git stages — no trailing slash). Anchoring also means a path like
+# "backup/<prefix>/x" is correctly left alone.
+if offenders="$(printf '%s\n' "$staged_paths" | grep -E "^${PRIVATE_PATH}(/|\$)")"; then
+    grep_rc=0
+else
+    grep_rc=$?
+fi
+if [ "$grep_rc" -gt 1 ]; then
+    echo "pre-commit: internal error scanning staged paths (grep exit $grep_rc); refusing to commit." >&2
+    exit 1
+fi
+
+if [ -n "$offenders" ]; then
+    echo "pre-commit: refusing to commit private show content." >&2
+    echo "" >&2
+    echo "These staged paths are under $PRIVATE_PATH:" >&2
+    echo "$offenders" | sed 's/^/  /' >&2
+    echo "" >&2
+    echo "That directory is a clone of the private assets repo and must never" >&2
+    echo "enter this public repository. Unstage them:" >&2
+    echo "" >&2
+    echo "  git restore --staged -- '$PRIVATE_PATH'" >&2
+    echo "" >&2
+    exit 1
+fi
+
+# ── Check 2: the tracked levels file gaining a "private/" image reference ──
+# The editor's image picker lists every file under images/, private set
+# included, no matter which levels file is open. Saving with a private
+# background selected while the *public* bodycaptcha-levels.json is loaded
+# writes a "private/<show>/<file>" reference straight into tracked history —
+# none of the path-based checks above see it, because no path under
+# images/private/ is staged at all.
+if printf '%s\n' "$staged_paths" | grep -qx "$LEVELS_FILE"; then
+    if level_diff="$(git diff --cached -U0 -- "$LEVELS_FILE")"; then
+        diff2_rc=0
+    else
+        diff2_rc=$?
+    fi
+    if [ "$diff2_rc" -ne 0 ]; then
+        echo "pre-commit: 'git diff --cached -- $LEVELS_FILE' failed (exit $diff2_rc); refusing to commit." >&2
+        exit 1
+    fi
+
+    if content_offenders="$(printf '%s\n' "$level_diff" | grep -E '^\+.*"image".*"private/')"; then
+        grep2_rc=0
+    else
+        grep2_rc=$?
+    fi
+    if [ "$grep2_rc" -gt 1 ]; then
+        echo "pre-commit: internal error scanning $LEVELS_FILE diff (grep exit $grep2_rc); refusing to commit." >&2
+        exit 1
+    fi
+
+    if [ -n "$content_offenders" ]; then
+        echo "pre-commit: refusing to commit — $LEVELS_FILE would gain a" >&2
+        echo "reference to a private image:" >&2
+        echo "" >&2
+        echo "$content_offenders" | sed 's/^/  /' >&2
+        echo "" >&2
+        echo "This is the public, tracked levels file. A level pointing at" >&2
+        echo "\"private/...\" only works on a machine that also has the private" >&2
+        echo "content cloned, and committing it puts that path — and the fact" >&2
+        echo "a private set exists — into permanent public history." >&2
+        echo "" >&2
+        echo "To fix: in the editor, undo the background pick on that level (or" >&2
+        echo "re-point it at a public image), then re-save. If you meant to" >&2
+        echo "author a private set, open the editor with" >&2
+        echo "--levels images/private/<show-name>/levels.json instead so saves" >&2
+        echo "land in the private file, not this one." >&2
+        echo "" >&2
+        echo "Unstage this file with:" >&2
+        echo "" >&2
+        echo "  git restore --staged -- '$LEVELS_FILE'" >&2
+        echo "" >&2
+        exit 1
+    fi
+fi
+
+exit 0

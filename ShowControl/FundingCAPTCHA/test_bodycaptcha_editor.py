@@ -128,3 +128,91 @@ def test_preview_rect_follows_a_non_square_grid(editor):
     cell = editor._cell_size()
     ox, oy = editor._grid_origin()
     assert editor._preview_rect() == pygame.Rect(ox, oy, cell * 4, cell * 2)
+
+
+# ── levels path override ────────────────────────────────────────────────────────
+
+import json
+
+
+@pytest.fixture(autouse=True)
+def _restore_editor_levels_path():
+    yield
+    ed.set_levels_path(None)
+
+
+def test_editor_default_levels_path_is_unchanged():
+    assert ed.get_levels_path() == ed._LEVELS_DEFAULT
+
+
+def test_editor_load_follows_override(tmp_path: Path):
+    p = tmp_path / "private-levels.json"
+    levels = [{"prompt": "P", "image": "private/x/a.jpg", "grid": [2, 2], "valid_cells": []}]
+    p.write_text(json.dumps(levels))
+    ed.set_levels_path(p)
+    assert ed._load() == levels
+
+
+def test_editor_save_writes_to_override_not_default(tmp_path: Path):
+    """Saving a private set must never touch the public levels file."""
+    p = tmp_path / "private-levels.json"
+    ed.set_levels_path(p)
+    ed._save([{"prompt": "P", "image": "private/x/a.jpg", "grid": [2, 2], "valid_cells": []}])
+    assert json.loads(p.read_text())[0]["prompt"] == "P"
+
+
+def test_editor_load_missing_override_returns_default_level(tmp_path: Path):
+    ed.set_levels_path(tmp_path / "nope.json")
+    loaded = ed._load()
+    assert loaded == [ed.DEFAULT_LEVEL]
+
+
+def test_caption_names_the_overridden_levels_path(tmp_path: Path):
+    """docs/FundingCAPTCHA.md says to check the window title if a save looks
+    wrong — the caption must actually name the active path for that to work."""
+    p = tmp_path / "private-levels.json"
+    ed.set_levels_path(p)
+    assert str(p) in ed._caption()
+
+
+def test_caption_names_the_default_levels_path():
+    assert str(ed._LEVELS_DEFAULT) in ed._caption()
+
+
+def test_editor_init_applies_the_caption(tmp_path: Path, monkeypatch):
+    """Real assertion that __init__ actually hands _caption() to pygame,
+    without going through the display-mode setup that pygame.SCALED needs a
+    renderer for (and CI has none)."""
+    p = tmp_path / "private-levels.json"
+    p.write_text(json.dumps([{"prompt": "P", "image": None, "grid": [2, 2], "valid_cells": []}]))
+    ed.set_levels_path(p)
+
+    monkeypatch.setattr(pygame.display, "set_mode", lambda *a, **k: pygame.Surface((1, 1)))
+    captions: list[str] = []
+    monkeypatch.setattr(pygame.display, "set_caption", lambda title: captions.append(title))
+
+    ed.Editor()
+    assert captions and str(p) in captions[0]
+
+
+def test_do_save_creates_a_missing_parent_directory(tmp_path: Path, editor):
+    """A typoed --levels path (missing parent dir) must not crash the editor
+    out of run() on Ctrl+S."""
+    p = tmp_path / "shwo" / "levels.json"  # parent directory does not exist
+    ed.set_levels_path(p)
+    editor._editing = False
+    editor._do_save()
+    assert p.exists()
+    assert "Saved" in editor._flash_msg
+
+
+def test_do_save_survives_an_unwritable_target(tmp_path: Path, editor):
+    """Anything else _save() can throw must be caught and flashed, not crash
+    the editor."""
+    blocker = tmp_path / "not_a_dir"
+    blocker.write_text("x")
+    p = blocker / "levels.json"  # "parent" is a file, mkdir(parents=True) fails
+    ed.set_levels_path(p)
+    editor._editing = False
+    editor._do_save()  # must not raise
+    assert "FAILED" in editor._flash_msg

@@ -17,8 +17,23 @@ if getattr(sys, "frozen", False):
     _DIR = Path(sys.executable).parent
 else:
     _DIR = Path(__file__).parent
-_LEVELS = _DIR / "bodycaptcha-levels.json"
+_LEVELS_DEFAULT = _DIR / "bodycaptcha-levels.json"
+_levels_path: Path = _LEVELS_DEFAULT
 _IMAGES = _DIR / "images"
+
+
+def set_levels_path(path: Path | str | None) -> None:
+    """Edit an alternate levels file, or None to restore the default."""
+    global _levels_path
+    _levels_path = _LEVELS_DEFAULT if path is None else Path(path)
+
+
+def get_levels_path() -> Path:
+    return _levels_path
+
+
+def _caption() -> str:
+    return f"BodyCaptcha Level Editor — {get_levels_path()}"
 
 
 def _img_load(path: Path) -> "pygame.Surface":
@@ -74,7 +89,7 @@ DEFAULT_LEVEL: dict = {
 
 def _load() -> list[dict]:
     try:
-        data = json.loads(_LEVELS.read_text())
+        data = json.loads(get_levels_path().read_text())
         if isinstance(data, list) and data:
             return data
     except Exception:
@@ -88,7 +103,14 @@ def _sort_key(lv: dict) -> tuple[str, str]:
 
 def _save(levels: list[dict]) -> None:
     ordered = sorted(levels, key=_sort_key)
-    _LEVELS.write_text(json.dumps(ordered, indent=2) + "\n")
+    path = get_levels_path()
+    # A typoed --levels path (e.g. a misspelled show directory) can point at a
+    # parent directory that was never created; write_text() would otherwise
+    # raise FileNotFoundError here and crash the editor out of run(), skipping
+    # the unsaved-changes warning and pygame.quit(). Create it rather than
+    # fail outright — _do_save() still catches anything else that goes wrong.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(ordered, indent=2) + "\n")
 
 
 def _wrap(text: str, max_chars: int) -> list[str]:
@@ -117,7 +139,7 @@ def _all_image_paths() -> list[str]:
 class Editor:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption("BodyCaptcha Level Editor")
+        pygame.display.set_caption(_caption())
         self._surf    = pygame.display.set_mode((W, H), pygame.SCALED | pygame.RESIZABLE)
         self._clock   = pygame.time.Clock()
         self._f15     = pygame.font.SysFont("monospace", 15, bold=True)
@@ -419,7 +441,13 @@ class Editor:
         current = self._lv
         self._levels.sort(key=_sort_key)
         self._idx = self._levels.index(current)
-        _save(self._levels)
+        try:
+            _save(self._levels)
+        except OSError as exc:
+            # Surface it instead of letting it escape run() uncaught — that
+            # would skip both the unsaved-changes warning and pygame.quit().
+            self._flash(f"SAVE FAILED: {exc}")
+            return
         self._dirty = False
         self._flash("Saved!")
 
@@ -809,4 +837,11 @@ class Editor:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(description="BodyCaptcha level editor")
+    ap.add_argument("--levels", type=Path, default=None, metavar="PATH",
+                    help="Alternate levels JSON to edit (default: bodycaptcha-levels.json)")
+    args = ap.parse_args()
+    set_levels_path(args.levels)
     Editor().run()

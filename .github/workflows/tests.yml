@@ -12,6 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # need base-branch history to diff the PR against below
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -23,6 +25,47 @@ jobs:
 
       - name: Install Python test deps
         run: pip install -r requirements-dev.txt
+
+      - name: Guard against private show content
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          PRIVATE_PATH="ShowControl/FundingCAPTCHA/images/private"
+          LEVELS_FILE="ShowControl/FundingCAPTCHA/bodycaptcha-levels.json"
+
+          echo "Diffing against base $BASE_SHA..."
+          changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
+
+          fail=0
+
+          if echo "$changed" | grep -E "^${PRIVATE_PATH}(/|\$)" > /tmp/private_paths; then
+              echo "::error::This PR touches $PRIVATE_PATH, which must never be committed to this public repo:"
+              sed 's/^/::error::  /' /tmp/private_paths
+              echo "::error::Remove these paths from the PR (git rm --cached, or drop the commit) and re-push."
+              fail=1
+          fi
+
+          if echo "$changed" | grep -qx "$LEVELS_FILE"; then
+              level_diff="$(git diff -U0 "$BASE_SHA"...HEAD -- "$LEVELS_FILE")"
+              if echo "$level_diff" | grep -E '^\+.*"image".*"private/' > /tmp/private_refs; then
+                  echo "::error::$LEVELS_FILE gains a reference to a private image in this PR:"
+                  sed 's/^/::error::  /' /tmp/private_refs
+                  echo "::error::This is the public, tracked levels file — a \"private/...\" image reference"
+                  echo "::error::only resolves on a machine with the private content cloned, and merging it"
+                  echo "::error::puts that path into permanent public history. Re-point the level at a public"
+                  echo "::error::image (or author it under images/private/<show-name>/levels.json instead,"
+                  echo "::error::opening the editor with --levels so saves land there, not here) and re-push."
+                  fail=1
+              fi
+          fi
+
+          if [ "$fail" -ne 0 ]; then
+              exit 1
+          fi
+
+          echo "No private-content leaks detected."
 
       - name: Run tests
         run: make test

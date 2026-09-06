@@ -342,7 +342,7 @@ class TestInputHandler:
 # live in arc.py — imported above. This module only knows how to find and load
 # Games from disk; selecting and running them is the Arc's job.
 
-def _load_games(settings: dict) -> list[Game]:
+def _load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
     games: list[Game] = []
     # BodyCaptcha only. `games/body_keepaway.py` and its Level/taunt data stay
     # in the tree for a future return, but the kiosk does not play it.
@@ -356,6 +356,9 @@ def _load_games(settings: dict) -> list[Game]:
             mod  = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
             sys.modules[spec.name] = mod                  # dataclass field resolution needs this
             spec.loader.exec_module(mod)                  # type: ignore[union-attr]
+            if levels_path is not None and hasattr(mod, "set_levels_path"):
+                mod.set_levels_path(levels_path)
+                log.info("Levels override for %s: %s", name, levels_path)
             games.append(mod.create(settings))
             log.info("Loaded game: %s", name)
         except Exception as exc:
@@ -410,6 +413,9 @@ def main() -> None:
     ap.add_argument("--test-depth",    type=int, default=None,
                     help="Depth value (mm) painted by left-drag in --test-input mode")
     ap.add_argument("--port",          type=int, default=8080)
+    ap.add_argument("--levels", type=Path, default=None, metavar="PATH",
+                    help="Alternate BodyCaptcha levels JSON (default: bodycaptcha-levels.json). "
+                         "A missing or malformed file falls back to the default set.")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -504,7 +510,7 @@ def main() -> None:
     game_w = WW
 
     # ── Arc ───────────────────────────────────────────────────────────────────
-    arc        = Arc(_load_games(settings))
+    arc        = Arc(_load_games(settings, levels_path=args.levels))
 
     # ── Screensavers ──────────────────────────────────────────────────────────
     savers     = _load_screensavers(settings)
