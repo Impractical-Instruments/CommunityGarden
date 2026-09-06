@@ -2,11 +2,19 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # headless: no real display
+
+import pygame
 import pytest
 
 from games.bodycaptcha import _read_levels, _read_taunts
+
+# Games size themselves against the live display surface at construction time.
+pygame.init()
+pygame.display.set_mode((640, 480))
 
 
 # ── _read_levels ────────────────────────────────────────────────────────────────
@@ -124,3 +132,23 @@ def test_read_levels_explicit_arg_still_wins(tmp_path: Path):
     explicit.write_text(json.dumps([{"prompt": "explicit"}]))
     set_levels_path(override)
     assert _read_levels(explicit)[0]["prompt"] == "explicit"
+
+
+# ── BodyCaptchaGame.__init__ fallback diagnostics ───────────────────────────────
+
+from games.bodycaptcha import BodyCaptchaGame, _DEFAULT_LEVEL  # noqa: E402
+
+SETTINGS = json.loads((Path(__file__).parent / "captcha-settings.json").read_text())
+
+
+def test_init_missing_levels_path_logs_warning_and_falls_back(tmp_path: Path, caplog):
+    """A --levels path that does not exist must behave like any other unreadable
+    levels file: fall back, log, keep running (spec: never collapse to a
+    placeholder level with zero diagnostics)."""
+    set_levels_path(tmp_path / "nope.json")
+
+    with caplog.at_level("WARNING", logger="games.bodycaptcha"):
+        game = BodyCaptchaGame(SETTINGS)
+
+    assert "missing/invalid" in caplog.text
+    assert game._all_levels == [_DEFAULT_LEVEL]

@@ -188,7 +188,11 @@ class BodyCaptchaGame:
     def __init__(self, settings: dict) -> None:
         self._settings   = settings
         self._defaults   = settings.get("bodycaptcha", {})
-        self._all_levels = _read_levels() or [_DEFAULT_LEVEL]
+        self._all_levels = _read_levels()
+        if self._all_levels is None:
+            log.warning("%s missing/invalid — falling back to default level",
+                        get_levels_path().name)
+            self._all_levels = [_DEFAULT_LEVEL]
         self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
         self._w_diff     = self._defaults.get("intensity_weights", {}).get("difficulty",     0.4)
