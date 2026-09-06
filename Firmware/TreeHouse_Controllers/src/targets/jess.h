@@ -2,13 +2,13 @@
 // LED.
 //
 // The bright LED is a punctuation mark, not a light source: it is dark most of
-// the time, strobes in short bursts, and goes full on for the Blow-Up
+// the time, fires one short burst a minute, and goes full on for the Blow-Up
 // Reaction.  Its ceiling is held below 1.0 because at full power, this close
 // to the windows, it is genuinely painful to look at.
 //
 // For now the burst schedule is fixed (see kFlash* in Patterns.cpp) and does
 // not follow the FundingCAPTCHA Arc; speed and smoothing are inert on it.
-// Because it reads no drive, it also strobes on unchanged when the Pi is
+// Because it reads no drive, it also keeps firing unchanged when the Pi is
 // unreachable, rather than dropping to the idle breathe the strips fall back
 // to.  A location with a dead Pi therefore still has a visible heartbeat.
 #pragma once
@@ -60,7 +60,7 @@ constexpr ChannelSpec kChannels[] = {
         .pattern = PatternId::Flash,
         .weights = {.flowerbeds = 0.1f, .captcha = 0.8f, .pipes = 0.1f, .bias = 0.0f},
         .min_level = 0.0f,   // unused by the fixed burst; kept for when it drives again
-        .max_level = 0.80f,
+        .max_level = 0.8f,
         .speed = 2.5f,
         .smoothing_s = 0.6f,
         .idle_level = 0.0f,  // unused: the burst is drive-free, so it survives a stale Pi

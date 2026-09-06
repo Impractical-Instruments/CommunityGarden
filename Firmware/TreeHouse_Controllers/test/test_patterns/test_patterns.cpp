@@ -182,9 +182,9 @@ void test_blowup_is_ignored_while_stale() {
 }
 
 // The idle fallback exists to replace a drive that can no longer be trusted.
-// Flash does not read drive, so a stale controller keeps strobing rather than
+// Flash does not read drive, so a stale controller keeps firing rather than
 // going dark — which is what a location looks like when its Pi is missing.
-void test_flash_keeps_strobing_while_stale() {
+void test_flash_keeps_firing_while_stale() {
   cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
   spec.max_level = 0.8f;
   spec.idle_level = 0.0f;  // as the Jess flash channel is configured
@@ -195,41 +195,71 @@ void test_flash_keeps_strobing_while_stale() {
   blowup.captcha_blowup = true;
 
   int lit_ms = 0;
+  float peak = 0.0f;
   for (int ms = 0; ms < 6000; ++ms) {
     animator.update(0.001f, blowup, /*stale=*/true);
-    if (animator.level() > 0.0f) {
-      ++lit_ms;
-      // Still binary: a stale blowup must not spike it to full either.
-      TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());
-    }
+    const float level = animator.level();
+    if (level > 0.0f) ++lit_ms;
+    if (level > peak) peak = level;
+    // A stale blowup must not spike it past the ceiling either.
+    TEST_ASSERT_TRUE(level <= 0.8f);
   }
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);
+  TEST_ASSERT_EQUAL_FLOAT(0.8f, peak);        // the burst still reaches the ceiling
+  TEST_ASSERT_INT_WITHIN(8, 1100, lit_ms);    // 100 ms burst + 1 s fade
 }
 
-void test_flash_channel_strobes_in_bursts() {
+void test_flash_channel_bursts_once_a_minute() {
   cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
   spec.max_level = 0.8f;
   spec.weights.captcha = 1.0f;  // nothing drives it; the burst runs regardless
   cg::ChannelAnimator animator;
   animator.configure(spec);
 
-  // Sample one 6 s cycle at 1 ms and count the on/off runs: four bursts of
-  // 250 ms, then a 4 s pause.
+  // Sample one 60 s cycle at 1 ms: a single 100 ms hit at the ceiling, a 1 s
+  // fade, then a dark minute — one rising edge and one falling edge in all.
   int edges = 0;
   int lit_ms = 0;
+  int at_ceiling_ms = 0;
   bool lit = false;
-  for (int ms = 0; ms < 6000; ++ms) {
+  for (int ms = 0; ms < 60000; ++ms) {
     animator.update(0.001f, active(), false);
-    const bool now_lit = animator.level() > 0.0f;
-    if (now_lit) {
-      ++lit_ms;
-      TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());  // binary, at the ceiling
-    }
+    const float level = animator.level();
+    const bool now_lit = level > 0.0f;
+    if (now_lit) ++lit_ms;
+    if (level >= 0.8f) ++at_ceiling_ms;
+    TEST_ASSERT_TRUE(level <= 0.8f);
     if (now_lit != lit) ++edges;
     lit = now_lit;
   }
-  TEST_ASSERT_EQUAL_INT(8, edges);       // four rising, four falling
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);  // 4 x 250 ms lit per cycle
+  TEST_ASSERT_EQUAL_INT(2, edges);              // one rising, one falling
+  TEST_ASSERT_INT_WITHIN(8, 100, at_ceiling_ms);  // the hard 100 ms burst
+  TEST_ASSERT_INT_WITHIN(8, 1100, lit_ms);        // burst + fade, then dark
+}
+
+// The tail is a decay, not a second strobe: once the burst ends the level only
+// ever falls, and it is genuinely dark well before the next minute comes round.
+void test_flash_fade_decays_monotonically_to_dark() {
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Flash);
+  spec.max_level = 0.8f;
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+
+  float previous = 1.0f;
+  for (int ms = 0; ms < 1200; ++ms) {
+    animator.update(0.001f, active(), false);
+    if (ms < 100) continue;  // still inside the flat burst
+    const float level = animator.level();
+    TEST_ASSERT_TRUE(level <= previous);
+    previous = level;
+  }
+  TEST_ASSERT_EQUAL_FLOAT(0.0f, animator.level());
+
+  // Halfway through the fade an exponential is already well under half.
+  cg::ChannelAnimator midpoint;
+  midpoint.configure(spec);
+  for (int ms = 0; ms < 600; ++ms) midpoint.update(0.001f, active(), false);
+  TEST_ASSERT_TRUE(midpoint.level() > 0.0f);
+  TEST_ASSERT_TRUE(midpoint.level() < 0.4f * 0.8f);
 }
 
 void test_max_level_caps_even_the_blowup_spike() {
@@ -374,8 +404,9 @@ int main(int, char**) {
   RUN_TEST(test_stale_state_breathes_instead_of_going_dark);
   RUN_TEST(test_blowup_spikes_then_decays);
   RUN_TEST(test_blowup_is_ignored_while_stale);
-  RUN_TEST(test_flash_keeps_strobing_while_stale);
-  RUN_TEST(test_flash_channel_strobes_in_bursts);
+  RUN_TEST(test_flash_keeps_firing_while_stale);
+  RUN_TEST(test_flash_channel_bursts_once_a_minute);
+  RUN_TEST(test_flash_fade_decays_monotonically_to_dark);
   RUN_TEST(test_max_level_caps_even_the_blowup_spike);
   RUN_TEST(test_chase_lights_one_end_of_the_strip_at_a_time);
   RUN_TEST(test_fire_keeps_every_pixel_lit);

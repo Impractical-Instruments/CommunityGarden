@@ -34,7 +34,7 @@ enum class PatternId {
   Fire,          // per-pixel heat, hottest at the hearth, ramped base -> base_hot
   Breathe,       // slow uniform swell — also the idle fallback
   Filament,      // dimmer: slow-slewing level with a hint of flicker
-  Flash,         // dimmer: binary strobe — a burst of blinks, then a dark pause;
+  Flash,         // dimmer: one hard burst a minute, fading out to a dark pause;
                  // drive-free, so it runs unchanged when Garden State is stale
 };
 
