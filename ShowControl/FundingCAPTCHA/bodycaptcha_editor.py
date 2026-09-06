@@ -32,6 +32,10 @@ def get_levels_path() -> Path:
     return _levels_path
 
 
+def _caption() -> str:
+    return f"BodyCaptcha Level Editor — {get_levels_path()}"
+
+
 def _img_load(path: Path) -> "pygame.Surface":
     """Load image via pygame, falling back to Pillow for JPEG on Pi (SDL_image JPEG-less builds)."""
     try:
@@ -135,7 +139,7 @@ def _all_image_paths() -> list[str]:
 class Editor:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption(f"BodyCaptcha Level Editor — {get_levels_path()}")
+        pygame.display.set_caption(_caption())
         self._surf    = pygame.display.set_mode((W, H), pygame.SCALED | pygame.RESIZABLE)
         self._clock   = pygame.time.Clock()
         self._f15     = pygame.font.SysFont("monospace", 15, bold=True)

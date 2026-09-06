@@ -167,15 +167,32 @@ def test_editor_load_missing_override_returns_default_level(tmp_path: Path):
     assert loaded == [ed.DEFAULT_LEVEL]
 
 
-def test_caption_shows_the_active_levels_path(tmp_path: Path):
+def test_caption_names_the_overridden_levels_path(tmp_path: Path):
     """docs/FundingCAPTCHA.md says to check the window title if a save looks
     wrong — the caption must actually name the active path for that to work."""
     p = tmp_path / "private-levels.json"
+    ed.set_levels_path(p)
+    assert str(p) in ed._caption()
+
+
+def test_caption_names_the_default_levels_path():
+    assert str(ed._LEVELS_DEFAULT) in ed._caption()
+
+
+def test_editor_init_applies_the_caption(tmp_path: Path, monkeypatch):
+    """Real assertion that __init__ actually hands _caption() to pygame,
+    without going through the display-mode setup that pygame.SCALED needs a
+    renderer for (and CI has none)."""
+    p = tmp_path / "private-levels.json"
     p.write_text(json.dumps([{"prompt": "P", "image": None, "grid": [2, 2], "valid_cells": []}]))
     ed.set_levels_path(p)
-    e = ed.Editor()
-    title, _ = pygame.display.get_caption()
-    assert str(p) in title
+
+    monkeypatch.setattr(pygame.display, "set_mode", lambda *a, **k: pygame.Surface((1, 1)))
+    captions: list[str] = []
+    monkeypatch.setattr(pygame.display, "set_caption", lambda title: captions.append(title))
+
+    ed.Editor()
+    assert captions and str(p) in captions[0]
 
 
 def test_do_save_creates_a_missing_parent_directory(tmp_path: Path, editor):
