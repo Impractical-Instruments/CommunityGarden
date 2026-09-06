@@ -18,7 +18,7 @@
 
   "cell_activation_threshold": 0.25,
 
-  "camera_roi": {"x": 0, "y": 0, "w": 640, "h": 400},
+  "camera_roi": {"x": 0, "y": 0, "w": 640, "h": 480},
 
   "_silhouette_dilation_px": "Closes reprojection scatter holes. Raise if the silhouette looks holey; each step also fattens it by a pixel.",
   "silhouette_dilation_px": 1,
