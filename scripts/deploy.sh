@@ -51,7 +51,24 @@ if [ "$branch" = "HEAD" ]; then
 fi
 
 echo "→ pushing $branch to $target"
-git push --force-with-lease "$target":CommunityGarden "$branch":"$branch"
+
+# We push to an ad-hoc ssh URL rather than a named remote, so there are no
+# refs/remotes/<target>/* tracking refs. A bare --force-with-lease has nothing
+# to compare against and git rejects the push with "(stale info)". Look the
+# remote branch up ourselves and pass the expected sha explicitly.
+url="$target":CommunityGarden
+remote_sha=$(git ls-remote "$url" "refs/heads/$branch" | cut -f1)
+
+if [ -z "$remote_sha" ]; then
+    git push "$url" "$branch":"$branch"
+elif ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    echo "Error: $target has $remote_sha on $branch, a commit this laptop does not have." >&2
+    echo "Someone committed on the show machine. Fetch it, or re-run with FORCE=1 to discard it." >&2
+    [ "$FORCE" = 1 ] || exit 1
+    git push --force "$url" "$branch":"$branch"
+else
+    git push --force-with-lease="$branch:$remote_sha" "$url" "$branch":"$branch"
+fi
 
 echo "→ checking out $branch and running install.sh on $target"
 ssh -t "$target" "
