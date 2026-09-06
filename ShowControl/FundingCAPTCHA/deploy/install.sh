@@ -29,17 +29,40 @@ apt-get install -y git-lfs 2>/dev/null || true
 git -C "$REPO_ROOT" lfs install
 git -C "$REPO_ROOT" lfs pull
 
+# ── Python dependencies ────────────────────────────────────────────────────────
+echo "→ Installing Python dependencies..."
+apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
+pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+
+# ── Patch service file with actual app path ────────────────────────────────────
+echo "→ Installing systemd unit..."
+DEST="/etc/systemd/system/captcha.service"
+sed "s|User=ii|User=$SERVICE_USER|g" \
+    "$SCRIPT_DIR/captcha.service" > "$DEST"
+echo "   written: $DEST"
+
+# ── Enable + start ─────────────────────────────────────────────────────────────
+systemctl daemon-reload
+systemctl enable captcha.service
+systemctl start  captcha.service
+
 # ── Private show content (optional) ───────────────────────────────────────────
 # Set PRIVATE_ASSETS_REPO to an SSH clone URL to pull unpublishable show content
 # into images/private/. Skipped silently only when PRIVATE_ASSETS_REPO is unset,
 # so a plain public clone still installs and runs the default level set. Any
 # other misconfiguration (repo set but no key found, unreadable key, network
 # down, diverged history, etc.) warns loudly and continues rather than
-# aborting the install — the systemd unit further down must still get
-# installed and started either way. This does NOT mean the game falls back to
-# the default level set: if a systemd drop-in already points --levels at the
-# private path, a failed sync leaves that path missing, and the game falls
-# back to its single built-in placeholder level, not bodycaptcha-levels.json.
+# aborting the install. This does NOT mean the game falls back to the default
+# level set: if a systemd drop-in already points --levels at the private path,
+# a failed sync leaves that path missing, and the game falls back to its
+# single built-in placeholder level, not bodycaptcha-levels.json.
+#
+# This block runs LAST, after the kiosk service is enabled and started, so
+# that a hang or failure here (unreachable host, no known_hosts entry, a
+# passphrase-protected key) can never delay or prevent the show coming up —
+# see the BatchMode/StrictHostKeyChecking flags below, which turn a would-be
+# interactive ssh prompt into an immediate failure instead of an unattended
+# hang at load-in.
 PRIVATE_DIR="$APP_DIR/images/private"
 PRIVATE_KEY="${PRIVATE_ASSETS_KEY:-$(getent passwd "$SERVICE_USER" | cut -d: -f6)/.ssh/private_assets_ed25519}"
 
@@ -54,7 +77,7 @@ elif ! sudo -u "$SERVICE_USER" test -r "$PRIVATE_KEY"; then
     echo "   (likely owned by root, or its permissions are too restrictive) — skipping private content sync."
 else
     echo "→ Syncing private show content..."
-    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY -o IdentitiesOnly=yes"
+    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
     SYNC_OK=1
     if [ -d "$PRIVATE_DIR/.git" ]; then
         sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
@@ -77,23 +100,6 @@ else
         echo "   Check that $PRIVATE_ASSETS_REPO is reachable and $PRIVATE_KEY is a valid deploy key."
     fi
 fi
-
-# ── Python dependencies ────────────────────────────────────────────────────────
-echo "→ Installing Python dependencies..."
-apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
-pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
-
-# ── Patch service file with actual app path ────────────────────────────────────
-echo "→ Installing systemd unit..."
-DEST="/etc/systemd/system/captcha.service"
-sed "s|User=ii|User=$SERVICE_USER|g" \
-    "$SCRIPT_DIR/captcha.service" > "$DEST"
-echo "   written: $DEST"
-
-# ── Enable + start ─────────────────────────────────────────────────────────────
-systemctl daemon-reload
-systemctl enable captcha.service
-systemctl start  captcha.service
 
 echo ""
 echo "=== Done ==="
