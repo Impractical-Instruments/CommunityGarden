@@ -31,45 +31,48 @@ git -C "$REPO_ROOT" lfs pull
 
 # ── Private show content (optional) ───────────────────────────────────────────
 # Set PRIVATE_ASSETS_REPO to an SSH clone URL to pull unpublishable show content
-# into images/private/. Skipped silently when unset or when no key is present, so
-# a plain public clone still installs and runs the default level set. A
-# configured-but-failing sync (unreadable key, network down, diverged history,
-# etc.) warns loudly and falls back to the default level set rather than
-# aborting the install — the systemd unit below must still get installed.
+# into images/private/. Skipped silently only when PRIVATE_ASSETS_REPO is unset,
+# so a plain public clone still installs and runs the default level set. Any
+# other misconfiguration (repo set but no key found, unreadable key, network
+# down, diverged history, etc.) warns loudly and falls back to the default
+# level set rather than aborting the install — the systemd unit below must
+# still get installed.
 PRIVATE_DIR="$APP_DIR/images/private"
 PRIVATE_KEY="${PRIVATE_ASSETS_KEY:-$(getent passwd "$SERVICE_USER" | cut -d: -f6)/.ssh/private_assets_ed25519}"
 
-if [ -n "${PRIVATE_ASSETS_REPO:-}" ] && [ -f "$PRIVATE_KEY" ]; then
-    if ! sudo -u "$SERVICE_USER" test -r "$PRIVATE_KEY"; then
-        echo "→ WARNING: private assets key $PRIVATE_KEY is not readable by $SERVICE_USER"
-        echo "   (likely owned by root, or its permissions are too restrictive) — skipping private content sync."
-    else
-        echo "→ Syncing private show content..."
-        export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY -o IdentitiesOnly=yes"
-        SYNC_OK=1
-        if [ -d "$PRIVATE_DIR/.git" ]; then
-            sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
-                git -C "$PRIVATE_DIR" pull --ff-only \
-                && sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
-                    git -C "$PRIVATE_DIR" lfs pull \
-                || SYNC_OK=0
-        else
-            sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
-                git clone "$PRIVATE_ASSETS_REPO" "$PRIVATE_DIR" \
-                && sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
-                    git -C "$PRIVATE_DIR" lfs pull \
-                || SYNC_OK=0
-        fi
-        unset GIT_SSH_COMMAND
-        if [ "$SYNC_OK" = 1 ]; then
-            echo "   synced: $PRIVATE_DIR"
-        else
-            echo "→ WARNING: private show content sync FAILED — continuing without it."
-            echo "   Check that $PRIVATE_ASSETS_REPO is reachable and $PRIVATE_KEY is a valid deploy key."
-        fi
-    fi
-else
+if [ -z "${PRIVATE_ASSETS_REPO:-}" ]; then
     echo "→ No private show content configured — skipping."
+elif [ ! -f "$PRIVATE_KEY" ]; then
+    echo "→ WARNING: PRIVATE_ASSETS_REPO is set but no deploy key was found at $PRIVATE_KEY"
+    echo "   (the key was never placed on this machine, or PRIVATE_ASSETS_KEY points"
+    echo "   somewhere else) — skipping private content sync."
+elif ! sudo -u "$SERVICE_USER" test -r "$PRIVATE_KEY"; then
+    echo "→ WARNING: private assets key $PRIVATE_KEY is not readable by $SERVICE_USER"
+    echo "   (likely owned by root, or its permissions are too restrictive) — skipping private content sync."
+else
+    echo "→ Syncing private show content..."
+    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY -o IdentitiesOnly=yes"
+    SYNC_OK=1
+    if [ -d "$PRIVATE_DIR/.git" ]; then
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git -C "$PRIVATE_DIR" pull --ff-only \
+            && sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+                git -C "$PRIVATE_DIR" lfs pull \
+            || SYNC_OK=0
+    else
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git clone "$PRIVATE_ASSETS_REPO" "$PRIVATE_DIR" \
+            && sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+                git -C "$PRIVATE_DIR" lfs pull \
+            || SYNC_OK=0
+    fi
+    unset GIT_SSH_COMMAND
+    if [ "$SYNC_OK" = 1 ]; then
+        echo "   synced: $PRIVATE_DIR"
+    else
+        echo "→ WARNING: private show content sync FAILED — continuing without it."
+        echo "   Check that $PRIVATE_ASSETS_REPO is reachable and $PRIVATE_KEY is a valid deploy key."
+    fi
 fi
 
 # ── Python dependencies ────────────────────────────────────────────────────────

@@ -202,12 +202,14 @@ housekeeping: content that exists only in the working copy at
 **Running a private set.**
 
 ```bash
+cd ShowControl/FundingCAPTCHA
 python3 app.py --camera --levels images/private/<show-name>/levels.json
 ```
 
 Authoring works the same way:
 
 ```bash
+cd ShowControl/FundingCAPTCHA
 python3 bodycaptcha_editor.py --levels images/private/<show-name>/levels.json
 ```
 
