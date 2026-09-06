@@ -128,3 +128,40 @@ def test_preview_rect_follows_a_non_square_grid(editor):
     cell = editor._cell_size()
     ox, oy = editor._grid_origin()
     assert editor._preview_rect() == pygame.Rect(ox, oy, cell * 4, cell * 2)
+
+
+# ── levels path override ────────────────────────────────────────────────────────
+
+import json
+
+
+@pytest.fixture(autouse=True)
+def _restore_editor_levels_path():
+    yield
+    ed.set_levels_path(None)
+
+
+def test_editor_default_levels_path_is_unchanged():
+    assert ed.get_levels_path() == ed._LEVELS_DEFAULT
+
+
+def test_editor_load_follows_override(tmp_path: Path):
+    p = tmp_path / "private-levels.json"
+    levels = [{"prompt": "P", "image": "private/x/a.jpg", "grid": [2, 2], "valid_cells": []}]
+    p.write_text(json.dumps(levels))
+    ed.set_levels_path(p)
+    assert ed._load() == levels
+
+
+def test_editor_save_writes_to_override_not_default(tmp_path: Path):
+    """Saving a private set must never touch the public levels file."""
+    p = tmp_path / "private-levels.json"
+    ed.set_levels_path(p)
+    ed._save([{"prompt": "P", "image": "private/x/a.jpg", "grid": [2, 2], "valid_cells": []}])
+    assert json.loads(p.read_text())[0]["prompt"] == "P"
+
+
+def test_editor_load_missing_override_returns_default_level(tmp_path: Path):
+    ed.set_levels_path(tmp_path / "nope.json")
+    loaded = ed._load()
+    assert loaded == [ed.DEFAULT_LEVEL]

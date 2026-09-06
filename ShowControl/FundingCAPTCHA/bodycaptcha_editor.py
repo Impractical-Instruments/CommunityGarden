@@ -17,8 +17,19 @@ if getattr(sys, "frozen", False):
     _DIR = Path(sys.executable).parent
 else:
     _DIR = Path(__file__).parent
-_LEVELS = _DIR / "bodycaptcha-levels.json"
+_LEVELS_DEFAULT = _DIR / "bodycaptcha-levels.json"
+_levels_path: Path = _LEVELS_DEFAULT
 _IMAGES = _DIR / "images"
+
+
+def set_levels_path(path: "Path | str | None") -> None:
+    """Edit an alternate levels file, or None to restore the default."""
+    global _levels_path
+    _levels_path = _LEVELS_DEFAULT if path is None else Path(path)
+
+
+def get_levels_path() -> Path:
+    return _levels_path
 
 
 def _img_load(path: Path) -> "pygame.Surface":
@@ -74,7 +85,7 @@ DEFAULT_LEVEL: dict = {
 
 def _load() -> list[dict]:
     try:
-        data = json.loads(_LEVELS.read_text())
+        data = json.loads(get_levels_path().read_text())
         if isinstance(data, list) and data:
             return data
     except Exception:
@@ -88,7 +99,7 @@ def _sort_key(lv: dict) -> tuple[str, str]:
 
 def _save(levels: list[dict]) -> None:
     ordered = sorted(levels, key=_sort_key)
-    _LEVELS.write_text(json.dumps(ordered, indent=2) + "\n")
+    get_levels_path().write_text(json.dumps(ordered, indent=2) + "\n")
 
 
 def _wrap(text: str, max_chars: int) -> list[str]:
@@ -809,4 +820,11 @@ class Editor:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    ap = argparse.ArgumentParser(description="BodyCaptcha level editor")
+    ap.add_argument("--levels", type=Path, default=None, metavar="PATH",
+                    help="Alternate levels JSON to edit (default: bodycaptcha-levels.json)")
+    args = ap.parse_args()
+    set_levels_path(args.levels)
     Editor().run()
