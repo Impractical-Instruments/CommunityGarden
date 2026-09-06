@@ -29,6 +29,33 @@ apt-get install -y git-lfs 2>/dev/null || true
 git -C "$REPO_ROOT" lfs install
 git -C "$REPO_ROOT" lfs pull
 
+# ── Private show content (optional) ───────────────────────────────────────────
+# Set PRIVATE_ASSETS_REPO to an SSH clone URL to pull unpublishable show content
+# into images/private/. Skipped silently when unset or when no key is present, so
+# a plain public clone still installs and runs the default level set.
+PRIVATE_DIR="$APP_DIR/images/private"
+PRIVATE_KEY="${PRIVATE_ASSETS_KEY:-$(getent passwd "$SERVICE_USER" | cut -d: -f6)/.ssh/private_assets_ed25519}"
+
+if [ -n "${PRIVATE_ASSETS_REPO:-}" ] && [ -f "$PRIVATE_KEY" ]; then
+    echo "→ Syncing private show content..."
+    export GIT_SSH_COMMAND="ssh -i $PRIVATE_KEY -o IdentitiesOnly=yes"
+    if [ -d "$PRIVATE_DIR/.git" ]; then
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git -C "$PRIVATE_DIR" pull --ff-only
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git -C "$PRIVATE_DIR" lfs pull
+    else
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git clone "$PRIVATE_ASSETS_REPO" "$PRIVATE_DIR"
+        sudo -u "$SERVICE_USER" --preserve-env=GIT_SSH_COMMAND \
+            git -C "$PRIVATE_DIR" lfs pull
+    fi
+    unset GIT_SSH_COMMAND
+    echo "   synced: $PRIVATE_DIR"
+else
+    echo "→ No private show content configured — skipping."
+fi
+
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
