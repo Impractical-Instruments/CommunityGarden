@@ -89,7 +89,7 @@ A standalone Windows level editor for non-git teammates lives in `distribution/`
 | Module | Game | Notes |
 |---|---|---|
 | `bodycaptcha.py` | **BodyCaptcha** | Match the prompt by activating the right grid cells |
-| `body_keepaway.py` | **Keepaway** | Defenders try to catch the Player; Player loses if caught |
+| `body_keepaway.py` | **Keepaway** | **Not loaded** — the kiosk plays BodyCaptcha only. Module and its Level/taunt data retained for a future return |
 | `grid.py` | shared overlay | Cell boundary drawing, used by all Games |
 
 Every Game must guarantee a loss after sustained inactivity (ADR-0003) — either via the Level timer, or via mechanics that ensure failure without Player input.
