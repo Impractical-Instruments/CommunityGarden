@@ -53,3 +53,74 @@ def test_read_taunts_bad_file_returns_none(tmp_path: Path):
     p = tmp_path / "taunts.json"
     p.write_text("nonsense")
     assert _read_taunts(p) is None
+
+
+# ── levels path override ────────────────────────────────────────────────────────
+
+from games.bodycaptcha import get_levels_path, set_levels_path, _LEVELS_DEFAULT
+
+
+@pytest.fixture(autouse=True)
+def _restore_levels_path():
+    """Every test in this module leaves the module-level path as it found it."""
+    yield
+    set_levels_path(None)
+
+
+def test_default_levels_path_is_unchanged():
+    assert get_levels_path() == _LEVELS_DEFAULT
+
+
+def test_set_levels_path_overrides_default(tmp_path: Path):
+    p = tmp_path / "private-levels.json"
+    set_levels_path(p)
+    assert get_levels_path() == p
+
+
+def test_set_levels_path_none_restores_default(tmp_path: Path):
+    set_levels_path(tmp_path / "private-levels.json")
+    set_levels_path(None)
+    assert get_levels_path() == _LEVELS_DEFAULT
+
+
+def test_set_levels_path_accepts_str(tmp_path: Path):
+    p = tmp_path / "private-levels.json"
+    set_levels_path(str(p))
+    assert get_levels_path() == Path(p)
+
+
+def test_read_levels_follows_override(tmp_path: Path):
+    p = tmp_path / "private-levels.json"
+    levels = [{"prompt": "P", "grid": [2, 2], "valid_cells": [[0, 0]], "difficulty": 1}]
+    p.write_text(json.dumps(levels))
+    set_levels_path(p)
+    assert _read_levels() == levels
+
+
+def test_read_levels_resolves_override_at_call_time(tmp_path: Path):
+    """The override must be read per call, not captured as a default argument —
+    _reload_data() calls _read_levels() with no argument at every arc start."""
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    a.write_text(json.dumps([{"prompt": "A", "grid": [2, 2], "valid_cells": [[0, 0]]}]))
+    b.write_text(json.dumps([{"prompt": "B", "grid": [2, 2], "valid_cells": [[0, 0]]}]))
+    set_levels_path(a)
+    assert _read_levels()[0]["prompt"] == "A"
+    set_levels_path(b)
+    assert _read_levels()[0]["prompt"] == "B"
+
+
+def test_read_levels_missing_override_returns_none(tmp_path: Path):
+    """A --levels path that does not exist must fall back, never raise."""
+    set_levels_path(tmp_path / "nope.json")
+    assert _read_levels() is None
+
+
+def test_read_levels_explicit_arg_still_wins(tmp_path: Path):
+    """Existing callers that pass a path explicitly are unaffected by the override."""
+    override = tmp_path / "override.json"
+    override.write_text(json.dumps([{"prompt": "override"}]))
+    explicit = tmp_path / "explicit.json"
+    explicit.write_text(json.dumps([{"prompt": "explicit"}]))
+    set_levels_path(override)
+    assert _read_levels(explicit)[0]["prompt"] == "explicit"
