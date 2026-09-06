@@ -74,11 +74,18 @@ Top-level fields:
 ## Level assets (per-game JSON)
 
 Files live alongside `app.py`:
-- `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hint_opacity`)
+- `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hint_opacity`/`crop_align`)
 - `keepaway-body-levels.json` — Keepaway Levels
 - `taunts.json`, `keepaway-body-taunts.json` — per-Arc taunt strings
 - `screensavers.json` — list of screensaver modules to load
 - `images/` — Level background photos
+
+Level photos are drawn into the grid bounds, whose aspect is `cols/rows`. A photo
+of any other aspect is **cropped** to fit, never squashed. Optional `crop_align`
+picks which part survives the crop — one of `top-left`, `top`, `top-right`,
+`left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`; omitted means
+`center`. The level editor's CROP ALIGN pad sets it, previewing the exact framing
+the show will render.
 
 A standalone Windows level editor for non-git teammates lives in `distribution/` (build with `distribution/build.py`; see `distribution/README.md`). Edited level packs come back in zip form; `distribution/merge_levels.py` merges them into the canonical JSON.
 
