@@ -31,6 +31,7 @@ enum class PatternId {
   Incandescent,  // warm per-pixel flicker, like filament bulbs
   Chase,         // lit head with a decaying tail, speed follows drive
   Mycelium,      // travelling wave along the strip
+  Fire,          // per-pixel heat, hottest at the hearth, ramped base -> base_hot
   Breathe,       // slow uniform swell — also the idle fallback
   Filament,      // dimmer: slow-slewing level with a hint of flicker
   Flash,         // dimmer: binary strobe — a burst of blinks, then a dark pause;
@@ -55,6 +56,8 @@ struct ChannelSpec {
   uint8_t pin = 0;
   uint16_t pixel_count = 0;  // strips only
   Rgbw base;                 // strips: the channel's colour at full drive
+  Rgbw base_hot = Rgbw{};    // strips: the hot end of the colour ramp — Fire only,
+                             // ignored by the patterns that scale `base` alone
   PatternId pattern = PatternId::Solid;
   Weights weights;
   float min_level = 0.0f;   // drive floor while the show is running

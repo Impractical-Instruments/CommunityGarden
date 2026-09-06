@@ -34,13 +34,14 @@ constexpr ChannelSpec kChannels[] = {
         .kind = ChannelKind::Strip,
         .pin = 12,
         .pixel_count = kPixels,
-        .base = Rgbw{180, 40, 255, 0},  // violet, no white — reads as colour
-        .pattern = PatternId::Chase,
+        .base = Rgbw{140, 20, 0, 0},         // deep red ember — the dim end of the fire
+        .base_hot = Rgbw{255, 150, 20, 40},  // amber-white, a touch of white in the tips
+        .pattern = PatternId::Fire,
         .weights = {.flowerbeds = 0.2f, .captcha = 0.3f, .pipes = 0.5f, .bias = 0.05f},
-        .min_level = 0.10f,
+        .min_level = 0.25f,    // the hearth is never out while the show is running
         .max_level = 1.0f,
-        .speed = 1.4f,
-        .smoothing_s = 0.35f,
+        .speed = 0.6f,         // licks drift up the strip; they do not race
+        .smoothing_s = 0.35f,  // still short, so a Blow-Up flares the fire
         .idle_level = 0.12f,
     },
     {
