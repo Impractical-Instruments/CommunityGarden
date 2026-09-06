@@ -191,6 +191,14 @@ level entries reference backgrounds exactly as public levels do:
 { "image": "private/<show-name>/<file>.jpg" }
 ```
 
+Push the private repo to its own remote. This repo's `.gitignore` means the
+public repo never contains this content, so that remote — not this one — is
+the only backup and version history it gets. Images and their level
+definitions are versioned together there, so a restore is a single clone and
+the two can never drift apart. Skipping the push isn't optional
+housekeeping: content that exists only in the working copy at
+`images/private/` is content with no backup at all.
+
 **Running a private set.**
 
 ```bash
