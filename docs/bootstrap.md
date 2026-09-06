@@ -231,6 +231,73 @@ ssh-copy-id captcha
 # pipes: paste pubkey manually into C:\Users\charlie\.ssh\authorized_keys
 ```
 
+### Wired connection to the show LAN
+
+The show LAN has **no DHCP server** — every host is statically addressed from the
+[hardware inventory](#hardware-inventory). A laptop plugged into the show switch
+must be given a static address too, or NetworkManager will sit in "configuring"
+until DHCP times out (`Error: ... IP configuration could not be reserved`).
+
+Two traps, both of which look identical from the operator's seat — the element
+is up, has an IP, and is still unreachable.
+
+**Trap 1 — the wired profile is left in shared mode.** If the adapter was last
+used to feed a Pi directly (NM's "Share to other computers"), the profile keeps
+`ipv4.method=shared` and the laptop hands out its own DHCP on `10.42.0.0/24`.
+The giveaway is `ip -4 -br addr` showing `10.42.0.1/24` on the wired interface.
+
+**Trap 2 — the show LAN collides with the venue wifi.** The show LAN is
+`192.168.1.0/24`; so is many a house or venue network. Two interfaces on
+overlapping subnets is a broken routing table — whichever route has the lower
+metric wins, and if that's ethernet, the default route out the wifi gateway dies
+with it.
+
+Configure the wired profile like this. Wifi keeps the `/24` and the internet;
+only explicitly-routed element addresses go out the wire:
+
+```bash
+nmcli con mod "Wired connection 1" \
+  ipv4.method manual \
+  ipv4.addresses 192.168.1.100/24 \
+  ipv4.gateway "" \
+  ipv4.never-default yes \
+  ipv4.route-metric 700 \
+  ipv4.ignore-auto-dns yes \
+  +ipv4.routes "192.168.1.10/32" \
+  +ipv4.routes "192.168.1.11/32" \
+  +ipv4.routes "192.168.1.12/32" \
+  +ipv4.routes "192.168.1.13/32"
+nmcli con up "Wired connection 1"
+```
+
+`never-default` and the metric of 700 (above wifi's usual 600) keep the wifi
+default route intact; the `/32` host routes beat the wifi `/24` by being more
+specific, so element traffic still goes out the wire. Verify with
+`ip route get 192.168.1.12` — it should name the wired interface.
+
+Finding an element when you don't know what it has: `ping` bound to the wired
+interface bypasses the routing-table ambiguity entirely.
+
+```bash
+for i in 10 11 12 13; do
+  ping -c1 -W1 -I <wired-iface> 192.168.1.$i >/dev/null 2>&1 && echo "192.168.1.$i up"
+done
+ip neigh show dev <wired-iface>        # MAC addresses; Pi 5 OUI is 2c:cf:67
+```
+
+> The `/32` routes are a workaround for the subnet collision, not a fix — anything
+> that broadcasts or scans across the show LAN still goes out wifi. If the show
+> LAN is ever renumbered, move it to a subnet unlikely to collide with a venue
+> network (`192.168.42.0/24`) and this whole section reduces to one static
+> address.
+
+**Taking the laptop elsewhere.** The profile is now hard-static, so the adapter
+won't get an address on an ordinary DHCP network until you set it back:
+
+```bash
+nmcli con mod "Wired connection 1" ipv4.method auto
+```
+
 ### Optional: hostname aliases
 
 `C:\Windows\System32\drivers\etc\hosts` (admin, Windows laptop):
