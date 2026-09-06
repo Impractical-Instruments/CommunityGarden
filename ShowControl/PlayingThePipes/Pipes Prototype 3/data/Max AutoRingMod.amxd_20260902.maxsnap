@@ -1,0 +1,29 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Max AutoRingMod.amxd",
+    "origin": "Max AutoRingMod.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 1,
+    "snapshot": {
+        "name": "Max AutoRingMod.amxd",
+        "origname": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/Pipes Prototype 3/patchers/Max AutoRingMod.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Dry/Wet": 0.0,
+                "EnvFollower": 1.0,
+                "EnvInput": -19.971268053774075,
+                "EnvInterval": 254.49648514157934,
+                "EnvMode": 0.0,
+                "EnvSharpness": 0.0,
+                "EnvSmooth": 250.59359950324122,
+                "Gain": 0.0,
+                "ModOffset": 0.0,
+                "ModRange": 3492.4993240348067
+            }
+        },
+        "active": 1
+    }
+}

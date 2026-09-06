@@ -1,0 +1,29 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Pendulum.amxd",
+    "origin": "Pendulum.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Pendulum.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Pendulum/Pendulum.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "delay left": 0.0,
+                "delay right": 7.874015748031496,
+                "freq_spread": 0.0,
+                "frequency": 2.85,
+                "master_window": 700.7874015748023,
+                "phase_spread": 0.0,
+                "spacing_left": 1.1417322834645671,
+                "spacing_right": 1.0,
+                "wet_dry": 0.0,
+                "window_spread": 0.12007874015748055
+            }
+        },
+        "active": 1
+    }
+}
