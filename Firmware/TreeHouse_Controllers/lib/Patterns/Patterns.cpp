@@ -61,12 +61,22 @@ bool usesDrive(PatternId pattern) { return pattern != PatternId::Flash; }
 // renders exactly as it did before the ramp existed.
 bool usesRamp(PatternId pattern) { return pattern == PatternId::Fire; }
 
-// Flash: four 250 ms bursts, evenly spaced, then a four-second pause.
-constexpr float kFlashOnS = 0.25f;
-constexpr float kFlashPeriodS = 0.5f;  // on, then an equal gap
-constexpr int kFlashBursts = 4;
-constexpr float kFlashPauseS = 4.0f;
-constexpr float kFlashCycleS = kFlashBursts * kFlashPeriodS + kFlashPauseS;
+// Flash: one 100 ms burst, a one-second fade out, then a long dark minute.
+constexpr float kFlashOnS = 0.1f;
+constexpr float kFlashFadeS = 1.0f;
+constexpr float kFlashCycleS = 60.0f;
+// Decay constant of the fade.  Larger drops faster out of the burst and leaves
+// a longer thin tail; 5 reads as an afterglow rather than a dimmer being pulled
+// down.  The curve is normalised to land on exactly 0 at the end of the fade,
+// so the channel is properly dark for the rest of the minute.
+constexpr float kFlashDecay = 5.0f;
+
+// 1 -> 0 across u in [0, 1], steep at first.  Perceptually this reads as a
+// decay; a linear ramp hangs near the bottom and looks mechanical.
+float flashFade(float u) {
+  const float floor_value = std::exp(-kFlashDecay);
+  return (std::exp(-kFlashDecay * u) - floor_value) / (1.0f - floor_value);
+}
 
 }  // namespace
 
@@ -202,15 +212,19 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
     }
 
     case PatternId::Flash: {
-      // A strobe burst on a fixed schedule: kFlashBursts on/off pairs, then a
-      // long dark pause.  Binary — off, or the channel ceiling — so it reads
-      // as a strobe and not as a lamp being faded up and down.  Timed off
-      // time_s_ rather than phase_, so the burst length does not change with
-      // drive; tying the burst rate to the Arc comes later.
+      // One burst a minute: a hard-edged 100 ms hit at the channel ceiling,
+      // then a one-second decay back to dark.  The rise stays instant so it
+      // still punctuates rather than pulsing; only the tail is faded.  Timed
+      // off time_s_ rather than phase_, so the burst length does not change
+      // with drive; tying the burst rate to the Arc comes later.
       const float t = time_s_ - std::floor(time_s_ / kFlashCycleS) * kFlashCycleS;
-      const float train = kFlashBursts * kFlashPeriodS;
-      const bool lit = t < train && (t - std::floor(t / kFlashPeriodS) * kFlashPeriodS) < kFlashOnS;
-      value = lit ? spec_.max_level : 0.0f;
+      if (t < kFlashOnS) {
+        value = spec_.max_level;
+      } else if (t < kFlashOnS + kFlashFadeS) {
+        value = spec_.max_level * flashFade((t - kFlashOnS) / kFlashFadeS);
+      } else {
+        value = 0.0f;
+      }
       break;
     }
   }
