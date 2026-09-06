@@ -20,9 +20,12 @@
 
   "camera_roi": {"x": 0, "y": 0, "w": 640, "h": 400},
 
+  "_silhouette_dilation_px": "Closes reprojection scatter holes. Raise if the silhouette looks holey; each step also fattens it by a pixel.",
+  "silhouette_dilation_px": 1,
+
   "attract_dwell_s": 5.0,
   "min_foreground_pixels": 2000,
-  "silhouette_opacity": 0.35,
+  "silhouette_opacity": 0.55,
 
   "calibration_frames": 60,
   "calibration_countdown_s": 10.0,
@@ -31,7 +34,8 @@
   "bodycaptcha": {
     "timer_s": 35,
     "hold_s": 1.0,
-    "hint_opacity": 0.1,
+    "hold_decay_rate": 3.0,
+    "hint_opacity": 0.2,
     "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 

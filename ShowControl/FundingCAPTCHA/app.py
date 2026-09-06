@@ -233,6 +233,7 @@ def _camera_inner(camera: Any, settings: dict,
 
     calibrator    = Calibrator(calib_frames)
     cam_transform = build_cam_transform(settings)
+    sil_dilation_px = int(settings.get("silhouette_dilation_px", 1))
     frame_idx     = 0
 
     with camera:
@@ -274,7 +275,8 @@ def _camera_inner(camera: Any, settings: dict,
                 break
             foreground = tracker.detect_foreground(frame)
             corrected  = apply_cam_transform(
-                foreground, getattr(frame, "intrinsics", None), cam_transform
+                foreground, getattr(frame, "intrinsics", None), cam_transform,
+                dilation_px=sil_dilation_px,
             )
             cam_q.put({"type": "foreground", "frame": corrected})
 

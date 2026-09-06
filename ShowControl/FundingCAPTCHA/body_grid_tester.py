@@ -208,6 +208,7 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
 
     calib_frames  = settings.get("calibration_frames", 60)
     cam_transform = build_cam_transform(settings)
+    sil_dilation_px = int(settings.get("silhouette_dilation_px", 1))
     log.info("BG_CAL: collecting %d frames", calib_frames)
     calibrator = Calibrator(calib_frames)
     frame_idx = 0
@@ -245,7 +246,8 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
             raw_arr   = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
             delta     = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
             corrected = apply_cam_transform(
-                fg, getattr(frame, "intrinsics", None), cam_transform
+                fg, getattr(frame, "intrinsics", None), cam_transform,
+                dilation_px=sil_dilation_px,
             )
             cam_q.put({"type": "foreground", "frame": corrected, "raw": raw_arr,
                        "delta": delta})

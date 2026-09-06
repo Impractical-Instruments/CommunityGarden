@@ -96,3 +96,60 @@ def test_pixels_below_min_depth_not_foreground():
     depth[10:30, 10:30] = 200  # below min_depth_mm
     result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
     assert (result == 0).all()
+
+
+# ── Despeckle ───────────────────────────────────────────────────────────────────
+# detect_foreground() feeds FundingCAPTCHA's silhouette, which is then reprojected
+# and dilated. A stray noise pixel surviving to the dilation gets inflated into a
+# blob, so the raw mask is despeckled here — the same double majority filter
+# detect() applies before blob extraction.
+
+
+def test_isolated_speckle_pixel_is_removed():
+    W, H = 40, 40
+    BG = 3000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[20, 20] = 1000  # single pixel, no foreground neighbours
+
+    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+
+    assert (result == 0).all()
+
+
+def test_two_pixel_speckle_cluster_is_removed():
+    W, H = 40, 40
+    BG = 3000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[20, 20:22] = 1000  # too few neighbours to reach the majority
+
+    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+
+    assert (result == 0).all()
+
+
+def test_solid_body_interior_survives_despeckle():
+    W, H = 40, 40
+    BG, FG = 3000, 1000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[10:30, 10:30] = FG
+
+    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+
+    assert (result[12:28, 12:28] == FG).all()
+
+
+def test_speckle_removed_without_touching_a_nearby_body():
+    W, H = 60, 60
+    BG, FG = 3000, 1000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[10:30, 10:30] = FG   # body
+    depth[50, 50] = FG         # speckle, well clear of the body
+
+    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+
+    assert result[50, 50] == 0, "speckle should be filtered"
+    assert (result[12:28, 12:28] == FG).all(), "body must be untouched"
