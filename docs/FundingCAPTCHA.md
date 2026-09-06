@@ -220,8 +220,11 @@ refusing to start; a bad file discovered on a later Arc's reload logs a
 warning too but keeps whatever levels are already loaded, so a half-pulled
 clone mid-run does not blank the show out. The editor (`bodycaptcha_editor.py`)
 falls back the same way on a bad path — a single default level, no crash — but
-does not log a warning, so a typoed `--levels` path there is silent; check the
-window title/level count if a save looks wrong.
+does not log a warning to a terminal that may not be watched. Instead, the
+window title always shows the active levels path (e.g.
+`BodyCaptcha Level Editor — images/private/<show-name>/levels.json`), so a
+typoed `--levels` argument is visible at a glance rather than only surfacing
+when a save looks wrong.
 
 **On the show Pi.** `deploy/install.sh` can sync the private repo into
 `images/private/` during install. It's entirely optional and controlled by two

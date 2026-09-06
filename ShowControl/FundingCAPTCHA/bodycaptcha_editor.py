@@ -99,7 +99,14 @@ def _sort_key(lv: dict) -> tuple[str, str]:
 
 def _save(levels: list[dict]) -> None:
     ordered = sorted(levels, key=_sort_key)
-    get_levels_path().write_text(json.dumps(ordered, indent=2) + "\n")
+    path = get_levels_path()
+    # A typoed --levels path (e.g. a misspelled show directory) can point at a
+    # parent directory that was never created; write_text() would otherwise
+    # raise FileNotFoundError here and crash the editor out of run(), skipping
+    # the unsaved-changes warning and pygame.quit(). Create it rather than
+    # fail outright — _do_save() still catches anything else that goes wrong.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(ordered, indent=2) + "\n")
 
 
 def _wrap(text: str, max_chars: int) -> list[str]:
@@ -128,7 +135,7 @@ def _all_image_paths() -> list[str]:
 class Editor:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption("BodyCaptcha Level Editor")
+        pygame.display.set_caption(f"BodyCaptcha Level Editor — {get_levels_path()}")
         self._surf    = pygame.display.set_mode((W, H), pygame.SCALED | pygame.RESIZABLE)
         self._clock   = pygame.time.Clock()
         self._f15     = pygame.font.SysFont("monospace", 15, bold=True)
@@ -430,7 +437,13 @@ class Editor:
         current = self._lv
         self._levels.sort(key=_sort_key)
         self._idx = self._levels.index(current)
-        _save(self._levels)
+        try:
+            _save(self._levels)
+        except OSError as exc:
+            # Surface it instead of letting it escape run() uncaught — that
+            # would skip both the unsaved-changes warning and pygame.quit().
+            self._flash(f"SAVE FAILED: {exc}")
+            return
         self._dirty = False
         self._flash("Saved!")
 

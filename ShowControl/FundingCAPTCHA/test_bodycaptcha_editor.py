@@ -165,3 +165,37 @@ def test_editor_load_missing_override_returns_default_level(tmp_path: Path):
     ed.set_levels_path(tmp_path / "nope.json")
     loaded = ed._load()
     assert loaded == [ed.DEFAULT_LEVEL]
+
+
+def test_caption_shows_the_active_levels_path(tmp_path: Path):
+    """docs/FundingCAPTCHA.md says to check the window title if a save looks
+    wrong — the caption must actually name the active path for that to work."""
+    p = tmp_path / "private-levels.json"
+    p.write_text(json.dumps([{"prompt": "P", "image": None, "grid": [2, 2], "valid_cells": []}]))
+    ed.set_levels_path(p)
+    e = ed.Editor()
+    title, _ = pygame.display.get_caption()
+    assert str(p) in title
+
+
+def test_do_save_creates_a_missing_parent_directory(tmp_path: Path, editor):
+    """A typoed --levels path (missing parent dir) must not crash the editor
+    out of run() on Ctrl+S."""
+    p = tmp_path / "shwo" / "levels.json"  # parent directory does not exist
+    ed.set_levels_path(p)
+    editor._editing = False
+    editor._do_save()
+    assert p.exists()
+    assert "Saved" in editor._flash_msg
+
+
+def test_do_save_survives_an_unwritable_target(tmp_path: Path, editor):
+    """Anything else _save() can throw must be caught and flashed, not crash
+    the editor."""
+    blocker = tmp_path / "not_a_dir"
+    blocker.write_text("x")
+    p = blocker / "levels.json"  # "parent" is a file, mkdir(parents=True) fails
+    ed.set_levels_path(p)
+    editor._editing = False
+    editor._do_save()  # must not raise
+    assert "FAILED" in editor._flash_msg
