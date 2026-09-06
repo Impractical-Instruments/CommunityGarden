@@ -19,6 +19,7 @@ from pathlib import Path
 
 from branch_controller import BranchController
 from coordinator import Coordinator, build_displays, load_config
+from location_sender import LocationSender
 from osc_server import serve as serve_osc
 from pico_driver import PicoDriver
 import visualizer
@@ -32,6 +33,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-pico", action="store_true", help="Skip Pico connection (dev mode)")
     p.add_argument("--no-branch", action="store_true", help="Skip branch controller connection (dev mode)")
     p.add_argument("--no-osc", action="store_true", help="Skip OSC listener")
+    p.add_argument("--no-locations", action="store_true",
+                   help="Skip the ESP32-S3 location controllers (dev mode)")
     p.add_argument("--no-visualizer", action="store_true", help="Disable WebSocket visualizer server")
     p.add_argument("--visualizer-port", type=int, default=8766, metavar="N",
                    help="Visualizer HTTP port (default: 8766)")
@@ -109,17 +112,24 @@ async def _frame_loop(
     coordinator: Coordinator,
     driver: PicoDriver,
     branch: BranchController,
+    locations: LocationSender,
     fps: int,
+    location_send_hz: float,
 ) -> None:
     dt = 1.0 / fps
     loop = asyncio.get_running_loop()
     frame = 0
+    # The location controllers animate themselves, so they do not need a frame
+    # rate — only a state rate. Sending less often leaves the WiFi quiet.
+    location_every = max(1, round(fps / location_send_hz)) if location_send_hz > 0 else 1
     while True:
         t0 = loop.time()
         coordinator.update(dt)
         driver.send_frames(coordinator.get_all_frames(), coordinator.brightness)
         for motor_id, degrees in coordinator.get_branch_positions():
             branch.set_position(motor_id, degrees)
+        if frame % location_every == 0 or coordinator.garden_state.captcha_blowup:
+            locations.send(coordinator.garden_state)
         frame += 1
         if frame % fps == 0:  # ~once per second
             await visualizer.broadcast_state(coordinator)
@@ -144,12 +154,24 @@ async def _run(args: argparse.Namespace) -> None:
     if not args.no_branch:
         branch.connect()
 
+    locations = LocationSender(
+        config.locations.targets,
+        heartbeat_interval_s=config.locations.heartbeat_interval_s,
+        change_epsilon=config.locations.change_epsilon,
+    )
+    if not args.no_locations:
+        locations.connect()
+
     log.info("TreeHouse starting — %d displays, %d branch motors",
              len(displays), len(config.branch.motors))
     for name in coordinator.display_names:
         log.info("  • %s", name)
+    for name in locations.target_names:
+        log.info("  • %s (location controller)", name)
 
-    tasks = [asyncio.create_task(_frame_loop(coordinator, driver, branch, config.show.fps))]
+    tasks = [asyncio.create_task(_frame_loop(
+        coordinator, driver, branch, locations, config.show.fps, config.locations.send_hz,
+    ))]
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
     if not args.no_visualizer:
@@ -178,6 +200,7 @@ async def _run(args: argparse.Namespace) -> None:
             await weston_proc.wait()
         driver.close()
         branch.close()
+        locations.close()
 
 
 def main() -> None:

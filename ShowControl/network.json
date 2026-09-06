@@ -1,6 +1,8 @@
 {
   "_comment": "Single source of truth for all show-network addressing. See docs/adr/0007-osc-fabric-schema.md.",
 
+  "lan": { "gateway": "192.168.1.1", "netmask": "255.255.255.0" },
+
   "heartbeat_interval_s": 5,
   "change_epsilon": 0.01,
 
@@ -14,6 +16,11 @@
   "firmware": {
     "flowerbeds_controller_1": { "ip": "192.168.1.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000 },
     "flowerbeds_controller_2": { "ip": "192.168.1.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000 },
-    "treehouse_branch":        { "ip": null, "mac": null, "osc_port": null }
+    "treehouse_branch":        { "ip": null, "mac": null, "osc_port": null },
+
+    "treehouse_swannatopia":   { "ip": "192.168.1.60", "mac": null, "osc_port": 9000 },
+    "treehouse_julia":         { "ip": "192.168.1.61", "mac": null, "osc_port": 9000 },
+    "treehouse_jess":          { "ip": "192.168.1.62", "mac": null, "osc_port": 9000 },
+    "treehouse_dormer":        { "ip": "192.168.1.63", "mac": null, "osc_port": 9000 }
   }
 }

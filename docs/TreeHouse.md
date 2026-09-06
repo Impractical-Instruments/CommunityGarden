@@ -11,7 +11,8 @@ The Hub Element. A 9.5-foot structure with dioramas, branch motors, and dual scr
 `main.py` runs an asyncio loop that ticks every `Controllable` once per frame and forwards the resulting pixel buffers + branch commands over USB serial.
 
 Hardware:
-- 2× Pi Pico (USB CDC) — drive SK6812 RGBW LED strips for the dioramas + structural lights (ADR-0010)
+- 4× ESP32-S3 location controllers (WiFi/OSC) — Swannatopia, Julia, Jess, Dormer (ADR-0020). The Pi sends them Garden State, not pixels; they animate themselves.
+- 2× Pi Pico (USB CDC) — superseded by the location controllers, still wired until the ESP32-S3 hardware is installed — drive SK6812 RGBW LED strips for the dioramas + structural lights (ADR-0010)
   - Pico A: House Swarming, Club, Mycelium, Forge & Flora (arc, bloom)
   - Pico B: Dormer, Porch Lights, Attic TV & Lamps
 - 1× branch controller (USB serial) — Dynamixel servos via lead screws for the 4–6 motorised roof Branches (ADR-0005)
@@ -29,7 +30,8 @@ Key references:
 - ADR-0010 — TreeHouse LED + Pico architecture
 - ADR-0017 — Club diorama rave screen
 - ADR-0018 — pygame/weston dual-display
-- `coordinator.py`, `displays/`, `looking_glass/`, `club_screen.py`, `pico_driver.py`, `branch_controller.py`
+- ADR-0020 — ESP32-S3 location controllers (supersedes ADR-0010)
+- `coordinator.py`, `displays/`, `looking_glass/`, `club_screen.py`, `pico_driver.py`, `location_sender.py`, `branch_controller.py`
 
 ---
 
@@ -41,6 +43,7 @@ Key references:
 | `--no-pico` | Skip Pico LED USB connections (dev) |
 | `--no-branch` | Skip branch controller USB connection (dev) |
 | `--no-osc` | Skip OSC listener |
+| `--no-locations` | Skip the ESP32-S3 location controllers (dev) |
 | `--no-visualizer` | Disable WebSocket visualizer |
 | `--visualizer-port N` | Default 8766 |
 | `--no-renderer` | Skip Looking Glass renderer subprocess |
@@ -188,6 +191,23 @@ Each Controllable decides which fields it reads — see ADR-0008.
 
 ---
 
+## Location controllers
+
+Four ESP32-S3 controllers (ADR-0020) light Swannatopia, Julia, Jess and the Dormer. `location_sender.py` broadcasts Garden State to them each frame at `locations.send_hz`, following the ADR-0007 change/heartbeat rules: a value goes out when it moves past `change_epsilon`, and everything repeats at least once per `heartbeat_interval_s`. Blow-Ups are never rate-limited.
+
+Addresses come from the `firmware` block of `network.json`; `settings.json` names the controllers but never their addresses.
+
+| Location | Channels | IP |
+|---|---|---|
+| Swannatopia | 3× SK6812 RGBW | 192.168.1.60 |
+| Julia | 1× PWM MOSFET (12 V filaments) | 192.168.1.61 |
+| Jess | 2× SK6812 RGBW + 1× PWM MOSFET flash | 192.168.1.62 |
+| Dormer | 1× PWM MOSFET (12 V) | 192.168.1.63 |
+
+Firmware and bench-testing recipes: `Firmware/TreeHouse_Controllers/README.md`.
+
+---
+
 ## OSC interface
 
 Inbound (`/cg/...` are internal; rest are Fabric):
@@ -212,6 +232,8 @@ Inbound (`/cg/...` are internal; rest are Fabric):
 | One screen blank | renderer crash-looping | `journalctl -u treehouse -f` and look for `Renderer crashed` lines; check shader compile errors |
 | Wrong content on each screen | both screens at the same resolution (no resolution match) | Fix `weston.ini` modes, or change one display's resolution |
 | LEDs dark | Pico not connected at expected symlink, or `--no-pico` left in unit | Check `/dev/treehouse-pico-a` and `-b` exist; remove `--no-pico` from service file |
+| A location slowly breathing, ignoring the show | Controller has heard no Garden State for 10 s | That is the ADR-0020 fallback, not a fault. Check the Pi is running without `--no-locations`, then `ping` the controller's IP from `network.json` |
+| A location dark, others fine | That controller is off, unflashed, or `show_mode` is `inactive` | Watch its serial heartbeat: `pio device monitor -b 115200` from `Firmware/TreeHouse_Controllers` |
 | Branches not moving | branch controller serial port closed | Check `/dev/treehouse-branches`; restart service |
 | OSC Fabric silent | network.json missing | Service falls back gracefully but logs `network.json — OSC disabled` |
 | Renderer stuck on old scene | shader compile failure on last `/lookingglass/scene` | journal logs the GLSL error; fix shader, send the address again — hot reload re-tries |

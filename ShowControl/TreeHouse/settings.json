@@ -14,6 +14,17 @@
     "dim_level": 0.25
   },
 
+  "_locations_comment": "ESP32-S3 location controllers (ADR-0020). Names resolve to addresses in network.json.",
+  "locations": {
+    "send_hz": 15,
+    "controllers": [
+      "treehouse_swannatopia",
+      "treehouse_julia",
+      "treehouse_jess",
+      "treehouse_dormer"
+    ]
+  },
+
   "dioramas": [
     {
       "name": "House Swarming",
