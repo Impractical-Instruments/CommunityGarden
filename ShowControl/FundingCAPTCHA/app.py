@@ -342,7 +342,7 @@ class TestInputHandler:
 # live in arc.py — imported above. This module only knows how to find and load
 # Games from disk; selecting and running them is the Arc's job.
 
-def _load_games(settings: dict, levels_path: "Path | None" = None) -> list[Game]:
+def _load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
     games: list[Game] = []
     # BodyCaptcha only. `games/body_keepaway.py` and its Level/taunt data stay
     # in the tree for a future return, but the kiosk does not play it.

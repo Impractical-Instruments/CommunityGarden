@@ -152,3 +152,26 @@ def test_init_missing_levels_path_logs_warning_and_falls_back(tmp_path: Path, ca
 
     assert "missing/invalid" in caplog.text
     assert game._all_levels == [_DEFAULT_LEVEL]
+
+
+def test_reset_keeps_the_override_across_repeated_arc_boundaries(tmp_path: Path):
+    """The design spec requires the override be honoured 'on initial load and
+    across an arc-start hot reload'. reset() -> _reload_data() -> _read_levels()
+    must keep resolving to the override every time, not just at construction —
+    a regression here (e.g. reset() calling _read_levels(_LEVELS_DEFAULT))
+    would pass every other test while reverting a live show to the public set
+    at the first arc boundary."""
+    p = tmp_path / "private-levels.json"
+    p.write_text(json.dumps(
+        [{"prompt": "PRIVATE", "grid": [2, 2], "valid_cells": [[0, 0]], "difficulty": 1}]
+    ))
+    set_levels_path(p)
+
+    game = BodyCaptchaGame(SETTINGS)
+    assert [lv.get("prompt") for lv in game._all_levels] == ["PRIVATE"]
+
+    game.reset()
+    assert [lv.get("prompt") for lv in game._all_levels] == ["PRIVATE"]
+
+    game.reset()
+    assert [lv.get("prompt") for lv in game._all_levels] == ["PRIVATE"]

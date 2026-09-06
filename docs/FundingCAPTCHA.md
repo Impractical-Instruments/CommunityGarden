@@ -253,9 +253,13 @@ public set — a plain `sudo bash install.sh` with no env file still works.
 The sync is **non-fatal**. If the key is missing, unreadable by the service
 user, or the clone/pull fails for any reason (network down, diverged history,
 bad key), `install.sh` prints a loud warning and continues — it still installs
-and starts the systemd unit on the default level set. Check the install output
-(or re-run `install.sh`) if the show is supposed to have private content but
-came up with the default one.
+and starts the systemd unit either way. That does not mean the show comes up
+on the default level set: if the systemd drop-in below already points
+`--levels` at `images/private/<show-name>/levels.json`, a failed sync leaves
+that path missing, and the game falls back to a single built-in placeholder
+level, not `bodycaptcha-levels.json`. Check the install output (or re-run
+`install.sh`) if the show is supposed to have private content but came up
+looking wrong.
 
 Once the content is on disk, point the running service at it with a systemd
 drop-in rather than editing the committed unit, which stays on the default set:

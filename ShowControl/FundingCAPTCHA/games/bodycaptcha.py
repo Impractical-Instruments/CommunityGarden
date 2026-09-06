@@ -31,7 +31,7 @@ _levels_path: Path = _LEVELS_DEFAULT
 _TAUNTS = _DIR / "taunts.json"
 
 
-def set_levels_path(path: "Path | str | None") -> None:
+def set_levels_path(path: Path | str | None) -> None:
     """Point the game at an alternate levels file, or None to restore the default.
 
     Module-level on purpose: _reload_data() re-reads levels at every arc start,
@@ -191,7 +191,7 @@ class BodyCaptchaGame:
         self._all_levels = _read_levels()
         if self._all_levels is None:
             log.warning("%s missing/invalid — falling back to default level",
-                        get_levels_path().name)
+                        get_levels_path())
             self._all_levels = [_DEFAULT_LEVEL]
         self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
@@ -269,7 +269,7 @@ class BodyCaptchaGame:
             self._bag        = _LevelBag(levels)
         else:
             log.warning("%s missing/invalid — keeping %d loaded levels",
-                        get_levels_path().name, len(self._all_levels))
+                        get_levels_path(), len(self._all_levels))
 
         taunts = _read_taunts()
         if taunts is not None:

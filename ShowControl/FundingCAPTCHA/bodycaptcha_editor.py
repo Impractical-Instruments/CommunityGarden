@@ -22,7 +22,7 @@ _levels_path: Path = _LEVELS_DEFAULT
 _IMAGES = _DIR / "images"
 
 
-def set_levels_path(path: "Path | str | None") -> None:
+def set_levels_path(path: Path | str | None) -> None:
     """Edit an alternate levels file, or None to restore the default."""
     global _levels_path
     _levels_path = _LEVELS_DEFAULT if path is None else Path(path)

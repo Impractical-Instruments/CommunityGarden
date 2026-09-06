@@ -34,9 +34,12 @@ git -C "$REPO_ROOT" lfs pull
 # into images/private/. Skipped silently only when PRIVATE_ASSETS_REPO is unset,
 # so a plain public clone still installs and runs the default level set. Any
 # other misconfiguration (repo set but no key found, unreadable key, network
-# down, diverged history, etc.) warns loudly and falls back to the default
-# level set rather than aborting the install — the systemd unit below must
-# still get installed.
+# down, diverged history, etc.) warns loudly and continues rather than
+# aborting the install — the systemd unit further down must still get
+# installed and started either way. This does NOT mean the game falls back to
+# the default level set: if a systemd drop-in already points --levels at the
+# private path, a failed sync leaves that path missing, and the game falls
+# back to its single built-in placeholder level, not bodycaptcha-levels.json.
 PRIVATE_DIR="$APP_DIR/images/private"
 PRIVATE_KEY="${PRIVATE_ASSETS_KEY:-$(getent passwd "$SERVICE_USER" | cut -d: -f6)/.ssh/private_assets_ed25519}"
 

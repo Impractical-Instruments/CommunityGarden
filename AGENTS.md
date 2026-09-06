@@ -17,6 +17,7 @@ These apply to every task in this repo:
 3. **All network addresses (IPs, MACs, ports) live in `ShowControl/network.json`.** Never hardcode them in source or firmware — firmware reads a generated `config.h`.
 4. **All motor IDs, positions, and tuning parameters belong in each Element's `settings.json`.** Do not hardcode them.
 5. **Test logic changes without hardware:** `python main.py --config settings.json --mock-camera --no-osc` from `ShowControl/FlowerBeds/`.
+6. **Never commit anything under `ShowControl/FundingCAPTCHA/images/private/`, and never write a show/artist/album name into any file.** That directory is a clone of a private, unpublishable assets repo; `.gitignore` and a pre-commit hook (`bash scripts/install-git-hooks.sh`, per clone) both guard it, but neither is a substitute for not doing it.
 
 ## Docs
 
