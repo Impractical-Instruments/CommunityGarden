@@ -49,7 +49,7 @@ constexpr ChannelSpec kChannels[] = {
         .pin = 13,
         .pixel_count = 46,
         .base = Rgbw{80, 255, 120, 40},  // green with a touch of white
-        .pattern = PatternId::Mycelium,
+        .pattern = PatternId::Incandescent,
         .weights = {.flowerbeds = 0.5f, .captcha = 0.2f, .pipes = 0.3f, .bias = 0.10f},
         .min_level = 0.15f,
         .max_level = 0.95f,
