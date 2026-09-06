@@ -20,6 +20,19 @@ uint8_t scale8(uint8_t value, float factor) {
   return static_cast<uint8_t>(scaled + 0.5f);
 }
 
+uint8_t mix8(uint8_t from, uint8_t to, float t) {
+  const float value =
+      static_cast<float>(from) + (static_cast<float>(to) - static_cast<float>(from)) * t;
+  if (value <= 0.0f) return 0;
+  if (value >= 255.0f) return 255;
+  return static_cast<uint8_t>(value + 0.5f);
+}
+
+Rgbw mixRgbw(const Rgbw& from, const Rgbw& to, float t) {
+  return Rgbw{mix8(from.r, to.r, t), mix8(from.g, to.g, t), mix8(from.b, to.b, t),
+              mix8(from.w, to.w, t)};
+}
+
 // Deterministic per-pixel offset, so flicker and phase differ pixel to pixel
 // without storing any per-pixel state.  Cheap integer hash, then 0–1.
 float pixelNoise(uint16_t index, uint32_t salt) {
@@ -42,6 +55,11 @@ float flicker(float time_s, float offset) {
 // that never reads drive has nothing to fall back from, so it keeps running
 // as it is — see patternLevel().
 bool usesDrive(PatternId pattern) { return pattern != PatternId::Flash; }
+
+// Fire is the only pattern that reads ChannelSpec::base_hot.  Everything else
+// scales a single base colour, so a channel leaving base_hot at its default
+// renders exactly as it did before the ramp existed.
+bool usesRamp(PatternId pattern) { return pattern == PatternId::Fire; }
 
 // Flash: four 250 ms bursts, evenly spaced, then a four-second pause.
 constexpr float kFlashOnS = 0.25f;
@@ -157,6 +175,19 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
       break;
     }
 
+    case PatternId::Fire: {
+      // Heat rather than brightness: hottest at the hearth and cooling toward
+      // the tips, with licks drifting up the run and a per-pixel jitter over
+      // the top.  The ember floor keeps the whole hearth alive, so a fire on
+      // low drive reads as glowing coals and not as a strip with holes in it.
+      const float height = static_cast<float>(index) / count;
+      const float hearth = 1.0f - 0.5f * height;
+      const float lick = 0.5f + 0.5f * std::sin(kTwoPi * (height * 2.0f - phase_));
+      const float jitter = flicker(time_s_, pixelNoise(index, 7u));
+      value = drive_ * hearth * (0.45f + 0.35f * lick + 0.20f * jitter);
+      break;
+    }
+
     case PatternId::Breathe: {
       const float swell = 0.5f + 0.5f * std::sin(kTwoPi * phase_);
       const float amplitude = stale_ ? spec_.idle_level : drive_;
@@ -193,8 +224,15 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
 }
 
 Rgbw ChannelAnimator::pixel(uint16_t index) const {
-  const float value = patternLevel(index) * master_;
-  const Rgbw& base = spec_.base;
+  // A pixel's own level picks its colour off the ramp, so a fire is ember red
+  // where it is dim and amber where it is hot.  Master brightness scales the
+  // result but not the ramp position — dimming the show must not recolour it.
+  // Keyed off the configured pattern rather than the effective one, so a stale
+  // Fireplace breathes in fire colours instead of flat ember red.
+  const float heat = patternLevel(index);
+  const float value = heat * master_;
+  const Rgbw base =
+      usesRamp(spec_.pattern) ? mixRgbw(spec_.base, spec_.base_hot, heat) : spec_.base;
   return Rgbw{scale8(base.r, value), scale8(base.g, value), scale8(base.b, value),
               scale8(base.w, value)};
 }

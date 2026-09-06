@@ -25,6 +25,16 @@ cg::ChannelSpec stripSpec(cg::PatternId pattern, uint16_t pixels) {
   return spec;
 }
 
+// The Fireplace ramps colour as well as level, so its spec carries both ends:
+// cg::PatternId::Fire is the only pattern that reads base_hot.
+cg::ChannelSpec fireSpec(uint16_t pixels) {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Fire, pixels);
+  spec.base = cg::Rgbw{140, 20, 0, 0};         // deep red ember
+  spec.base_hot = cg::Rgbw{255, 150, 20, 40};  // amber-white flame tip
+  spec.weights.bias = 1.0f;                    // full drive, no Garden State needed
+  return spec;
+}
+
 cg::GardenState active(float flowerbeds = 0.0f) {
   cg::GardenState state;
   state.show_mode = cg::ShowMode::Active;
@@ -258,6 +268,84 @@ void test_chase_lights_one_end_of_the_strip_at_a_time() {
   TEST_ASSERT_TRUE(lit < 16);  // a head and a tail, not the whole run
 }
 
+void test_fire_keeps_every_pixel_lit() {
+  cg::ChannelAnimator animator;
+  animator.configure(fireSpec(16));
+  run(animator, active(), 3.0f);
+
+  // The ember floor: a lit hearth never shows a black gap.
+  for (uint16_t i = 0; i < 16; ++i) {
+    TEST_ASSERT_TRUE(animator.pixel(i).r > 0);
+  }
+}
+
+void test_fire_varies_pixel_to_pixel() {
+  cg::ChannelAnimator animator;
+  animator.configure(fireSpec(16));
+  run(animator, active(), 3.0f);
+
+  uint8_t low = 255;
+  uint8_t high = 0;
+  for (uint16_t i = 0; i < 16; ++i) {
+    const uint8_t r = animator.pixel(i).r;
+    if (r < low) low = r;
+    if (r > high) high = r;
+  }
+  TEST_ASSERT_TRUE(high > low + 8);  // flame licks, not a flat amber wash
+}
+
+void test_fire_burns_hottest_at_the_hearth() {
+  cg::ChannelAnimator animator;
+  animator.configure(fireSpec(16));
+  run(animator, active(), 3.0f);
+
+  // Averaged over a few seconds, so this measures the gradient along the run
+  // and not whichever lick happens to be passing.
+  uint32_t hearth = 0;
+  uint32_t tip = 0;
+  for (int i = 0; i < 250; ++i) {
+    animator.update(0.02f, active(), false);
+    hearth += animator.pixel(0).r;
+    tip += animator.pixel(15).r;
+  }
+  TEST_ASSERT_TRUE(hearth > tip);
+}
+
+void test_fire_ramps_from_ember_red_to_amber() {
+  cg::ChannelAnimator animator;
+  animator.configure(fireSpec(16));
+  run(animator, active(), 3.0f);
+
+  uint16_t hottest = 0;
+  uint16_t coolest = 0;
+  for (uint16_t i = 0; i < 16; ++i) {
+    if (animator.pixel(i).r > animator.pixel(hottest).r) hottest = i;
+    if (animator.pixel(i).r < animator.pixel(coolest).r) coolest = i;
+  }
+
+  // Scaling one base colour would hold g/r at the base ratio everywhere; the
+  // ramp is what makes the hot pixels yellower than the embers.
+  const cg::Rgbw hot = animator.pixel(hottest);
+  const cg::Rgbw cool = animator.pixel(coolest);
+  TEST_ASSERT_TRUE(hot.r > 0);
+  TEST_ASSERT_TRUE(cool.r > 0);
+  const float hot_ratio = static_cast<float>(hot.g) / static_cast<float>(hot.r);
+  const float cool_ratio = static_cast<float>(cool.g) / static_cast<float>(cool.r);
+  TEST_ASSERT_TRUE(hot_ratio > cool_ratio);
+}
+
+// base_hot is opt-in: the other three locations leave it at its default and
+// must render exactly as they did before the ramp existed.
+void test_channels_without_base_hot_are_unchanged() {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Solid, 4);
+  spec.weights.bias = 1.0f;
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+  run(animator, active(), 5.0f);
+
+  TEST_ASSERT_TRUE(animator.pixel(0).w > 250);  // full white base, not lerped away
+}
+
 void test_gamma_duty_endpoints_and_monotonicity() {
   const uint32_t max_duty = 8191;
   TEST_ASSERT_EQUAL_UINT32(0, cg::gammaDuty(0.0f, max_duty));
@@ -290,6 +378,11 @@ int main(int, char**) {
   RUN_TEST(test_flash_channel_strobes_in_bursts);
   RUN_TEST(test_max_level_caps_even_the_blowup_spike);
   RUN_TEST(test_chase_lights_one_end_of_the_strip_at_a_time);
+  RUN_TEST(test_fire_keeps_every_pixel_lit);
+  RUN_TEST(test_fire_varies_pixel_to_pixel);
+  RUN_TEST(test_fire_burns_hottest_at_the_hearth);
+  RUN_TEST(test_fire_ramps_from_ember_red_to_amber);
+  RUN_TEST(test_channels_without_base_hot_are_unchanged);
   RUN_TEST(test_gamma_duty_endpoints_and_monotonicity);
   return UNITY_END();
 }
