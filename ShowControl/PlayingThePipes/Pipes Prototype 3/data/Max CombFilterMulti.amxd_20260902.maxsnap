@@ -1,0 +1,35 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Max CombFilterMulti.amxd",
+    "origin": "Max CombFilterMulti.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 1,
+    "snapshot": {
+        "name": "Max CombFilterMulti.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max CombFilterMulti/Max CombFilterMulti.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Detune1": 0.0,
+                "Detune2": 0.0,
+                "Detune3": 0.0,
+                "Detune4": 0.0,
+                "Detune5": 0.0,
+                "Dry/Wet": 0.0,
+                "Feedback": 90.0,
+                "Feedfwd": 90.0,
+                "Gain": 0.0,
+                "Input": 20.0,
+                "Pitch1": 36.0,
+                "Pitch2": 48.0,
+                "Pitch3": 60.0,
+                "Pitch4": 72.0,
+                "Pitch5": 84.0,
+                "Tremolo": 278.3157683713741
+            }
+        },
+        "active": 1
+    }
+}

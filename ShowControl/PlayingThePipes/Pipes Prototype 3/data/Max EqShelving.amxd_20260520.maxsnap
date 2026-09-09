@@ -1,0 +1,28 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Max EqShelving.amxd",
+    "origin": "Max EqShelving.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Max EqShelving.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max EqShelving/Max EqShelving.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "HighEnable": 1.0,
+                "HighGain": 0.07874015748031482,
+                "HighXFreq": 5775.318806235839,
+                "LowEnable": 1.0,
+                "LowXFreq": 5036.477035018082,
+                "Lowgain": -0.07874015748031482,
+                "MasterGain": 0.0,
+                "MidEnable": 1.0,
+                "MidGain": 0.0
+            }
+        },
+        "active": 1
+    }
+}

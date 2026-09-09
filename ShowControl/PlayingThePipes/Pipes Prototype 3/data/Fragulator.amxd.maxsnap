@@ -1,0 +1,28 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Fragulator.amxd",
+    "origin": "Fragulator.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Fragulator.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Fragulator/Fragulator.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Playback Speed": 3.8,
+                "amp variation": 0.79527559055118,
+                "buffer size": 30.0,
+                "declick": 0.0,
+                "direction": 1.0,
+                "drop out": 0.0,
+                "feedback": 0.7951181102362196,
+                "repetition": 80.0,
+                "wet_dry": 0.0
+            }
+        },
+        "active": 1
+    }
+}

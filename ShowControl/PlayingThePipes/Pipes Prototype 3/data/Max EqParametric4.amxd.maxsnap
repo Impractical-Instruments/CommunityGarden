@@ -1,0 +1,40 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Max EqParametric4.amxd",
+    "origin": "Max EqParametric4.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Max EqParametric4.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max EqParametric4/Max EqParametric4.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Active[1]": 0.0,
+                "Active[2]": 1.0,
+                "Active[3]": 0.0,
+                "Active[4]": 0.0,
+                "Freq[1]": 50.0,
+                "Freq[2]": 7590.383048354493,
+                "Freq[3]": 50.0,
+                "Freq[4]": 50.0,
+                "Gain[1]": 0.0,
+                "Gain[2]": -19.96111091582872,
+                "Gain[3]": 0.0,
+                "Gain[4]": -3.1496062992126355,
+                "MasterGain": 0.0,
+                "Q[1]": 0.1,
+                "Q[2]": 5.089929702831586,
+                "Q[3]": 0.1,
+                "Q[4]": 0.1,
+                "Type[1]": 2.0,
+                "Type[2]": 2.0,
+                "Type[3]": 2.0,
+                "Type[4]": 2.0
+            }
+        },
+        "active": 1
+    }
+}

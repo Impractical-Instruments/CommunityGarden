@@ -1,0 +1,32 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Max AutoFilter.amxd",
+    "origin": "Max AutoFilter.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Max AutoFilter.amxd",
+        "origname": "Package:/Max for Live/patchers/Max Audio Effect/Max AutoFilter/Max AutoFilter.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "Dry/Wet": 0.0,
+                "EnvFollower": 1.0,
+                "EnvInput": -19.971268053774075,
+                "EnvInterval": 254.49648514157957,
+                "EnvMode": 0.0,
+                "EnvSharpness": 0.0,
+                "EnvSmooth": 250.59359950324122,
+                "FilterFreqOffset": 128.34645669283736,
+                "FilterFreqRange": 10000.0,
+                "FilterGain": -19.961110915828723,
+                "FilterQ": 9.064566929134005,
+                "FilterType": 7.0,
+                "Gain": 0.0
+            }
+        },
+        "active": 1
+    }
+}

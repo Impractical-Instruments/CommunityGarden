@@ -1,0 +1,27 @@
+{
+    "filetype": "C74Snapshot",
+    "version": 2,
+    "minorversion": 0,
+    "name": "Speed Shifter.amxd",
+    "origin": "Speed Shifter.amxd",
+    "type": "amxd",
+    "subtype": "Undefined",
+    "embed": 0,
+    "snapshot": {
+        "name": "Speed Shifter.amxd",
+        "origname": "~/Documents/Max 9/Projects/Pipes Prototype 1_20260512/patchers/Speed Shifter.amxd",
+        "valuedictionary": {
+            "parameter_values": {
+                "feedback_clipping": 50.0,
+                "left_feedback": 50.0,
+                "left_length": 1011.0,
+                "left_speed": 200.0,
+                "right_feedback": 50.0,
+                "right_length": 1111.0,
+                "right_speed": 200.0,
+                "wet/dry": 0.0
+            }
+        },
+        "active": 1
+    }
+}
