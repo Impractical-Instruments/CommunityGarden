@@ -9,9 +9,21 @@
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 34.0, 77.0, 1213.0, 562.0 ],
+        "rect": [ 34.0, 77.0, 879.0, 562.0 ],
         "openinpresentation": 1,
         "boxes": [
+            {
+                "box": {
+                    "id": "obj-93",
+                    "linecount": 2,
+                    "maxclass": "newobj",
+                    "numinlets": 5,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 530.0, 339.0, 116.0, 36.0 ],
+                    "text": "scaleclip 0. 3. -12. -6."
+                }
+            },
             {
                 "box": {
                     "id": "obj-115",
@@ -4153,7 +4165,7 @@
             {
                 "patchline": {
                     "destination": [ "obj-81", 0 ],
-                    "order": 1,
+                    "order": 2,
                     "source": [ "obj-121", 1 ]
                 }
             },
@@ -4167,6 +4179,13 @@
                 "patchline": {
                     "destination": [ "obj-88", 0 ],
                     "order": 0,
+                    "source": [ "obj-121", 1 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-93", 0 ],
+                    "order": 1,
                     "source": [ "obj-121", 1 ]
                 }
             },
@@ -5027,6 +5046,12 @@
                 "patchline": {
                     "destination": [ "obj-101", 0 ],
                     "source": [ "obj-9", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-63", 0 ],
+                    "source": [ "obj-93", 0 ]
                 }
             },
             {
