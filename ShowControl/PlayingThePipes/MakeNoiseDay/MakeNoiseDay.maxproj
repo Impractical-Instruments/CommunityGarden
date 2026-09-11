@@ -2,7 +2,7 @@
     "name": "MakeNoiseDay",
     "version": 1,
     "creationdate": 3871731270,
-    "modificationdate": 3871905313,
+    "modificationdate": 3871979733,
     "viewrect": [ 25.0, 107.0, 300.0, 500.0 ],
     "autoorganize": 1,
     "hideprojectwindow": 0,
@@ -16,6 +16,14 @@
                 "toplevel": 1
             },
             "chordseq.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "scalemapper.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "scaleseq.maxpat": {
                 "kind": "patcher",
                 "local": 1
             },
@@ -51,19 +59,15 @@
                 "kind": "patcher",
                 "local": 1
             },
-            "scaleseq.maxpat": {
-                "kind": "patcher",
-                "local": 1
-            },
-            "scalemapper.maxpat": {
-                "kind": "patcher",
-                "local": 1
-            },
             "miditocv.maxpat": {
                 "kind": "patcher",
                 "local": 1
             },
             "lfo~.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "volseq.maxpat": {
                 "kind": "patcher",
                 "local": 1
             }
