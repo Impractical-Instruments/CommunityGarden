@@ -14,6 +14,28 @@
         "boxes": [
             {
                 "box": {
+                    "id": "obj-19",
+                    "maxclass": "newobj",
+                    "numinlets": 0,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 1056.0, 623.0, 59.0, 22.0 ],
+                    "text": "r #0_step"
+                }
+            },
+            {
+                "box": {
+                    "comment": "",
+                    "id": "obj-16",
+                    "index": 0,
+                    "maxclass": "outlet",
+                    "numinlets": 1,
+                    "numoutlets": 0,
+                    "patching_rect": [ 1056.0, 662.0, 30.0, 30.0 ]
+                }
+            },
+            {
+                "box": {
                     "id": "obj-44",
                     "maxclass": "newobj",
                     "numinlets": 1,
@@ -689,6 +711,12 @@
                 "patchline": {
                     "destination": [ "obj-20", 0 ],
                     "source": [ "obj-18", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-16", 0 ],
+                    "source": [ "obj-19", 0 ]
                 }
             },
             {
