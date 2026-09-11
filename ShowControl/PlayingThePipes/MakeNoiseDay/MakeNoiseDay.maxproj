@@ -2,8 +2,8 @@
     "name": "MakeNoiseDay",
     "version": 1,
     "creationdate": 3871731270,
-    "modificationdate": 3871731270,
-    "viewrect": [ 0.0, 0.0, 300.0, 500.0 ],
+    "modificationdate": 3871905313,
+    "viewrect": [ 25.0, 107.0, 300.0, 500.0 ],
     "autoorganize": 1,
     "hideprojectwindow": 0,
     "showdependencies": 1,
@@ -14,8 +14,62 @@
                 "kind": "patcher",
                 "local": 1,
                 "toplevel": 1
+            },
+            "chordseq.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "Euclid.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "euclid_internal.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "euclid_ui.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "ImprovBox.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "temposlider.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "synclfo~.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "ImprovBox2.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "trigger~.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "scaleseq.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "scalemapper.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "miditocv.maxpat": {
+                "kind": "patcher",
+                "local": 1
+            },
+            "lfo~.maxpat": {
+                "kind": "patcher",
+                "local": 1
             }
-        }
+        },
+        "code": {        },
+        "externals": {        }
     },
     "layout": {    },
     "searchpath": {    },
