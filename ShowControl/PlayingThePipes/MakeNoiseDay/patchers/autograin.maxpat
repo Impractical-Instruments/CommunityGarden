@@ -221,8 +221,8 @@
                     "numinlets": 5,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 161.0, 163.0, 128.0, 22.0 ],
-                    "text": "scaleclip 0. 400. 0. 0.6"
+                    "patching_rect": [ 161.0, 163.0, 141.0, 22.0 ],
+                    "text": "scaleclip 0. 400. 0.01 0.6"
                 }
             },
             {
