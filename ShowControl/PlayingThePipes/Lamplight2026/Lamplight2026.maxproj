@@ -2,7 +2,7 @@
     "name": "Lamplight2026",
     "version": 1,
     "creationdate": 3873211552,
-    "modificationdate": 3873213894,
+    "modificationdate": 3873534346,
     "viewrect": [ 25.0, 112.0, 300.0, 495.0 ],
     "autoorganize": 1,
     "hideprojectwindow": 0,
@@ -24,6 +24,14 @@
                 }
             },
             "autograin.maxpat": {
+                "kind": "patcher",
+                "local": 1,
+                "singleton": {
+                    "bootpath": "~/Projects/CommunityGarden/ShowControl/PlayingThePipes/MakeNoiseDay/patchers",
+                    "projectrelativepath": "../MakeNoiseDay/patchers"
+                }
+            },
+            "scaleclip.maxpat": {
                 "kind": "patcher",
                 "local": 1,
                 "singleton": {
