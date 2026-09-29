@@ -19,18 +19,18 @@
                     "numoutlets": 1,
                     "outlettype": [ "int" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 181.0, 163.0, 24.0, 24.0 ]
+                    "patching_rect": [ 182.25000262260437, 275.3333415389061, 24.0, 24.0 ]
                 }
             },
             {
                 "box": {
-                    "comment": "",
+                    "comment": "Is adtive",
                     "id": "obj-7",
                     "index": 0,
                     "maxclass": "outlet",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 181.0, 197.0, 30.0, 30.0 ]
+                    "patching_rect": [ 182.25000262260437, 309.33334255218506, 30.0, 30.0 ]
                 }
             },
             {
@@ -40,20 +40,20 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 145.0, 121.0, 29.5, 22.0 ],
+                    "patching_rect": [ 187.0, 159.0, 29.5, 22.0 ],
                     "text": "0"
                 }
             },
             {
                 "box": {
-                    "comment": "",
+                    "comment": "Reset time",
                     "id": "obj-6",
                     "index": 0,
                     "maxclass": "inlet",
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 144.75, 22.0, 30.0, 30.0 ]
+                    "patching_rect": [ 181.0, 22.0, 30.0, 30.0 ]
                 }
             },
             {
@@ -63,19 +63,19 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "bang" ],
-                    "patching_rect": [ 145.0, 77.0, 55.0, 22.0 ],
+                    "patching_rect": [ 187.0, 130.0, 55.0, 22.0 ],
                     "text": "del 4000"
                 }
             },
             {
                 "box": {
-                    "comment": "",
+                    "comment": "Accumulated Value",
                     "id": "obj-4",
                     "index": 0,
                     "maxclass": "outlet",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 53.0, 202.0, 30.0, 30.0 ]
+                    "patching_rect": [ 54.249998807907104, 314.00000935792923, 30.0, 30.0 ]
                 }
             },
             {
@@ -96,13 +96,13 @@
                     "numinlets": 3,
                     "numoutlets": 1,
                     "outlettype": [ "int" ],
-                    "patching_rect": [ 53.0, 164.0, 44.0, 22.0 ],
+                    "patching_rect": [ 54.249998807907104, 276.000008225441, 44.0, 22.0 ],
                     "text": "accum"
                 }
             },
             {
                 "box": {
-                    "comment": "",
+                    "comment": "Delta in",
                     "id": "obj-1",
                     "index": 0,
                     "maxclass": "inlet",
