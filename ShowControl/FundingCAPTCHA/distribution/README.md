@@ -35,6 +35,15 @@ Send the same zip to everyone. **Tell each person individually what subfolder na
 
 When the editor changes, rebuild and resend the same single zip.
 
+## macOS: run from source
+
+PyInstaller can't cross-compile, so the `.exe` above is Windows-only. Mac teammates with the repo cloned run the editor from source instead:
+
+1. `brew install python@3.13` (pygame may not publish ready-made wheels for the newest Python yet, and then pip tries to compile it and fails with "no SDL").
+2. Double-click [`../BodyCaptchaEditor.command`](../BodyCaptchaEditor.command) in Finder. On first launch it creates `.venv/` next to the editor and installs pygame + Pillow; after that it just opens the editor.
+
+It edits the repo's own `bodycaptcha-levels.json` and `images/`, so Mac contributors commit on a branch instead of using the zip/merge flow below. If Finder says the file can't be opened, restore its executable bit: `chmod +x BodyCaptchaEditor.command`.
+
 ## Merge contributions back
 
 When a teammate sends back their zip:
