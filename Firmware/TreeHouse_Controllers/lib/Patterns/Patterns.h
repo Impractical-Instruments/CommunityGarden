@@ -11,6 +11,8 @@
 #include <cstdint>
 
 #include "GardenState.h"
+#include "Rng.h"
+#include "Weld.h"
 
 namespace cg {
 
@@ -24,6 +26,8 @@ struct Rgbw {
 enum class ChannelKind {
   Strip,   // SK6812 RGBW
   Dimmer,  // PWM MOSFET
+  Trigger, // MOSFET dumping a charged cap: fired by pulses, never dimmed.
+           // Driven by a Welder from ChannelSpec::weld, not by a pattern.
 };
 
 enum class PatternId {
@@ -32,10 +36,15 @@ enum class PatternId {
   Chase,         // lit head with a decaying tail, speed follows drive
   Mycelium,      // travelling wave along the strip
   Fire,          // per-pixel heat, hottest at the hearth, ramped base -> base_hot
-  Breathe,       // slow uniform swell — also the idle fallback
+  Breathe,       // slow uniform swell between min_level and drive — also the
+                 // idle fallback, where it swells at idle_level instead
   Filament,      // dimmer: slow-slewing level with a hint of flicker
   Flash,         // dimmer: binary strobe — a burst of blinks, then a dark pause;
                  // drive-free, so it runs unchanged when Garden State is stale
+  Wander,        // drunk walk between min_level and drive: eases to a random
+                 // level, then picks another; a full sweep takes 60 / speed s
+  Weld,          // strip: dark until strike(), then an arc-white flash that
+                 // cools through base_hot -> base and fades back to dark
 };
 
 // Per-channel weighting over Garden State.  Weights need not sum to 1 — the
@@ -55,16 +64,17 @@ struct ChannelSpec {
   ChannelKind kind = ChannelKind::Strip;
   uint8_t pin = 0;
   uint16_t pixel_count = 0;  // strips only
-  Rgbw base;                 // strips: the channel's colour at full drive
-  Rgbw base_hot = Rgbw{};    // strips: the hot end of the colour ramp — Fire only,
-                             // ignored by the patterns that scale `base` alone
+  Rgbw base = Rgbw{};        // strips: the channel's colour at full drive
+  Rgbw base_hot = Rgbw{};    // strips: the hot end of the colour ramp — Fire and
+                             // Weld only, ignored by the patterns that scale `base`
   PatternId pattern = PatternId::Solid;
-  Weights weights;
+  Weights weights = Weights{};
   float min_level = 0.0f;   // drive floor while the show is running
   float max_level = 1.0f;   // drive ceiling — caps a too-bright fixture
   float speed = 1.0f;       // pattern-specific rate multiplier
   float smoothing_s = 0.5f; // EMA time constant applied to drive
   float idle_level = 0.15f; // breathe amplitude when Garden State is stale
+  WeldTiming weld = WeldTiming{};  // Trigger only: when the arc fires
 };
 
 // How hard and how long the Blow-Up Reaction hits: spike to full, then decay
@@ -83,6 +93,13 @@ class ChannelAnimator {
   // and swaps the channel over to its idle behaviour.
   void update(float dt, const GardenState& state, bool stale);
 
+  // Patterns that wander draw from this.  configure() seeds it from the
+  // channel name, so the host tests replay; hardware reseeds from esp_random().
+  void seed(uint32_t value) { rng_.reseed(value); }
+
+  // One arc tap landed.  Only Weld reads it; every other pattern ignores it.
+  void strike();
+
   // Dimmer channels: the 0–1 level to write to PWM, master brightness applied.
   float level() const { return level_; }
 
@@ -94,6 +111,7 @@ class ChannelAnimator {
 
  private:
   float patternLevel(uint16_t index) const;
+  void updateWander(float dt);
 
   ChannelSpec spec_;
   float time_s_ = 0.0f;
@@ -103,6 +121,15 @@ class ChannelAnimator {
   float master_ = 1.0f;
   float level_ = 0.0f;
   bool stale_ = false;
+
+  Rng rng_;
+  float wander_from_ = 0.5f;  // Wander: 0–1 position within [min_level, drive]
+  float wander_to_ = 0.5f;
+  float wander_t_ = 1.0f;     // progress through the current leg, 0–1
+  float wander_leg_s_ = 0.0f;
+
+  float flash_ = 0.0f;  // Weld: the arc itself, gone in a blink
+  float glow_ = 0.0f;   // Weld: the metal it heated, cooling over seconds
 };
 
 }  // namespace cg

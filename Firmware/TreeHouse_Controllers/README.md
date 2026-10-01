@@ -1,18 +1,24 @@
 # TreeHouse location controllers
 
-Firmware for the four ESP32-S3 controllers that light the TreeHouse — one per
+Firmware for the five ESP32-S3 controllers that light the TreeHouse — one per
 location. See [ADR-0020](../../docs/adr/0020-treehouse-esp32s3-location-controllers.md)
-for why it is built this way.
+for why it is built this way, and
+[ADR-0021](../../docs/adr/0021-treehouse-controllers-standalone-and-garage-welder.md)
+for why it currently ignores the Pi.
 
-| Environment | Location | Channels | Static IP |
-|---|---|---|---|
-| `swannatopia` | Swannatopia | 3 × SK6812 RGBW (8 px each) | 192.168.1.60 |
-| `julia` | Julia | 1 × PWM MOSFET (12 V filaments) | 192.168.1.61 |
-| `jess` | Jess | 2 × SK6812 RGBW (20 px each) + 1 × PWM MOSFET flash | 192.168.1.62 |
-| `dormer` | Dormer | 1 × PWM MOSFET (12 V) | 192.168.1.63 |
+| Environment | Location | Channels | Look | Static IP |
+|---|---|---|---|---|
+| `swannatopia` | Swannatopia | 3 × SK6812 RGBW | fireplace fire; two warm incandescent overheads | 192.168.1.60 |
+| `julia` | Julia | 1 × PWM MOSFET (12 V filaments) | slow drunk walk, 40–80% | 192.168.1.61 |
+| `jess` | Jess | 2 × SK6812 RGBW + 1 × PWM MOSFET flash | 4-burst strobe over two strips | 192.168.1.62 |
+| `dormer` | Dormer | 1 × PWM MOSFET (12 V) | 12.5 s breath, 40–80% | 192.168.1.63 |
+| `garage` | Garage | 1 × cap-discharge arc trigger + 16 × SK6812 RGBW | random welding sessions | 192.168.1.64 |
 
-The Pi sends **Garden State**, not pixels. Each controller animates its own
-channels, so a lost packet or a dropped access point costs nothing.
+The Pi sends **Garden State**, not pixels, and each controller animates its own
+channels. **For now the controllers ignore it** (ADR-0021): they animate from
+`cg::fullyActive()`, so every channel sits at its `max_level` permanently.
+Garden State is still received and logged. Set `kFollowGardenState` in
+`src/main.cpp` to `true` to hand control back to the Pi.
 
 ## First build
 
@@ -82,6 +88,10 @@ The sequence loops:
 | Walk | 150 ms per pixel | one white pixel at a time, head to tail | blinking |
 | Dark | 1 s | off | off |
 
+Trigger channels (the Garage arc) fire one 5 ms tap at the start of red, green
+and blue, then a four-tap burst 40 ms apart at the start of white. A single pop
+proves the circuit; the burst proves the cap recharges fast enough to weld.
+
 Strips run at 35 %, and dimmers are still capped by that channel's `max_level`.
 Proving a strip works should not require peak current from a bench supply, and
 the Jess flash channel at full power is genuinely painful to look at.
@@ -138,7 +148,10 @@ this reason; `src/` is the hardware binding and is not part of the test build.
 
 ## Bench testing without the Pi
 
-Any OSC sender works — the controller listens on the Fabric addresses directly:
+While `kFollowGardenState` is `false` (ADR-0021) the controllers parse and log
+these but do not react — the heartbeat line shows `(standalone)`. With it set
+to `true`, any OSC sender works — the controller listens on the Fabric addresses
+directly:
 
 ```bash
 oscsend osc.udp://192.168.1.62:9000 /flowerbeds/activity f 0.8
@@ -154,6 +167,8 @@ the staleness fallback, not a fault.
 ## Retuning a location
 
 Every look decision for a location is in one header, `src/targets/<location>.h`:
-LED counts, colours, pattern choice, and the per-channel Signal Bag weights over
-Garden State. Edit and reflash. There is no runtime configuration — see the
+LED counts, colours, pattern choice, floor and ceiling (`min_level`,
+`max_level`), and the per-channel Signal Bag weights over Garden State. The
+Garage's welding rhythm — session, burst and tap gaps, and the arc pulse
+width — is the `.weld` block in `garage.h`, along with its placeholder pins. Edit and reflash. There is no runtime configuration — see the
 trade-off in ADR-0020.

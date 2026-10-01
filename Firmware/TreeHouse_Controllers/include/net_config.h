@@ -25,3 +25,8 @@
 #define CG_IP_DORMER { 192, 168, 1, 63 }
 #define CG_IP_STR_DORMER "192.168.1.63"
 #define CG_OSC_PORT_DORMER 9000
+
+// treehouse_garage
+#define CG_IP_GARAGE { 192, 168, 1, 64 }
+#define CG_IP_STR_GARAGE "192.168.1.64"
+#define CG_OSC_PORT_GARAGE 9000

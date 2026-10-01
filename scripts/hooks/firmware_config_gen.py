@@ -35,6 +35,7 @@ TREEHOUSE_LOCATIONS = {
     "treehouse_julia": "JULIA",
     "treehouse_jess": "JESS",
     "treehouse_dormer": "DORMER",
+    "treehouse_garage": "GARAGE",
 }
 
 

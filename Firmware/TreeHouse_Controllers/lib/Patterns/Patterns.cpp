@@ -54,12 +54,44 @@ float flicker(float time_s, float offset) {
 // because a stale controller can no longer trust its drive value.  A pattern
 // that never reads drive has nothing to fall back from, so it keeps running
 // as it is — see patternLevel().
-bool usesDrive(PatternId pattern) { return pattern != PatternId::Flash; }
+bool usesDrive(PatternId pattern) {
+  return pattern != PatternId::Flash && pattern != PatternId::Weld;
+}
 
-// Fire is the only pattern that reads ChannelSpec::base_hot.  Everything else
-// scales a single base colour, so a channel leaving base_hot at its default
-// renders exactly as it did before the ramp existed.
-bool usesRamp(PatternId pattern) { return pattern == PatternId::Fire; }
+// Fire and Weld are the only patterns that read ChannelSpec::base_hot.
+// Everything else scales a single base colour, so a channel leaving base_hot at
+// its default renders exactly as it did before the ramp existed.
+bool usesRamp(PatternId pattern) {
+  return pattern == PatternId::Fire || pattern == PatternId::Weld;
+}
+
+// FNV-1a over the channel name: a fixed per-channel seed, so two wandering
+// channels on one controller do not walk in lockstep.
+uint32_t nameSeed(const char* name) {
+  uint32_t h = 2166136261u;
+  for (const char* c = name; c != nullptr && *c != '\0'; ++c) {
+    h ^= static_cast<uint8_t>(*c);
+    h *= 16777619u;
+  }
+  return h;
+}
+
+float smoothstep(float t) { return t * t * (3.0f - 2.0f * t); }
+
+// Wander: how long a leg takes is its distance times the full-sweep time,
+// stretched or squeezed by up to 30% so the pace is as unsteady as the path.
+// Short legs still take a few seconds — a stumble, not a twitch.
+constexpr float kWanderSweepS = 60.0f;  // at speed 1.0
+constexpr float kWanderPaceJitter = 0.3f;
+constexpr float kWanderMinLegS = 4.0f;
+
+// Weld: the arc is gone in a blink, the metal it heated takes seconds to cool.
+// Each tap adds heat to the metal, so a long burst glows longer than one pop —
+// but the metal never gets as bright as the arc, or the flash stops reading.
+constexpr float kArcFlashTauS = 0.12f;
+constexpr float kArcGlowTauS = 2.5f;
+constexpr float kArcGlowPerTap = 0.2f;
+constexpr float kArcGlowCeiling = 0.4f;
 
 // Flash: four 250 ms bursts, evenly spaced, then a four-second pause.
 constexpr float kFlashOnS = 0.25f;
@@ -96,6 +128,33 @@ void ChannelAnimator::configure(const ChannelSpec& spec) {
   master_ = 1.0f;
   level_ = 0.0f;
   stale_ = false;
+  rng_.reseed(nameSeed(spec.name));
+  wander_from_ = 0.5f;
+  wander_to_ = 0.5f;
+  wander_t_ = 1.0f;
+  wander_leg_s_ = 0.0f;
+  flash_ = 0.0f;
+  glow_ = 0.0f;
+}
+
+void ChannelAnimator::strike() {
+  flash_ = 1.0f;
+  glow_ += kArcGlowPerTap;
+  if (glow_ > 1.0f) glow_ = 1.0f;
+}
+
+void ChannelAnimator::updateWander(float dt) {
+  if (spec_.speed <= 0.0f) return;
+  wander_t_ += wander_leg_s_ > 0.0f ? dt / wander_leg_s_ : 1.0f;
+  if (wander_t_ < 1.0f) return;
+
+  wander_from_ = wander_to_;
+  wander_to_ = rng_.unit();
+  const float distance = std::fabs(wander_to_ - wander_from_);
+  const float pace = rng_.range(1.0f - kWanderPaceJitter, 1.0f + kWanderPaceJitter);
+  wander_leg_s_ = distance * (kWanderSweepS / spec_.speed) * pace;
+  if (wander_leg_s_ < kWanderMinLegS) wander_leg_s_ = kWanderMinLegS;
+  wander_t_ = 0.0f;
 }
 
 void ChannelAnimator::update(float dt, const GardenState& state, bool stale) {
@@ -129,6 +188,10 @@ void ChannelAnimator::update(float dt, const GardenState& state, bool stale) {
   // Faster patterns under load; the +0.25 keeps things moving at zero drive.
   phase_ += dt * spec_.speed * (0.25f + drive_);
   phase_ -= std::floor(phase_);
+
+  if (spec_.pattern == PatternId::Wander) updateWander(dt);
+  if (flash_ > 0.0f) flash_ *= std::exp(-dt / kArcFlashTauS);
+  if (glow_ > 0.0f) glow_ *= std::exp(-dt / kArcGlowTauS);
 
   if (spec_.kind == ChannelKind::Dimmer) {
     level_ = clamp01(patternLevel(0)) * master_;
@@ -189,9 +252,15 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
     }
 
     case PatternId::Breathe: {
+      // Configured, it swings between the floor and the drive — so min_level
+      // is the darkest it ever gets.  As the stale fallback it has no drive to
+      // trust and swells gently at idle_level instead.
       const float swell = 0.5f + 0.5f * std::sin(kTwoPi * phase_);
-      const float amplitude = stale_ ? spec_.idle_level : drive_;
-      value = amplitude * (0.35f + 0.65f * swell);
+      if (stale_) {
+        value = spec_.idle_level * (0.35f + 0.65f * swell);
+      } else {
+        value = spec_.min_level + (drive_ - spec_.min_level) * swell;
+      }
       break;
     }
 
@@ -211,6 +280,26 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
       const float train = kFlashBursts * kFlashPeriodS;
       const bool lit = t < train && (t - std::floor(t / kFlashPeriodS) * kFlashPeriodS) < kFlashOnS;
       value = lit ? spec_.max_level : 0.0f;
+      break;
+    }
+
+    case PatternId::Wander: {
+      const float t = wander_t_ < 1.0f ? wander_t_ : 1.0f;
+      const float u = wander_from_ + (wander_to_ - wander_from_) * smoothstep(t);
+      value = spec_.min_level + (drive_ - spec_.min_level) * u;
+      break;
+    }
+
+    case PatternId::Weld: {
+      // Each pixel sparkles on its own offset while the arc is lit — fast
+      // enough (14–34 Hz) to read as crackle behind frosted acrylic — then the
+      // whole run settles into a slow, uneven cooling glow.  Like Flash it is
+      // drive-free and runs at the ceiling: the taps are the only input.
+      const float sparkle = flicker(time_s_ * 3.0f, pixelNoise(index, 11u));
+      const float arc = flash_ * (0.55f + 0.45f * sparkle);
+      const float shimmer = flicker(time_s_ * 0.5f, pixelNoise(index, 13u));
+      const float metal = kArcGlowCeiling * glow_ * (0.85f + 0.15f * shimmer);
+      value = spec_.max_level * (arc > metal ? arc : metal);
       break;
     }
   }

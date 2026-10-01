@@ -25,6 +25,15 @@ float GardenState::masterBrightness() const {
   }
 }
 
+GardenState fullyActive() {
+  GardenState state;
+  state.flowerbeds_activity = 1.0f;
+  state.captcha_intensity = 1.0f;
+  state.pipes_activity = 1.0f;
+  state.show_mode = ShowMode::Active;
+  return state;
+}
+
 void GardenStateStore::handle(const osc::Message& message, uint32_t now_ms) {
   bool recognised = true;
 

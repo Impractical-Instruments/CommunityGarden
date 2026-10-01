@@ -1,5 +1,6 @@
-// Hardware binding for the two kinds of channel a location can have:
-// SK6812 RGBW strips (NeoPixelBus over RMT) and PWM MOSFET dimmers (LEDC).
+// Hardware binding for the three kinds of channel a location can have:
+// SK6812 RGBW strips (NeoPixelBus over RMT), PWM MOSFET dimmers (LEDC), and
+// trigger pins that fire a capacitor-discharge flash (plain GPIO).
 //
 // The animation engine in lib/Patterns knows nothing about either — it produces
 // numbers, and this file is the only place those numbers touch a pin.
@@ -52,6 +53,29 @@ class DimmerOutput {
  private:
   uint8_t pin_ = 0;
   uint8_t channel_ = 0;
+  bool ready_ = false;
+};
+
+// A gate that dumps a charged cap through an LED.  The flash length is set by
+// the cap, not by us, so this is not dimmed: one short high pulse per tap.
+// Non-blocking — fire() raises the pin and update() drops it, so the strip and
+// network keep running through a burst.
+class TriggerOutput {
+ public:
+  bool begin(uint8_t pin);
+
+  void fire(uint32_t now_ms, uint32_t pulse_ms);
+
+  // Call every loop(); ends the pulse once pulse_ms has passed.
+  void update(uint32_t now_ms);
+
+  void off();
+
+ private:
+  uint8_t pin_ = 0;
+  uint32_t high_since_ms_ = 0;
+  uint32_t pulse_ms_ = 0;
+  bool high_ = false;
   bool ready_ = false;
 };
 
