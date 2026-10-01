@@ -1,0 +1,20 @@
+{
+    "preset_data": [
+        {
+            "number": 1,
+            "data": [ 5, "obj-29", "live.gain~", "float", 0.0, 5, "obj-41", "live.gain~", "float", 0.0, 5, "obj-46", "live.gain~", "float", -70.0, 5, "obj-51", "live.gain~", "float", -70.0, 5, "obj-56", "live.gain~", "float", -70.0, 5, "obj-61", "live.gain~", "float", -70.0, 5, "obj-91", "live.gain~", "float", 0.0, 5, "obj-86", "live.gain~", "float", -70.0, 5, "obj-81", "live.gain~", "float", -70.0, 5, "obj-76", "live.gain~", "float", -70.0, 5, "obj-71", "live.gain~", "float", -70.0, 5, "obj-66", "live.gain~", "float", -70.0, 5, "obj-96", "live.gain~", "float", -70.0 ]
+        },
+        {
+            "number": 2,
+            "data": [ 5, "obj-29", "live.gain~", "float", 0.0, 5, "obj-41", "live.gain~", "float", 0.0, 5, "obj-46", "live.gain~", "float", 0.0, 5, "obj-51", "live.gain~", "float", -70.0, 5, "obj-56", "live.gain~", "float", -70.0, 5, "obj-61", "live.gain~", "float", -70.0, 5, "obj-91", "live.gain~", "float", 0.0, 5, "obj-86", "live.gain~", "float", -70.0, 5, "obj-81", "live.gain~", "float", -70.0, 5, "obj-76", "live.gain~", "float", -70.0, 5, "obj-71", "live.gain~", "float", -70.0, 5, "obj-66", "live.gain~", "float", -70.0, 5, "obj-96", "live.gain~", "float", -70.0 ]
+        },
+        {
+            "number": 3,
+            "data": [ 5, "obj-29", "live.gain~", "float", 0.0, 5, "obj-41", "live.gain~", "float", 0.0, 5, "obj-46", "live.gain~", "float", 0.0, 5, "obj-51", "live.gain~", "float", -70.0, 5, "obj-56", "live.gain~", "float", -70.0, 5, "obj-61", "live.gain~", "float", -70.0, 5, "obj-91", "live.gain~", "float", 0.0, 5, "obj-86", "live.gain~", "float", -70.0, 5, "obj-81", "live.gain~", "float", -70.0, 5, "obj-76", "live.gain~", "float", -70.0, 5, "obj-71", "live.gain~", "float", -70.0, 5, "obj-66", "live.gain~", "float", -70.0, 5, "obj-96", "live.gain~", "float", -70.0 ]
+        },
+        {
+            "number": 4,
+            "data": [ 5, "obj-29", "live.gain~", "float", 0.0, 5, "obj-41", "live.gain~", "float", 0.0, 5, "obj-46", "live.gain~", "float", 0.0, 5, "obj-51", "live.gain~", "float", -70.0, 5, "obj-56", "live.gain~", "float", -70.0, 5, "obj-61", "live.gain~", "float", -70.0, 5, "obj-91", "live.gain~", "float", 0.0, 5, "obj-86", "live.gain~", "float", -70.0, 5, "obj-81", "live.gain~", "float", -70.0, 5, "obj-76", "live.gain~", "float", -70.0, 5, "obj-71", "live.gain~", "float", -70.0, 5, "obj-66", "live.gain~", "float", -70.0, 5, "obj-96", "live.gain~", "float", -70.0 ]
+        }
+    ]
+}
