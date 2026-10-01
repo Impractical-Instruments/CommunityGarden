@@ -13,6 +13,17 @@
         "boxes": [
             {
                 "box": {
+                    "id": "obj-8",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 3,
+                    "outlettype": [ "", "int", "int" ],
+                    "patching_rect": [ 181.0, 206.0, 48.0, 22.0 ],
+                    "text": "change"
+                }
+            },
+            {
+                "box": {
                     "id": "obj-9",
                     "maxclass": "toggle",
                     "numinlets": 1,
@@ -30,7 +41,7 @@
                     "maxclass": "outlet",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 181.0, 197.0, 30.0, 30.0 ]
+                    "patching_rect": [ 181.0, 245.0, 30.0, 30.0 ]
                 }
             },
             {
@@ -185,6 +196,12 @@
             {
                 "patchline": {
                     "destination": [ "obj-7", 0 ],
+                    "source": [ "obj-8", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-8", 0 ],
                     "source": [ "obj-9", 0 ]
                 }
             }
