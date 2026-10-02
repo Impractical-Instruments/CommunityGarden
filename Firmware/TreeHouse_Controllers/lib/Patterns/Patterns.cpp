@@ -78,6 +78,26 @@ uint32_t nameSeed(const char* name) {
 
 float smoothstep(float t) { return t * t * (3.0f - 2.0f * t); }
 
+// Rave: a loop of saturated club colours.  No white channel and no warm end,
+// so it never reads as room light.  Neighbours are eased into each other, so
+// a pixel crossing a seam fades rather than steps.
+constexpr Rgbw kRavePalette[] = {
+    Rgbw{255, 0, 140, 0},  // hot pink
+    Rgbw{140, 0, 255, 0},  // violet
+    Rgbw{0, 30, 255, 0},   // deep blue
+    Rgbw{0, 210, 255, 0},  // cyan
+};
+constexpr int kRaveColours = sizeof(kRavePalette) / sizeof(kRavePalette[0]);
+constexpr float kRaveSpread = 0.5f;  // fraction of the palette one strip shows at once
+
+Rgbw raveColour(float position) {
+  position -= std::floor(position);
+  const float scaled = position * static_cast<float>(kRaveColours);
+  const int from = static_cast<int>(scaled) % kRaveColours;
+  const int to = (from + 1) % kRaveColours;
+  return mixRgbw(kRavePalette[from], kRavePalette[to], smoothstep(scaled - std::floor(scaled)));
+}
+
 // Wander: how long a leg takes is its distance times the full-sweep time,
 // stretched or squeezed by up to 30% so the pace is as unsteady as the path.
 // Short legs still take a few seconds — a stumble, not a twitch.
@@ -93,11 +113,12 @@ constexpr float kArcGlowTauS = 2.5f;
 constexpr float kArcGlowPerTap = 0.2f;
 constexpr float kArcGlowCeiling = 0.4f;
 
-// Flash: four 250 ms bursts, evenly spaced, then a four-second pause.
-constexpr float kFlashOnS = 0.25f;
-constexpr float kFlashPeriodS = 0.5f;  // on, then an equal gap
+// Flash: four pulses on an eighth-note grid at 120 BPM — one every 250 ms,
+// each lit for half its slot — then a twenty-second pause.
+constexpr float kFlashOnS = 0.125f;
+constexpr float kFlashPeriodS = 0.25f;  // on, then an equal gap
 constexpr int kFlashBursts = 4;
-constexpr float kFlashPauseS = 4.0f;
+constexpr float kFlashPauseS = 20.0f;
 constexpr float kFlashCycleS = kFlashBursts * kFlashPeriodS + kFlashPauseS;
 
 }  // namespace
@@ -135,6 +156,9 @@ void ChannelAnimator::configure(const ChannelSpec& spec) {
   wander_leg_s_ = 0.0f;
   flash_ = 0.0f;
   glow_ = 0.0f;
+  // From the name, so two Rave strips on one controller start apart.  Mixed,
+  // because names like "Jess A" and "Jess B" hash only a few bits apart.
+  palette_offset_ = pixelNoise(0u, nameSeed(spec.name));
 }
 
 void ChannelAnimator::strike() {
@@ -302,6 +326,15 @@ float ChannelAnimator::patternLevel(uint16_t index) const {
       value = spec_.max_level * (arc > metal ? arc : metal);
       break;
     }
+
+    case PatternId::Rave: {
+      // The colour does the moving (see pixel()); the level only swells
+      // gently, on a wave that runs the opposite way to the colours.
+      const float swell = 0.5f + 0.5f * std::sin(kTwoPi * (static_cast<float>(index) / count +
+                                                          phase_ * 3.0f));
+      value = drive_ * (0.75f + 0.25f * swell);
+      break;
+    }
   }
 
   // The Blow-Up Reaction overrides whatever the pattern wanted, then decays
@@ -318,10 +351,18 @@ Rgbw ChannelAnimator::pixel(uint16_t index) const {
   // result but not the ramp position — dimming the show must not recolour it.
   // Keyed off the configured pattern rather than the effective one, so a stale
   // Fireplace breathes in fire colours instead of flat ember red.
+  // Rave takes its colour from the pixel's place in the palette instead, which
+  // also keeps a stale Rave strip breathing in its own colours.
   const float heat = patternLevel(index);
   const float value = heat * master_;
-  const Rgbw base =
-      usesRamp(spec_.pattern) ? mixRgbw(spec_.base, spec_.base_hot, heat) : spec_.base;
+  Rgbw base = spec_.base;
+  if (spec_.pattern == PatternId::Rave) {
+    const float count = spec_.pixel_count > 0 ? static_cast<float>(spec_.pixel_count) : 1.0f;
+    base = raveColour(palette_offset_ + kRaveSpread * static_cast<float>(index) / count +
+                      phase_);
+  } else if (usesRamp(spec_.pattern)) {
+    base = mixRgbw(spec_.base, spec_.base_hot, heat);
+  }
   return Rgbw{scale8(base.r, value), scale8(base.g, value), scale8(base.b, value),
               scale8(base.w, value)};
 }

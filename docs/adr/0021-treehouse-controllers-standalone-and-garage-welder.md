@@ -44,8 +44,8 @@ The last point reverses ADR-0020's "inactive mode is the only path to darkness",
 |---|---|---|
 | Dormer | dimmer | `Breathe`: a 12.5 s breath between 40% and 80%, never dark |
 | Julia | dimmer | `Wander`: a drunk walk between 40% and 80%; a full sweep takes about a minute |
-| Jess | 2 strips + flash | unchanged for now |
-| Swannatopia | 3 strips | `Fire` in the fireplace; both overheads the same warm `Incandescent` |
+| Jess | 2 strips + flash | `Rave` on both strips: pink/violet/blue/cyan drifting a palette lap every ~3 min; the flash strobes 4 eighth-note pulses at 120 BPM, then waits 20 s |
+| Swannatopia | 3 strips | `Fire` in the fireplace; warm `Incandescent` overhead; the chandelier the same look at half brightness and more amber |
 | Garage | strip + arc | `Weld` (below) |
 
 `Breathe` and `Wander` both span `min_level` up to the drive, so the floor of a look is
@@ -64,7 +64,7 @@ The `Welder` (`lib/Weld`) works on three nested, random timescales:
 |---|---|---|
 | Session | 8–25 s of quiet between sessions | 2–6 bursts |
 | Burst | 1–5 s between bursts | 1–4 taps |
-| Tap | 20–50 ms between taps (the cap's recharge window) | 5 ms gate pulse |
+| Tap | 20–50 ms between taps (the cap's recharge window) | 15 ms gate pulse |
 
 The ranges live in `ChannelSpec::weld` in `src/targets/garage.h`.
 

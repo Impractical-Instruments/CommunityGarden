@@ -45,6 +45,8 @@ enum class PatternId {
                  // level, then picks another; a full sweep takes 60 / speed s
   Weld,          // strip: dark until strike(), then an arc-white flash that
                  // cools through base_hot -> base and fades back to dark
+  Rave,          // strip: saturated pink/violet/blue/cyan bands that cross-fade
+                 // as they drift along the run; ignores base and base_hot
 };
 
 // Per-channel weighting over Garden State.  Weights need not sum to 1 — the
@@ -130,6 +132,8 @@ class ChannelAnimator {
 
   float flash_ = 0.0f;  // Weld: the arc itself, gone in a blink
   float glow_ = 0.0f;   // Weld: the metal it heated, cooling over seconds
+
+  float palette_offset_ = 0.0f;  // Rave: where in the palette this channel starts
 };
 
 }  // namespace cg

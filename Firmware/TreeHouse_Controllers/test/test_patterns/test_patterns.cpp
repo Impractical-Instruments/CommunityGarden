@@ -1,6 +1,7 @@
 #include <unity.h>
 
 #include <cmath>
+#include <cstdlib>
 
 #include "Patterns.h"
 
@@ -197,7 +198,7 @@ void test_flash_keeps_strobing_while_stale() {
   blowup.captcha_blowup = true;
 
   int lit_ms = 0;
-  for (int ms = 0; ms < 6000; ++ms) {
+  for (int ms = 0; ms < 20000; ++ms) {
     animator.update(0.001f, blowup, /*stale=*/true);
     if (animator.level() > 0.0f) {
       ++lit_ms;
@@ -205,7 +206,7 @@ void test_flash_keeps_strobing_while_stale() {
       TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());
     }
   }
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);
+  TEST_ASSERT_INT_WITHIN(8, 500, lit_ms);
 }
 
 void test_flash_channel_strobes_in_bursts() {
@@ -215,12 +216,13 @@ void test_flash_channel_strobes_in_bursts() {
   cg::ChannelAnimator animator;
   animator.configure(spec);
 
-  // Sample one 6 s cycle at 1 ms and count the on/off runs: four bursts of
-  // 250 ms, then a 4 s pause.
+  // Sample 20 s at 1 ms — one burst and most of its pause, stopping short of
+  // the next cycle — and count the on/off runs: four 125 ms pulses, one every
+  // 250 ms, then a 20 s pause.
   int edges = 0;
   int lit_ms = 0;
   bool lit = false;
-  for (int ms = 0; ms < 6000; ++ms) {
+  for (int ms = 0; ms < 20000; ++ms) {
     animator.update(0.001f, active(), false);
     const bool now_lit = animator.level() > 0.0f;
     if (now_lit) {
@@ -231,7 +233,7 @@ void test_flash_channel_strobes_in_bursts() {
     lit = now_lit;
   }
   TEST_ASSERT_EQUAL_INT(8, edges);       // four rising, four falling
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);  // 4 x 250 ms lit per cycle
+  TEST_ASSERT_INT_WITHIN(8, 500, lit_ms);  // 4 x 125 ms lit per cycle
 }
 
 void test_max_level_caps_even_the_blowup_spike() {
@@ -498,6 +500,79 @@ void test_strike_is_ignored_by_other_patterns() {
   TEST_ASSERT_INT_WITHIN(1, before, animator.pixel(0).w);
 }
 
+// The Jess strips: Rave carries its own palette, so the spec leaves base dark.
+cg::ChannelSpec raveSpec(const char* name, uint16_t pixels) {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Rave, pixels);
+  spec.name = name;
+  spec.base = cg::Rgbw{};
+  spec.weights.bias = 1.0f;
+  spec.speed = 0.008f;
+  spec.smoothing_s = 3.0f;
+  return spec;
+}
+
+int maxChannelStep(const cg::Rgbw& a, const cg::Rgbw& b) {
+  const int steps[] = {std::abs(a.r - b.r), std::abs(a.g - b.g), std::abs(a.b - b.b),
+                       std::abs(a.w - b.w)};
+  int largest = 0;
+  for (int step : steps) largest = step > largest ? step : largest;
+  return largest;
+}
+
+void test_rave_paints_saturated_colours_without_white() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess B", 36));
+  run(animator, active(), 30.0f);
+
+  for (uint16_t i = 0; i < 36; ++i) {
+    const cg::Rgbw p = animator.pixel(i);
+    TEST_ASSERT_EQUAL_UINT8(0, p.w);
+    TEST_ASSERT_TRUE(p.r > 100 || p.b > 100);  // never dark, never grey
+    TEST_ASSERT_TRUE(p.g < 200 || p.r < 50);   // no yellow or white
+  }
+}
+
+void test_rave_drifts_slowly_and_smoothly() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess A", 12));
+  run(animator, active(), 10.0f);  // let the drive settle
+
+  const cg::Rgbw start = animator.pixel(0);
+  cg::Rgbw last = start;
+  int biggest_frame_step = 0;
+  for (int frame = 0; frame < 60 * 50; ++frame) {  // one minute at 50 fps
+    animator.update(0.02f, active(), false);
+    const cg::Rgbw now = animator.pixel(0);
+    const int step = maxChannelStep(last, now);
+    if (step > biggest_frame_step) biggest_frame_step = step;
+    last = now;
+  }
+  TEST_ASSERT_TRUE(biggest_frame_step <= 2);       // no visible jumps
+  TEST_ASSERT_TRUE(maxChannelStep(start, last) > 60);  // but it does move
+}
+
+void test_rave_strips_on_one_controller_do_not_match() {
+  cg::ChannelAnimator a;
+  cg::ChannelAnimator b;
+  a.configure(raveSpec("Jess A", 12));
+  b.configure(raveSpec("Jess B", 12));
+  run(a, active(), 5.0f);
+  run(b, active(), 5.0f);
+  TEST_ASSERT_TRUE(maxChannelStep(a.pixel(0), b.pixel(0)) > 30);
+}
+
+// A stale Rave strip breathes like everything else, but in its own colours —
+// its base is dark, so falling back to base would black it out.
+void test_stale_rave_keeps_its_colours() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess B", 36));
+  run(animator, active(), 5.0f, /*stale=*/true);
+
+  const cg::Rgbw p = animator.pixel(0);
+  TEST_ASSERT_TRUE(p.r > 0 || p.g > 0 || p.b > 0);
+  TEST_ASSERT_EQUAL_UINT8(0, p.w);
+}
+
 void test_gamma_duty_endpoints_and_monotonicity() {
   const uint32_t max_duty = 8191;
   TEST_ASSERT_EQUAL_UINT32(0, cg::gammaDuty(0.0f, max_duty));
@@ -543,6 +618,10 @@ int main(int, char**) {
   RUN_TEST(test_weld_flashes_arc_white_then_cools_orange_then_goes_dark);
   RUN_TEST(test_a_long_burst_glows_longer_than_one_tap);
   RUN_TEST(test_strike_is_ignored_by_other_patterns);
+  RUN_TEST(test_rave_paints_saturated_colours_without_white);
+  RUN_TEST(test_rave_drifts_slowly_and_smoothly);
+  RUN_TEST(test_rave_strips_on_one_controller_do_not_match);
+  RUN_TEST(test_stale_rave_keeps_its_colours);
   RUN_TEST(test_gamma_duty_endpoints_and_monotonicity);
   return UNITY_END();
 }

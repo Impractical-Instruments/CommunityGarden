@@ -21,8 +21,8 @@ constexpr uint16_t kOscPort = CG_OSC_PORT_GARAGE;
 
 // Placeholders — set these to the real wiring on the bench.  Avoid the
 // strapping pins (0/3/45/46), the USB pair (19/20) and the flash/PSRAM range.
-constexpr uint8_t kArcPin = 7;
-constexpr uint8_t kGlowPin = 4;
+constexpr uint8_t kArcPin = 6;
+constexpr uint8_t kGlowPin = 8;
 constexpr uint16_t kGlowPixels = 16;
 
 constexpr ChannelSpec kChannels[] = {
@@ -42,7 +42,7 @@ constexpr ChannelSpec kChannels[] = {
                 .taps_max = 4,
                 .tap_gap_min_ms = 20,        // the cap's recharge window
                 .tap_gap_max_ms = 50,
-                .pulse_ms = 5,               // gate high time; must stay well
+                .pulse_ms = 15,              // gate high time; must stay well
                                              // under tap_gap_min_ms
             },
     },

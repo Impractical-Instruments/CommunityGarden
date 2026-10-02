@@ -1,6 +1,6 @@
-// Swannatopia — three SK6812 RGBW strips: the fireplace, and the two overhead
-// lights over the dining and living rooms.  The overheads are the same warm
-// incandescent on purpose, so they share one spec and differ only in wiring.
+// Swannatopia — three SK6812 RGBW strips: the fireplace, the overhead light
+// and the chandelier.  The chandelier is the overhead's warm incandescent,
+// but at half the brightness and a deeper amber.
 //
 // LED counts are a placeholder until the strips are cut and counted; change
 // kPixels and reflash.  Data pins avoid the ESP32-S3 strapping pins (0/3/45/46),
@@ -33,6 +33,16 @@ constexpr ChannelSpec overhead(const char* name, uint8_t pin, uint16_t pixel_cou
   };
 }
 
+// Half the overhead's levels, and less blue and white for a warmer cast.
+constexpr ChannelSpec chandelier(const char* name, uint8_t pin, uint16_t pixel_count) {
+  ChannelSpec spec = overhead(name, pin, pixel_count);
+  spec.base = Rgbw{255, 140, 30, 150};
+  spec.min_level = 0.10f;
+  spec.max_level = 0.5f;
+  spec.idle_level = 0.09f;
+  return spec;
+}
+
 constexpr ChannelSpec kChannels[] = {
     overhead("Overhead", 11, kPixels),
     {
@@ -50,7 +60,7 @@ constexpr ChannelSpec kChannels[] = {
         .smoothing_s = 0.35f,  // still short, so a Blow-Up flares the fire
         .idle_level = 0.12f,
     },
-    overhead("Chandelier", 13, 46),
+    chandelier("Chandelier", 13, 46),
 };
 
 constexpr size_t kChannelCount = sizeof(kChannels) / sizeof(kChannels[0]);

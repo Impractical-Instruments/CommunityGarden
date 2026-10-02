@@ -8,9 +8,9 @@ for why it currently ignores the Pi.
 
 | Environment | Location | Channels | Look | Static IP |
 |---|---|---|---|---|
-| `swannatopia` | Swannatopia | 3 × SK6812 RGBW | fireplace fire; two warm incandescent overheads | 192.168.1.60 |
+| `swannatopia` | Swannatopia | 3 × SK6812 RGBW | fireplace fire; warm incandescent overhead; dimmer, warmer chandelier | 192.168.1.60 |
 | `julia` | Julia | 1 × PWM MOSFET (12 V filaments) | slow drunk walk, 40–80% | 192.168.1.61 |
-| `jess` | Jess | 2 × SK6812 RGBW + 1 × PWM MOSFET flash | 4-burst strobe over two strips | 192.168.1.62 |
+| `jess` | Jess | 2 × SK6812 RGBW + 1 × PWM MOSFET flash | slow `Rave` colour drift on both strips; 4-pulse strobe every 20 s | 192.168.1.62 |
 | `dormer` | Dormer | 1 × PWM MOSFET (12 V) | 12.5 s breath, 40–80% | 192.168.1.63 |
 | `garage` | Garage | 1 × cap-discharge arc trigger + 16 × SK6812 RGBW | random welding sessions | 192.168.1.64 |
 
