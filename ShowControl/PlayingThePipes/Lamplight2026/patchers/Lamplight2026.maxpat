@@ -9,7 +9,7 @@
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 134.0, 134.0, 1213.0, 562.0 ],
+        "rect": [ 134.0, 134.0, 1564.0, 914.0 ],
         "boxes": [
             {
                 "box": {
@@ -1115,8 +1115,42 @@
                             "modernui": 1
                         },
                         "classnamespace": "box",
-                        "rect": [ 35.0, 151.0, 1043.0, 610.0 ],
+                        "rect": [ 252.0, 490.0, 1043.0, 610.0 ],
+                        "visible": 1,
                         "boxes": [
+                            {
+                                "box": {
+                                    "id": "obj-19",
+                                    "maxclass": "newobj",
+                                    "numinlets": 2,
+                                    "numoutlets": 1,
+                                    "outlettype": [ "signal" ],
+                                    "patching_rect": [ 43.0, 80.0, 61.0, 22.0 ],
+                                    "text": "knobgrain"
+                                }
+                            },
+                            {
+                                "box": {
+                                    "id": "obj-14",
+                                    "maxclass": "number",
+                                    "numinlets": 1,
+                                    "numoutlets": 2,
+                                    "outlettype": [ "", "bang" ],
+                                    "parameter_enable": 0,
+                                    "patching_rect": [ 884.0, 374.0, 50.0, 22.0 ]
+                                }
+                            },
+                            {
+                                "box": {
+                                    "id": "obj-4",
+                                    "maxclass": "newobj",
+                                    "numinlets": 1,
+                                    "numoutlets": 1,
+                                    "outlettype": [ "" ],
+                                    "patching_rect": [ 873.0, 428.0, 81.0, 22.0 ],
+                                    "text": "fake_encoder"
+                                }
+                            },
                             {
                                 "box": {
                                     "id": "obj-64",
@@ -1179,8 +1213,8 @@
                                     "numinlets": 2,
                                     "numoutlets": 1,
                                     "outlettype": [ "" ],
-                                    "patching_rect": [ 918.0, 114.0, 109.0, 22.0 ],
-                                    "text": "read Mallet_Clip_1"
+                                    "patching_rect": [ 918.0, 114.0, 110.0, 22.0 ],
+                                    "text": "read scrape_clip_1"
                                 }
                             },
                             {
@@ -1866,17 +1900,6 @@
                                     "patching_rect": [ 43.0, 49.0, 29.0, 22.0 ],
                                     "text": "r e1"
                                 }
-                            },
-                            {
-                                "box": {
-                                    "id": "obj-131",
-                                    "maxclass": "newobj",
-                                    "numinlets": 2,
-                                    "numoutlets": 1,
-                                    "outlettype": [ "signal" ],
-                                    "patching_rect": [ 43.0, 84.0, 71.0, 22.0 ],
-                                    "text": "knobgrain"
-                                }
                             }
                         ],
                         "lines": [
@@ -1900,13 +1923,7 @@
                             },
                             {
                                 "patchline": {
-                                    "destination": [ "obj-134", 0 ],
-                                    "source": [ "obj-131", 0 ]
-                                }
-                            },
-                            {
-                                "patchline": {
-                                    "destination": [ "obj-131", 0 ],
+                                    "destination": [ "obj-19", 0 ],
                                     "source": [ "obj-132", 0 ]
                                 }
                             },
@@ -1914,6 +1931,12 @@
                                 "patchline": {
                                     "destination": [ "obj-1", 0 ],
                                     "source": [ "obj-134", 0 ]
+                                }
+                            },
+                            {
+                                "patchline": {
+                                    "destination": [ "obj-4", 0 ],
+                                    "source": [ "obj-14", 0 ]
                                 }
                             },
                             {
@@ -1932,6 +1955,12 @@
                                 "patchline": {
                                     "destination": [ "obj-17", 0 ],
                                     "source": [ "obj-18", 0 ]
+                                }
+                            },
+                            {
+                                "patchline": {
+                                    "destination": [ "obj-134", 0 ],
+                                    "source": [ "obj-19", 0 ]
                                 }
                             },
                             {
@@ -2010,6 +2039,12 @@
                                 "patchline": {
                                     "destination": [ "obj-37", 0 ],
                                     "source": [ "obj-38", 0 ]
+                                }
+                            },
+                            {
+                                "patchline": {
+                                    "destination": [ "obj-19", 0 ],
+                                    "source": [ "obj-4", 0 ]
                                 }
                             },
                             {
@@ -2128,7 +2163,7 @@
                             },
                             {
                                 "patchline": {
-                                    "destination": [ "obj-131", 1 ],
+                                    "destination": [ "obj-19", 1 ],
                                     "order": 1,
                                     "source": [ "obj-59", 0 ]
                                 }
@@ -7156,53 +7191,53 @@
         "parameters": {
             "obj-11": [ "live.gain~", "live.gain~", 0 ],
             "obj-12": [ "live.gain~[43]", "live.gain~[43]", 0 ],
-            "obj-137::obj-11::obj-88::obj-31": [ "number[27]", "number[4]", 0 ],
-            "obj-137::obj-11::obj-88::obj-9": [ "mc.live.gain~[6]", "grains", 0 ],
-            "obj-137::obj-11::obj-88::obj-94": [ "number[26]", "number[1]", 0 ],
+            "obj-137::obj-11::obj-88::obj-31": [ "number[48]", "number[4]", 0 ],
+            "obj-137::obj-11::obj-88::obj-9": [ "mc.live.gain~[5]", "grains", 0 ],
+            "obj-137::obj-11::obj-88::obj-94": [ "number[47]", "number[1]", 0 ],
             "obj-137::obj-13": [ "live.gain~[6]", "live.gain~[3]", 0 ],
-            "obj-137::obj-131::obj-88::obj-31": [ "number[9]", "number[4]", 0 ],
-            "obj-137::obj-131::obj-88::obj-9": [ "mc.live.gain~[1]", "grains", 0 ],
-            "obj-137::obj-131::obj-88::obj-94": [ "number[7]", "number[1]", 0 ],
             "obj-137::obj-134": [ "live.gain~[3]", "live.gain~[3]", 0 ],
-            "obj-137::obj-16::obj-88::obj-31": [ "number[29]", "number[4]", 0 ],
-            "obj-137::obj-16::obj-88::obj-9": [ "mc.live.gain~[7]", "grains", 0 ],
-            "obj-137::obj-16::obj-88::obj-94": [ "number[28]", "number[1]", 0 ],
+            "obj-137::obj-16::obj-88::obj-31": [ "number[50]", "number[4]", 0 ],
+            "obj-137::obj-16::obj-88::obj-9": [ "mc.live.gain~[6]", "grains", 0 ],
+            "obj-137::obj-16::obj-88::obj-94": [ "number[49]", "number[1]", 0 ],
             "obj-137::obj-18": [ "live.gain~[7]", "live.gain~[3]", 0 ],
-            "obj-137::obj-21::obj-88::obj-31": [ "number[22]", "number[4]", 0 ],
-            "obj-137::obj-21::obj-88::obj-9": [ "mc.live.gain~[4]", "grains", 0 ],
-            "obj-137::obj-21::obj-88::obj-94": [ "number[23]", "number[1]", 0 ],
+            "obj-137::obj-19::obj-88::obj-31": [ "number[9]", "number[4]", 0 ],
+            "obj-137::obj-19::obj-88::obj-9": [ "mc.live.gain~[1]", "grains", 0 ],
+            "obj-137::obj-19::obj-88::obj-94": [ "number[7]", "number[1]", 0 ],
+            "obj-137::obj-21::obj-88::obj-31": [ "number[44]", "number[4]", 0 ],
+            "obj-137::obj-21::obj-88::obj-9": [ "mc.live.gain~[3]", "grains", 0 ],
+            "obj-137::obj-21::obj-88::obj-94": [ "number[43]", "number[1]", 0 ],
             "obj-137::obj-23": [ "live.gain~[8]", "live.gain~[3]", 0 ],
-            "obj-137::obj-26::obj-88::obj-31": [ "number[24]", "number[4]", 0 ],
-            "obj-137::obj-26::obj-88::obj-9": [ "mc.live.gain~[5]", "grains", 0 ],
-            "obj-137::obj-26::obj-88::obj-94": [ "number[25]", "number[1]", 0 ],
+            "obj-137::obj-26::obj-88::obj-31": [ "number[46]", "number[4]", 0 ],
+            "obj-137::obj-26::obj-88::obj-9": [ "mc.live.gain~[4]", "grains", 0 ],
+            "obj-137::obj-26::obj-88::obj-94": [ "number[45]", "number[1]", 0 ],
             "obj-137::obj-28": [ "live.gain~[9]", "live.gain~[3]", 0 ],
             "obj-137::obj-3": [ "live.gain~[4]", "live.gain~[3]", 0 ],
-            "obj-137::obj-31::obj-88::obj-31": [ "number[11]", "number[4]", 0 ],
-            "obj-137::obj-31::obj-88::obj-9": [ "mc.live.gain~[24]", "grains", 0 ],
-            "obj-137::obj-31::obj-88::obj-94": [ "number[10]", "number[1]", 0 ],
+            "obj-137::obj-31::obj-88::obj-31": [ "number[32]", "number[4]", 0 ],
+            "obj-137::obj-31::obj-88::obj-9": [ "mc.live.gain~[23]", "grains", 0 ],
+            "obj-137::obj-31::obj-88::obj-94": [ "number[31]", "number[1]", 0 ],
             "obj-137::obj-33": [ "live.gain~[10]", "live.gain~[3]", 0 ],
-            "obj-137::obj-36::obj-88::obj-31": [ "number[13]", "number[4]", 0 ],
-            "obj-137::obj-36::obj-88::obj-9": [ "mc.live.gain~[25]", "grains", 0 ],
-            "obj-137::obj-36::obj-88::obj-94": [ "number[12]", "number[1]", 0 ],
+            "obj-137::obj-36::obj-88::obj-31": [ "number[33]", "number[4]", 0 ],
+            "obj-137::obj-36::obj-88::obj-9": [ "mc.live.gain~[24]", "grains", 0 ],
+            "obj-137::obj-36::obj-88::obj-94": [ "number[34]", "number[1]", 0 ],
             "obj-137::obj-38": [ "live.gain~[38]", "live.gain~[3]", 0 ],
-            "obj-137::obj-41::obj-88::obj-31": [ "number[14]", "number[4]", 0 ],
-            "obj-137::obj-41::obj-88::obj-9": [ "mc.live.gain~[26]", "grains", 0 ],
-            "obj-137::obj-41::obj-88::obj-94": [ "number[15]", "number[1]", 0 ],
+            "obj-137::obj-41::obj-88::obj-31": [ "number[35]", "number[4]", 0 ],
+            "obj-137::obj-41::obj-88::obj-9": [ "mc.live.gain~[25]", "grains", 0 ],
+            "obj-137::obj-41::obj-88::obj-94": [ "number[36]", "number[1]", 0 ],
             "obj-137::obj-43": [ "live.gain~[39]", "live.gain~[3]", 0 ],
-            "obj-137::obj-46::obj-88::obj-31": [ "number[17]", "number[4]", 0 ],
-            "obj-137::obj-46::obj-88::obj-9": [ "mc.live.gain~[27]", "grains", 0 ],
-            "obj-137::obj-46::obj-88::obj-94": [ "number[16]", "number[1]", 0 ],
+            "obj-137::obj-46::obj-88::obj-31": [ "number[37]", "number[4]", 0 ],
+            "obj-137::obj-46::obj-88::obj-9": [ "mc.live.gain~[26]", "grains", 0 ],
+            "obj-137::obj-46::obj-88::obj-94": [ "number[38]", "number[1]", 0 ],
             "obj-137::obj-48": [ "live.gain~[40]", "live.gain~[3]", 0 ],
-            "obj-137::obj-51::obj-88::obj-31": [ "number[19]", "number[4]", 0 ],
-            "obj-137::obj-51::obj-88::obj-9": [ "mc.live.gain~[2]", "grains", 0 ],
-            "obj-137::obj-51::obj-88::obj-94": [ "number[18]", "number[1]", 0 ],
+            "obj-137::obj-51::obj-88::obj-31": [ "number[40]", "number[4]", 0 ],
+            "obj-137::obj-51::obj-88::obj-9": [ "mc.live.gain~[27]", "grains", 0 ],
+            "obj-137::obj-51::obj-88::obj-94": [ "number[39]", "number[1]", 0 ],
             "obj-137::obj-53": [ "live.gain~[41]", "live.gain~[3]", 0 ],
-            "obj-137::obj-56::obj-88::obj-31": [ "number[21]", "number[4]", 0 ],
-            "obj-137::obj-56::obj-88::obj-9": [ "mc.live.gain~[3]", "grains", 0 ],
-            "obj-137::obj-56::obj-88::obj-94": [ "number[20]", "number[1]", 0 ],
-            "obj-137::obj-6::obj-88::obj-31": [ "number[31]", "number[4]", 0 ],
-            "obj-137::obj-6::obj-88::obj-9": [ "mc.live.gain~[8]", "grains", 0 ],
-            "obj-137::obj-6::obj-88::obj-94": [ "number[30]", "number[1]", 0 ],
+            "obj-137::obj-56::obj-88::obj-31": [ "number[42]", "number[4]", 0 ],
+            "obj-137::obj-56::obj-88::obj-9": [ "mc.live.gain~[2]", "grains", 0 ],
+            "obj-137::obj-56::obj-88::obj-94": [ "number[41]", "number[1]", 0 ],
+            "obj-137::obj-6::obj-88::obj-31": [ "number[52]", "number[4]", 0 ],
+            "obj-137::obj-6::obj-88::obj-9": [ "mc.live.gain~[7]", "grains", 0 ],
+            "obj-137::obj-6::obj-88::obj-94": [ "number[51]", "number[1]", 0 ],
             "obj-137::obj-8": [ "live.gain~[5]", "live.gain~[3]", 0 ],
             "obj-142": [ "live.gain~[24]", "live.gain~[24]", 0 ],
             "obj-52::obj-29": [ "live.gain~[25]", "live.gain~[25]", 0 ],
@@ -7230,37 +7265,37 @@
             },
             "parameter_overrides": {
                 "obj-137::obj-11::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[6]"
-                },
-                "obj-137::obj-16::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[7]"
-                },
-                "obj-137::obj-21::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[4]"
-                },
-                "obj-137::obj-26::obj-88::obj-9": {
                     "parameter_longname": "mc.live.gain~[5]"
                 },
-                "obj-137::obj-31::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[24]"
+                "obj-137::obj-16::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[6]"
                 },
-                "obj-137::obj-36::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[25]"
-                },
-                "obj-137::obj-41::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[26]"
-                },
-                "obj-137::obj-46::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[27]"
-                },
-                "obj-137::obj-51::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[2]"
-                },
-                "obj-137::obj-56::obj-88::obj-9": {
+                "obj-137::obj-21::obj-88::obj-9": {
                     "parameter_longname": "mc.live.gain~[3]"
                 },
+                "obj-137::obj-26::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[4]"
+                },
+                "obj-137::obj-31::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[23]"
+                },
+                "obj-137::obj-36::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[24]"
+                },
+                "obj-137::obj-41::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[25]"
+                },
+                "obj-137::obj-46::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[26]"
+                },
+                "obj-137::obj-51::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[27]"
+                },
+                "obj-137::obj-56::obj-88::obj-9": {
+                    "parameter_longname": "mc.live.gain~[2]"
+                },
                 "obj-137::obj-6::obj-88::obj-9": {
-                    "parameter_longname": "mc.live.gain~[8]"
+                    "parameter_longname": "mc.live.gain~[7]"
                 }
             },
             "inherited_shortname": 1
