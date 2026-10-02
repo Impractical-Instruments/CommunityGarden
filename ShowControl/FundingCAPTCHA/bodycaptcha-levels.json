@@ -1,41 +1,117 @@
 [
   {
-    "prompt": "Stand Next To Jess",
-    "image": "jess.jpg",
-    "difficulty": 2,
+    "prompt": "Select all the candles- Ayuprana Listening Room",
+    "image": "yeavl_may/Art Walk Images/Ayurprana-Listening-Room_2f118e725ff4da3f710150681873d855.jpg",
+    "difficulty": 3,
     "grid": [
-      5,
-      5
+      4,
+      4
     ],
     "valid_cells": [
       [
-        4,
+        0,
         1
       ],
       [
-        4,
+        0,
         2
       ],
       [
-        4,
+        0,
         3
       ],
       [
-        4,
-        4
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        2,
+        3
+      ],
+      [
+        3,
+        1
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        3,
+        3
       ]
     ],
     "timer_s": 40
   },
   {
-    "prompt": "Cover the liquid",
-    "image": "yeavl_may/125fbe28__untitled.jpg",
-    "difficulty": 2,
+    "prompt": "Select allof the wall- Eikon",
+    "image": "yeavl_may/Art Walk Images/Eikon Door.png",
+    "difficulty": 5,
     "grid": [
       3,
       3
     ],
     "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all sqaures with dates",
+    "image": "yeavl_may/Art Walk Images/Fall-Art-Walk-10-2-26_Insta-1080x1350-copy-1200x1500.jpg",
+    "difficulty": 1,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        2
+      ],
       [
         1,
         2
@@ -48,32 +124,160 @@
     "timer_s": 40
   },
   {
-    "prompt": "Scratch Randy's Ear",
-    "image": "yeavl_may/4c5b0bda__Charlie__Randy.jpg",
+    "prompt": "Select all \"hair\"",
+    "image": "yeavl_may/Art Walk Images/HarvestRecordsPic.jpg",
+    "difficulty": 5,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all the greenery",
+    "image": "yeavl_may/Art Walk Images/Haunt Image.png",
     "difficulty": 2,
     "grid": [
-      4,
-      4
+      3,
+      3
     ],
     "valid_cells": [
       [
-        3,
+        0,
         1
       ],
       [
-        3,
+        0,
         2
       ],
       [
-        3,
-        3
+        1,
+        2
+      ],
+      [
+        2,
+        2
       ]
     ],
     "timer_s": 40
   },
   {
-    "prompt": "Select all squares containing a smile",
-    "image": "yeavl_may/5cb2a4c5__untitled.jpg",
+    "prompt": "Select all the hands- Ayurprana Exhibit Tonight!",
+    "image": "yeavl_may/Art Walk Images/House of Arulu Mask Exhibit.jpg",
+    "difficulty": 5,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "timer_s": 50
+  },
+  {
+    "prompt": "Select all green glass-Nice Time Glass",
+    "image": "yeavl_may/Art Walk Images/Nice Time Glass.png",
+    "difficulty": 2,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select the people ",
+    "image": "yeavl_may/Art Walk Images/Period Nirvana.webp",
     "difficulty": 1,
     "grid": [
       3,
@@ -87,19 +291,39 @@
       [
         1,
         2
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
       ]
     ],
-    "timer_s": 45
+    "timer_s": 40
   },
   {
-    "prompt": "Cover the hole in the wall",
-    "image": "yeavl_may/8b8e23a4__Charlie__Wall.jpg",
+    "prompt": "Select raffle things- Harvest Records",
+    "image": "yeavl_may/Art Walk Images/Raffle Giveaway.png",
     "difficulty": 1,
     "grid": [
       3,
       3
     ],
     "valid_cells": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        1
+      ],
       [
         1,
         2
@@ -108,55 +332,363 @@
     "timer_s": 40
   },
   {
-    "prompt": "Stand in front of the screen",
-    "image": "yeavl_may/97ccd93e__untitled.jpg",
-    "difficulty": 1,
+    "prompt": "Select all words",
+    "image": "yeavl_may/Art Walk Images/Remix It.png",
+    "difficulty": 4,
     "grid": [
-      5,
-      5
+      3,
+      3
     ],
     "valid_cells": [
       [
-        3,
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
         1
       ],
       [
-        3,
+        1,
         2
       ],
       [
-        3,
-        3
+        2,
+        0
       ],
       [
-        3,
-        4
-      ],
-      [
-        4,
+        2,
         1
-      ],
-      [
-        4,
-        2
-      ],
-      [
-        4,
-        3
-      ],
-      [
-        4,
-        4
       ]
     ],
     "timer_s": 40
   },
   {
-    "prompt": "Cover the ground",
-    "image": "yeavl_may/982c012c__untitled.jpg",
+    "prompt": "Select all orange in this Danny Reed tattoo",
+    "image": "yeavl_may/Art Walk Images/Screenshot 2026-09-30 at 2.59.04\u202fPM.png",
+    "difficulty": 1,
+    "grid": [
+      2,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all the candles at Story Parlor",
+    "image": "yeavl_may/Art Walk Images/Story Parlor.png",
+    "difficulty": 5,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all squares with B",
+    "image": "yeavl_may/Art Walk Images/WestAvlMap_-_Marble.jpg",
+    "difficulty": 5,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all living things",
+    "image": "yeavl_may/Art Walk Images/Woodland Tattoo.png",
+    "difficulty": 3,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all things that can openat at Cooperative Coffee",
+    "image": "yeavl_may/Art Walk Images/coperative coffee.webp",
+    "difficulty": 4,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all the squares with coffee from Flora",
+    "image": "yeavl_may/Art Walk Images/forage+drinks.webp",
     "difficulty": 3,
     "grid": [
       4,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ],
+      [
+        3,
+        1
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all the flowers from flora",
+    "image": "yeavl_may/Art Walk Images/i-xhGP2fg-X3.webp",
+    "difficulty": 4,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all the things that bleep and bloop ",
+    "image": "yeavl_may/Art Walk Images/mncrew20-1125x750-1.jpg",
+    "difficulty": 1,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Select all words on the Strega",
+    "image": "yeavl_may/Art Walk Images/strega.webp",
+    "difficulty": 3,
+    "grid": [
+      3,
+      3
+    ],
+    "valid_cells": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        2
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        2,
+        0
+      ],
+      [
+        2,
+        1
+      ],
+      [
+        2,
+        2
+      ]
+    ],
+    "timer_s": 40
+  },
+  {
+    "prompt": "Cover the squares with the dates for Boom Boom Barns by Swannatopia",
+    "image": "yeavl_may/Screenshot 2026-10-02 at 11.41.28\u202fAM.png",
+    "difficulty": 1,
+    "grid": [
+      3,
       4
     ],
     "valid_cells": [
@@ -171,58 +703,6 @@
       [
         2,
         3
-      ],
-      [
-        3,
-        1
-      ],
-      [
-        3,
-        2
-      ],
-      [
-        3,
-        3
-      ]
-    ],
-    "timer_s": 40
-  },
-  {
-    "prompt": "Select all squares containing the letter 'O'",
-    "image": "yeavl_may/e2e93e8d__untitled.jpg",
-    "difficulty": 2,
-    "grid": [
-      3,
-      3
-    ],
-    "valid_cells": [
-      [
-        1,
-        1
-      ],
-      [
-        1,
-        2
-      ]
-    ],
-    "timer_s": 45
-  },
-  {
-    "prompt": "Cover Shanti's Nose",
-    "image": "yeavl_may/f7d509f2__Charlie__Shanti.jpg",
-    "difficulty": 2,
-    "grid": [
-      3,
-      3
-    ],
-    "valid_cells": [
-      [
-        1,
-        2
-      ],
-      [
-        2,
-        2
       ]
     ],
     "timer_s": 40

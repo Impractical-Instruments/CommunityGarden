@@ -29,3 +29,6 @@ ShowControl/FundingCAPTCHA/distribution/build_work/
 # Private show content — a clone of the private assets repo lives here.
 # Never commit anything under this path; scripts/git-hooks/pre-commit enforces it.
 ShowControl/FundingCAPTCHA/images/private/
+
+# macOS Finder metadata
+.DS_Store
