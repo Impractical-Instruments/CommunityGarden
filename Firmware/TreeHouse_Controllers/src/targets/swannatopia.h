@@ -1,4 +1,6 @@
-// Swannatopia — three SK6812 RGBW strips.
+// Swannatopia — three SK6812 RGBW strips: the fireplace, the overhead light
+// and the chandelier.  The chandelier is the overhead's warm incandescent,
+// but at half the brightness and a deeper amber.
 //
 // LED counts are a placeholder until the strips are cut and counted; change
 // kPixels and reflash.  Data pins avoid the ESP32-S3 strapping pins (0/3/45/46),
@@ -14,21 +16,35 @@ constexpr uint16_t kOscPort = CG_OSC_PORT_SWANNATOPIA;
 
 constexpr uint16_t kPixels = 8;  // per strip — provisional
 
+constexpr ChannelSpec overhead(const char* name, uint8_t pin, uint16_t pixel_count) {
+  return ChannelSpec{
+      .name = name,
+      .kind = ChannelKind::Strip,
+      .pin = pin,
+      .pixel_count = pixel_count,
+      .base = Rgbw{255, 180, 80, 255},  // warm white with an amber cast
+      .pattern = PatternId::Incandescent,
+      .weights = {.flowerbeds = 0.6f, .captcha = 0.2f, .pipes = 0.2f, .bias = 0.15f},
+      .min_level = 0.20f,
+      .max_level = 1.0f,
+      .speed = 0.5f,
+      .smoothing_s = 0.8f,
+      .idle_level = 0.18f,
+  };
+}
+
+// Half the overhead's levels, and less blue and white for a warmer cast.
+constexpr ChannelSpec chandelier(const char* name, uint8_t pin, uint16_t pixel_count) {
+  ChannelSpec spec = overhead(name, pin, pixel_count);
+  spec.base = Rgbw{255, 140, 30, 150};
+  spec.min_level = 0.10f;
+  spec.max_level = 0.5f;
+  spec.idle_level = 0.09f;
+  return spec;
+}
+
 constexpr ChannelSpec kChannels[] = {
-    {
-        .name = "Overhead",
-        .kind = ChannelKind::Strip,
-        .pin = 11,
-        .pixel_count = kPixels,
-        .base = Rgbw{255, 180, 80, 255},  // warm white with an amber cast
-        .pattern = PatternId::Incandescent,
-        .weights = {.flowerbeds = 0.6f, .captcha = 0.2f, .pipes = 0.2f, .bias = 0.15f},
-        .min_level = 0.20f,
-        .max_level = 1.0f,
-        .speed = 0.5f,
-        .smoothing_s = 0.8f,
-        .idle_level = 0.18f,
-    },
+    overhead("Overhead", 11, kPixels),
     {
         .name = "Fireplace",
         .kind = ChannelKind::Strip,
@@ -44,20 +60,7 @@ constexpr ChannelSpec kChannels[] = {
         .smoothing_s = 0.35f,  // still short, so a Blow-Up flares the fire
         .idle_level = 0.12f,
     },
-    {
-        .name = "Chandelier",
-        .kind = ChannelKind::Strip,
-        .pin = 13,
-        .pixel_count = 46,
-        .base = Rgbw{80, 255, 120, 40},  // green with a touch of white
-        .pattern = PatternId::Incandescent,
-        .weights = {.flowerbeds = 0.5f, .captcha = 0.2f, .pipes = 0.3f, .bias = 0.10f},
-        .min_level = 0.15f,
-        .max_level = 0.95f,
-        .speed = 0.28f,
-        .smoothing_s = 1.2f,
-        .idle_level = 0.15f,
-    },
+    chandelier("Chandelier", 13, 46),
 };
 
 constexpr size_t kChannelCount = sizeof(kChannels) / sizeof(kChannels[0]);

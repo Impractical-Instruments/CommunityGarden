@@ -21,6 +21,7 @@
     "treehouse_swannatopia":   { "ip": "192.168.1.60", "mac": null, "osc_port": 9000 },
     "treehouse_julia":         { "ip": "192.168.1.61", "mac": null, "osc_port": 9000 },
     "treehouse_jess":          { "ip": "192.168.1.62", "mac": null, "osc_port": 9000 },
-    "treehouse_dormer":        { "ip": "192.168.1.63", "mac": null, "osc_port": 9000 }
+    "treehouse_dormer":        { "ip": "192.168.1.63", "mac": null, "osc_port": 9000 },
+    "treehouse_garage":        { "ip": "192.168.1.64", "mac": null, "osc_port": 9000 }
   }
 }

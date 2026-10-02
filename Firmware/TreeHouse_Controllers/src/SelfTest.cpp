@@ -7,6 +7,13 @@ constexpr uint32_t kColorMs = 2000;
 constexpr uint32_t kWalkStepMs = 150;
 constexpr uint32_t kDarkMs = 1000;
 
+// Triggers: one tap at the start of each colour phase proves the circuit; the
+// white phase opens with a four-tap burst instead, 40 ms apart, to prove the
+// cap recharges fast enough for the welding stutter.
+constexpr uint32_t kTriggerPulseMs = 5;
+constexpr uint32_t kBurstGapMs = 40;
+constexpr uint8_t kBurstTaps = 4;
+
 uint8_t level8(float level) {
   const float scaled = level * 255.0f;
   if (scaled <= 0.0f) return 0;
@@ -17,11 +24,13 @@ uint8_t level8(float level) {
 }  // namespace
 
 void SelfTest::begin(const ChannelSpec* channels, size_t count, StripOutput* strips,
-                     DimmerOutput* dimmers, uint32_t now_ms) {
+                     DimmerOutput* dimmers, TriggerOutput* triggers, uint32_t now_ms) {
   channels_ = channels;
   count_ = count;
   strips_ = strips;
   dimmers_ = dimmers;
+  triggers_ = triggers;
+  taps_this_phase_ = 0;
   phase_ = Phase::Red;
   phase_start_ms_ = now_ms;
   walk_index_ = 0;
@@ -49,7 +58,27 @@ void SelfTest::update(uint32_t now_ms) {
     if (elapsed >= duration) advance(now_ms);
   }
 
+  fireTriggers(now_ms);
   render();
+}
+
+void SelfTest::fireTriggers(uint32_t now_ms) {
+  uint8_t taps = 0;
+  switch (phase_) {
+    case Phase::Red:
+    case Phase::Green:
+    case Phase::Blue: taps = 1; break;
+    case Phase::White: taps = kBurstTaps; break;
+    case Phase::Walk:
+    case Phase::Dark: taps = 0; break;
+  }
+  if (taps_this_phase_ >= taps) return;
+  if (now_ms - phase_start_ms_ < taps_this_phase_ * kBurstGapMs) return;
+
+  ++taps_this_phase_;
+  for (size_t i = 0; i < count_; ++i) {
+    if (channels_[i].kind == ChannelKind::Trigger) triggers_[i].fire(now_ms, kTriggerPulseMs);
+  }
 }
 
 void SelfTest::advance(uint32_t now_ms) {
@@ -62,6 +91,7 @@ void SelfTest::advance(uint32_t now_ms) {
     case Phase::Dark: phase_ = Phase::Red; break;
   }
   phase_start_ms_ = now_ms;
+  taps_this_phase_ = 0;
   Serial.printf("[selftest] %s\n", phaseName());
 }
 
@@ -105,6 +135,7 @@ void SelfTest::render() {
       strips_[i].show();
       continue;
     }
+    if (spec.kind == ChannelKind::Trigger) continue;  // fired, not rendered
 
     // Dimmers have no colour, so they climb in quarter steps across the four
     // colour phases instead.  Four visibly different brightnesses is also a
