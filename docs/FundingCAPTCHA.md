@@ -29,6 +29,7 @@ Key references:
 - ADR-0013 — silhouette body interaction
 - ADR-0016 — `--test-input` mouse-paint dev mode
 - ADR-0019 — game UI shell
+- ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
 - `app.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
@@ -52,11 +53,29 @@ Keys at runtime:
 
 ---
 
+## Shader player — `shader_app.py`
+
+Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, calibration, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
+
+| Flag | Effect |
+|---|---|
+| `--camera` / `--mock-camera` | As `app.py` |
+| `--test-input` | Mouse paints the Body via `shaders/body_painter.glsl`, as in Shadertoy |
+| `--setup NAME` | Pin one Setup, no rotation |
+| `--windowed` | 1280×720 window |
+
+Keys: `N` / `→` next Setup · `R` reload Setup from disk · Escape quit.
+
+To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_app.py --camera`.
+
+---
+
 ## Settings — `captcha-settings.json`
 
 Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — not gitignored, but per-host).
 
 Top-level fields:
+- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `fps` (default 30)
 - `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
 - `detection` — `depth_delta_mm`, `min_blob_pixels`, `min_depth_mm`, `max_depth_mm`
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`

@@ -1,0 +1,8 @@
+{
+  "_comment": "Example Setup: visitors push waves through a liquid surface. Copy this folder to start a new one.",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["A", "B"],
+    "image":    ["A", "B"]
+  }
+}

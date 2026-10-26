@@ -46,6 +46,12 @@
     "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 
+  "shader_app": {
+    "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at.",
+    "render_scale": 0.5,
+    "fps": 30
+  },
+
   "camera": {
     "_comment": "Leave serial blank for first detected device.",
     "serial":  "",
