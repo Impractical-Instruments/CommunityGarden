@@ -228,8 +228,9 @@ def main() -> None:
     fps_t, fps_n = time.monotonic(), 0
     running   = True
     while running:
-        # Clamped so a Setup compile or a stall doesn't jump iTime / iTimeDelta.
-        dt = min(clock.tick(fps) / 1000.0, 0.1)
+        # Clamp spikes (Setup compile, stalls) without slowing a Setup that is
+        # merely slow: anything under 4 fps is a stall, not a frame.
+        dt = min(clock.tick(fps) / 1000.0, 0.25)
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:

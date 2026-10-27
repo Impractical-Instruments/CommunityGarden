@@ -5,6 +5,7 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -154,6 +155,8 @@ def ctx():
         except Exception:
             continue
     else:
+        if os.environ.get("CI"):
+            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
         pytest.skip("no headless OpenGL context")
     yield c
     c.release()
