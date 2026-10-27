@@ -21,6 +21,8 @@ The existing app draws with pygame surfaces in software. Per-pixel procedural wo
 ## Consequences
 
 - Shadertoy can't take uploaded media; Setups are procedural plus the Body.
+- Buffers are RGBA16F, not Shadertoy's 32-bit float: V3D can't linear-filter 32-bit float. `HW_PERFORMANCE` is defined as 0; GLSL ES packing built-ins come from `ARB_shading_language_packing`.
+- A Setup that throws while rendering is dropped from the rotation for the run, not fatal.
 - Unsupported Shadertoy features: cubemaps, sound, video/texture inputs, per-channel filter/wrap settings (always linear + clamp), Buffer A code.
 - Calibration has no on-screen countdown: shaders play with an empty Body for `calibration_standback_s` plus collection. Keep people out of frame at startup.
 - Not yet measured on the Pi 5: frame rate per Setup. `shader_app.py` logs fps every 10 s.

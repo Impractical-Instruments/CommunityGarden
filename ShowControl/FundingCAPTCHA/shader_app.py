@@ -32,8 +32,7 @@ import pygame
 
 from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
-from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, js_keycode,
-                       load_setup, pack_body)
+from shadertoy import BodyMouse, Renderer, VERT, js_keycode, load_setup, pack_body
 
 try:
     from IIVision import MockCamera, OrbbecCamera
@@ -50,7 +49,7 @@ _BLIT_FRAG = """
 uniform sampler2D src;
 uniform vec2 size;
 out vec4 c;
-void main() { c = texture(src, gl_FragCoord.xy / size); }
+void main() { c = vec4(texture(src, gl_FragCoord.xy / size).rgb, 1.0); }   // Shadertoy ignores Image alpha
 """
 
 
@@ -76,6 +75,64 @@ class _TestMouse:
             self.state = (x0, y0, -abs(z), -abs(w))
             self._down = False
         return self.state
+
+
+class Rotation:
+    """Which Setup plays: shuffle-bag order, each for its duration_s.
+
+    A Setup that won't load is skipped; one that fails at render time is
+    dropped from the rotation for the rest of the run.
+    """
+
+    def __init__(self, renderer: Renderer, names: list[str],
+                 shader_dir: Path = SHADER_DIR, clock=time.monotonic) -> None:
+        self.renderer = renderer
+        self.names    = list(names)
+        self._bag     = ShuffleBag(self.names)
+        self._dir     = shader_dir
+        self._clock   = clock
+        self.started  = clock()
+
+    def next(self) -> None:
+        if len(self.names) == 1 and self.renderer.setup is not None:
+            self.started = self._clock()              # nothing else to play; keep its state
+            return
+        for _ in range(max(1, len(self.names))):
+            n = self._bag.next()
+            if n is None:
+                break
+            if self._load(n):
+                return
+        log.error("No Setup compiled — keeping the current one")
+        self.started = self._clock()
+
+    def reload(self) -> None:
+        """Re-read the current Setup from disk; a broken edit keeps the old one."""
+        if self.renderer.setup is not None:
+            self._load(self.renderer.setup.name)
+
+    def tick(self) -> None:
+        s = self.renderer.setup
+        if s is not None and self._clock() - self.started >= s.duration_s:
+            self.next()
+
+    def failed(self, exc: Exception) -> None:
+        name = self.renderer.setup.name if self.renderer.setup else "?"
+        log.error("Setup %s failed while rendering, dropped: %s", name, exc)
+        self.renderer.unload()
+        if name in self.names:
+            self.names.remove(name)
+            self._bag = ShuffleBag(self.names)
+        self.next()
+
+    def _load(self, name: str) -> bool:
+        try:
+            self.renderer.load(load_setup(self._dir / name))
+        except Exception as exc:                      # team-authored content: never fatal
+            log.error("Setup %s skipped: %s", name, exc)
+            return False
+        self.started = self._clock()
+        return True
 
 
 def _setup_names() -> list[str]:
@@ -104,8 +161,6 @@ def main() -> None:
     cfg       = settings.get("shader_app", {})
     cam_cfg   = settings.get("camera", {})
     slabs     = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500}])
-    near_mm   = min(s["near_mm"] for s in slabs)
-    far_mm    = max(s["far_mm"] for s in slabs)
     roi       = settings.get("camera_roi",
                              {"x": 0, "y": 0, "w": cam_cfg.get("width", 640),
                                                "h": cam_cfg.get("height", 400)})
@@ -131,7 +186,7 @@ def main() -> None:
     pygame.display.set_caption("Shader player")
     pygame.mouse.set_visible(args.test_input)
 
-    ctx  = moderngl.create_context()
+    ctx  = moderngl.create_context()        # also attaches to SDL's EGL context (kmsdrm)
     res  = (max(1, int(win[0] * scale)), max(1, int(win[1] * scale)))
     log.info("OpenGL %s · window %dx%d · render %dx%d", ctx.version_code, *win, *res)
 
@@ -142,24 +197,8 @@ def main() -> None:
     renderer.output_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
     # ── Setups ────────────────────────────────────────────────────────────────
-    names = [args.setup] if args.setup else _setup_names()
-    bag   = ShuffleBag(names)
-
-    def load_next(name: str | None = None) -> None:
-        for _ in range(max(1, len(names))):
-            n = name or bag.next()
-            name = None
-            if n is None:
-                break
-            try:
-                renderer.load(load_setup(SHADER_DIR / n))
-                return
-            except (ShaderError, OSError, ValueError) as exc:
-                log.error("Setup %s skipped: %s", n, exc)
-        log.error("No Setup compiled — keeping the current one")
-
-    load_next()
-    started = time.monotonic()
+    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names())
+    rotation.next()
 
     # ── Camera ────────────────────────────────────────────────────────────────
     cam_q   = queue.Queue(maxsize=32)
@@ -180,7 +219,7 @@ def main() -> None:
         log.info("Camera started (%s) — calibrating in %.0fs, keep the floor clear",
                  "mock" if args.mock_camera else "Orbbec", standback)
 
-    body_mouse = BodyMouse()
+    body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
     test_mouse = _TestMouse()
     mouse      = (0.0, 0.0, 0.0, 0.0)
 
@@ -189,7 +228,8 @@ def main() -> None:
     fps_t, fps_n = time.monotonic(), 0
     running   = True
     while running:
-        dt = clock.tick(fps) / 1000.0
+        # Clamped so a Setup compile or a stall doesn't jump iTime / iTimeDelta.
+        dt = min(clock.tick(fps) / 1000.0, 0.1)
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -197,11 +237,10 @@ def main() -> None:
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
                     running = False
-                elif ev.key in (pygame.K_n, pygame.K_RIGHT) and not args.setup:
-                    load_next()
-                    started = time.monotonic()
-                elif ev.key == pygame.K_r and renderer.setup:
-                    load_next(renderer.setup.name)
+                elif ev.key in (pygame.K_n, pygame.K_RIGHT):
+                    rotation.next()
+                elif ev.key == pygame.K_r:
+                    rotation.reload()
                 code = js_keycode(ev.key)
                 if code is not None:
                     renderer.keyboard.key_down(code)
@@ -210,10 +249,7 @@ def main() -> None:
                 if code is not None:
                     renderer.keyboard.key_up(code)
 
-        if (not args.setup and renderer.setup
-                and time.monotonic() - started >= renderer.setup.duration_s):
-            load_next()
-            started = time.monotonic()
+        rotation.tick()
 
         # Drain to the newest foreground frame.
         fg = None
@@ -229,13 +265,17 @@ def main() -> None:
             elif msg["type"] == "error":
                 log.error("Camera: %s", msg["msg"])
         if fg is not None:
-            body = pack_body(fg, roi, near_mm, far_mm)
+            body = pack_body(fg, roi, slabs)
             renderer.upload_body(body)
             mouse = body_mouse.update(body, *res)
         if args.test_input:
             mouse = test_mouse.update(win, res)
 
-        renderer.render(dt, mouse)
+        try:
+            renderer.render(dt, mouse)
+        except Exception as exc:
+            rotation.failed(exc)
+        mouse = (*mouse[:3], -abs(mouse[3]))          # click flag lasts one frame
         ctx.screen.use()
         ctx.viewport = (0, 0, *win)
         renderer.output_tex.use(location=0)
@@ -250,6 +290,8 @@ def main() -> None:
             fps_t, fps_n = time.monotonic(), 0
 
     stop.set()
+    blit_vao.release()
+    blit.release()
     renderer.release()
     pygame.quit()
 

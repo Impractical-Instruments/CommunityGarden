@@ -66,7 +66,7 @@ Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from
 
 Keys: `N` / `→` next Setup · `R` reload Setup from disk · Escape quit.
 
-To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_app.py --camera`.
+To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_app.py --camera`. `deploy/install.sh` installs the Mesa GL/EGL libraries moderngl needs. Not yet verified on the Pi 5 under `kmsdrm`; if the GL context fails to start, that is the first place to look.
 
 ---
 

@@ -9,7 +9,7 @@ Make visuals in [Shadertoy](https://www.shadertoy.com) that visitors bend by mov
 3. In **Image**, set **iChannel0 = Buffer A**. That's the Body:
    ```glsl
    vec4 body = texture(iChannel0, fragCoord / iResolution.xy);
-   // body.r  1 inside a person, 0 outside
+   // body.r  1 inside a person, 0 outside — test with body.r > 0.5 (edges blend)
    // body.g  nearness: 0 far … 1 close to the camera
    ```
 4. Use Buffers B–D and Common freely (trails, simulations, feedback).
@@ -19,7 +19,9 @@ Mouse controls in Buffer A: **hold left button** = a person at the cursor · **h
 ## Rules (so it runs on the Pi)
 
 - Read the Body with `texture()` and normalised UVs, never `texelFetch` — on the Pi it's camera resolution.
-- Only `.r` and `.g` of the Body mean anything.
+- Only `.r` and `.g` of the Body mean anything. On the Pi the camera's square view is stretched to the screen, so people look wider than the painter's.
+- Buffers are 16-bit float on the Pi (Shadertoy uses 32-bit). Keep stored values small: past ~2048, whole numbers start rounding. Store positions as UVs (0–1), not pixels.
+- `HW_PERFORMANCE` is 0 on the Pi — the low-quality branch.
 - `iMouse` works: on the Pi it's the centre of everyone in frame, "pressed" while anyone is there.
 - No textures, videos, sound, cubemaps, or webcam — procedural + Body only.
 - Channel filter/wrap settings are ignored: always linear, clamp.

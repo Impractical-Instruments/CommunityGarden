@@ -14,8 +14,10 @@ Buffer A is reserved for the Body: on the Pi it is the Orbbec silhouette,
 in Shadertoy (and in --test-input) it is shaders/body_painter.glsl driven
 by the mouse. Body texel: .r presence 0/1, .g nearness 0 (far) – 1 (near).
 
-Channel sources: "A" "B" "C" "D" "keyboard" or null. Buffers are RGBA16F,
-linear-filtered, clamped — Shadertoy's defaults.
+Channel sources: "A" "B" "C" "D" "keyboard" or null. Buffers are linear-
+filtered and clamped like Shadertoy's, but RGBA16F where Shadertoy's are
+32-bit: the Pi's V3D can't linear-filter 32-bit float. Values above ~2048
+lose integer precision.
 
 Pure helpers (load_setup, wrap_source, pack_body, BodyMouse, Keyboard) need
 no GL; Renderer needs a moderngl context.
@@ -47,6 +49,8 @@ void main() { gl_Position = vec4(in_vert, 0.0, 1.0); }
 """
 
 _HEADER = """#version 330
+#extension GL_ARB_shading_language_packing : enable
+#define HW_PERFORMANCE 0
 uniform vec3  iResolution;
 uniform float iTime;
 uniform float iTimeDelta;
@@ -102,6 +106,8 @@ def load_setup(path: Path) -> Setup:
     for p, chans in cfg.get("channels", {}).items():
         if p not in passes:
             raise ShaderError(f"{path.name}: channels for unknown pass {p!r}")
+        if not isinstance(chans, list):
+            raise ShaderError(f"{path.name}: channels for {p} must be a list")
         if len(chans) > 4:
             raise ShaderError(f"{path.name}: {p} binds more than 4 channels")
         bad = [c for c in chans if c is not None and c not in SOURCES]
@@ -130,15 +136,19 @@ def wrap_source(common: str, body: str) -> str:
 
 # ── Body packing ──────────────────────────────────────────────────────────────
 
-def pack_body(foreground: np.ndarray, roi: dict,
-              near_mm: float, far_mm: float) -> np.ndarray:
+def pack_body(foreground: np.ndarray, roi: dict, slabs: list[dict]) -> np.ndarray:
     """uint16 mm foreground (row 0 = top) → RGBA8 Body texels, row 0 = bottom.
 
-    .r = 255 inside [near_mm, far_mm), .g = nearness (255 at near_mm, 0 at far_mm).
+    .r = 255 inside any Depth Slab (as render_silhouette), .g = nearness across
+    the slabs' span (255 at the nearest near_mm, 0 at the farthest far_mm).
     """
+    near_mm = min(s["near_mm"] for s in slabs)
+    far_mm  = max(s["far_mm"] for s in slabs)
     crop  = foreground[roi["y"]:roi["y"] + roi["h"], roi["x"]:roi["x"] + roi["w"]]
     d     = crop.astype(np.float32)
-    mask  = (d >= near_mm) & (d < far_mm)
+    mask  = np.zeros(crop.shape, dtype=bool)
+    for s in slabs:
+        mask |= (d >= s["near_mm"]) & (d < s["far_mm"])
     near  = np.clip((far_mm - d) / (far_mm - near_mm), 0.0, 1.0)
     out   = np.zeros(crop.shape + (4,), dtype=np.uint8)
     out[..., 0] = mask * 255
@@ -152,17 +162,20 @@ class BodyMouse:
 
     xy = presence centroid in render pixels (held when nobody is there);
     zw = where presence began, positive while present; w positive only on
-    the first frame — Shadertoy's click semantics.
+    the first frame — Shadertoy's click semantics. Fewer than min_pixels
+    present texels counts as nobody (min_foreground_pixels, as app.py).
+    The caller must negate w after one render; update() runs per camera frame.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, min_pixels: int = 1) -> None:
+        self.min_pixels = max(1, min_pixels)
         self.xy      = (0.0, 0.0)
         self.start   = (0.0, 0.0)
         self.present = False
 
     def update(self, body: np.ndarray, w: int, h: int) -> tuple[float, float, float, float]:
         ys, xs = np.nonzero(body[..., 0])
-        if xs.size == 0:
+        if xs.size < self.min_pixels:
             self.present = False
             return (*self.xy, -abs(self.start[0]), -abs(self.start[1]))
         bh, bw = body.shape[:2]
@@ -303,6 +316,10 @@ class Renderer:
         self.reset_clock()
         log.info("Setup loaded: %s (%s)", setup.name, ", ".join(setup.passes))
 
+    def unload(self) -> None:
+        self._release_setup()
+        self.setup = None
+
     def _release_setup(self) -> None:
         for prog, vao in self._passes.values():
             vao.release()
@@ -345,7 +362,6 @@ class Renderer:
             self.output.clear()
             return
         self._kb_tex.write(self.keyboard.data.tobytes())
-        self.time += dt
         uniforms = {
             "iResolution": (float(self.size[0]), float(self.size[1]), 1.0),
             "iTime":       self.time,
@@ -367,6 +383,7 @@ class Renderer:
                 self._draw((prog, vao), chans, uniforms, self._buffers[p].write_fbo)
                 self._buffers[p].swap()
         self.keyboard.end_frame()
+        self.time  += dt
         self.frame += 1
 
     def _draw(self, pv: tuple, chans: list, uniforms: dict, fbo) -> None:
@@ -387,7 +404,9 @@ class Renderer:
             if k in prog:
                 prog[k].value = v
         if "iChannelResolution" in prog:
-            prog["iChannelResolution"].write(np.array(res, dtype="f4").tobytes())
+            # The driver trims the array to the highest index the shader reads.
+            n = prog["iChannelResolution"].array_length
+            prog["iChannelResolution"].write(np.array(res[:n], dtype="f4").tobytes())
         fbo.use()
         vao.render(self._mgl.TRIANGLE_STRIP)
 
