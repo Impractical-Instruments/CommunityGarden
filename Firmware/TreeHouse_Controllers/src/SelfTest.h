@@ -24,7 +24,7 @@ class SelfTest {
   static constexpr float kLevel = 0.35f;
 
   void begin(const ChannelSpec* channels, size_t count, StripOutput* strips,
-             DimmerOutput* dimmers, uint32_t now_ms);
+             DimmerOutput* dimmers, TriggerOutput* triggers, uint32_t now_ms);
 
   // Call once per frame.
   void update(uint32_t now_ms);
@@ -34,17 +34,20 @@ class SelfTest {
 
   void advance(uint32_t now_ms);
   void render();
+  void fireTriggers(uint32_t now_ms);
   const char* phaseName() const;
 
   const ChannelSpec* channels_ = nullptr;
   size_t count_ = 0;
   StripOutput* strips_ = nullptr;
   DimmerOutput* dimmers_ = nullptr;
+  TriggerOutput* triggers_ = nullptr;
 
   Phase phase_ = Phase::Red;
   uint32_t phase_start_ms_ = 0;
   uint16_t walk_index_ = 0;
   uint16_t max_pixels_ = 0;
+  uint8_t taps_this_phase_ = 0;
 };
 
 }  // namespace cg

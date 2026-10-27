@@ -14,6 +14,8 @@
 #include "jess.h"
 #elif defined(CG_TARGET_DORMER)
 #include "dormer.h"
+#elif defined(CG_TARGET_GARAGE)
+#include "garage.h"
 #else
 #error "No CG_TARGET_* defined. Build through one of the platformio.ini environments."
 #endif

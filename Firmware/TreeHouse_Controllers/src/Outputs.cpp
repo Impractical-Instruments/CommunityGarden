@@ -115,4 +115,30 @@ void DimmerOutput::write(float level) {
 #endif
 }
 
+bool TriggerOutput::begin(uint8_t pin) {
+  pin_ = pin;
+  pinMode(pin_, OUTPUT);
+  ready_ = true;
+  off();
+  return true;
+}
+
+void TriggerOutput::fire(uint32_t now_ms, uint32_t pulse_ms) {
+  if (!ready_) return;
+  digitalWrite(pin_, HIGH);
+  high_ = true;
+  high_since_ms_ = now_ms;
+  pulse_ms_ = pulse_ms;
+}
+
+void TriggerOutput::update(uint32_t now_ms) {
+  if (high_ && now_ms - high_since_ms_ >= pulse_ms_) off();
+}
+
+void TriggerOutput::off() {
+  if (!ready_) return;
+  digitalWrite(pin_, LOW);
+  high_ = false;
+}
+
 }  // namespace cg

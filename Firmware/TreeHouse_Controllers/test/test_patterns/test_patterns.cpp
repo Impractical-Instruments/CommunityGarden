@@ -1,5 +1,8 @@
 #include <unity.h>
 
+#include <cmath>
+#include <cstdlib>
+
 #include "Patterns.h"
 
 namespace {
@@ -195,7 +198,7 @@ void test_flash_keeps_strobing_while_stale() {
   blowup.captcha_blowup = true;
 
   int lit_ms = 0;
-  for (int ms = 0; ms < 6000; ++ms) {
+  for (int ms = 0; ms < 20000; ++ms) {
     animator.update(0.001f, blowup, /*stale=*/true);
     if (animator.level() > 0.0f) {
       ++lit_ms;
@@ -203,7 +206,7 @@ void test_flash_keeps_strobing_while_stale() {
       TEST_ASSERT_EQUAL_FLOAT(0.8f, animator.level());
     }
   }
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);
+  TEST_ASSERT_INT_WITHIN(8, 500, lit_ms);
 }
 
 void test_flash_channel_strobes_in_bursts() {
@@ -213,12 +216,13 @@ void test_flash_channel_strobes_in_bursts() {
   cg::ChannelAnimator animator;
   animator.configure(spec);
 
-  // Sample one 6 s cycle at 1 ms and count the on/off runs: four bursts of
-  // 250 ms, then a 4 s pause.
+  // Sample 20 s at 1 ms — one burst and most of its pause, stopping short of
+  // the next cycle — and count the on/off runs: four 125 ms pulses, one every
+  // 250 ms, then a 20 s pause.
   int edges = 0;
   int lit_ms = 0;
   bool lit = false;
-  for (int ms = 0; ms < 6000; ++ms) {
+  for (int ms = 0; ms < 20000; ++ms) {
     animator.update(0.001f, active(), false);
     const bool now_lit = animator.level() > 0.0f;
     if (now_lit) {
@@ -229,7 +233,7 @@ void test_flash_channel_strobes_in_bursts() {
     lit = now_lit;
   }
   TEST_ASSERT_EQUAL_INT(8, edges);       // four rising, four falling
-  TEST_ASSERT_INT_WITHIN(8, 1000, lit_ms);  // 4 x 250 ms lit per cycle
+  TEST_ASSERT_INT_WITHIN(8, 500, lit_ms);  // 4 x 125 ms lit per cycle
 }
 
 void test_max_level_caps_even_the_blowup_spike() {
@@ -346,6 +350,229 @@ void test_channels_without_base_hot_are_unchanged() {
   TEST_ASSERT_TRUE(animator.pixel(0).w > 250);  // full white base, not lerped away
 }
 
+// ADR-0021: controllers animate from fullyActive(), not from what they hear.
+// Every Signal Bag saturates there, so each channel sits at its own ceiling.
+void test_fully_active_drives_every_channel_to_its_ceiling() {
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Solid);
+  spec.weights = {.flowerbeds = 0.3f, .captcha = 0.5f, .pipes = 0.2f, .bias = 0.0f};
+  spec.min_level = 0.2f;
+  spec.max_level = 0.7f;
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+  run(animator, cg::fullyActive(), 5.0f);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 0.7f, animator.level());
+}
+
+// The Dormer: never below its floor, all the way up to its ceiling.
+void test_breathe_swings_between_floor_and_ceiling() {
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Breathe);
+  spec.weights.bias = 1.0f;
+  spec.min_level = 0.4f;
+  spec.max_level = 0.8f;
+  spec.speed = 0.5f;
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+  run(animator, cg::fullyActive(), 5.0f);
+
+  float low = 1.0f;
+  float high = 0.0f;
+  for (int i = 0; i < 1000; ++i) {  // 20 s: several breaths
+    animator.update(0.02f, cg::fullyActive(), false);
+    if (animator.level() < low) low = animator.level();
+    if (animator.level() > high) high = animator.level();
+  }
+  TEST_ASSERT_FLOAT_WITHIN(0.02f, 0.4f, low);
+  TEST_ASSERT_FLOAT_WITHIN(0.02f, 0.8f, high);
+}
+
+cg::ChannelSpec wanderSpec() {
+  cg::ChannelSpec spec = dimmerSpec(cg::PatternId::Wander);
+  spec.name = "Julia Filaments";
+  spec.weights.bias = 1.0f;
+  spec.min_level = 0.4f;
+  spec.max_level = 0.8f;
+  spec.speed = 1.0f;  // a full sweep in about a minute
+  return spec;
+}
+
+// The Julia filaments: wander the whole range, never leave it, never hurry.
+void test_wander_drifts_slowly_across_its_range() {
+  cg::ChannelAnimator animator;
+  animator.configure(wanderSpec());
+  run(animator, cg::fullyActive(), 5.0f);
+
+  const float dt = 0.02f;
+  float low = 1.0f;
+  float high = 0.0f;
+  float fastest = 0.0f;
+  float previous = animator.level();
+  for (int i = 0; i < 30000; ++i) {  // ten minutes
+    animator.update(dt, cg::fullyActive(), false);
+    const float level = animator.level();
+    TEST_ASSERT_TRUE(level >= 0.4f - 0.001f);
+    TEST_ASSERT_TRUE(level <= 0.8f + 0.001f);
+    const float rate = std::fabs(level - previous) / dt;
+    if (rate > fastest) fastest = rate;
+    if (level < low) low = level;
+    if (level > high) high = level;
+    previous = level;
+  }
+  TEST_ASSERT_TRUE(high - low > 0.3f);  // it really does go up and down
+  // A 0.4 sweep in ~60 s averages 0.007/s; smoothstep peaks at 1.5x that and a
+  // fast leg is 30% quicker.  Nothing should get anywhere near 0.05/s.
+  TEST_ASSERT_TRUE(fastest < 0.05f);
+}
+
+void test_wander_reseeds_to_a_different_walk() {
+  cg::ChannelAnimator a;
+  cg::ChannelAnimator b;
+  a.configure(wanderSpec());
+  b.configure(wanderSpec());
+  b.seed(12345u);
+  run(a, cg::fullyActive(), 120.0f);
+  run(b, cg::fullyActive(), 120.0f);
+  TEST_ASSERT_TRUE(std::fabs(a.level() - b.level()) > 0.0001f);
+}
+
+cg::ChannelSpec weldSpec() {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Weld, 16);
+  spec.base = cg::Rgbw{255, 60, 0, 0};         // cooling metal
+  spec.base_hot = cg::Rgbw{140, 120, 255, 180};  // arc violet-white
+  return spec;
+}
+
+uint32_t total(const cg::Rgbw& c) { return c.r + c.g + c.b + c.w; }
+
+void test_weld_is_dark_until_the_arc_strikes() {
+  cg::ChannelAnimator animator;
+  animator.configure(weldSpec());
+  run(animator, cg::fullyActive(), 5.0f);
+  for (uint16_t i = 0; i < 16; ++i) TEST_ASSERT_EQUAL_UINT32(0, total(animator.pixel(i)));
+}
+
+void test_weld_flashes_arc_white_then_cools_orange_then_goes_dark() {
+  cg::ChannelAnimator animator;
+  animator.configure(weldSpec());
+  run(animator, cg::fullyActive(), 1.0f);
+
+  animator.strike();
+  animator.update(0.016f, cg::fullyActive(), false);
+  const cg::Rgbw arc = animator.pixel(3);
+  TEST_ASSERT_TRUE(arc.b > arc.r);  // the hot end: violet-white
+  TEST_ASSERT_TRUE(arc.w > 64);
+
+  run(animator, cg::fullyActive(), 1.0f);
+  const cg::Rgbw metal = animator.pixel(3);
+  TEST_ASSERT_TRUE(total(metal) > 0);       // still glowing
+  TEST_ASSERT_TRUE(total(metal) < total(arc));
+  TEST_ASSERT_TRUE(metal.r > metal.b);       // and orange now
+
+  run(animator, cg::fullyActive(), 20.0f);
+  TEST_ASSERT_EQUAL_UINT32(0, total(animator.pixel(3)));
+}
+
+void test_a_long_burst_glows_longer_than_one_tap() {
+  cg::ChannelAnimator one;
+  cg::ChannelAnimator four;
+  one.configure(weldSpec());
+  four.configure(weldSpec());
+  one.strike();
+  for (int i = 0; i < 4; ++i) {
+    four.strike();
+    four.update(0.03f, cg::fullyActive(), false);
+  }
+  one.update(0.12f, cg::fullyActive(), false);
+  run(one, cg::fullyActive(), 2.0f);
+  run(four, cg::fullyActive(), 2.0f);
+  TEST_ASSERT_TRUE(total(four.pixel(0)) > total(one.pixel(0)));
+}
+
+void test_strike_is_ignored_by_other_patterns() {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Solid, 4);
+  spec.weights.bias = 1.0f;
+  spec.max_level = 0.5f;
+  cg::ChannelAnimator animator;
+  animator.configure(spec);
+  run(animator, cg::fullyActive(), 5.0f);
+  const uint8_t before = animator.pixel(0).w;
+  animator.strike();
+  animator.update(0.016f, cg::fullyActive(), false);
+  TEST_ASSERT_INT_WITHIN(1, before, animator.pixel(0).w);
+}
+
+// The Jess strips: Rave carries its own palette, so the spec leaves base dark.
+cg::ChannelSpec raveSpec(const char* name, uint16_t pixels) {
+  cg::ChannelSpec spec = stripSpec(cg::PatternId::Rave, pixels);
+  spec.name = name;
+  spec.base = cg::Rgbw{};
+  spec.weights.bias = 1.0f;
+  spec.speed = 0.008f;
+  spec.smoothing_s = 3.0f;
+  return spec;
+}
+
+int maxChannelStep(const cg::Rgbw& a, const cg::Rgbw& b) {
+  const int steps[] = {std::abs(a.r - b.r), std::abs(a.g - b.g), std::abs(a.b - b.b),
+                       std::abs(a.w - b.w)};
+  int largest = 0;
+  for (int step : steps) largest = step > largest ? step : largest;
+  return largest;
+}
+
+void test_rave_paints_saturated_colours_without_white() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess B", 36));
+  run(animator, active(), 30.0f);
+
+  for (uint16_t i = 0; i < 36; ++i) {
+    const cg::Rgbw p = animator.pixel(i);
+    TEST_ASSERT_EQUAL_UINT8(0, p.w);
+    TEST_ASSERT_TRUE(p.r > 100 || p.b > 100);  // never dark, never grey
+    TEST_ASSERT_TRUE(p.g < 200 || p.r < 50);   // no yellow or white
+  }
+}
+
+void test_rave_drifts_slowly_and_smoothly() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess A", 12));
+  run(animator, active(), 10.0f);  // let the drive settle
+
+  const cg::Rgbw start = animator.pixel(0);
+  cg::Rgbw last = start;
+  int biggest_frame_step = 0;
+  for (int frame = 0; frame < 60 * 50; ++frame) {  // one minute at 50 fps
+    animator.update(0.02f, active(), false);
+    const cg::Rgbw now = animator.pixel(0);
+    const int step = maxChannelStep(last, now);
+    if (step > biggest_frame_step) biggest_frame_step = step;
+    last = now;
+  }
+  TEST_ASSERT_TRUE(biggest_frame_step <= 2);       // no visible jumps
+  TEST_ASSERT_TRUE(maxChannelStep(start, last) > 60);  // but it does move
+}
+
+void test_rave_strips_on_one_controller_do_not_match() {
+  cg::ChannelAnimator a;
+  cg::ChannelAnimator b;
+  a.configure(raveSpec("Jess A", 12));
+  b.configure(raveSpec("Jess B", 12));
+  run(a, active(), 5.0f);
+  run(b, active(), 5.0f);
+  TEST_ASSERT_TRUE(maxChannelStep(a.pixel(0), b.pixel(0)) > 30);
+}
+
+// A stale Rave strip breathes like everything else, but in its own colours —
+// its base is dark, so falling back to base would black it out.
+void test_stale_rave_keeps_its_colours() {
+  cg::ChannelAnimator animator;
+  animator.configure(raveSpec("Jess B", 36));
+  run(animator, active(), 5.0f, /*stale=*/true);
+
+  const cg::Rgbw p = animator.pixel(0);
+  TEST_ASSERT_TRUE(p.r > 0 || p.g > 0 || p.b > 0);
+  TEST_ASSERT_EQUAL_UINT8(0, p.w);
+}
+
 void test_gamma_duty_endpoints_and_monotonicity() {
   const uint32_t max_duty = 8191;
   TEST_ASSERT_EQUAL_UINT32(0, cg::gammaDuty(0.0f, max_duty));
@@ -383,6 +610,18 @@ int main(int, char**) {
   RUN_TEST(test_fire_burns_hottest_at_the_hearth);
   RUN_TEST(test_fire_ramps_from_ember_red_to_amber);
   RUN_TEST(test_channels_without_base_hot_are_unchanged);
+  RUN_TEST(test_fully_active_drives_every_channel_to_its_ceiling);
+  RUN_TEST(test_breathe_swings_between_floor_and_ceiling);
+  RUN_TEST(test_wander_drifts_slowly_across_its_range);
+  RUN_TEST(test_wander_reseeds_to_a_different_walk);
+  RUN_TEST(test_weld_is_dark_until_the_arc_strikes);
+  RUN_TEST(test_weld_flashes_arc_white_then_cools_orange_then_goes_dark);
+  RUN_TEST(test_a_long_burst_glows_longer_than_one_tap);
+  RUN_TEST(test_strike_is_ignored_by_other_patterns);
+  RUN_TEST(test_rave_paints_saturated_colours_without_white);
+  RUN_TEST(test_rave_drifts_slowly_and_smoothly);
+  RUN_TEST(test_rave_strips_on_one_controller_do_not_match);
+  RUN_TEST(test_stale_rave_keeps_its_colours);
   RUN_TEST(test_gamma_duty_endpoints_and_monotonicity);
   return UNITY_END();
 }

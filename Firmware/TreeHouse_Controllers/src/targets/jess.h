@@ -1,6 +1,9 @@
 // Jess — two SK6812 RGBW strips plus one MOSFET channel driving a very bright
 // LED.
 //
+// The strips are the rave: saturated pink, violet, blue and cyan cross-fading
+// along each run, slowly enough that it is a mood rather than a light show.
+//
 // The bright LED is a punctuation mark, not a light source: it is dark most of
 // the time, strobes in short bursts, and goes full on for the Blow-Up
 // Reaction.  Its ceiling is held below 1.0 because at full power, this close
@@ -28,13 +31,13 @@ constexpr ChannelSpec kChannels[] = {
         .kind = ChannelKind::Strip,
         .pin = 8,
         .pixel_count = 12,
-        .base = Rgbw{255, 160, 60, 200},
-        .pattern = PatternId::Incandescent,
+        .base = Rgbw{},  // unused: Rave brings its own palette
+        .pattern = PatternId::Rave,
         .weights = {.flowerbeds = 0.5f, .captcha = 0.3f, .pipes = 0.2f, .bias = 0.15f},
         .min_level = 0.18f,
         .max_level = 1.0f,
-        .speed = 0.5f,
-        .smoothing_s = 0.8f,
+        .speed = 0.008f,      // one lap of the palette in about three minutes
+        .smoothing_s = 3.0f,  // Garden State swings fade in over seconds
         .idle_level = 0.18f,
     },
     {
@@ -42,13 +45,14 @@ constexpr ChannelSpec kChannels[] = {
         .kind = ChannelKind::Strip,
         .pin = 9,
         .pixel_count = 36,
-        .base = Rgbw{60, 120, 255, 30},  // cool counterpoint to Jess A
-        .pattern = PatternId::Mycelium,
+        .base = Rgbw{},
+        .pattern = PatternId::Rave,
         .weights = {.flowerbeds = 0.3f, .captcha = 0.4f, .pipes = 0.3f, .bias = 0.08f},
         .min_level = 0.12f,
         .max_level = 0.95f,
-        .speed = 0.35f,
-        .smoothing_s = 1.0f,
+        .speed = 0.006f,  // a touch slower than Jess A, so the two drift in and
+                          // out of step instead of mirroring each other
+        .smoothing_s = 3.0f,
         .idle_level = 0.14f,
     },
     {

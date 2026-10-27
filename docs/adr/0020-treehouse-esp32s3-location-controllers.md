@@ -1,6 +1,6 @@
 # ADR 0020 — TreeHouse lighting: one ESP32-S3 per location, driven by Garden State
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-0021](0021-treehouse-controllers-standalone-and-garage-welder.md) (controllers currently ignore Garden State; a fifth location, the Garage)
 **Supersedes:** [ADR-0010](0010-treehouse-led-pico-architecture.md)
 
 ## Context

@@ -31,6 +31,11 @@ struct GardenState {
   float masterBrightness() const;
 };
 
+// Every Element at full tilt and the show Active.  Controllers animate from
+// this instead of what they receive, so each channel sits at its max_level
+// permanently (ADR-0021) — the received state is still kept, just unused.
+GardenState fullyActive();
+
 // Default staleness horizon.  Two missed heartbeats at the Pi's 5 s interval.
 constexpr uint32_t kDefaultStaleMs = 10000;
 
