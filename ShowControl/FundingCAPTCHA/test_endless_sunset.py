@@ -122,3 +122,70 @@ def test_edge_flicker_is_not_flailing(ctx):
     r = make(ctx)
     run(r, flickering(30))
     assert buf(r, "buffer_b")[..., 1].max() < 0.15
+
+
+# ── State (Buffer C) ──────────────────────────────────────────────────────────
+
+EMPTY = rect(0, 0, 0, 0)
+
+
+def state(r) -> np.ndarray:
+    return buf(r, "buffer_c")[0, 0]
+
+
+def test_empty_room_sleeps(ctx):
+    r = make(ctx)
+    run(r, [EMPTY] * 30)
+    s = state(r)
+    assert s[0] < 0.05 and s[1] < 0.05
+
+
+def test_small_far_person_fully_wakes(ctx):
+    r = make(ctx)
+    run(r, [rect(30, 20, 33, 28)] * 40)          # ~1% of frame, 4 s
+    assert state(r)[0] > 0.9
+
+
+def test_standing_never_reaches_flail(ctx):
+    r = make(ctx)
+    run(r, flickering(60))
+    assert state(r)[1] < 0.2
+
+
+def test_walking_flails(ctx):
+    r = make(ctx)
+    run(r, walking(30, step=3))
+    assert state(r)[1] > 0.6
+
+
+def test_flail_is_steady_between_camera_frames(ctx):
+    r = make(ctx)
+    run(r, walking(20, step=3))
+    vals = []
+    for m in walking(6, step=3):
+        r.upload_body(body(m))
+        for _ in range(3):
+            r.render(DT, (0, 0, 0, 0))
+            vals.append(state(r)[1])
+    assert max(vals) - min(vals) < 0.15
+
+
+def test_clock_runs_slower_when_empty(ctx):
+    def advance(masks):
+        r = make(ctx)
+        run(r, masks[:30])                          # 3 s to settle
+        c0 = state(r)[2] + state(r)[3]
+        run(r, masks[30:])                          # then measure 3 s
+        return state(r)[2] + state(r)[3] - c0
+    assert advance([EMPTY] * 60) == pytest.approx(3.0 * 0.35, rel=0.15)
+    assert advance(standing(60)) == pytest.approx(3.0 * 1.0, rel=0.15)
+
+
+def test_clock_stays_bounded_and_split(ctx):
+    r = make(ctx)
+    r.upload_body(body(standing(1)[0]))
+    for _ in range(3700):                           # 370 s at rate ~1 → wrapped once
+        r.render(0.1, (0, 0, 0, 0))
+    s = state(r)
+    assert 0.0 <= s[2] < 360.0 and s[2] == round(s[2]) and 0.0 <= s[3] < 1.0
+    assert s[2] < 20.0
