@@ -41,8 +41,8 @@ Back to front:
 1. **Paper** — warm off-white `#f6f1e4` background.
 2. **Rings** — wobbly concentric half-rings centred on the sun, flat colour fills with black ink outlines, growing outward forever. The rim wobbles slightly (~5% of radius, ~9 lobes around the half circle, slowly drifting).
 3. **Rays** — squiggly sine-wave rays streaming out from the sun over the rings, warm white `#fffaf0` and pale yellow `#fbe9a0`, **no outline**. Thickness grows a little with distance.
-4. **Sun** — flat yellow `#fff200` half-disc on the horizon with a black ink outline.
-5. **Horizon** — a black ink line around 2/3 of the way down.
+4. **Sun** — flat yellow `#fff200` half-disc on the horizon with a black ink outline, radius 60/360 of the screen height (enlarged from the mockup after testing).
+5. **Horizon** — a black ink line 20% of the way up from the bottom (lowered from the mockup after testing).
 6. **Water** — below the horizon: wavy hatched ink lines alternating black and deep blue `#2076a3`, spacing increasing toward the viewer, gently undulating; short orange `#e8862f` streaks under the sun as its reflection, narrowing with depth.
 7. **People** — white `#fffaf0` fill with a black ink outline (like the figures in the concept art). The outline becomes a sine squiggle with movement (see Behaviour).
 

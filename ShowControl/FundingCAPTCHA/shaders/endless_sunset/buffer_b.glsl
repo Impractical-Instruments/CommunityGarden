@@ -8,7 +8,17 @@ float softPresence(vec2 uv) {
     for (int y = -1; y <= 1; y++)
         for (int x = -1; x <= 1; x++)
             s += texture(iChannel0, uv + vec2(x, y) * t).r;
-    return s / 9.0;
+    s /= 9.0;
+
+    // Fill depth-dropout holes: a pixel ringed by body counts as body. Lone specks and real
+    // edges aren't ringed, so they keep their shape.
+    vec2  h = HOLE_FILL_TEXELS / max(iChannelResolution[0].xy, vec2(1.0));
+    float ring = 0.0;
+    for (int k = 0; k < 8; k++) {
+        float a = 0.7853982 * float(k);
+        ring += texture(iChannel0, uv + vec2(cos(a), sin(a)) * h).r;
+    }
+    return max(s, smoothstep(0.45, 0.7, ring / 8.0));
 }
 
 void mainImage(out vec4 o, in vec2 fc) {

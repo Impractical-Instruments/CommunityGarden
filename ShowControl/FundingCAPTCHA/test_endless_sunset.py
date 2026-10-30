@@ -204,7 +204,7 @@ def test_sun_and_paper_when_awake(ctx):
     r = make(ctx)
     run(r, [CORNER] * 40)
     img = image(r)
-    assert np.abs(px(img, 0.5, 0.40) - [255, 242, 0]).max() < 40
+    assert np.abs(px(img, 0.5, 0.30) - [255, 242, 0]).max() < 40
     assert img[..., :3].mean() > 120
 
 
@@ -219,15 +219,18 @@ def test_empty_room_is_dimmer(ctx):
 def test_no_pop_across_clock_wrap(ctx):
     r = make(ctx)
     r.upload_body(body(CORNER))
-    prev, worst = None, 0.0
+    prev, at_wrap, elsewhere = None, [], []
     for k in range(3700):                           # 370 s at rate ~1, crosses LOOP_S
         r.render(0.1, (0, 0, 0, 0))
-        if k > 3500:
+        if k > 3300:
             img = image(r)[..., :3].astype(float)
+            clock = state(r)[2] + state(r)[3]
             if prev is not None:
-                worst = max(worst, np.abs(img - prev).mean())
+                d = np.abs(img - prev).mean()
+                (at_wrap if clock < 1.0 or clock > 359.0 else elsewhere).append(d)
             prev = img
-    assert worst < 12.0
+    assert at_wrap, "never crossed the wrap"
+    assert max(at_wrap) < 1.5 * np.median(elsewhere)   # a wrap frame looks like any other frame
 
 
 # ── Image: the person ─────────────────────────────────────────────────────────
@@ -248,7 +251,7 @@ def grow(m, n):
 def test_person_draws_over_sun(ctx, tmp_path):
     r = make_with(ctx, tmp_path, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")   # keep the sun put behind them
     run(r, [rect(26, 14, 38, 40)] * 80)             # covers the sun; 8 s so it's fully awake (no dim wash)
-    c = px(image(r), 0.5, 0.40)                     # over the sun's disc
+    c = px(image(r), 0.5, 0.30)                     # over the sun's disc
     assert np.abs(c[:2] - [255, 248]).max() < 15    # mostly warm white …
     assert 170 < c[2] < 215                         # … at 80%: the yellow sun shows through (white = 240, sun = 0)
 
@@ -347,3 +350,37 @@ def test_liquid_is_calm_under_people(ctx, tmp_path):
     still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
     inside  = ~grow(~to_render(rect(30, 6, 50, 38), size), 30)   # well inside the silhouette
     assert np.abs(stirred - still)[inside].max() < 6
+
+
+def test_horizon_low_and_sun_big(ctx):
+    r = make(ctx)
+    run(r, [CORNER] * 60)
+    img = image(r)
+    yellow = lambda c: np.abs(c - [255, 242, 0]).max() < 40
+    assert yellow(px(img, 0.5, 0.26))               # just above a horizon at 20%
+    assert yellow(px(img, 0.5, 0.32))               # a sun of radius 60/360 reaches up to ~0.37
+    assert not yellow(px(img, 0.5, 0.40))
+    assert not yellow(px(img, 0.5, 0.15))           # below the horizon is water
+
+
+def test_outline_skips_tiny_holes(ctx):
+    # At Pi scale (960×540 render, 640×400 camera), depth dropouts inside a person must not
+    # get ink: the holey body's inside looks like a solid body's.
+    size, cam = (960, 540), (400, 640)
+    solid = np.zeros(cam, dtype=bool)
+    solid[60:400, 250:400] = True
+    rng = np.random.default_rng(2)
+    def ink_inside(holes):
+        r = make(ctx, size)
+        for _ in range(30):
+            m = solid & ~(rng.random(cam) < 0.08) if holes else solid
+            r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                                    {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+            for _ in range(3):
+                r.render(DT, (0, 0, 0, 0))
+        dark = image(r)[..., :3].astype(int).sum(axis=2) < 200
+        ys = ((np.arange(size[1]) + 0.5) * cam[0] / size[1]).astype(int)
+        xs = ((np.arange(size[0]) + 0.5) * cam[1] / size[0]).astype(int)
+        inside = ~grow(~solid[::-1][ys][:, xs], 12)
+        return int(dark[inside].sum())
+    assert ink_inside(holes=True) <= ink_inside(holes=False) + 5

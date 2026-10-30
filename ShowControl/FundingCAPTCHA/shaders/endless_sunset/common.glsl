@@ -8,6 +8,10 @@ const float T_RAYS           = 9.0;     // s per layer cycle at rate 1  (40 per 
 const float T_RINGS          = 11.25;   // s per layer cycle at rate 1  (32 per loop)
 const float LAYER_GROWTH     = 8.0;
 
+// ── Layout ────────────────────────────────────────────────────────────────────
+const float HORIZON_Y        = 0.20;    // screen heights from the bottom
+const float SUN_R            = 60.0 / 360.0;
+
 // ── States ────────────────────────────────────────────────────────────────────
 const float RATE_EMPTY       = 0.35;
 const float RATE_AWAKE       = 1.0;
@@ -19,6 +23,7 @@ const float AWAKE_FALL_S     = 2.5;
 
 // ── Movement (camera noise vs flailing) ───────────────────────────────────────
 const float BODY_BLUR_TEXELS = 1.5;     // soft-presence tap spacing, in camera texels
+const float HOLE_FILL_TEXELS = 2.5;     // depth-dropout holes this small, surrounded by body, count as body
 const float MOTION_FLOOR     = 0.3;     // distance from the running average below this is camera noise
 const float MOTION_AVG_S     = 0.5;     // running-average window that movement is measured against
 const float MOTION_DECAY_S   = 0.6;     // movement trail time constant

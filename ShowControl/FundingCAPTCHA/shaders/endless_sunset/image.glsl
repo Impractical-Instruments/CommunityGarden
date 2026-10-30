@@ -1,10 +1,8 @@
 // Image — the endless sunset.  iChannel0 = Buffer B (Body memory), iChannel1 = Buffer C (State)
 // p is in screen heights, origin at the sun's centre on the horizon, y up.
 
-const float HORIZON_Y = 0.34;           // screen heights from the bottom
-const float SUN_R     = 40.0 / 360.0;
-const float RING_R0   = 56.0 / 360.0;
-const float RAY_R0    = 48.0 / 360.0;
+const float RING_R0   = 1.4 * SUN_R;    // rings and rays start just outside the sun
+const float RAY_R0    = 1.2 * SUN_R;
 const float N_RAYS    = 17.0;
 const float PI        = 3.14159265;
 
