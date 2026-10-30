@@ -36,8 +36,8 @@ def ctx():
     c.release()
 
 
-def make(ctx) -> Renderer:
-    r = Renderer(ctx, SIZE, body_mode="camera")
+def make(ctx, size=SIZE) -> Renderer:
+    r = Renderer(ctx, size, body_mode="camera")
     r.load(load_setup(SETUP))
     return r
 
@@ -69,7 +69,7 @@ def buf(r, name) -> np.ndarray:
 
 
 def image(r) -> np.ndarray:
-    return np.frombuffer(r.output.read(components=4), dtype=np.uint8).reshape(SIZE[1], SIZE[0], 4)
+    return np.frombuffer(r.output.read(components=4), dtype=np.uint8).reshape(r.size[1], r.size[0], 4)
 
 
 def standing(n):
@@ -204,7 +204,7 @@ def test_sun_and_paper_when_awake(ctx):
     r = make(ctx)
     run(r, [CORNER] * 40)
     img = image(r)
-    assert np.abs(px(img, 0.5, 0.36) - [255, 242, 0]).max() < 40
+    assert np.abs(px(img, 0.5, 0.40) - [255, 242, 0]).max() < 40
     assert img[..., :3].mean() > 120
 
 
@@ -228,3 +228,46 @@ def test_no_pop_across_clock_wrap(ctx):
                 worst = max(worst, np.abs(img - prev).mean())
             prev = img
     assert worst < 12.0
+
+
+# ── Image: the person ─────────────────────────────────────────────────────────
+
+def to_render(mask, size):
+    """Body mask (row 0 = top) → render-space mask (row 0 = GL bottom), nearest neighbour."""
+    ys = ((np.arange(size[1]) + 0.5) * BODY[1] / size[1]).astype(int)
+    xs = ((np.arange(size[0]) + 0.5) * BODY[0] / size[0]).astype(int)
+    return mask[::-1][ys][:, xs]
+
+
+def grow(m, n):
+    for _ in range(n):
+        m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
+    return m
+
+
+def test_person_draws_over_sun(ctx):
+    r = make(ctx)
+    run(r, [rect(26, 14, 38, 40)] * 30)             # covers the sun
+    assert np.abs(px(image(r), 0.5, 0.2) - [255, 250, 240]).max() < 20
+
+
+def test_person_has_ink_outline(ctx):
+    r = make(ctx)
+    run(r, standing(30))
+    row = image(r)[27, 40:90, :3].astype(int).sum(axis=1)
+    assert row.min() < 150
+
+
+def test_flailing_squiggles_the_outline(ctx):
+    size = (384, 216)                               # big enough that the full squiggle is ~4 px
+    def ink_in_band(masks):
+        r = make(ctx, size)
+        run(r, masks)
+        img = image(r)[..., :3].astype(int).sum(axis=2)
+        m = to_render(masks[-1], size)
+        band = grow(m, 5) & ~grow(m, 2)             # 3–5 px outside the true edge
+        return int(((img < 200) & band).sum())
+    jiggle = [0, 3, 6, 3, 0, -3, -6, -3]            # flailing in place, ends where standing() stands
+    still = ink_in_band(standing(30))
+    flail = ink_in_band([rect(36 + jiggle[k % 8], 8, 48 + jiggle[k % 8], 36) for k in range(32)])
+    assert flail > still + 10

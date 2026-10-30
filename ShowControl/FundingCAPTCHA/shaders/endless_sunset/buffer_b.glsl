@@ -25,14 +25,15 @@ void mainImage(out vec4 o, in vec2 fc) {
     float trail  = max(prev.g * exp(-iTimeDelta / MOTION_DECAY_S), motion);
     float avg    = iFrame == 0 ? soft : mix(prev.a, soft, 1.0 - exp(-iTimeDelta / MOTION_AVG_S));
 
-    // Spread the ripple field outward a few px per frame.
+    // Spread the ripple field outward a few px per frame. Averaging (not max) keeps it smooth.
     float stepH = RIPPLE_STEP_PX / iResolution.y;
     float keep  = exp(-stepH / RIPPLE_FALLOFF);
     float near  = 0.0;
     for (int k = 0; k < 8; k++) {
         float a = 0.7853982 * float(k);
-        near = max(near, texture(iChannel1, uv + vec2(cos(a), sin(a)) * RIPPLE_STEP_PX * px).b);
+        near += texture(iChannel1, uv + vec2(cos(a), sin(a)) * RIPPLE_STEP_PX * px).b;
     }
+    near /= 8.0;
     float field = iFrame == 0 ? soft : max(soft, near * keep);
 
     o = vec4(soft, trail, field, avg);

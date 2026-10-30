@@ -11,7 +11,10 @@ const float PI        = 3.14159265;
 float AA;                               // one render pixel, in screen heights
 
 float fillA(float sd)          { return 1.0 - smoothstep(-AA, AA, sd); }
-float lineA(float sd, float w) { return 1.0 - smoothstep(0.5 * w - AA, 0.5 * w + AA, abs(sd)); }
+float lineA(float sd, float w) {
+    w = max(w, 2.5 * AA);               // never thinner than a pen stroke, at any render size
+    return 1.0 - smoothstep(0.5 * w - AA, 0.5 * w + AA, abs(sd));
+}
 
 vec3 ringColor(float i) {
     return i < 0.5 ? YELLOW : i < 1.5 ? ORANGE : i < 2.5 ? PINK : i < 3.5 ? RUST : i < 4.5 ? VIOLET : SLATE;
@@ -88,12 +91,36 @@ vec3 sunset(vec2 p, float t, float ripple) {
     return mix(col, INK, lineA(p.y, 2.5 / 360.0));         // horizon
 }
 
+// The person: white fill, ink outline that squiggles with local movement.
+// The squiggle shifts where the Body is sampled, so it works at any amplitude.
+vec3 person(vec3 col, vec2 fc, vec4 b) {
+    vec2  q   = fc / iResolution.y;
+    float amp = WIGGLE_MIN + (WIGGLE_MAX - WIGGLE_MIN) * b.g;
+    vec2  off = amp * vec2(sin(q.y * 28.8 - iTime * 7.0), sin(q.x * 32.4 + iTime * 9.0));
+    vec2  px  = 1.0 / iResolution.xy;
+    vec2  uv  = fc * px + off * iResolution.y * px;
+    float soft = texture(iChannel0, uv).r;
+    vec2 g = vec2(texture(iChannel0, uv + vec2(px.x, 0.0)).r - texture(iChannel0, uv - vec2(px.x, 0.0)).r,
+                  texture(iChannel0, uv + vec2(0.0, px.y)).r - texture(iChannel0, uv - vec2(0.0, px.y)).r)
+             / (2.0 * AA);
+    float d = (0.5 - soft) / max(length(g), 1e-3);         // ≈ signed distance to the edge, screen heights
+    col = mix(col, WARM_WHITE, fillA(d + 0.75 * INK_W));
+    return mix(col, INK, lineA(d, 1.5 * INK_W));
+}
+
 void mainImage(out vec4 o, in vec2 fc) {
     AA = 1.0 / iResolution.y;
     vec2 p = (fc - vec2(0.5 * iResolution.x, HORIZON_Y * iResolution.y)) / iResolution.y;
     vec4 s = readState(iChannel1);
+    vec4 b = texture(iChannel0, fc / iResolution.xy);
 
-    vec3 col = sunset(p, stateClock(s), 0.0);
+    // Ripples travel outward from people: faint when they stand, full when they flail.
+    float dist     = -RIPPLE_FALLOFF * log(max(b.b, 1e-3));
+    float strength = s.r * mix(RIPPLE_STANDING, 1.0, s.g);
+    float ripple   = strength * RIPPLE_AMP * b.b * sin(dist * RIPPLE_WAVES - iTime * 9.0);
+
+    vec3 col = sunset(p, stateClock(s), ripple);
+    col = person(col, fc, b);
     col = mix(col, DIM_WASH, DIM_EMPTY * (1.0 - s.r));
     o = vec4(col, 1.0);
 }

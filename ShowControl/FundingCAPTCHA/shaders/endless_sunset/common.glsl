@@ -29,7 +29,8 @@ const float FLAIL_FALL_S     = 1.0;
 // ── Ripples and squiggles ─────────────────────────────────────────────────────
 const float RIPPLE_FALLOFF   = 45.0 / 360.0;
 const float RIPPLE_STEP_PX   = 4.0;     // ripple field spreads this many render px per frame
-const float RIPPLE_AMP       = 22.0 / 360.0;
+const float RIPPLE_AMP       = 9.0 / 360.0;
+const float RIPPLE_WAVES     = 30.0;    // radians per screen height; keep RIPPLE_AMP * RIPPLE_WAVES < 1 or the picture folds over
 const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but still
 const float WIGGLE_MIN       = 1.2 / 360.0;
 const float WIGGLE_MAX       = 7.0 / 360.0;
