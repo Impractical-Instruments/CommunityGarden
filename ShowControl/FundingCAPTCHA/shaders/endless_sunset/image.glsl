@@ -125,10 +125,29 @@ vec3 person(vec3 col, vec2 fc, vec4 b) {
 
     vec3  fill  = size < 0.5 ? mix(BLOB_SMALL_COL, BLOB_MID_COL, size * 2.0)
                              : mix(BLOB_MID_COL, WARM_WHITE, size * 2.0 - 1.0);
-    float alpha = mix(BLOB_MIN_ALPHA, 1.0, size);
+    float alpha = mix(BLOB_MIN_ALPHA, BLOB_MAX_ALPHA, size);
     float ink   = smoothstep(BLOB_INK_FROM, 1.0, size);   // specks: no outline, and no inset for one
     col = mix(col, fill, fillA(d + 0.75 * INK_W * ink) * alpha);
     return mix(col, INK, lineA(d, 1.5 * INK_W) * ink);
+}
+
+// The ripple field around people, averaged over a wide patch: .x field, .yz its gradient.
+// Ripples and stir both read this, so the push changes smoothly (a sharp change folds the picture).
+vec3 fieldAround(vec2 fc) {
+    vec2  px = 1.0 / iResolution.xy, uv = fc * px, h = LIQUID_SMOOTH * iResolution.y * px;
+    float e = texture(iChannel0, uv + vec2(h.x, 0.0)).b, w = texture(iChannel0, uv - vec2(h.x, 0.0)).b;
+    float n = texture(iChannel0, uv + vec2(0.0, h.y)).b, s = texture(iChannel0, uv - vec2(0.0, h.y)).b;
+    return vec3(0.2 * (e + w + n + s + texture(iChannel0, uv).b), e - w, n - s);
+}
+
+// Liquid stir: push the background sideways around people (a swirl) and a little in and out.
+vec2 stir(vec3 f, float dist, float strength) {
+    float gl = length(f.yz);
+    vec2  n  = f.yz / max(gl, 1e-5) * smoothstep(0.0, 0.02, gl);   // toward the person; 0 where flat
+    vec2  tg = vec2(-n.y, n.x);
+    float w  = dist * LIQUID_WAVES;
+    return LIQUID_AMP * strength * f.x
+         * (tg * sin(w - iTime * LIQUID_SPEED) + n * 0.5 * cos(0.7 * w + 0.6 * iTime * LIQUID_SPEED));
 }
 
 void mainImage(out vec4 o, in vec2 fc) {
@@ -138,11 +157,14 @@ void mainImage(out vec4 o, in vec2 fc) {
     vec4 b = texture(iChannel0, fc / iResolution.xy);
 
     // Ripples travel outward from people: faint when they stand, full when they flail.
-    float dist     = -RIPPLE_FALLOFF * log(max(b.b, 1e-3));
+    vec3  f        = fieldAround(fc);
+    float dist     = -RIPPLE_FALLOFF * log(max(f.x, 1e-3));
     float strength = s.r * mix(RIPPLE_STANDING, 1.0, s.g);
-    float ripple   = strength * RIPPLE_AMP * b.b * sin(dist * RIPPLE_WAVES - iTime * 9.0);
+    float ripple   = strength * RIPPLE_AMP * f.x * sin(dist * RIPPLE_WAVES - iTime * 9.0);
 
-    vec3 col = sunset(p, stateClock(s), ripple);
+    vec2 warp = stir(f, dist, s.r * mix(LIQUID_STANDING, 1.0, s.g));
+
+    vec3 col = sunset(p + warp, stateClock(s), ripple);
     col = person(col, fc, b);
     col = mix(col, DIM_WASH, DIM_EMPTY * (1.0 - s.r));
     o = vec4(col, 1.0);

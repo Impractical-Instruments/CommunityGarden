@@ -245,10 +245,12 @@ def grow(m, n):
     return m
 
 
-def test_person_draws_over_sun(ctx):
-    r = make(ctx)
-    run(r, [rect(26, 14, 38, 40)] * 30)             # covers the sun
-    assert np.abs(px(image(r), 0.5, 0.2) - [255, 250, 240]).max() < 20
+def test_person_draws_over_sun(ctx, tmp_path):
+    r = make_with(ctx, tmp_path, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")   # keep the sun put behind them
+    run(r, [rect(26, 14, 38, 40)] * 80)             # covers the sun; 8 s so it's fully awake (no dim wash)
+    c = px(image(r), 0.5, 0.40)                     # over the sun's disc
+    assert np.abs(c[:2] - [255, 248]).max() < 15    # mostly warm white …
+    assert 170 < c[2] < 215                         # … at 80%: the yellow sun shows through (white = 240, sun = 0)
 
 
 def test_person_has_ink_outline(ctx):
@@ -294,3 +296,35 @@ def test_small_blob_is_tinted_and_see_through(ctx):
     assert np.abs(a[c] - b[c]).max() > 15                           # it shows up
     assert (a[c][0] - a[c][1]) > (b[c][0] - b[c][1]) + 8            # tinted pink
     assert np.abs(a[c] - [255, 250, 240]).max() > 20                # not a solid white person
+
+
+def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
+    """This Setup with some common.glsl constants overridden, e.g. LIQUID_AMP="0.0"."""
+    import re
+    import shutil
+    d = tmp_path / "endless_sunset"
+    shutil.rmtree(d, ignore_errors=True)
+    shutil.copytree(SETUP, d)
+    c = d / "common.glsl"
+    src = c.read_text()
+    for k, v in consts.items():
+        src, n = re.subn(rf"(const float {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
+        assert n == 1, f"{k} not found in common.glsl"
+    c.write_text(src)
+    r = Renderer(ctx, size, body_mode="camera")
+    r.load(load_setup(d))
+    return r
+
+
+def test_people_stir_the_background(ctx, tmp_path):
+    size = (384, 216)
+    m = CORNER | rect(40, 4, 46, 24)                # standing in the sky, right of the sun
+    def render(r):
+        run(r, [m] * 30)
+        return image(r)[..., :3].astype(float)
+    stirred = render(make(ctx, size))
+    still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
+    rm   = to_render(m, size)
+    diff = np.abs(stirred - still)
+    assert diff[grow(rm, 40) & ~grow(rm, 4)].mean() > 1.0       # the liquid around them moves
+    assert diff[~grow(rm, 80)].max() == 0                        # far away it doesn't

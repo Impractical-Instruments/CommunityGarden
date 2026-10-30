@@ -27,11 +27,18 @@ const float FLAIL_RISE_S     = 0.3;
 const float FLAIL_FALL_S     = 1.0;
 
 // ── Ripples and squiggles ─────────────────────────────────────────────────────
-const float RIPPLE_FALLOFF   = 45.0 / 360.0;
+const float RIPPLE_FALLOFF   = 70.0 / 360.0;
 const float RIPPLE_STEP_PX   = 4.0;     // ripple field spreads this many render px per frame
 const float RIPPLE_AMP       = 9.0 / 360.0;
 const float RIPPLE_WAVES     = 30.0;    // radians per screen height; keep RIPPLE_AMP * RIPPLE_WAVES < 1 or the picture folds over
 const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but still
+// Liquid: people stir the whole background (rings, rays, sun, water) in a swirl around them.
+// Keep LIQUID_AMP * LIQUID_WAVES + LIQUID_AMP / RIPPLE_FALLOFF under 1 or the picture folds over.
+const float LIQUID_AMP       = 24.0 / 360.0;   // peak push, screen heights
+const float LIQUID_WAVES     = 7.0;            // radians per screen height outward from a person
+const float LIQUID_SPEED     = 3.0;            // how fast the swirl turns (rad/s)
+const float LIQUID_SMOOTH    = 0.08;           // how wide a patch sets the swirl direction (wider than an arm)
+const float LIQUID_STANDING  = 0.6;            // stir strength when present but still (flailing = 1)
 const float WIGGLE_MIN       = 1.2 / 360.0;
 const float WIGGLE_MAX       = 7.0 / 360.0;
 // ── Blob size → fill colour and transparency (makes camera noise look intentional) ──
@@ -40,6 +47,7 @@ const float BLOB_SOLID       = 0.75;           // soft presence that counts as s
 const float BLOB_SMALL       = 0.02;           // local coverage at or below this = a noise speck
 const float BLOB_LARGE       = 0.15;           // local coverage at or above this = a person
 const float BLOB_MIN_ALPHA   = 0.35;           // fill opacity of the smallest specks
+const float BLOB_MAX_ALPHA   = 0.8;            // fill opacity of a full-size person
 const float BLOB_INK_FROM    = 0.3;            // outline fades in from this blob size up to a person
 const float BLOB_MIN_LEVEL   = 0.15;           // specks show where soft presence passes this (people: 0.5)
 const float INK_W            = 2.2 / 360.0;
