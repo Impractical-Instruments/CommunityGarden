@@ -248,25 +248,31 @@ def grow(m, n):
     return m
 
 
-def test_person_draws_over_sun(ctx, tmp_path):
-    r = make_with(ctx, tmp_path, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")   # keep the sun put behind them
-    run(r, [rect(26, 14, 38, 40)] * 80)             # covers the sun; 8 s so it's fully awake (no dim wash)
-    c = px(image(r), 0.5, 0.30)                     # over the sun's disc
-    assert np.abs(c[:2] - [255, 248]).max() < 15    # mostly warm white …
-    assert 170 < c[2] < 215                         # … at 80%: the yellow sun shows through (white = 240, sun = 0)
-
-
-def test_person_has_ink_outline(ctx):
-    r = make(ctx)
+def test_person_has_an_outline(ctx, tmp_path):
+    r = make_with(ctx, tmp_path, OUTLINE_COL="INK")    # drawn in ink so the edge is easy to find
     run(r, standing(30))
     row = image(r)[27, 40:90, :3].astype(int).sum(axis=1)
     assert row.min() < 150
 
 
-def test_flailing_squiggles_the_outline(ctx):
+def test_outline_is_light_by_default(ctx, tmp_path):
+    # Toned down: the outline is light grey. The outline's pixels are the ones that change when
+    # it's drawn in ink instead; by default they must be light.
+    size = (384, 216)
+    def render(r):
+        run(r, [CORNER | standing(1)[0]] * 30)
+        return image(r)[..., :3].astype(int)
+    light = render(make(ctx, size))
+    inked = render(make_with(ctx, tmp_path, size, OUTLINE_COL="INK"))
+    outline = np.abs(light - inked).max(axis=2) > 100
+    assert outline.sum() > 50
+    assert light[outline].sum(axis=1).mean() > 550
+
+
+def test_flailing_squiggles_the_outline(ctx, tmp_path):
     size = (384, 216)                               # big enough that the full squiggle is ~4 px
     def ink_in_band(masks):
-        r = make(ctx, size)
+        r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so the outline is easy to find
         run(r, masks)
         img = image(r)[..., :3].astype(int).sum(axis=2)
         m = to_render(masks[-1], size)
@@ -302,7 +308,7 @@ def test_small_blob_is_tinted_and_see_through(ctx):
 
 
 def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
-    """This Setup with some common.glsl constants overridden, e.g. LIQUID_AMP="0.0"."""
+    """This Setup with some common.glsl constants overridden, e.g. LIQUID_AMP="0.0", OUTLINE_COL="INK"."""
     import re
     import shutil
     d = tmp_path / "endless_sunset"
@@ -311,7 +317,7 @@ def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
     c = d / "common.glsl"
     src = c.read_text()
     for k, v in consts.items():
-        src, n = re.subn(rf"(const float {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
+        src, n = re.subn(rf"(const (?:float|vec3) {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
         assert n == 1, f"{k} not found in common.glsl"
     c.write_text(src)
     r = Renderer(ctx, size, body_mode="camera")
@@ -365,7 +371,7 @@ def test_horizon_low_and_sun_big(ctx):
     assert not yellow(px(img, 0.5, 0.15))           # below the horizon is water
 
 
-def test_outline_skips_tiny_holes(ctx):
+def test_outline_skips_tiny_holes(ctx, tmp_path):
     # At Pi scale (960×540 render, 640×400 camera), depth dropouts inside a person must not
     # get ink: the holey body's inside looks like a solid body's.
     size, cam = (960, 540), (400, 640)
@@ -373,7 +379,7 @@ def test_outline_skips_tiny_holes(ctx):
     solid[60:400, 250:400] = True
     rng = np.random.default_rng(2)
     def ink_inside(holes):
-        r = make(ctx, size)
+        r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so stray outline is easy to find
         for _ in range(30):
             m = solid & ~(rng.random(cam) < 0.08) if holes else solid
             r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
@@ -487,3 +493,109 @@ def test_top_water_lines_clear_the_horizon(ctx, tmp_path):
         down = dark[horizon - 12: horizon + 2, x][::-1]  # from inside the horizon line, walking down
         run_ = int(np.argmin(down))                   # contiguous dark rows from the horizon down
         assert run_ <= 5, f"line 1 merges into the horizon at x={x} ({run_} dark rows)"
+
+
+# ── Image: concentric sine squiggles fill the person ─────────────────────────
+# At Pi scale (960×540 render, 640×400 camera). A tall person covering the sun: inside the
+# sun's disc the only things drawn are the sun (static, blue = 0) and the warm-white lines.
+
+PI_SIZE, PI_CAM = (960, 540), (400, 640)
+SUN_PERSON = (slice(40, 400), slice(190, 450))      # camera rows/cols: from above the sun to the floor
+
+
+def pi_frames(n, holes=0.0, seed=3):
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n):
+        m = np.zeros(PI_CAM, dtype=bool)
+        m[SUN_PERSON] = True
+        if holes:
+            m &= ~(rng.random(PI_CAM) < holes)
+        out.append(m)
+    return out
+
+
+def pi_run(r, masks, after=None):
+    """Upload each camera mask, render 3 frames each; after(r) is called after every frame."""
+    for m in masks:
+        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                                {"x": 0, "y": 0, "w": PI_CAM[1], "h": PI_CAM[0]}, SLABS))
+        for _ in range(3):
+            r.render(DT, (0, 0, 0, 0))
+            if after:
+                after(r)
+
+
+def sun_row(img, y_frac=0.28, channel=2):
+    """One channel along a row through the sun, x within the sun's disc (blue: lines high, sun 0)."""
+    y = int(y_frac * PI_SIZE[1])
+    half = int(np.sqrt((60 / 360) ** 2 - (y_frac - 0.2) ** 2) * PI_SIZE[1]) - 8
+    cx = PI_SIZE[0] // 2
+    return img[y, cx - half:cx + half, channel].astype(int)
+
+
+def runs(row, hi=180):
+    """Start indices of bright runs along a row."""
+    on = row > hi
+    return np.flatnonzero(on[1:] & ~on[:-1]) + 1
+
+
+def calm(ctx, tmp_path):
+    return make_with(ctx, tmp_path, PI_SIZE, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
+
+
+def test_person_is_filled_with_concentric_lines(ctx, tmp_path):
+    # Replaces the old flat 80% warm-white fill: the sun now shows between the lines.
+    r = calm(ctx, tmp_path)
+    pi_run(r, pi_frames(40))
+    img = image(r)
+    row, red = sun_row(img), sun_row(img, channel=0)
+    starts = runs(row)
+    assert len(starts) >= 4, row                    # several lines …
+    assert (row < 60).mean() > 0.3                  # … with the sun showing between them …
+    assert (red[row < 60] > 200).all()              # … (yellow, not ink)
+    gap = np.median(np.diff(starts)) / PI_SIZE[1]
+    assert 7 / 360 < gap < 14 / 360                 # about 10/360 screen heights apart
+
+
+def test_concentric_lines_crawl_while_standing_still(ctx, tmp_path):
+    r = calm(ctx, tmp_path)
+    pi_run(r, pi_frames(40))
+    a = sun_row(image(r))
+    pi_run(r, pi_frames(5))                         # half a second later, body unchanged
+    b = sun_row(image(r))
+    assert np.abs(a - b).mean() > 20
+
+
+def test_concentric_lines_ignore_depth_dropouts(ctx, tmp_path):
+    # 8% flickering holes must not ring the holes with lines or make the lines pop:
+    # the holey person's lines match the solid person's.
+    def render(holes):
+        r = calm(ctx, tmp_path)
+        pi_run(r, pi_frames(40, holes=holes))
+        return sun_row(image(r))
+    solid, holey = render(0.0), render(0.08)
+    assert (np.abs(solid - holey) > 90).mean() < 0.08
+    assert abs(len(runs(solid)) - len(runs(holey))) <= 1
+
+
+def test_concentric_lines_do_not_tear_between_camera_frames(ctx, tmp_path):
+    # Rendering at 30 fps from a 10 fps camera: from one render frame to the next the lines
+    # only crawl a little, even with flickering holes.
+    r = calm(ctx, tmp_path)
+    pi_run(r, pi_frames(40, holes=0.08))
+    rows = []
+    pi_run(r, pi_frames(4, holes=0.08, seed=9), after=lambda r: rows.append(sun_row(image(r))))
+    steps = [(np.abs(a - b) > 120).mean() for a, b in zip(rows, rows[1:])]
+    assert max(steps) < 0.25, steps
+
+
+def test_concentric_lines_fill_a_body_that_just_arrived(ctx, tmp_path):
+    # Flailing arms land somewhere new every camera frame, and someone stepping in should
+    # fill with lines fast: here 0.6 s fills a body ~200 render px deep (a fixed-step
+    # distance field growing 4 px per frame would take ~1.6 s).
+    corner = np.zeros(PI_CAM, dtype=bool)
+    corner[340:400, 0:60] = True                    # someone else keeps the scene awake
+    r = calm(ctx, tmp_path)
+    pi_run(r, [corner] * 60 + [corner | m for m in pi_frames(6)])
+    assert len(runs(sun_row(image(r)))) >= 4

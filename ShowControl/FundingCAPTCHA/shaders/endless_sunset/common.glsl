@@ -60,6 +60,18 @@ const float BLOB_MIN_LEVEL   = 0.15;           // specks show where soft presenc
 const float PERSON_GATE      = 0.002;   // skip drawing people where the squiggled presence is below this
 const float FIELD_GATE       = 0.001;   // skip the field disc where the field is below this
 const float INK_W            = 2.2 / 360.0;
+// ── Person fill: concentric sine squiggles following the outline inward ──────
+const float FILL_GAP         = 10.0 / 360.0;   // spacing between the lines (first one this far in from the outline)
+const float FILL_LINE_W      = 2.5 / 360.0;    // pen weight of each line (never under 2.5 render px)
+const float FILL_TINT        = 0.12;           // warm-white wash between the lines, so the figure reads as a body
+const float FILL_WIGGLE      = 0.3;            // sine amplitude along each line, fraction of FILL_GAP, standing
+const float FILL_WIGGLE_MOVE = 0.15;           // extra amplitude where they move; keep the sum under 0.5
+const float FILL_WAVELEN     = 30.0 / 360.0;   // one wiggle along a line, screen heights
+const float FILL_CRAWL       = 360.0;          // wiggle cycles per LOOP_S passing a point (1/s awake, faster flailing): the crawl
+const float DEPTH_STEP_PX    = 4.0;            // depth inside people: fine step (render px), keeps the lines round
+const float DEPTH_LEAP_PX    = 14.0;           // … and long step: depth grows this many render px per frame
+const float DEPTH_SMOOTH_PX  = 2.0;            // presence smoothed this wide (render px) before finding the edge
+const float DEPTH_RELAX      = 0.6;            // 0–<1: how much the drawn depth is smoothed (keeps the wiggle from going scratchy)
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const vec3 PAPER      = vec3(246, 241, 228) / 255.0;
@@ -73,6 +85,7 @@ const vec3 WARM_WHITE = vec3(255, 250, 240) / 255.0;
 const vec3 ORANGE     = vec3(232, 134,  47) / 255.0;
 const vec3 PINK       = vec3(232, 149, 127) / 255.0;
 const vec3 VIOLET     = vec3(107,  91, 149) / 255.0;
+const vec3 OUTLINE_COL    = vec3(217, 212, 202) / 255.0;   // people's outline: light warm grey (INK for black)
 const vec3 BLOB_SMALL_COL = PINK;
 const vec3 BLOB_MID_COL   = PALE;
 const vec3 DIM_WASH   = vec3( 29,  53,  80) / 255.0;

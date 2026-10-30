@@ -4,6 +4,7 @@
   "channels": {
     "buffer_b": ["A", "B"],
     "buffer_c": ["B", "C"],
-    "image":    ["B", "C"]
+    "buffer_d": ["B", "D"],
+    "image":    ["B", "C", "D"]
   }
 }

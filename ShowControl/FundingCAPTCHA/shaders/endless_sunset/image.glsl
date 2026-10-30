@@ -104,9 +104,21 @@ float blobSize(vec2 uv) {
     return smoothstep(BLOB_SMALL, BLOB_LARGE, c / 16.0);
 }
 
-// The person: fill and ink outline that squiggles with local movement. Small blobs (camera
-// noise) get a tinted, see-through fill and no outline; full-size people are opaque warm white.
-// The squiggle shifts where the Body is sampled, so it works at any amplitude.
+// The wiggle along the fill lines at q, crawling around the body. Four sine waves run
+// along 0°, 45°, 90° and 135°; each counts in proportion to cos⁴ of its angle to the
+// local contour tangent tg (the weights always sum to 1.5), and runs the way tg points,
+// so on every side of a body the wiggle travels the same way round it.
+float fillWiggle(vec2 q, vec2 tg, float t) {
+    float k = 6.2831853 / FILL_WAVELEN, w = 0.0;
+    for (int i = 0; i < 4; i++) {
+        float a = 0.7853982 * float(i);
+        vec2  e = vec2(cos(a), sin(a));
+        float c = dot(tg, e);
+        w += c * c * c * c * sin(k * dot(q, e) - sign(c) * loopWave(t, FILL_CRAWL));
+    }
+    return w / 1.5;
+}
+
 // Where to sample the Body for this pixel: shifted by the squiggle, so the outline wiggles.
 // Shared by person() and the liquid's calm-under-people, so their edges line up.
 vec2 wiggledUV(vec2 fc, vec4 b) {
@@ -116,7 +128,12 @@ vec2 wiggledUV(vec2 fc, vec4 b) {
     return (fc + off * iResolution.y) / iResolution.xy;
 }
 
-vec3 person(vec3 col, vec2 fc, vec4 b) {
+// The person: ink outline that squiggles with local movement, filled with concentric
+// warm-white lines that follow the outline inward and wiggle along it. Small blobs (camera
+// noise) instead get a tinted, see-through fill and no outline or lines.
+// The squiggle shifts where the Body is sampled, so it works at any amplitude.
+vec3 person(vec3 col, vec2 fc, vec4 b, float t) {
+    vec2  q   = fc / iResolution.y;
     vec2  px  = 1.0 / iResolution.xy;
     vec2  uv  = wiggledUV(fc, b);
     if (texture(iChannel0, uv).r < PERSON_GATE) return col;  // no body here to fill or outline
@@ -130,10 +147,29 @@ vec3 person(vec3 col, vec2 fc, vec4 b) {
 
     vec3  fill  = size < 0.5 ? mix(BLOB_SMALL_COL, BLOB_MID_COL, size * 2.0)
                              : mix(BLOB_MID_COL, WARM_WHITE, size * 2.0 - 1.0);
-    float alpha = mix(BLOB_MIN_ALPHA, BLOB_MAX_ALPHA, size);
-    float ink   = smoothstep(BLOB_INK_FROM, 1.0, size);   // specks: no outline, and no inset for one
-    col = mix(col, fill, fillA(d + 0.75 * INK_W * ink) * alpha);
-    return mix(col, INK, lineA(d, 1.5 * INK_W) * ink);
+    float ink    = smoothstep(BLOB_INK_FROM, 1.0, size);  // specks: no outline, no lines, and no inset for one
+    float alpha  = mix(mix(BLOB_MIN_ALPHA, BLOB_MAX_ALPHA, size), FILL_TINT, ink);
+    float inside = fillA(d + 0.75 * INK_W * ink);
+    col = mix(col, fill, inside * alpha);
+
+    // Concentric lines: contours of the depth inside (Buffer D), FILL_GAP apart, wiggled.
+    if (ink > 0.0 && inside > 0.0) {
+        // Contour tangent from the depth slope, over a few px: wider would reach across the
+        // ridge in the middle of a thin arm and mix both sides' slopes.
+        vec2  h  = 3.0 * px;
+        vec2  dg = vec2(texture(iChannel2, uv + vec2(h.x, 0.0)).r - texture(iChannel2, uv - vec2(h.x, 0.0)).r,
+                        texture(iChannel2, uv + vec2(0.0, h.y)).r - texture(iChannel2, uv - vec2(0.0, h.y)).r)
+                  / (6.0 * AA);                             // ≈ unit length on a clean slope
+        vec2  tg = vec2(-dg.y, dg.x) / max(length(dg), 1e-5);
+        // On the ridge down the middle of a limb the slope collapses and the two sides crawl
+        // opposite ways: calm the wiggle there so their lines don't cross.
+        float wig = FILL_GAP * (FILL_WIGGLE + FILL_WIGGLE_MOVE * b.g) * smoothstep(0.2, 0.7, length(dg));
+        float depth = texture(iChannel2, uv).r + wig * fillWiggle(q, tg, t);
+        float n  = floor(depth / FILL_GAP + 0.5);
+        float on = n >= 1.0 ? lineA(depth - n * FILL_GAP, FILL_LINE_W) : 0.0;
+        col = mix(col, WARM_WHITE, on * inside * ink);
+    }
+    return mix(col, OUTLINE_COL, lineA(d, 1.5 * INK_W) * ink);
 }
 
 // The ripple field around people, averaged over a disc: .x field, .yz its gradient (per
@@ -162,7 +198,7 @@ vec4 fieldAround(vec2 fc) {
 
 // Liquid stir: push the background sideways around people (a swirl) and a little in and out.
 // Calm under people: there the field is flat and noisy (depth dropouts), and the warp would
-// tear the background seen through the 80% fill.
+// tear the background seen between the fill lines.
 vec2 stir(vec4 f, float here, float dist, float strength) {
     // Toward the person. A clean exp(-d/F) field has slope f/F, so this is ~unit length there;
     // where opposing slopes cancel (between arms, around the head) it fades out instead of
@@ -194,7 +230,7 @@ void mainImage(out vec4 o, in vec2 fc) {
     vec2  warp = stir(f, here, dist, s.r * mix(LIQUID_STANDING, 1.0, s.g));
 
     vec3 col = sunset(p + warp, stateClock(s) + CLOCK_SHIFT, ripple);
-    col = person(col, fc, b);
+    col = person(col, fc, b, stateClock(s) + CLOCK_SHIFT);
     col = mix(col, DIM_WASH, DIM_EMPTY * (1.0 - s.r));
     o = vec4(col, 1.0);
 }
