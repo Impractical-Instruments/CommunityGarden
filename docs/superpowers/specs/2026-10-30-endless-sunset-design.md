@@ -44,7 +44,7 @@ Back to front:
 4. **Sun** — flat yellow `#fff200` half-disc on the horizon with a black ink outline, radius 60/360 of the screen height (enlarged from the mockup after testing).
 5. **Horizon** — a black ink line 20% of the way up from the bottom (lowered from the mockup after testing).
 6. **Water** — below the horizon: wavy hatched ink lines alternating black and deep blue `#2076a3`, spacing increasing toward the viewer, gently undulating; short orange `#e8862f` streaks under the sun as its reflection, narrowing with depth.
-7. **People** — white `#fffaf0` fill with a black ink outline (like the figures in the concept art). The outline becomes a sine squiggle with movement (see Behaviour).
+7. **People** — black ink outline (like the figures in the concept art), filled with concentric warm-white `#fffaf0` lines that follow the outline inward like contour lines, each wiggled by a sine wave that crawls along the outline (more where they move); the sunset shows between the lines through a faint warm-white wash. The outline becomes a sine squiggle with movement (see Behaviour). Small noise blobs keep a tinted see-through fill with no outline or lines.
 
 Palette: the studio website's colours — slate `#719aad`, deep blue `#2076a3`, rust `#bc4c26`, yellow `#fff200`, black ink — plus orange `#e8862f`, pink `#e8957f` and violet `#6b5b95` added because a sunset needs them. Ring colours in layer order: yellow, orange, pink, rust, violet, slate.
 
