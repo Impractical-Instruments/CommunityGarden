@@ -248,17 +248,31 @@ def grow(m, n):
     return m
 
 
-def test_person_has_ink_outline(ctx):
-    r = make(ctx)
+def test_person_has_an_outline(ctx, tmp_path):
+    r = make_with(ctx, tmp_path, OUTLINE_COL="INK")    # drawn in ink so the edge is easy to find
     run(r, standing(30))
     row = image(r)[27, 40:90, :3].astype(int).sum(axis=1)
     assert row.min() < 150
 
 
-def test_flailing_squiggles_the_outline(ctx):
+def test_outline_is_light_by_default(ctx, tmp_path):
+    # Toned down: the outline is light grey. The outline's pixels are the ones that change when
+    # it's drawn in ink instead; by default they must be light.
+    size = (384, 216)
+    def render(r):
+        run(r, [CORNER | standing(1)[0]] * 30)
+        return image(r)[..., :3].astype(int)
+    light = render(make(ctx, size))
+    inked = render(make_with(ctx, tmp_path, size, OUTLINE_COL="INK"))
+    outline = np.abs(light - inked).max(axis=2) > 100
+    assert outline.sum() > 50
+    assert light[outline].sum(axis=1).mean() > 550
+
+
+def test_flailing_squiggles_the_outline(ctx, tmp_path):
     size = (384, 216)                               # big enough that the full squiggle is ~4 px
     def ink_in_band(masks):
-        r = make(ctx, size)
+        r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so the outline is easy to find
         run(r, masks)
         img = image(r)[..., :3].astype(int).sum(axis=2)
         m = to_render(masks[-1], size)
@@ -294,7 +308,7 @@ def test_small_blob_is_tinted_and_see_through(ctx):
 
 
 def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
-    """This Setup with some common.glsl constants overridden, e.g. LIQUID_AMP="0.0"."""
+    """This Setup with some common.glsl constants overridden, e.g. LIQUID_AMP="0.0", OUTLINE_COL="INK"."""
     import re
     import shutil
     d = tmp_path / "endless_sunset"
@@ -303,7 +317,7 @@ def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
     c = d / "common.glsl"
     src = c.read_text()
     for k, v in consts.items():
-        src, n = re.subn(rf"(const float {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
+        src, n = re.subn(rf"(const (?:float|vec3) {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
         assert n == 1, f"{k} not found in common.glsl"
     c.write_text(src)
     r = Renderer(ctx, size, body_mode="camera")
@@ -357,7 +371,7 @@ def test_horizon_low_and_sun_big(ctx):
     assert not yellow(px(img, 0.5, 0.15))           # below the horizon is water
 
 
-def test_outline_skips_tiny_holes(ctx):
+def test_outline_skips_tiny_holes(ctx, tmp_path):
     # At Pi scale (960×540 render, 640×400 camera), depth dropouts inside a person must not
     # get ink: the holey body's inside looks like a solid body's.
     size, cam = (960, 540), (400, 640)
@@ -365,7 +379,7 @@ def test_outline_skips_tiny_holes(ctx):
     solid[60:400, 250:400] = True
     rng = np.random.default_rng(2)
     def ink_inside(holes):
-        r = make(ctx, size)
+        r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so stray outline is easy to find
         for _ in range(30):
             m = solid & ~(rng.random(cam) < 0.08) if holes else solid
             r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),

@@ -85,6 +85,7 @@ const vec3 WARM_WHITE = vec3(255, 250, 240) / 255.0;
 const vec3 ORANGE     = vec3(232, 134,  47) / 255.0;
 const vec3 PINK       = vec3(232, 149, 127) / 255.0;
 const vec3 VIOLET     = vec3(107,  91, 149) / 255.0;
+const vec3 OUTLINE_COL    = vec3(217, 212, 202) / 255.0;   // people's outline: light warm grey (INK for black)
 const vec3 BLOB_SMALL_COL = PINK;
 const vec3 BLOB_MID_COL   = PALE;
 const vec3 DIM_WASH   = vec3( 29,  53,  80) / 255.0;

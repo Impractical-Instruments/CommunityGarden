@@ -169,7 +169,7 @@ vec3 person(vec3 col, vec2 fc, vec4 b, float t) {
         float on = n >= 1.0 ? lineA(depth - n * FILL_GAP, FILL_LINE_W) : 0.0;
         col = mix(col, WARM_WHITE, on * inside * ink);
     }
-    return mix(col, INK, lineA(d, 1.5 * INK_W) * ink);
+    return mix(col, OUTLINE_COL, lineA(d, 1.5 * INK_W) * ink);
 }
 
 // The ripple field around people, averaged over a disc: .x field, .yz its gradient (per
