@@ -403,3 +403,26 @@ def test_ripple_field_reaches_its_documented_falloff(ctx):
     falloff_px = int(70 / 360 * size[1])            # RIPPLE_FALLOFF in render px
     assert 0.2 < row[edge_px + falloff_px] < 0.55
     assert 0.03 < row[edge_px + 2 * falloff_px] < 0.25
+
+
+def test_clock_wrap_is_seamless_everywhere(ctx, tmp_path):
+    # Every clock-driven motion must complete whole cycles per LOOP_S: drawing the same frame
+    # one full loop later (CLOCK_SHIFT = LOOP_S) must look identical.
+    def frame(r):
+        run(r, [CORNER] * 20)
+        return image(r)[..., :3].astype(int)
+    now   = frame(make(ctx))
+    later = frame(make_with(ctx, tmp_path, CLOCK_SHIFT="360.0"))
+    assert np.abs(now - later).max() <= 2
+
+
+def test_all_water_lines_are_on_screen(ctx, tmp_path):
+    # Line spacing fits the water under a 20% horizon: the deepest (8th) line sits at ~90% of
+    # the water depth (~2% up the screen) and the 7th at ~6%. Before, both fell off-screen.
+    size = (960, 540)
+    r = make_with(ctx, tmp_path, size, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
+    run(r, [CORNER] * 40)
+    col = image(r)[:, int(0.15 * size[0]), :3].astype(int)            # row 0 = bottom
+    line = (col.sum(axis=1) < 450) | (np.abs(col - [32, 118, 163]).max(axis=1) < 40)
+    assert line[5:15].any()                         # 8th line
+    assert line[26:36].any()                        # 7th line

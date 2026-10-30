@@ -7,6 +7,7 @@ const float N_LAYERS         = 6.0;
 const float T_RAYS           = 9.0;     // s per layer cycle at rate 1  (40 per loop)
 const float T_RINGS          = 11.25;   // s per layer cycle at rate 1  (32 per loop)
 const float LAYER_GROWTH     = 8.0;
+const float CLOCK_SHIFT      = 0.0;     // check only: draw as if the clock were this much later (LOOP_S must look identical)
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const float HORIZON_Y        = 0.20;    // screen heights from the bottom

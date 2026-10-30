@@ -63,8 +63,9 @@ vec3 rays(vec3 col, vec2 p, float t, float ripple) {
 // Water: hatched ripple lines below the horizon, with the sun's orange reflection.
 vec3 water(vec3 col, vec2 p, float t) {
     float depth = -p.y;
+    float fit   = 0.9 * HORIZON_Y / ((64.0 * 1.6 + 4.0) / 360.0);   // deepest line at 90% of the water
     for (float j = 1.0; j < 9.0; j++) {
-        float y   = (j * j * 1.6 + 4.0) / 360.0;
+        float y   = fit * (j * j * 1.6 + 4.0) / 360.0;
         float wig = sin(p.x * 18.0 + loopWave(t, 115.0) + j) * 1.6 / 360.0;
         col = mix(col, mod(j, 2.0) > 0.5 ? DEEP : INK, lineA(depth - y - wig, 1.4 / 360.0));
         float half_ = SUN_R * (1.0 - j / 10.0);
@@ -190,7 +191,7 @@ void mainImage(out vec4 o, in vec2 fc) {
     float here = texture(iChannel0, wiggledUV(fc, b)).r;     // same edge the outline is drawn on
     vec2  warp = stir(f, here, dist, s.r * mix(LIQUID_STANDING, 1.0, s.g));
 
-    vec3 col = sunset(p + warp, stateClock(s), ripple);
+    vec3 col = sunset(p + warp, stateClock(s) + CLOCK_SHIFT, ripple);
     col = person(col, fc, b);
     col = mix(col, DIM_WASH, DIM_EMPTY * (1.0 - s.r));
     o = vec4(col, 1.0);
