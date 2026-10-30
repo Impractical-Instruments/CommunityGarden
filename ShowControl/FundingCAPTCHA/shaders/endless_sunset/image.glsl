@@ -91,21 +91,44 @@ vec3 sunset(vec2 p, float t, float ripple) {
     return mix(col, INK, lineA(p.y, 2.5 / 360.0));         // horizon
 }
 
-// The person: white fill, ink outline that squiggles with local movement.
+// How big is the blob under this pixel? Local *solid* body coverage, 0 = a lone speck … 1 = a person.
+// Counting only solid taps keeps dense loose grain (depth noise) from passing as a person.
+float blobSize(vec2 uv) {
+    vec2  r = BLOB_REACH * vec2(iResolution.y / iResolution.x, 1.0);
+    float c = 0.0;
+    for (int k = 0; k < 8; k++) {
+        float a = 0.7853982 * float(k);
+        vec2  d = vec2(cos(a), sin(a));
+        c += step(BLOB_SOLID, texture(iChannel0, uv + d * r * 0.4).r)
+           + step(BLOB_SOLID, texture(iChannel0, uv + d * r).r);
+    }
+    return smoothstep(BLOB_SMALL, BLOB_LARGE, c / 16.0);
+}
+
+// The person: fill and ink outline that squiggles with local movement. Small blobs (camera
+// noise) get a tinted, see-through fill and no outline; full-size people are opaque warm white.
 // The squiggle shifts where the Body is sampled, so it works at any amplitude.
 vec3 person(vec3 col, vec2 fc, vec4 b) {
+    if (b.b < 0.01) return col;                             // nobody near: skip the taps
     vec2  q   = fc / iResolution.y;
     float amp = WIGGLE_MIN + (WIGGLE_MAX - WIGGLE_MIN) * b.g;
     vec2  off = amp * vec2(sin(q.y * 28.8 - iTime * 7.0), sin(q.x * 32.4 + iTime * 9.0));
     vec2  px  = 1.0 / iResolution.xy;
     vec2  uv  = fc * px + off * iResolution.y * px;
-    float soft = texture(iChannel0, uv).r;
+    float size  = blobSize(uv);
+    float level = mix(BLOB_MIN_LEVEL, 0.5, size);
+    float soft  = texture(iChannel0, uv).r;
     vec2 g = vec2(texture(iChannel0, uv + vec2(px.x, 0.0)).r - texture(iChannel0, uv - vec2(px.x, 0.0)).r,
                   texture(iChannel0, uv + vec2(0.0, px.y)).r - texture(iChannel0, uv - vec2(0.0, px.y)).r)
              / (2.0 * AA);
-    float d = (0.5 - soft) / max(length(g), 1e-3);         // ≈ signed distance to the edge, screen heights
-    col = mix(col, WARM_WHITE, fillA(d + 0.75 * INK_W));
-    return mix(col, INK, lineA(d, 1.5 * INK_W));
+    float d = (level - soft) / max(length(g), 1e-3);       // ≈ signed distance to the edge, screen heights
+
+    vec3  fill  = size < 0.5 ? mix(BLOB_SMALL_COL, BLOB_MID_COL, size * 2.0)
+                             : mix(BLOB_MID_COL, WARM_WHITE, size * 2.0 - 1.0);
+    float alpha = mix(BLOB_MIN_ALPHA, 1.0, size);
+    float ink   = smoothstep(BLOB_INK_FROM, 1.0, size);   // specks: no outline, and no inset for one
+    col = mix(col, fill, fillA(d + 0.75 * INK_W * ink) * alpha);
+    return mix(col, INK, lineA(d, 1.5 * INK_W) * ink);
 }
 
 void mainImage(out vec4 o, in vec2 fc) {

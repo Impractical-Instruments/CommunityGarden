@@ -271,3 +271,26 @@ def test_flailing_squiggles_the_outline(ctx):
     still = ink_in_band(standing(30))
     flail = ink_in_band([rect(36 + jiggle[k % 8], 8, 48 + jiggle[k % 8], 36) for k in range(32)])
     assert flail > still + 10
+
+
+# ── Image: blob size sets fill colour and transparency ────────────────────────
+
+def test_small_blob_is_tinted_and_see_through(ctx):
+    # At Pi scale (960×540 render, 640×400 camera): a 3-texel speck vs the blob-size reach.
+    size, cam = (960, 540), (400, 640)
+    def render(with_speck):
+        m = np.zeros(cam, dtype=bool)
+        m[300:400, 0:60] = True                     # a person at the edge keeps the scene awake
+        if with_speck:
+            m[40:43, 560:563] = True                # camera-noise speck over the sky, far away
+        r = make(ctx, size)
+        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                                {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+        for _ in range(60):
+            r.render(DT, (0, 0, 0, 0))
+        return image(r)[..., :3].astype(int)
+    a, b = render(True), render(False)
+    c = (size[1] - 1 - int(41.5 * size[1] / cam[0]), int(561.5 * size[0] / cam[1]))
+    assert np.abs(a[c] - b[c]).max() > 15                           # it shows up
+    assert (a[c][0] - a[c][1]) > (b[c][0] - b[c][1]) + 8            # tinted pink
+    assert np.abs(a[c] - [255, 250, 240]).max() > 20                # not a solid white person

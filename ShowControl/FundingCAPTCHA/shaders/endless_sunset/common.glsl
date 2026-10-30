@@ -34,6 +34,14 @@ const float RIPPLE_WAVES     = 30.0;    // radians per screen height; keep RIPPL
 const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but still
 const float WIGGLE_MIN       = 1.2 / 360.0;
 const float WIGGLE_MAX       = 7.0 / 360.0;
+// ── Blob size → fill colour and transparency (makes camera noise look intentional) ──
+const float BLOB_REACH       = 40.0 / 360.0;   // how far around a pixel to look when judging blob size
+const float BLOB_SOLID       = 0.75;           // soft presence that counts as solid body, not loose grain
+const float BLOB_SMALL       = 0.02;           // local coverage at or below this = a noise speck
+const float BLOB_LARGE       = 0.15;           // local coverage at or above this = a person
+const float BLOB_MIN_ALPHA   = 0.35;           // fill opacity of the smallest specks
+const float BLOB_INK_FROM    = 0.3;            // outline fades in from this blob size up to a person
+const float BLOB_MIN_LEVEL   = 0.15;           // specks show where soft presence passes this (people: 0.5)
 const float INK_W            = 2.2 / 360.0;
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -48,6 +56,8 @@ const vec3 WARM_WHITE = vec3(255, 250, 240) / 255.0;
 const vec3 ORANGE     = vec3(232, 134,  47) / 255.0;
 const vec3 PINK       = vec3(232, 149, 127) / 255.0;
 const vec3 VIOLET     = vec3(107,  91, 149) / 255.0;
+const vec3 BLOB_SMALL_COL = PINK;
+const vec3 BLOB_MID_COL   = PALE;
 const vec3 DIM_WASH   = vec3( 29,  53,  80) / 255.0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
