@@ -34,7 +34,7 @@ const float FLAIL_FALL_S     = 1.0;
 
 // ── Ripples and squiggles ─────────────────────────────────────────────────────
 const float RIPPLE_FALLOFF   = 70.0 / 360.0;
-const float RIPPLE_STEP_PX   = 4.0;     // ripple field spreads this many render px per frame
+const float RIPPLE_SPEED     = 0.3;     // ripple field spreads this many screen heights per second
 const float RIPPLE_AMP       = 9.0 / 360.0;
 const float RIPPLE_WAVES     = 30.0;    // radians per screen height; keep RIPPLE_AMP * RIPPLE_WAVES < 1 or the picture folds over
 const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but still
@@ -56,6 +56,9 @@ const float BLOB_MIN_ALPHA   = 0.35;           // fill opacity of the smallest s
 const float BLOB_MAX_ALPHA   = 0.8;            // fill opacity of a full-size person
 const float BLOB_INK_FROM    = 0.3;            // outline fades in from this blob size up to a person
 const float BLOB_MIN_LEVEL   = 0.15;           // specks show where soft presence passes this (people: 0.5)
+// ── Speed-only early-outs (set to -1.0 to disable; the picture must not change) ──
+const float PERSON_GATE      = 0.002;   // skip drawing people where the squiggled presence is below this
+const float FIELD_GATE       = 0.001;   // skip the field disc where the field is below this
 const float INK_W            = 2.2 / 360.0;
 
 // ── Palette ───────────────────────────────────────────────────────────────────

@@ -38,12 +38,13 @@ void mainImage(out vec4 o, in vec2 fc) {
     // Spread the ripple field outward a few px per frame. Max (not average) makes it a true
     // distance: .b = exp(-dist / RIPPLE_FALLOFF). Averaging leaks and decays ~10x faster.
     // The image pass smooths it before using it.
-    float stepH = RIPPLE_STEP_PX / iResolution.y;
+    // The step is in screen heights per second, so spread looks the same at any resolution or fps.
+    float stepH = RIPPLE_SPEED * iTimeDelta;
     float keep  = exp(-stepH / RIPPLE_FALLOFF);
     float near  = 0.0;
     for (int k = 0; k < 8; k++) {
         float a = 0.7853982 * float(k);
-        near = max(near, texture(iChannel1, uv + vec2(cos(a), sin(a)) * RIPPLE_STEP_PX * px).b);
+        near = max(near, texture(iChannel1, uv + vec2(cos(a), sin(a)) * stepH * iResolution.y * px).b);
     }
     float field = iFrame == 0 ? soft : max(soft, near * keep);
 

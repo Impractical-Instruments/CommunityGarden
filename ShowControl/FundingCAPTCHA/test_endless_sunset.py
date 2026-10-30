@@ -426,3 +426,64 @@ def test_all_water_lines_are_on_screen(ctx, tmp_path):
     line = (col.sum(axis=1) < 450) | (np.abs(col - [32, 118, 163]).max(axis=1) < 40)
     assert line[5:15].any()                         # 8th line
     assert line[26:36].any()                        # 7th line
+
+
+def test_skipping_work_away_from_people_changes_nothing(ctx, tmp_path):
+    # The early-outs (person drawing, field disc) are for speed only: with them disabled the
+    # picture must be the same — specks, outlines, flailing, ripples and stir included.
+    size, cam = (480, 270), (400, 640)
+    rng = np.random.default_rng(3)
+    frames = []
+    for k in range(30):
+        m = np.zeros(cam, dtype=bool)
+        x = 250 + 10 * (k % 5)
+        m[80:400, x:x + 60] = True                  # a person shuffling side to side
+        m[20:23, 560:563] = True                    # a lone speck
+        m &= ~(rng.random(cam) < 0.05)
+        frames.append(m)
+    def render(r):
+        for m in frames:
+            r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                                    {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+            for _ in range(3):
+                r.render(DT, (0, 0, 0, 0))
+        return image(r)[..., :3].astype(int)
+    gated   = render(make(ctx, size))
+    ungated = render(make_with(ctx, tmp_path, size, PERSON_GATE="-1.0", FIELD_GATE="-1.0"))
+    # Excluding a 2 px border: there the disc's taps clamp to the screen edge, so a ~0 centre no
+    # longer bounds them (a sub-pixel stir difference, invisible).
+    assert np.abs(gated - ungated)[2:-2, 2:-2].max() <= 3
+
+
+def test_field_spreads_at_the_same_speed_at_any_resolution(ctx):
+    # The ripple field's spread is set in screen heights per second, not px per frame,
+    # so a 1080p Shadertoy tab and the 540p Pi look the same.
+    def front(size):
+        cam = (400, 640)
+        m = np.zeros(cam, dtype=bool)
+        m[:, 300:340] = True
+        r = make(ctx, size)
+        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                                {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+        for _ in range(6):                          # 0.2 s: the front is still moving
+            r.render(DT, (0, 0, 0, 0))
+        row = buf(r, "buffer_b")[size[1] // 2, :, 2]
+        edge = int(340 * size[0] / cam[1]) + 2          # just right of the body
+        return np.argmax(row[edge:] < 0.05) / size[1]   # how far the front got, in screen heights
+    assert front((480, 270)) == pytest.approx(front((960, 540)), abs=0.02)
+
+
+def test_top_water_lines_clear_the_horizon(ctx, tmp_path):
+    # Line 1's wiggle is scaled with the line spacing, so it never touches the horizon.
+    size = (960, 540)
+    r = make_with(ctx, tmp_path, size, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
+    run(r, [CORNER] * 40)
+    img = image(r)[..., :3].astype(int)
+    dark = (img.sum(axis=2) < 450) | (np.abs(img - [32, 118, 163]).max(axis=2) < 40)
+    horizon = int(round(0.20 * size[1]))
+    for x in range(20, size[0], 7):
+        if abs(x - size[0] // 2) < 120:             # skip the sun's reflection
+            continue
+        down = dark[horizon - 12: horizon + 2, x][::-1]  # from inside the horizon line, walking down
+        run_ = int(np.argmin(down))                   # contiguous dark rows from the horizon down
+        assert run_ <= 5, f"line 1 merges into the horizon at x={x} ({run_} dark rows)"

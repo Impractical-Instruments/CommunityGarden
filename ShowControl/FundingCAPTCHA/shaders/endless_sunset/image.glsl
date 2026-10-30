@@ -63,10 +63,10 @@ vec3 rays(vec3 col, vec2 p, float t, float ripple) {
 // Water: hatched ripple lines below the horizon, with the sun's orange reflection.
 vec3 water(vec3 col, vec2 p, float t) {
     float depth = -p.y;
-    float fit   = 0.9 * HORIZON_Y / ((64.0 * 1.6 + 4.0) / 360.0);   // deepest line at 90% of the water
+    float fit   = (0.9 * HORIZON_Y - 4.0 / 360.0) / (64.0 * 1.6 / 360.0);   // deepest line at 90% of the water
     for (float j = 1.0; j < 9.0; j++) {
-        float y   = fit * (j * j * 1.6 + 4.0) / 360.0;
-        float wig = sin(p.x * 18.0 + loopWave(t, 115.0) + j) * 1.6 / 360.0;
+        float y   = (fit * j * j * 1.6 + 4.0) / 360.0;       // keep line 1 clear of the horizon
+        float wig = fit * sin(p.x * 18.0 + loopWave(t, 115.0) + j) * 1.6 / 360.0;
         col = mix(col, mod(j, 2.0) > 0.5 ? DEEP : INK, lineA(depth - y - wig, 1.4 / 360.0));
         float half_ = SUN_R * (1.0 - j / 10.0);
         float x  = p.x - sin(loopWave(t, 115.0) + j) * 4.0 / 360.0;
@@ -117,9 +117,9 @@ vec2 wiggledUV(vec2 fc, vec4 b) {
 }
 
 vec3 person(vec3 col, vec2 fc, vec4 b) {
-    if (b.b < 0.01) return col;                             // nobody near: skip the taps
     vec2  px  = 1.0 / iResolution.xy;
     vec2  uv  = wiggledUV(fc, b);
+    if (texture(iChannel0, uv).r < PERSON_GATE) return col;  // no body here to fill or outline
     float size  = blobSize(uv);
     float level = mix(BLOB_MIN_LEVEL, 0.5, size);
     float soft  = texture(iChannel0, uv).r;
@@ -144,6 +144,8 @@ vec4 fieldAround(vec2 fc) {
     vec2  px = 1.0 / iResolution.xy, uv = fc * px;
     vec2  h  = LIQUID_SMOOTH * iResolution.y * px;
     vec4  c  = texture(iChannel0, uv);
+    // Max-spreading keeps the centre at >= 0.49x any tap, so a ~0 centre means a ~0 disc.
+    if (c.b < FIELD_GATE) return vec4(0.0);
     float f = c.b, pres = c.r;
     vec2  g = vec2(0.0);
     for (int k = 0; k < 8; k++) {
