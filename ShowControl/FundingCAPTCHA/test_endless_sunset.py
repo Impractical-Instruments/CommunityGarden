@@ -328,3 +328,22 @@ def test_people_stir_the_background(ctx, tmp_path):
     diff = np.abs(stirred - still)
     assert diff[grow(rm, 40) & ~grow(rm, 4)].mean() > 1.0       # the liquid around them moves
     assert diff[~grow(rm, 80)].max() == 0                        # far away it doesn't
+
+
+def test_liquid_is_calm_under_people(ctx, tmp_path):
+    # Seen through the 80% fill, a warped background tears; under a person it stays put.
+    size = (384, 216)
+    body_ = rect(30, 6, 50, 38)                     # a big person across the horizon and water
+    rng = np.random.default_rng(1)
+    frames = []
+    for _ in range(30):                             # depth dropouts: small holes that flicker
+        f = CORNER | body_
+        f[body_ & (rng.random(body_.shape) < 0.08)] = False
+        frames.append(f)
+    def render(r):
+        run(r, frames)
+        return image(r)[..., :3].astype(float)
+    stirred = render(make(ctx, size))
+    still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
+    inside  = ~grow(~to_render(rect(30, 6, 50, 38), size), 30)   # well inside the silhouette
+    assert np.abs(stirred - still)[inside].max() < 6

@@ -131,22 +131,30 @@ vec3 person(vec3 col, vec2 fc, vec4 b) {
     return mix(col, INK, lineA(d, 1.5 * INK_W) * ink);
 }
 
-// The ripple field around people, averaged over a wide patch: .x field, .yz its gradient.
-// Ripples and stir both read this, so the push changes smoothly (a sharp change folds the picture).
-vec3 fieldAround(vec2 fc) {
-    vec2  px = 1.0 / iResolution.xy, uv = fc * px, h = LIQUID_SMOOTH * iResolution.y * px;
-    float e = texture(iChannel0, uv + vec2(h.x, 0.0)).b, w = texture(iChannel0, uv - vec2(h.x, 0.0)).b;
-    float n = texture(iChannel0, uv + vec2(0.0, h.y)).b, s = texture(iChannel0, uv - vec2(0.0, h.y)).b;
-    return vec3(0.2 * (e + w + n + s + texture(iChannel0, uv).b), e - w, n - s);
+// The ripple field around people, averaged over a wide patch: .x field, .yz its gradient,
+// .w body presence over the same patch. Ripples and stir read this, so the push changes
+// smoothly (a sharp change folds the picture).
+vec4 fieldAround(vec2 fc) {
+    vec2 px = 1.0 / iResolution.xy, uv = fc * px, h = LIQUID_SMOOTH * iResolution.y * px;
+    vec4 c = texture(iChannel0, uv);
+    vec4 e = texture(iChannel0, uv + vec2(h.x, 0.0)), w = texture(iChannel0, uv - vec2(h.x, 0.0));
+    vec4 n = texture(iChannel0, uv + vec2(0.0, h.y)), s = texture(iChannel0, uv - vec2(0.0, h.y));
+    return vec4(0.2 * (e.b + w.b + n.b + s.b + c.b), e.b - w.b, n.b - s.b,
+                0.2 * (e.r + w.r + n.r + s.r + c.r));
 }
 
 // Liquid stir: push the background sideways around people (a swirl) and a little in and out.
-vec2 stir(vec3 f, float dist, float strength) {
+// Calm under people: there the field is flat and noisy (depth dropouts), and the warp would
+// tear the background seen through the 80% fill.
+vec2 stir(vec4 f, float here, float dist, float strength) {
     float gl = length(f.yz);
     vec2  n  = f.yz / max(gl, 1e-5) * smoothstep(0.0, 0.02, gl);   // toward the person; 0 where flat
     vec2  tg = vec2(-n.y, n.x);
     float w  = dist * LIQUID_WAVES;
-    return LIQUID_AMP * strength * f.x
+    // Patch presence calms wide bodies smoothly; local presence calms narrow limbs. The step
+    // that leaves at the silhouette edge sits under the solid ink outline.
+    float calm = 1.0 - max(smoothstep(0.4, 0.8, f.w), smoothstep(0.2, 0.6, here));
+    return LIQUID_AMP * strength * f.x * calm
          * (tg * sin(w - iTime * LIQUID_SPEED) + n * 0.5 * cos(0.7 * w + 0.6 * iTime * LIQUID_SPEED));
 }
 
@@ -157,12 +165,12 @@ void mainImage(out vec4 o, in vec2 fc) {
     vec4 b = texture(iChannel0, fc / iResolution.xy);
 
     // Ripples travel outward from people: faint when they stand, full when they flail.
-    vec3  f        = fieldAround(fc);
+    vec4  f        = fieldAround(fc);
     float dist     = -RIPPLE_FALLOFF * log(max(f.x, 1e-3));
     float strength = s.r * mix(RIPPLE_STANDING, 1.0, s.g);
     float ripple   = strength * RIPPLE_AMP * f.x * sin(dist * RIPPLE_WAVES - iTime * 9.0);
 
-    vec2 warp = stir(f, dist, s.r * mix(LIQUID_STANDING, 1.0, s.g));
+    vec2 warp = stir(f, b.r, dist, s.r * mix(LIQUID_STANDING, 1.0, s.g));
 
     vec3 col = sunset(p + warp, stateClock(s), ripple);
     col = person(col, fc, b);
