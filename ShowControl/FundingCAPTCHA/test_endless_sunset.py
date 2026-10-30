@@ -142,7 +142,7 @@ def test_empty_room_sleeps(ctx):
 
 def test_small_far_person_fully_wakes(ctx):
     r = make(ctx)
-    run(r, [rect(30, 20, 33, 28)] * 40)          # ~1% of frame, 4 s
+    run(r, [rect(30, 20, 33, 28)] * 60)          # ~1% of frame, 6 s (rise ceiling 1 - e^-4 = 0.98)
     assert state(r)[0] > 0.9
 
 

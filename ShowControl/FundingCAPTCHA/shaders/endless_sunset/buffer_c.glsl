@@ -14,8 +14,10 @@ void mainImage(out vec4 o, in vec2 fc) {
     float present = 0.0, moving = 0.0;
     for (int y = 0; y < 18; y++)
         for (int x = 0; x < 32; x++) {
-            vec4 b = texture(iChannel0, (vec2(x, y) + 0.5) / vec2(32.0, 18.0));
-            present += step(0.5, b.r);
+            // Off texel boundaries (+0.37), and a soft count: an exact 50/50 bilinear blend
+            // would leave "is someone here" to the GPU's filter rounding.
+            vec4 b = texture(iChannel0, (vec2(x, y) + 0.37) / vec2(32.0, 18.0));
+            present += smoothstep(0.3, 0.7, b.r);
             moving  += b.g;
         }
     present /= 576.0;
