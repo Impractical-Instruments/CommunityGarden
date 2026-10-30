@@ -329,8 +329,10 @@ def test_people_stir_the_background(ctx, tmp_path):
     still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
     rm   = to_render(m, size)
     diff = np.abs(stirred - still)
-    assert diff[grow(rm, 40) & ~grow(rm, 4)].mean() > 1.0       # the liquid around them moves
-    assert diff[~grow(rm, 80)].max() == 0                        # far away it doesn't
+    near = diff[grow(rm, 40) & ~grow(rm, 4)].mean()             # within ~1 falloff (42 px here)
+    far  = diff[grow(rm, 126) & ~grow(rm, 80)].mean()           # 2–3 falloffs out
+    assert near > 1.0                                           # the liquid around them moves
+    assert near > 2.0 * far                                     # and fades with distance
 
 
 def test_liquid_is_calm_under_people(ctx, tmp_path):
@@ -384,3 +386,20 @@ def test_outline_skips_tiny_holes(ctx):
         inside = ~grow(~solid[::-1][ys][:, xs], 12)
         return int(dark[inside].sum())
     assert ink_inside(holes=True) <= ink_inside(holes=False) + 5
+
+
+def test_ripple_field_reaches_its_documented_falloff(ctx):
+    # .b ≈ exp(-dist / RIPPLE_FALLOFF): one falloff out from the edge it should be ~e^-1.
+    size, cam = (960, 540), (400, 640)
+    m = np.zeros(cam, dtype=bool)
+    m[100:400, 300:340] = True                      # a person; their right edge at camera x = 340
+    r = make(ctx, size)
+    r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
+                            {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+    for _ in range(90):                             # 3 s: plenty to settle at 4 px per frame
+        r.render(DT, (0, 0, 0, 0))
+    row = buf(r, "buffer_b")[300, :, 2]             # GL row 300 crosses the body
+    edge_px = int(340 * size[0] / cam[1])
+    falloff_px = int(70 / 360 * size[1])            # RIPPLE_FALLOFF in render px
+    assert 0.2 < row[edge_px + falloff_px] < 0.55
+    assert 0.03 < row[edge_px + 2 * falloff_px] < 0.25

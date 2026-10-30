@@ -42,7 +42,7 @@ const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but stil
 const float LIQUID_AMP       = 24.0 / 360.0;   // peak push, screen heights
 const float LIQUID_WAVES     = 7.0;            // radians per screen height outward from a person
 const float LIQUID_SPEED     = 3.0;            // how fast the swirl turns (rad/s)
-const float LIQUID_SMOOTH    = 0.08;           // how wide a patch sets the swirl direction (wider than an arm)
+const float LIQUID_SMOOTH    = 0.14;           // how wide a patch sets the swirl direction (wider than an arm)
 const float LIQUID_STANDING  = 0.6;            // stir strength when present but still (flailing = 1)
 const float WIGGLE_MIN       = 1.2 / 360.0;
 const float WIGGLE_MAX       = 7.0 / 360.0;
