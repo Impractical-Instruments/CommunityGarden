@@ -189,3 +189,42 @@ def test_clock_stays_bounded_and_split(ctx):
     s = state(r)
     assert 0.0 <= s[2] < 360.0 and s[2] == round(s[2]) and 0.0 <= s[3] < 1.0
     assert s[2] < 20.0
+
+
+# ── Image: the sunset ─────────────────────────────────────────────────────────
+
+CORNER = rect(0, 0, 6, 6)                           # keeps the scene awake, clear of the sun
+
+
+def px(img, x_frac, y_frac_from_bottom):
+    return img[int(y_frac_from_bottom * (SIZE[1] - 1)), int(x_frac * (SIZE[0] - 1)), :3].astype(int)
+
+
+def test_sun_and_paper_when_awake(ctx):
+    r = make(ctx)
+    run(r, [CORNER] * 40)
+    img = image(r)
+    assert np.abs(px(img, 0.5, 0.36) - [255, 242, 0]).max() < 40
+    assert img[..., :3].mean() > 120
+
+
+def test_empty_room_is_dimmer(ctx):
+    def mean(masks):
+        r = make(ctx)
+        run(r, masks)
+        return image(r)[..., :3].mean()
+    assert mean([EMPTY] * 40) < 0.8 * mean([CORNER] * 40)
+
+
+def test_no_pop_across_clock_wrap(ctx):
+    r = make(ctx)
+    r.upload_body(body(CORNER))
+    prev, worst = None, 0.0
+    for k in range(3700):                           # 370 s at rate ~1, crosses LOOP_S
+        r.render(0.1, (0, 0, 0, 0))
+        if k > 3500:
+            img = image(r)[..., :3].astype(float)
+            if prev is not None:
+                worst = max(worst, np.abs(img - prev).mean())
+            prev = img
+    assert worst < 12.0
