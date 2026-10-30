@@ -57,6 +57,8 @@ Keys at runtime:
 
 Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, calibration, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
+Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`).
+
 | Flag | Effect |
 |---|---|
 | `--camera` / `--mock-camera` | As `app.py` |
