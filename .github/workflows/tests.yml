@@ -26,6 +26,9 @@ jobs:
       - name: Install Python test deps
         run: pip install -r requirements-dev.txt
 
+      - name: Install headless OpenGL (shader player GL tests)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
+
       - name: Guard against private show content
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

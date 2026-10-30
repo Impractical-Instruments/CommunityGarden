@@ -6,3 +6,4 @@ fastapi>=0.100
 httpx>=0.24
 uvicorn
 pygame>=2.1
+moderngl>=5.13
