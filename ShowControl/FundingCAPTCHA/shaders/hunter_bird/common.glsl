@@ -167,3 +167,65 @@ const vec3 LEAF_K[LEAVES] = vec3[LEAVES](
     vec3(3, 0, 1), vec3(1, 0, 1), vec3(0, 1, 1),
     vec3(2, 0, 0), vec3(0, 0, 0), vec3(0, 0, 0), vec3(0, 0, 0));
 vec3 leafFill(float k) { return k < 0.5 ? PAPER : k < 1.5 ? SLATE : k < 2.5 ? DEEP : VIOLET; }
+
+// ── Field notes ───────────────────────────────────────────────────────────────
+const float COAST_FADE = 0.8;            // s; matches the tracker's max_miss_frames at 10 fps
+const float LOST_FADE_START = 0.4, LOST_FADE_S = 0.5, SCRIBBLE_S = 0.25;
+const float DASH_ON = 4.0 / 360.0, DASH_OFF = 5.0 / 360.0, DASH_CRAWL = 20.0 / 360.0;   // tentative
+const float ARROW_MIN_SPEED = 22.0 / 360.0, ARROW_S = 0.35;
+const float NOTE_REACH = 60.0 / 360.0;   // tag and glyphs reach this far beyond a box
+
+// ── Glyphs ────────────────────────────────────────────────────────────────────
+// Glyph space is the mockup's: pixels, y down. Time `t` is passed in, since
+// Shadertoy's Common can't see iTime.
+
+// Distance to a hand-drawn segment: the line wobbles sideways by up to `amp`.
+float sdWobble(vec2 p, vec2 a, vec2 b, float seed, float amp, float t) {
+    vec2  ba = b - a;
+    float u  = clamp(dot(p - a, ba) / max(dot(ba, ba), 1e-9), 0.0, 1.0);
+    vec2  n  = normalize(vec2(-ba.y, ba.x) + 1e-9);
+    float taper = mix(0.4, 1.0, smoothstep(0.0, 0.15, min(u, 1.0 - u)));
+    return length(p - (a + ba * u + n * vnoise(seed + u * 3.0 + t * 1.1) * amp * taper));
+}
+
+// Seven-segment digit `d` in a 6 × 10 box at the origin, wobbling by ±0.5.
+const int DIGIT_SEGS[10] = int[10](63, 6, 91, 79, 102, 109, 125, 7, 127, 111);   // bits a…g
+float sdDigit(vec2 q, int d, float seed, float t) {
+    vec4 S[7] = vec4[7](vec4(0, 0, 6, 0), vec4(6, 0, 6, 5), vec4(6, 5, 6, 10), vec4(0, 10, 6, 10),
+                        vec4(0, 5, 0, 10), vec4(0, 0, 0, 5), vec4(0, 5, 6, 5));
+    int m = DIGIT_SEGS[d];
+    float r = 1e9;
+    for (int i = 0; i < 7; i++)
+        if (((m >> i) & 1) == 1) r = min(r, sdWobble(q, S[i].xy, S[i].zw, seed + float(i) * 7.0, 0.5, t));
+    return r;
+}
+// An id 1–999 as digits 8.5 apart, from the origin.
+float sdNumber(vec2 q, float id, float t) {
+    int n = int(id + 0.5);
+    int nd = n >= 100 ? 3 : n >= 10 ? 2 : 1;
+    float r = 1e9;
+    for (int k = 0; k < 3; k++) {
+        if (k >= nd) break;
+        int p10 = nd - 1 - k == 2 ? 100 : nd - 1 - k == 1 ? 10 : 1;
+        int dg = (n / p10) % 10;
+        r = min(r, sdDigit(q - vec2(8.5 * float(k), 0.0), dg, float(k) * 17.0, t));
+    }
+    return r;
+}
+
+// "?" 12 tall: a hook, a stem and a dot, with its foot at the origin. Returns
+// the stroke distance; the dot is folded in as a filled disc.
+float sdQuestion(vec2 q) {
+    vec2  c = vec2(0.0, -8.6); float r = 3.4;
+    vec2  d = q - c;
+    float a = atan(-d.y, d.x);                               // y down: angle as on screen
+    float arc = (a > -1.5708 && a < 2.6) ? abs(length(d) - r)
+              : min(length(q - (c + r * vec2(cos(2.6), -sin(2.6)))), length(q - (c + vec2(0.0, r))));
+    float stem = sdSegment(q, vec2(0.0, -5.2), vec2(0.0, -3.2));
+    return min(min(arc, stem), max(length(q - vec2(0.0, -0.6)) - 0.6, 0.0));
+}
+
+// A tick ✓ about the origin, 20 wide: the mockup's stamp tick.
+float sdTick(vec2 q) {
+    return min(sdSegment(q, vec2(-14.0, 1.0), vec2(-4.0, 12.0)), sdSegment(q, vec2(-4.0, 12.0), vec2(16.0, -12.0)));
+}

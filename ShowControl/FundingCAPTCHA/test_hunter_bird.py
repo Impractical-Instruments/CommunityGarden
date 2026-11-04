@@ -396,3 +396,89 @@ def test_canopy_stays_in_its_band(ctx):
     assert near(img[BIG[1] // 2, BIG[0] // 2], "paper", 12)   # the screen centre is the clearing
     top = img[BIG[1] - 4]
     assert any(near(p, "ink") for p in top)               # the canopy along the top
+
+
+# ── Task 5: field notes and attention ─────────────────────────────────────────
+
+def fake_records(box, state, ident=7, vel=(0.0, 0.0), age=0.0):
+    """One record in slot 0: box (x0, y0, x1, y1) Body UV. No Body behind it, so only notes draw."""
+    from shadertoy import BLOB_ROWS, BLOB_SLOTS
+    rec = np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32)
+    rec[0, 0] = box
+    rec[1, 0] = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2, *vel)
+    rec[2, 0] = (ident, state, age, 0.5)
+    return rec
+
+
+def render_records(rig, rec, frames=5):
+    fg = np.zeros(BODY[::-1], dtype=np.uint16)
+    rig.r.upload_body(pack_body(fg, {"x": 0, "y": 0, "w": BODY[0], "h": BODY[1]}, SLABS))
+    for _ in range(frames):
+        rig.r.upload_blobs(rec)
+        rig.r.render(DT, (0, 0, 0, 0))
+    return rig.image()
+
+
+def count(img, name, tol=40):
+    px = img[..., :3].reshape(-1, 3).astype(int)
+    return int((np.abs(px - PALETTE[name]) <= tol).all(axis=1).sum())
+
+
+def test_confirmed_box_has_ink_brackets(ctx):
+    rig = Rig(ctx, BIG)
+    box = (0.30, 0.30, 0.60, 0.80)
+    img = render_records(rig, fake_records(box, 2))
+    row, c0 = to_px(box[0], box[3])
+    arm = range(c0 + 2, c0 + 8)                            # along the top-left bracket's arm
+    assert min(int(img[r, c, :3].sum()) for r in range(row - 2, row + 2) for c in arm) < 3 * 140   # dark ink
+    mid = to_px((box[0] + box[2]) / 2, box[3])            # the middle of the top edge is open
+    assert near(img[mid], "paper", 12)
+
+
+def test_tentative_box_is_slate_and_dashed(ctx):
+    rig = Rig(ctx, BIG)
+    box = (0.30, 0.30, 0.60, 0.80)
+    img = render_records(rig, fake_records(box, 1))
+    col = to_px(box[0], 0)[1]
+    edge = [img[r, c] for r in range(to_px(0, 0.38)[0], to_px(0, 0.72)[0]) for c in (col - 1, col)]
+    assert any(int(p[2]) - int(p[0]) > 12 and p[0] < 225 for p in edge)   # slate: bluish, not ink or paper
+    assert any(near(p, "paper", 12) for p in edge[::2])    # gaps in the dashes
+
+
+def test_target_tag_is_yellow(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(walking(30))
+    assert rig.attn()[0] == 1
+    box = rig.blobs.records(now=rig.t)[0, 0]
+    r1, c1 = to_px(box[2], box[3])
+    patch = rig.image()[r1 - 25:r1 + 2, c1 - 4:c1 + 30]
+    assert count(patch, "yellow", 30) > 10
+
+
+def test_stamp_appears_after_strike_then_clears(ctx):
+    rig = Rig(ctx, BIG)
+    for m in flailing(60):
+        rig.run([m])
+        if rig.attn()[3] == 1:
+            break
+    assert rig.attn()[3] == 1
+    rig.run(flailing(5))                                  # 0.5 s after the strike
+    sr, sc = to_px(*rig.stamp()[:2])
+    assert count(rig.image()[sr - 25:sr + 25, sc - 25:sc + 25], "rust") > 30
+    rig.run(flailing(40))                                 # 4.5 s after: gone
+    sr, sc = to_px(*rig.stamp()[:2])
+    assert count(rig.image()[sr - 25:sr + 25, sc - 25:sc + 25], "rust") == 0
+
+
+def test_reticle_hidden_when_empty(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run([EMPTY] * 10)
+    assert count(rig.image(), "rust") == 0
+
+
+def test_reticle_drawn_on_target(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(walking(30))
+    r = rig.reticle()
+    rr, rc = to_px(r[0], r[1])
+    assert count(rig.image()[rr - 30:rr + 30, rc - 30:rc + 30], "rust") > 20
