@@ -58,7 +58,7 @@ Keys at runtime:
 
 Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, calibration, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
-Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`).
+Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`), `hunter_bird` ([design](superpowers/specs/2026-11-04-hunter-bird-design.md); a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`).
 
 Setups can also read the tracker's **blob records** (boxes, stable IDs, lifecycle) through the `blobs` channel source (ADR-0022). `blob_debug` is the reference reader, outside the rotation: `python3 shader_app.py --mock-camera --windowed --setup blob_debug`.
 
