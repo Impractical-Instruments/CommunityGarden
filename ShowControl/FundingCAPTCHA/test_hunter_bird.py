@@ -44,8 +44,9 @@ def ctx():
 class Rig:
     """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at 30 Hz."""
 
-    def __init__(self, ctx):
-        self.r = Renderer(ctx, SIZE, body_mode="camera")
+    def __init__(self, ctx, size=SIZE):
+        self.size = size
+        self.r = Renderer(ctx, size, body_mode="camera")
         self.r.load(load_setup(SETUP))
         self.blobs = BodyBlobs(BLOBS)
         self.t = 0.0
@@ -77,7 +78,7 @@ class Rig:
 
     def image(self) -> np.ndarray:
         """The Image as uint8 (h, w, 4), row 0 = bottom."""
-        return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(SIZE[1], SIZE[0], 4)
+        return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(self.size[1], self.size[0], 4)
 
     def release(self):
         self.r.release()
@@ -344,3 +345,54 @@ def test_prints_age_out(ctx):
     rig.run(walking(30))
     rig.run([EMPTY] * 50)
     assert (rig.prints()[:, 2] >= PRINT_LIFE_S).all()
+
+
+# ── Task 4: the world ─────────────────────────────────────────────────────────
+# Image tests render larger, so pen widths (sized in screen heights) are ≥ 1 px.
+
+BIG = (320, 180)
+PALETTE = {
+    "paper": (246, 241, 228), "ink": (17, 17, 17), "slate": (113, 154, 173),
+    "deep": (32, 118, 163), "rust": (188, 76, 38), "yellow": (255, 242, 0),
+    "white": (255, 250, 240),
+}
+
+
+def near(px, name, tol=40):
+    return all(abs(int(a) - b) <= tol for a, b in zip(px[:3], PALETTE[name]))
+
+
+def to_px(u, v, size=BIG):
+    """Body UV (y up) → image (row, col), row 0 = bottom."""
+    return int(v * size[1]), int(u * size[0])
+
+
+def test_person_has_white_fill_and_ink_outline(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(standing(10))                                 # rect(36, 8, 46, 36): UV x 0.5625–0.719, y 0.1–0.8
+    img = rig.image()
+    assert near(img[to_px(0.64, 0.62)], "white")          # upper body: fill
+    row = to_px(0.64, 0.62)[0]
+    left = to_px(0.5625, 0.62)[1]
+    assert any(near(img[row, c], "ink") for c in range(left - 3, left + 1))   # outline just outside
+
+
+def test_hatching_only_in_lower_box(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(standing(10))
+    img = rig.image()
+    r0, r1 = to_px(0, 0.14)[0], to_px(0, 0.36)[0]         # lower 40% of the box, inside its edges
+    c0, c1 = to_px(0.58, 0)[1], to_px(0.70, 0)[1]
+    lower = img[r0:r1, c0:c1].reshape(-1, 4)
+    upper = img[to_px(0, 0.45)[0]:to_px(0, 0.75)[0], c0:c1].reshape(-1, 4)
+    assert any(near(p, "slate", 30) for p in lower)
+    assert not any(near(p, "slate", 30) for p in upper)
+
+
+def test_canopy_stays_in_its_band(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run([EMPTY] * 5)
+    img = rig.image()
+    assert near(img[BIG[1] // 2, BIG[0] // 2], "paper", 12)   # the screen centre is the clearing
+    top = img[BIG[1] - 4]
+    assert any(near(p, "ink") for p in top)               # the canopy along the top
