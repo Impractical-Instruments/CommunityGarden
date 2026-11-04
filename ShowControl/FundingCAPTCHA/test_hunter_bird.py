@@ -394,7 +394,9 @@ def test_canopy_stays_in_its_band(ctx):
     rig.run([EMPTY] * 5)
     img = rig.image()
     assert near(img[BIG[1] // 2, BIG[0] // 2], "paper", 12)   # the screen centre is the clearing
-    top = img[BIG[1] - 4]
+    rig = Rig(ctx, BIG)
+    rig.run(walking(30))                                  # lids wide: the top centre is in view
+    top = rig.image()[BIG[1] - 4, int(BIG[0] * 0.3):int(BIG[0] * 0.7)]
     assert any(near(p, "ink") for p in top)               # the canopy along the top
 
 
@@ -482,3 +484,70 @@ def test_reticle_drawn_on_target(ctx):
     r = rig.reticle()
     rr, rc = to_px(r[0], r[1])
     assert count(rig.image()[rr - 30:rr + 30, rc - 30:rc + 30], "rust") > 20
+
+
+# ── Task 6: the eye ───────────────────────────────────────────────────────────
+
+def lid_patch(rig):
+    """Pixels 0.35 H above the screen centre."""
+    img = rig.image()
+    r, c = int(BIG[1] * 0.85), BIG[0] // 2
+    return img[r - 3:r + 3, c - 12:c + 12]
+
+
+def bluish(patch):
+    px = patch[..., :3].reshape(-1, 3).astype(int)
+    return int(((px[:, 2] - px[:, 0] > 5) & (px[:, 0] < 235)).sum())     # paper is b − r = −18
+
+
+def test_lids_drowsy_when_empty(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run([EMPTY] * 10)
+    assert bluish(lid_patch(rig)) > 5                     # lid: paper with slate hatching
+
+
+def test_lids_open_on_target(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(walking(30))
+    assert rig.mood()[0] > 0.9
+    patch = lid_patch(rig)
+    assert bluish(patch) == 0 and all(near(p, "paper", 12) for p in patch.reshape(-1, 4))
+
+
+def iris_patch(rig):
+    """Pixels 0.72–0.80 H left of the screen centre, inside the lids when they're wide."""
+    img = rig.image()
+    c = BIG[0] // 2
+    return img[BIG[1] // 2 - 2:BIG[1] // 2 + 2, c - int(0.80 * BIG[1]):c - int(0.72 * BIG[1])]
+
+
+def test_iris_band_narrows_view_on_lock(ctx):
+    rig = Rig(ctx, BIG)
+    rig.run(flailing(12))
+    assert rig.attn()[1] < 0.2
+    patch = iris_patch(rig)
+    assert count(patch, "yellow", 30) == 0 and bluish(patch) == 0   # world at lock 0
+    for m in flailing(60)[12:]:
+        rig.run([m])
+        if rig.attn()[1] > 0.9:
+            break
+    assert rig.attn()[1] > 0.9
+    patch = iris_patch(rig)
+    assert count(patch, "yellow", 30) + bluish(patch) > 10            # iris band or socket
+
+
+def test_membrane_sweeps_during_blink(ctx):
+    rig = Rig(ctx, BIG)
+    rec = fake_records((0.02, 0.35, 0.12, 0.6), 1)        # a new id at the far left, no Body
+    def right_half():
+        img = rig.image()
+        return img[BIG[1] // 2 - 3:BIG[1] // 2 + 3, BIG[0] // 2:]
+    render_records(rig, rec, frames=2)
+    assert -0.16 < rig.blink()[0] < 0.0                   # scheduled
+    assert bluish(right_half()) == 0
+    for _ in range(15):
+        render_records(rig, rec, frames=1)
+        if 0.1 < rig.blink()[0] < 0.22:                   # mid-blink: the sheet's streaks cross the view
+            assert bluish(right_half()) > 3
+            return
+    pytest.fail("no blink")

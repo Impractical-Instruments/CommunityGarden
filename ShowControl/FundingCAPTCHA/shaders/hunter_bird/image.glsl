@@ -281,6 +281,105 @@ void drawStamp(inout vec3 col, vec2 p, vec2 at, float since) {
     over(col, RUST, alpha * a);
 }
 
+
+// ── The eye (screen space, never zooms) ───────────────────────────────────────
+// Mockup pixels, y down: X across the screen, Y down from the top, eye centre C.
+struct Eye { vec2 q, c; float W, pxp; };
+
+Eye eyeAt(vec2 p) {
+    Eye e;
+    e.q = vec2(p.x, 1.0 - p.y) * 360.0;
+    e.W = ASPECT * 360.0;
+    e.c = vec2(e.W, 360.0) * 0.5;
+    e.pxp = PX * 360.0;
+    return e;
+}
+
+float irisR(float lock, float since) {
+    float r = mix(IRIS_R_OPEN, IRIS_R_LOCKED, smoothstep(0.0, 1.0, lock));
+    float dil = since < STRIKE_WIDE_S ? 1.0 - since / STRIKE_WIDE_S : 0.0;
+    return mix(r, IRIS_R_STRIKE, dil) * 360.0;
+}
+
+// Lid rims (y down) and their slopes at X.
+vec4 lidRims(Eye e, float x, float open) {
+    float wx = e.W * LID_SPAN, u = (x - e.c.x) / wx;
+    float prof = max(0.0, 1.0 - u * u), dprof = prof > 0.0 ? -2.0 * u / wx : 0.0;
+    float top = e.c.y - 360.0 * LID_TOP * open * prof + sin(x * 0.05) * 1.2;
+    float bot = e.c.y + 360.0 * LID_BOT * open * prof + sin(x * 0.05 + 2.0) * 1.2;
+    float sT = -360.0 * LID_TOP * open * dprof + 0.06 * cos(x * 0.05);
+    float sB =  360.0 * LID_BOT * open * dprof + 0.06 * cos(x * 0.05 + 2.0);
+    return vec4(top, bot, sT, sB);
+}
+
+// How much of this pixel the iris socket and lids hide (1 = the world can't show through).
+float eyeCover(vec2 p, float open, float lock, float since) {
+    Eye e = eyeAt(p);
+    float Ri = irisR(lock, since);
+    float r = length(e.q - e.c);
+    float a = smoothstep(Ri - 2.0 * e.pxp, Ri - 1.0 * e.pxp, r);
+    vec4 rim = lidRims(e, e.q.x, open);
+    float out_ = min(rim.x - e.q.y, e.q.y - rim.y);               // > 0 inside a lid
+    return max(a, smoothstep(-2.0 * e.pxp, -1.0 * e.pxp, out_));
+}
+
+void drawIris(inout vec3 col, vec2 p, float lock, float since) {
+    Eye e = eyeAt(p);
+    float Ri = irisR(lock, since), band = IRIS_BAND * 360.0;
+    vec2  d = e.q - e.c;
+    float r = length(d);
+    if (r < Ri - 3.0) return;
+    float px = e.pxp;
+    vec3 c = r < Ri + band ? YELLOW : mix(PAPER, SLATE, EYE_HATCH * hatch(p, HATCH_GAP, HATCH_W, PX));
+    over(col, c, smoothstep(Ri - 0.5 * px, Ri + 0.5 * px, r));
+    if (r < Ri + band + 2.0) {                                    // short ink striations
+        float n = float(STRIATIONS);
+        float i = mod(floor(atan(d.y, d.x) / 6.2831853 * n + 0.5), n);
+        float ai = i / n * 6.2831853 + hash11(i) * 0.02;
+        float l  = 8.0 + hash11(i + 7.0) * (band - 12.0);
+        vec2  dir = vec2(cos(ai), sin(ai));
+        over(col, INK, pen(sdSegment(e.q, e.c + dir * (Ri + 3.0), e.c + dir * (Ri + l)), 1.2, px));
+    }
+    over(col, INK, pen(abs(r - Ri), 3.0, px));
+    over(col, INK, pen(abs(r - Ri - band), 2.0, px));
+}
+
+// One lid. dir −1 = top (the lid lies above its rim), +1 = bottom.
+void drawLid(inout vec3 col, vec2 p, Eye e, float open, float dir) {
+    vec4  rim = lidRims(e, e.q.x, open);
+    float y = dir < 0.0 ? rim.x : rim.y, s = dir < 0.0 ? rim.z : rim.w;
+    float sd = dir * (y - e.q.y) / sqrt(1.0 + s * s);           // < 0 inside the lid
+    float px = e.pxp;
+    if (sd > LID_RIM_W) return;
+    float fill = smoothstep(0.5 * px, -0.5 * px, sd);
+    over(col, mix(PAPER, SLATE, EYE_HATCH * hatch(p, HATCH_GAP, HATCH_W, PX)), fill);
+    over(col, YELLOW, fill * pen(abs(sd + LID_RING_IN), LID_RING_W, px));
+    // feather scallops along the crease: half-circles cupped toward the rim
+    float xn = 4.0 + SCALLOP_EVERY * floor((e.q.x - 4.0) / SCALLOP_EVERY + 0.5);
+    vec4  rn = lidRims(e, xn, open);
+    vec2  sc = vec2(xn, (dir < 0.0 ? rn.x : rn.y) + dir * SCALLOP_IN);
+    vec2  v = e.q - sc;
+    float arc = -dir * v.y >= 0.0 ? abs(length(v) - SCALLOP_R)
+              : min(length(v - vec2(SCALLOP_R, 0.0)), length(v + vec2(SCALLOP_R, 0.0)));
+    over(col, INK, fill * pen(arc, 1.4, px));
+    over(col, INK, pen(abs(sd), LID_RIM_W, px));
+}
+
+void drawMembrane(inout vec3 col, vec2 p, float since) {
+    if (since < 0.0 || since > BLINK_S) return;
+    Eye e = eyeAt(p);
+    float u = since / BLINK_S;
+    float ex = -30.0 + sin(3.14159265 * u) * (e.W + 90.0);
+    float edge = ex + (e.q.y - 180.0) * 0.28 + sin(e.q.y * 0.04 + u * 4.0) * 9.0;
+    float sd = e.q.x - edge, px = e.pxp;
+    if (sd > 3.0) return;
+    over(col, PAPER, MEMBRANE_ALPHA * smoothstep(0.5 * px, -0.5 * px, sd));
+    float k = floor(-sd / MEMBRANE_STREAK_GAP + 0.5);            // nearest streak behind the edge
+    if (k >= 1.0 && k <= float(MEMBRANE_STREAKS))
+        over(col, SLATE, 0.5 * pen(abs(sd + k * MEMBRANE_STREAK_GAP), 1.0, px));
+    over(col, INK, pen(abs(sd), 2.2, px));
+}
+
 // ── Strike punch-in ───────────────────────────────────────────────────────────
 float punch(float since) {
     if (since < PUNCH_RISE_S) return smoothstep(0.0, 1.0, since / PUNCH_RISE_S);
@@ -289,20 +388,29 @@ float punch(float since) {
 }
 
 void mainImage(out vec4 o, in vec2 fc) {
-    PX = 1.0 / iResolution.y;
+    float px = 1.0 / iResolution.y;
     ASPECT = iResolution.x / iResolution.y;
     vec2 p = fc / iResolution.y;
     vec4 at = bAttn(B), mood = bMood(B);
-
-    vec2  sp   = uvToP(bStamp(B).xy);
-    float zoom = 1.0 + PUNCH_ZOOM * punch(at.z);
-    vec2  wp   = sp + (p - sp) / zoom;                       // world point under this pixel
-    PX /= zoom;
-
     int  tgt = int(at.x + 0.5) - 1;
-    vec3 col = world(wp, mood.y);
-    drawNotes(col, wp, tgt);
-    drawReticle(col, wp, bReticle(B), at.y, tgt >= 0);
-    drawStamp(col, wp, sp, at.z);
+
+    vec3 col = PAPER;
+    PX = px;
+    if (eyeCover(p, mood.x, at.y, at.z) < 1.0) {             // skip the world where the eye hides it
+        vec2  sp   = uvToP(bStamp(B).xy);
+        float zoom = 1.0 + PUNCH_ZOOM * punch(at.z);
+        vec2  wp   = sp + (p - sp) / zoom;                   // world point under this pixel
+        PX = px / zoom;
+        col = world(wp, mood.y);
+        drawNotes(col, wp, tgt);
+        drawReticle(col, wp, bReticle(B), at.y, tgt >= 0);
+        drawStamp(col, wp, sp, at.z);
+    }
+    PX = px;
+    drawIris(col, p, at.y, at.z);
+    Eye e = eyeAt(p);
+    drawLid(col, p, e, mood.x, -1.0);
+    drawLid(col, p, e, mood.x, 1.0);
+    drawMembrane(col, p, bBlink(B).x);
     o = vec4(col, 1.0);
 }

@@ -229,3 +229,13 @@ float sdQuestion(vec2 q) {
 float sdTick(vec2 q) {
     return min(sdSegment(q, vec2(-14.0, 1.0), vec2(-4.0, 12.0)), sdSegment(q, vec2(-4.0, 12.0), vec2(16.0, -12.0)));
 }
+
+// ── Eye (mockup px, y down, centred on the screen) ────────────────────────────
+const float LID_SPAN = 0.76;             // × screen width: where the lid curve meets the eye's corners
+const float LID_TOP = 0.64, LID_BOT = 0.6;
+const float LID_RING_W = 5.0, LID_RING_IN = 4.0, LID_RIM_W = 3.0;
+const float SCALLOP_R = 9.0, SCALLOP_EVERY = 22.0, SCALLOP_IN = 22.0;
+const float HATCH_GAP = 7.07 / 360.0, HATCH_W = 1.4 / 360.0, EYE_HATCH = 0.55;
+const int   STRIATIONS = 110;
+const float MEMBRANE_ALPHA = 0.82, MEMBRANE_STREAK_GAP = 46.0;
+const int   MEMBRANE_STREAKS = 7;
