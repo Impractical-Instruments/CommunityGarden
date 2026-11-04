@@ -1,0 +1,7 @@
+{
+  "_comment": "Reference reader for the blobs source (ADR-0022): the Body in grey, each tracked blob's box coloured by state, its centroid and velocity. Not in the rotation; run with --setup blob_debug.",
+  "duration_s": 60,
+  "channels": {
+    "image": ["A", "blobs"]
+  }
+}

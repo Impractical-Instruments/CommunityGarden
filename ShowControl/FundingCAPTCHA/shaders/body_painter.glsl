@@ -29,7 +29,7 @@ float person(vec2 fc, vec2 at, float near) {
     vec2  a = vec2(0.0, -0.30), b = vec2(0.0, 0.10);
     float h = clamp(dot(p - a, b - a) / dot(b - a, b - a), 0.0, 1.0);
     float torso = length(p - a - h * (b - a)) - 0.075;
-    float head  = length(p - vec2(0.0, 0.24)) - 0.06;
+    float head  = length(p - vec2(0.0, 0.225)) - 0.06;   // overlaps the torso: one blob, like a person
     return step(min(torso, head), 0.0);
 }
 

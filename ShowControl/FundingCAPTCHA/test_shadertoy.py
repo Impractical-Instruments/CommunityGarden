@@ -11,8 +11,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shadertoy import (BodyMouse, Keyboard, Renderer, ShaderError, js_keycode,
-                       load_setup, pack_body)
+from shadertoy import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLOB_PAINTER_PATH,
+                       BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, BodyMouse, Keyboard, Renderer,
+                       ShaderError, js_keycode, load_setup, pack_body)
 
 SHADER_DIR = Path(__file__).parent / "shaders"
 
@@ -52,6 +53,14 @@ def test_load_setup_rejects_reading_absent_buffer(tmp_path):
     d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["C"]}})
     with pytest.raises(ShaderError, match="no such buffer"):
         load_setup(d)
+
+
+def test_load_setup_accepts_blobs_source(tmp_path):
+    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["A", "blobs"]}})
+    s = load_setup(d)
+    assert s.channels["image"][1] == "blobs" and s.uses_blobs
+    (tmp_path / "x").mkdir()
+    assert not load_setup(_write_setup(tmp_path / "x", {"image.glsl": SOLID}, {})).uses_blobs
 
 
 def test_load_setup_rejects_unknown_source(tmp_path):
@@ -261,6 +270,18 @@ def test_shadertoy_idioms_render(ctx, tmp_path, src):
     r.release()
 
 
+def test_keyboard_reaches_shaders(ctx, tmp_path):
+    d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                                " o = vec4(texelFetch(iChannel0, ivec2(32, 0), 0).x, 0.0, 0.0, 1.0); }"},
+                     {"channels": {"image": ["keyboard"]}})
+    r = Renderer(ctx, (4, 4))
+    r.load(load_setup(d))
+    r.keyboard.key_down(32)
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert _pixel(r, 1, 1)[0] == 255
+    r.release()
+
+
 def test_itime_starts_at_zero(ctx, tmp_path):
     d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
                                               " o = vec4(iTime, 0.0, 0.0, 1.0); }"})
@@ -318,4 +339,111 @@ def test_render_failure_drops_setup(ctx, tmp_path):
     rot.failed(RuntimeError("boom"))
     assert rot.names == [n for n in ("a", "b") if n != bad]
     assert r.setup is not None and r.setup.name != bad
+    r.release()
+
+
+# ── Blob records (ADR-0022) ───────────────────────────────────────────────────
+
+def _blob_setup(tmp_path, files, channels):
+    return load_setup(_write_setup(tmp_path, files, {"channels": channels}))
+
+
+def test_uploaded_blobs_reach_texelfetch(ctx, tmp_path):
+    # Image paints slot 5 row 2's state into red, as 8-bit.
+    r = Renderer(ctx, (8, 8))
+    r.load(_blob_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                                  " o = vec4(texelFetch(iChannel0, ivec2(5, 2), 0).y / 4.0, 0.0, 0.0, 1.0); }"},
+                       {"image": ["blobs"]}))
+    rec = np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32)
+    rec[2, 5] = (17, BLOB_COASTING, 0.5, 1.0)
+    r.upload_blobs(rec)
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert _pixel(r, 3, 3)[0] == pytest.approx(round(BLOB_COASTING / 4 * 255), abs=1)
+    with pytest.raises(ValueError):
+        r.upload_blobs(np.zeros((BLOB_SLOTS, BLOB_ROWS, 4), dtype=np.float32))
+    r.release()
+
+
+def test_blobs_channel_resolution_is_slots_by_rows(ctx, tmp_path):
+    r = Renderer(ctx, (8, 8))
+    r.load(_blob_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                                  " o = vec4(iChannelResolution[0].xy / 16.0, 0.0, 1.0); }"},
+                       {"image": ["blobs"]}))
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert _pixel(r, 1, 1)[:2] == (round(BLOB_SLOTS / 16 * 255), round(BLOB_ROWS / 16 * 255))
+    r.release()
+
+
+def test_read_body_returns_painted_body(ctx, tmp_path):
+    r = Renderer(ctx, (160, 90), body_mode="painter")
+    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.render(1 / 30, (40.0, 45.0, 40.0, 45.0))
+    body = r.read_body()
+    assert body.shape == (90, 160, 4)
+    assert body[45, 40, 0] == 1.0 and body[45, 130, 0] == 0.0
+    assert Renderer(ctx, (8, 8)).read_body() is None
+
+
+def _painter_records(r) -> np.ndarray:
+    tex = r._buffers["buffer_d"].read_tex
+    data = np.frombuffer(tex.read(), dtype=np.float16).reshape(tex.size[1], tex.size[0], 4)
+    return data[:BLOB_ROWS, :BLOB_SLOTS].astype(np.float32)
+
+
+def test_blob_painter_lifecycle(ctx, tmp_path):
+    """The Shadertoy stand-in walks slot 0 through the same states as the Pi tracker."""
+    r = Renderer(ctx, (160, 90), body_mode="painter")
+    r.load(_blob_setup(tmp_path, {"buffer_d.glsl": BLOB_PAINTER_PATH.read_text(), "image.glsl": SOLID},
+                       {"buffer_d": ["D", "keyboard"], "image": ["A", "D"]}))
+    dt = 0.05
+    r.render(dt, (40.0, 45.0, 40.0, 45.0))               # frame 0 clears
+    r.render(dt, (40.0, 45.0, 40.0, 45.0))               # click: born
+    rec = _painter_records(r)
+    assert rec[2, 0, 1] == BLOB_TENTATIVE and rec[2, 0, 0] == 1
+    x0, y0, x1, y1 = rec[0, 0]
+    assert x0 < 40 / 160 < x1 and y0 < 45 / 90 < y1
+    for _ in range(10):
+        r.render(dt, (40.0, 45.0, 40.0, -45.0))          # held
+    assert _painter_records(r)[2, 0, 1] == BLOB_CONFIRMED
+    r.render(dt, (40.0, 45.0, -40.0, -45.0))             # released
+    assert _painter_records(r)[2, 0, 1] == BLOB_COASTING
+    for _ in range(18):
+        r.render(dt, (40.0, 45.0, -40.0, -45.0))
+    assert _painter_records(r)[2, 0, 1] == BLOB_LOST
+    for _ in range(21):
+        r.render(dt, (40.0, 45.0, -40.0, -45.0))
+    assert _painter_records(r)[2, 0, 1] == BLOB_EMPTY
+    r.render(dt, (40.0, 45.0, 40.0, 45.0))               # a new person gets a new id
+    assert _painter_records(r)[2, 0, 0] == 2
+    r.release()
+
+
+def test_blob_painter_space_parks_into_next_slot(ctx, tmp_path):
+    r = Renderer(ctx, (160, 90), body_mode="painter")
+    r.load(_blob_setup(tmp_path, {"buffer_d.glsl": BLOB_PAINTER_PATH.read_text(), "image.glsl": SOLID},
+                       {"buffer_d": ["D", "keyboard"]}))
+    r.render(1 / 30, (40.0, 45.0, -40.0, -45.0))
+    for x in (40.0, 120.0):
+        r.keyboard.key_down(32)
+        r.render(1 / 30, (x, 45.0, -40.0, -45.0))
+        r.keyboard.key_up(32)
+    rec = _painter_records(r)
+    assert rec[2, 0, 1] == BLOB_EMPTY                     # nobody under a held mouse
+    assert list(rec[2, 1:3, 1]) == [BLOB_TENTATIVE] * 2
+    assert list(rec[2, 1:3, 0]) == [1, 2]
+    r.keyboard.key_down(67)                               # C: everyone still tentative → gone
+    r.render(1 / 30, (40.0, 45.0, -40.0, -45.0))
+    assert not _painter_records(r)[2, :, 1].any()
+    r.release()
+
+
+def test_blob_debug_reference_setup_renders(ctx):
+    r = Renderer(ctx, (64, 36), body_mode="painter")
+    r.load(load_setup(SHADER_DIR / "blob_debug"))
+    rec = np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32)
+    rec[0, 0] = (0.1, 0.1, 0.9, 0.9)
+    rec[2, 0] = (1, BLOB_CONFIRMED, 0.0, 0.5)
+    r.upload_blobs(rec)
+    r.render(1 / 30, (32, 18, 32, 18))
+    assert _pixel(r, int(0.1 * 64), 18)[:3] == (17, 17, 17)  # ink on the box's left edge
     r.release()

@@ -43,6 +43,16 @@ class TrackedBlob:
     world_pos_cm: np.ndarray
 
 
+@dataclass
+class TrackState:
+    """Every live track after update_tracks(), confirmed or not, seen or not."""
+    track_id: int
+    det_idx: int | None          # index into this frame's detections; None when missed
+    seen_frames: int
+    miss_frames: int
+    smoothed_pos: np.ndarray
+
+
 class _Track:
     __slots__ = ("track_id", "smoothed_pos", "miss_frames", "seen_frames")
 
@@ -92,6 +102,23 @@ class BlobStabilizer:
 
         detections: world-space positions (cm) from this frame, shape (3,) each.
         Returns a list of TrackedBlob with stable IDs and smoothed positions.
+        """
+        cfg = self.config
+        tracks, _ = self.update_tracks(detections)
+        return [
+            TrackedBlob(stable_id=t.track_id, world_pos_cm=t.smoothed_pos)
+            for t in tracks
+            if t.seen_frames >= cfg.min_confirm_frames and t.miss_frames == 0
+        ]
+
+    def update_tracks(self, detections: list[np.ndarray]) -> tuple[list[TrackState], list[int]]:
+        """
+        As update(), but returns every live track (including unconfirmed and
+        missed ones, with the detection each matched) and the IDs that expired
+        this frame. For consumers that show the track lifecycle.
+
+        Matching is unit-agnostic: positions and max_match_dist_cm only need
+        to share a unit. update() callers pass world cm.
         """
         cfg = self.config
         max_dist_sq = cfg.max_match_dist_cm ** 2
@@ -145,9 +172,11 @@ class BlobStabilizer:
                 self._tracks[track_id].mark_missing()
 
         # Spawn new tracks for unmatched detections.
+        det_of = {tid: di for tid, di in matched}
         for det_idx in range(len(detections)):
             if det_idx not in matched_det_idxs:
                 self._tracks[self._next_id] = _Track(self._next_id, detections[det_idx])
+                det_of[self._next_id] = det_idx
                 self._next_id += 1
 
         # Expire stale tracks.
@@ -158,9 +187,10 @@ class BlobStabilizer:
         for tid in expired:
             del self._tracks[tid]
 
-        # Return only confirmed, currently-visible tracks.
-        return [
-            TrackedBlob(stable_id=t.track_id, world_pos_cm=t.smoothed_pos.copy())
+        tracks = [
+            TrackState(track_id=t.track_id, det_idx=det_of.get(t.track_id),
+                       seen_frames=t.seen_frames, miss_frames=t.miss_frames,
+                       smoothed_pos=t.smoothed_pos.copy())
             for t in self._tracks.values()
-            if t.seen_frames >= cfg.min_confirm_frames and t.miss_frames == 0
         ]
+        return tracks, expired
