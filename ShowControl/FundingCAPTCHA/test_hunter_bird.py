@@ -151,3 +151,167 @@ def test_tentative_has_no_motion_or_interest(ctx):
     rig = Rig(ctx)
     rig.run(walking(2))                                   # still tentative (min_confirm_frames 4)
     assert rig.slot(0)[1] == 0 and rig.slot(0)[2] == 0
+
+
+# ── Task 2: attention ─────────────────────────────────────────────────────────
+
+LEFT, RIGHT = (4, 8, 14, 36), (48, 8, 58, 36)
+
+
+def both(a, b):
+    """Two people, animated independently: frame-wise union of two mask lists."""
+    return [ma | mb for ma, mb in zip(a, b)]
+
+
+def pacing(n, at, span=6):
+    """A person walking back and forth by `span` px at 1 px per camera frame."""
+    x0, y0, x1, y1 = at
+    out = []
+    for k in range(n):
+        o = abs(k % (2 * span) - span)
+        out.append(rect(x0 + o, y0, x1 + o, y1))
+    return out
+
+
+def still(n, at):
+    return [rect(*at)] * n
+
+
+def stamped_slot(rig):
+    hits = [k for k in range(8) if rig.slot(k)[3] == 1]
+    assert len(hits) == 1, hits
+    return hits[0]
+
+
+def slot_of_id(rig, ident):
+    return next(k for k in range(8) if rig.slot(k)[0] == ident)
+
+
+def test_flailing_becomes_target_and_strikes(ctx):
+    rig = Rig(ctx)
+    rig.run(flailing(45))                                 # 4.5 s
+    a = rig.attn()
+    assert a[3] == 1                                      # id 1 struck
+    assert rig.slot(0)[3] == 1                            # stamped
+
+
+def test_walking_alone_never_strikes(ctx):
+    rig = Rig(ctx)
+    rig.run(walking(60))
+    assert rig.attn()[3] == 0 and rig.attn()[1] < 1
+
+
+def test_freezing_loses_the_bird(ctx):                     # Review Focus 1
+    rig = Rig(ctx)
+    rig.run(walking(30))
+    assert rig.attn()[0] == 1
+    rig.run(flickering(40))                               # a flickering still person: target dropped
+    assert rig.attn()[0] == 0
+
+
+def test_strike_once_per_person(ctx):                      # Review Focus 2
+    rig = Rig(ctx)
+    rig.run(flailing(45))
+    struck_at = rig.attn()[2]
+    rig.run(flailing(90))
+    a = rig.attn()
+    assert a[0] == 0 and rig.slot(0)[2] == 0              # ignored after the stamp, despite flailing
+    assert a[2] > struck_at + 8.5                         # and never struck again
+
+
+def test_reused_slot_resets_stamp(ctx):                     # Review Focus 2
+    rig = Rig(ctx)
+    rig.run(flailing(45))
+    rig.run([EMPTY] * 30)                                 # leaves; lost; slot frees
+    assert rig.slot(0)[0] == 0
+    rig.run(flailing(45))
+    assert rig.slot(0)[0] == 2 and rig.slot(0)[3] == 1    # new id, stamped anew
+
+
+def test_only_confirmed_unstamped_can_be_target(ctx):      # Review Focus 4
+    rig = Rig(ctx)
+    rig.run(flailing(2))                                  # tentative: never a target
+    assert rig.attn()[0] == 0 and rig.slot(0)[2] == 0
+    rig = Rig(ctx)
+    rig.run(both(flailing(45, x=10), still(45, RIGHT)))   # the left one is stamped
+    done = stamped_slot(rig)
+    rig.run(both(flailing(30, x=10), pacing(30, RIGHT)))  # left keeps flailing, right paces
+    a = rig.attn()
+    assert a[0] != 0 and a[0] - 1 != done
+    assert rig.slot(int(a[0]) - 1)[3] == 0
+
+
+def test_flailer_steals_target_from_walker(ctx):
+    rig = Rig(ctx)
+    rig.run(both(pacing(30, LEFT), still(30, RIGHT)))
+    left = int(rig.attn()[0]) - 1
+    assert left >= 0 and rig.slot(left)[0] == 1           # the left one (id 1) is the target
+    # The walker stops; while they are still interesting (> TARGET_MIN), the flailer beats them by 0.2.
+    stolen = None
+    for m in both(still(25, LEFT), flailing(25, x=48)):
+        rig.run([m])
+        a = rig.attn()
+        if a[0] - 1 not in (left, -1):
+            stolen = (int(a[0]) - 1, rig.slot(left)[2])
+            break
+    assert stolen is not None
+    right, left_interest = stolen
+    assert rig.slot(right)[0] == 2
+    assert left_interest > 0.25                           # a steal, not a drop-out
+
+
+def test_mood(ctx):
+    rig = Rig(ctx)
+    rig.run([EMPTY] * 30)
+    assert abs(rig.mood()[0] - 0.42) < 0.06               # drowsy
+    rig.run(walking(30))
+    assert rig.attn()[0] != 0 and rig.mood()[0] > 0.9     # hunting: wide
+    rig.run(flickering(50))
+    assert rig.attn()[0] == 0
+    assert abs(rig.mood()[0] - 0.7) < 0.03                # suspicious squint
+
+
+def test_smug_after_strike_then_drowsy_when_all_stamped(ctx):
+    rig = Rig(ctx)
+    rig.run(flailing(45))
+    since = rig.attn()[2]
+    assert since < 3.2 and rig.mood()[0] >= 0.58 - 0.05
+    rig.run(flailing(90))                                 # everyone present is stamped
+    assert abs(rig.mood()[0] - 0.42) < 0.06
+
+
+def test_blink_scheduled_for_new_id(ctx):
+    rig = Rig(ctx)
+    rig.run([EMPTY] * 3)
+    rig.run(standing(1), frames_per_camera=1)             # the id appears this frame
+    assert -0.16 < rig.blink()[0] < 0.0
+    assert rig.mood()[1] > 0.9                            # leaves shiver
+
+
+def test_reticle_follows_target_and_hides_when_empty(ctx):
+    rig = Rig(ctx)
+    rig.run([EMPTY] * 10)
+    assert rig.reticle()[3] < 0.02
+    rig.run(walking(30))
+    r = rig.reticle()
+    assert r[3] > 0.9
+    box = rig.blobs.records(now=rig.t)[0, 0]
+    assert abs(r[0] - (box[0] + box[2]) / 2) < 0.08
+    assert abs(r[1] - (box[3] - 0.3 * (box[3] - box[1]))) < 0.08
+
+
+def test_stamp_lands_on_target(ctx):
+    rig = Rig(ctx)
+    rig.run(flailing(45))
+    box = rig.blobs.records(now=rig.t)[0, 0]
+    s = rig.stamp()
+    assert abs(s[0] - (box[0] + box[2]) / 2) < 0.02 and abs(s[1] - (box[1] + box[3]) / 2) < 0.02
+
+
+def test_state_stays_bounded_when_idle(ctx):               # Review Focus 3
+    rig = Rig(ctx)
+    rig.r.render(200.0, (0, 0, 0, 0))                     # one huge dt
+    rig.run([EMPTY] * 3)
+    rig.r.render(200.0, (0, 0, 0, 0))
+    rig.run([EMPTY] * 3)
+    assert np.isfinite(rig.b()).all() and np.abs(rig.b()).max() <= 99.0

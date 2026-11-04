@@ -27,7 +27,7 @@ const float MOTION_ON      = 0.2;        // above: interest rises; below: drains
 const float INTEREST_GAIN  = 0.9;        // per second, × motion
 const float INTEREST_DRAIN = 0.45;       // per second
 const float TARGET_MIN     = 0.25, TARGET_SWITCH = 0.2, SWITCH_KEEP = 0.3;
-const float LOCK_RATE      = 0.32;       // per second, × motion²
+const float LOCK_RATE      = 0.45;       // per second, × motion²
 const float LOCK_DRAIN     = 0.3;
 const float STRIKE_ACK_S   = 0.2;        // window in which a SLOT accepts the strike for its id
 // reticle
