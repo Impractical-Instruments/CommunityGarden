@@ -315,3 +315,32 @@ def test_state_stays_bounded_when_idle(ctx):               # Review Focus 3
     rig.r.render(200.0, (0, 0, 0, 0))
     rig.run([EMPTY] * 3)
     assert np.isfinite(rig.b()).all() and np.abs(rig.b()).max() <= 99.0
+
+
+# ── Task 3: footprints ────────────────────────────────────────────────────────
+
+PRINT_LIFE_S = 4.0
+
+
+def test_walking_leaves_prints(ctx):
+    rig = Rig(ctx)
+    rig.run(walking(30))
+    p = rig.prints()
+    fresh = p[p[:, 2] < PRINT_LIFE_S]
+    assert len(fresh) >= 6
+    box = rig.blobs.records(now=rig.t)[0, 0]
+    assert (fresh[:, 1] < box[1] + 0.02).all()            # at the bottom of the box
+    assert len(set(np.round(fresh[:, 1], 3))) >= 2        # alternating sides
+
+
+def test_standing_leaves_no_prints(ctx):
+    rig = Rig(ctx)
+    rig.run(flickering(30))
+    assert (rig.prints()[:, 2] >= PRINT_LIFE_S).all()
+
+
+def test_prints_age_out(ctx):
+    rig = Rig(ctx)
+    rig.run(walking(30))
+    rig.run([EMPTY] * 50)
+    assert (rig.prints()[:, 2] >= PRINT_LIFE_S).all()

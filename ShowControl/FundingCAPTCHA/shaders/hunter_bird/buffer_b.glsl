@@ -53,12 +53,47 @@ vec4 slotNext(int k, float dt) {
     return s;
 }
 
-// ── HEAD ──────────────────────────────────────────────────────────────────────
+// ── Footprints: HEAD and PRINT ────────────────────────────────────────────────
+// HEAD and every PRINT texel of slot k evaluate this on the same inputs, so they agree.
+// Here, not in Common: toScreen needs iResolution, which Shadertoy's Common can't see.
+bool emitsPrint(vec4 head, vec4 idn, vec4 mot, float dt) {
+    return isState(idn.y, S_CONFIRMED)
+        && length(toScreen(mot.zw)) >= PRINT_MIN_SPEED
+        && head.w + dt >= PRINT_EVERY_S;
+}
+bool emits(int k, float dt) {
+    return !isFresh(k) && emitsPrint(bHead(B, k), recIdn(BLOBS, k), recMot(BLOBS, k), dt);
+}
+
 vec4 headNext(int k, float dt) {
     if (isFresh(k)) return vec4(0.0, 0.0, 0.0, T_CLAMP);
     vec4 h = bHead(B, k);
+    if (emits(k, dt)) {
+        vec4 box = recBox(BLOBS, k);
+        return vec4((box.x + box.z) * 0.5, box.y, 1.0 - h.z, 0.0);
+    }
     h.w = min(h.w + dt, T_CLAMP);
     return h;
+}
+
+vec4 printNext(int k, int j, float dt) {
+    if (emits(k, dt)) {
+        if (j > 0) {
+            vec4 p = bPrint(B, k, j - 1);
+            p.z = min(p.z + dt, T_CLAMP);
+            return p;
+        }
+        vec4  box = recBox(BLOBS, k);
+        vec2  v = toScreen(recMot(BLOBS, k).zw);
+        float side = 1.0 - bHead(B, k).z;                    // the side HEAD takes this frame
+        vec2  perp = normalize(vec2(-v.y, v.x)) * (side > 0.5 ? 3.0 : -3.0) / 360.0;
+        vec2  at = vec2((box.x + box.z) * 0.5, box.y - 3.0 / 360.0)
+                 + perp * vec2(iResolution.y / iResolution.x, 1.0);   // screen heights → UV
+        return vec4(at, 0.0, atan(v.y, v.x));
+    }
+    vec4 p = bPrint(B, k, j);
+    p.z = min(p.z + dt, T_CLAMP);
+    return p;
 }
 
 // ── Who is there (all from the previous frame's SLOTs and this frame's records) ──
@@ -207,5 +242,5 @@ void mainImage(out vec4 o, in vec2 fc) {
         else if (c.x == 3) o = blinkNext(at, dt);
         else               o = stampNext(at);
     }
-    else o = initial(c);                                     // filled in by later tasks
+    else if (c.y == 4 && c.x < SLOTS * PRINTS) o = printNext(c.x / PRINTS, c.x % PRINTS, dt);
 }
