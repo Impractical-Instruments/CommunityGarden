@@ -11,6 +11,10 @@ game loop with an OpenGL one.
   python3 shader_app.py --test-input --setup ripples   # pin one Setup
 
 Keys: N / → next Setup · R reload current Setup from disk · Esc quit.
+
+While the current Setup reads the "blobs" source (ADR-0022), blobs are tracked
+in the Body at camera rate — in --test-input, in the painted Body read back
+from the GPU — and their records uploaded every render frame.
 """
 from __future__ import annotations
 
@@ -32,6 +36,7 @@ import pygame
 
 from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
+from body_blobs import BlobConfig, BodyBlobs
 from shadertoy import BodyMouse, Renderer, VERT, js_keycode, load_setup, pack_body
 
 try:
@@ -43,6 +48,7 @@ except ImportError:
 log = logging.getLogger("shader_app")
 
 SHADER_DIR = DIR / "shaders"
+PAINTER_TRACK_S = 0.1      # --test-input: read the painted Body back at camera rate
 
 _BLIT_FRAG = """
 #version 330
@@ -85,8 +91,9 @@ class Rotation:
     """
 
     def __init__(self, renderer: Renderer, names: list[str],
-                 shader_dir: Path = SHADER_DIR, clock=time.monotonic) -> None:
+                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None) -> None:
         self.renderer = renderer
+        self._on_load = on_load                       # called after every successful load
         self.names    = list(names)
         self._bag     = ShuffleBag(self.names)
         self._dir     = shader_dir
@@ -132,6 +139,8 @@ class Rotation:
             log.error("Setup %s skipped: %s", name, exc)
             return False
         self.started = self._clock()
+        if self._on_load is not None:
+            self._on_load()
         return True
 
 
@@ -197,7 +206,11 @@ def main() -> None:
     renderer.output_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
     # ── Setups ────────────────────────────────────────────────────────────────
-    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names())
+    # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
+    # with them: Setups that remember people by id must not meet ids from before.
+    blobs    = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
+    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names(),
+                        on_load=blobs.reset)
     rotation.next()
 
     # ── Camera ────────────────────────────────────────────────────────────────
@@ -220,6 +233,7 @@ def main() -> None:
                  "mock" if args.mock_camera else "Orbbec", standback)
 
     body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
+    painter_read_t = 0.0
     test_mouse = _TestMouse()
     mouse      = (0.0, 0.0, 0.0, 0.0)
 
@@ -265,12 +279,21 @@ def main() -> None:
                 log.info("Calibration done — Body live")
             elif msg["type"] == "error":
                 log.error("Camera: %s", msg["msg"])
+        uses_blobs = renderer.setup is not None and renderer.setup.uses_blobs
         if fg is not None:
             body = pack_body(fg, roi, slabs)
             renderer.upload_body(body)
             mouse = body_mouse.update(body, *res)
+            if uses_blobs:
+                blobs.update(body[..., 0] > 0, body[..., 1] / 255.0)
         if args.test_input:
             mouse = test_mouse.update(win, res)
+            if uses_blobs and time.monotonic() - painter_read_t >= PAINTER_TRACK_S:
+                painter_read_t = time.monotonic()
+                painted = renderer.read_body()
+                blobs.update(painted[..., 0] > 0.5, painted[..., 1])
+        if uses_blobs:
+            renderer.upload_blobs(blobs.records())
 
         try:
             renderer.render(dt, mouse)

@@ -49,7 +49,17 @@
   "shader_app": {
     "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at.",
     "render_scale": 0.5,
-    "fps": 30
+    "fps": 30,
+    "blobs": {
+      "_comment": "Blob records for Setups that read the \"blobs\" source (ADR-0022). Pixels are Body pixels; frames are camera frames.",
+      "min_blob_pixels": 500,
+      "min_confirm_frames": 4,
+      "max_miss_frames": 8,
+      "max_match_dist_px": 80,
+      "smoothing_alpha": 0.5,
+      "lost_hold_s": 1.0,
+      "ease_s": 0.08
+    }
   },
 
   "camera": {

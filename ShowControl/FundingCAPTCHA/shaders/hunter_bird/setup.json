@@ -1,0 +1,8 @@
+{
+  "_comment": "Hunter bird: the blob tracker's notes drawn as a bird hunting visitors. Spec: docs/superpowers/specs/2026-11-04-hunter-bird-design.md",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["B", "blobs"],
+    "image":    ["A", "B", "blobs"]
+  }
+}

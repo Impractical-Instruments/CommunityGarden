@@ -1,5 +1,7 @@
 # FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera
 
+**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle)
+
 ## Context
 
 Some events want the FundingCAPTCHA screen to show procedural visuals that visitors bend by moving, instead of the Game Arc. Several people need to prototype those visuals in parallel, without the show hardware, and the results must run on the show Pi 5 unchanged.

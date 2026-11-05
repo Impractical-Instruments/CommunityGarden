@@ -14,7 +14,16 @@ Buffer A is reserved for the Body: on the Pi it is the Orbbec silhouette,
 in Shadertoy (and in --test-input) it is shaders/body_painter.glsl driven
 by the mouse. Body texel: .r presence 0/1, .g nearness 0 (far) – 1 (near).
 
-Channel sources: "A" "B" "C" "D" "keyboard" or null. Buffers are linear-
+Source "blobs" is the tracker's blob records (ADR-0022): BLOB_SLOTS columns ×
+BLOB_ROWS rows of RGBA32F, read with texelFetch(ch, ivec2(slot, row), 0):
+  row 0  x0, y0, x1, y1         bounding box, Body UV (y up)
+  row 1  cx, cy, vx, vy         centroid (UV) and velocity (UV/s)
+  row 2  id, state, age_s, near stable id 1–999, BLOB_* state, seconds in
+                                that state, mean Body nearness
+A slot keeps its track for the track's whole life. In Shadertoy the source is
+shaders/blob_painter.glsl in a spare buffer.
+
+Channel sources: "A" "B" "C" "D" "keyboard" "blobs" or null. Buffers are linear-
 filtered and clamped like Shadertoy's, but RGBA16F where Shadertoy's are
 32-bit: the Pi's V3D can't linear-filter 32-bit float. Values above ~2048
 lose integer precision.
@@ -36,10 +45,16 @@ import numpy as np
 log = logging.getLogger("shader_app")
 
 BUFFERS  = ("buffer_b", "buffer_c", "buffer_d")      # render order, before image
-SOURCES  = {"A", "B", "C", "D", "keyboard"}
+SOURCES  = {"A", "B", "C", "D", "keyboard", "blobs"}
 _BUF_KEY = {"buffer_b": "B", "buffer_c": "C", "buffer_d": "D"}
 
 PAINTER_PATH = Path(__file__).parent / "shaders" / "body_painter.glsl"
+BLOB_PAINTER_PATH = Path(__file__).parent / "shaders" / "blob_painter.glsl"
+
+# Blob records contract (ADR-0022). Changing any of these breaks Setups.
+BLOB_SLOTS = 8
+BLOB_ROWS  = 3
+BLOB_EMPTY, BLOB_TENTATIVE, BLOB_CONFIRMED, BLOB_COASTING, BLOB_LOST = range(5)
 PAINTER_CHANNELS = ["A", "keyboard", None, None]
 
 VERT = """
@@ -87,6 +102,10 @@ class Setup:
     common:     str
     passes:     dict[str, str]                     # pass → source, render order
     channels:   dict[str, list[str | None]] = field(default_factory=dict)
+
+    @property
+    def uses_blobs(self) -> bool:
+        return any("blobs" in chans for chans in self.channels.values())
 
 
 def load_setup(path: Path) -> Setup:
@@ -268,9 +287,14 @@ class Renderer:
         self.body_mode = body_mode
         self.vbo  = ctx.buffer(struct.pack("8f", -1, -1, 1, -1, -1, 1, 1, 1))
         self.keyboard = Keyboard()
-        self._kb_tex  = ctx.texture((256, 3), 1, dtype="u1")
+        self._kb_tex  = ctx.texture((256, 3), 1, dtype="f1")   # normalised; "u1" is integer and samples as 0
         self._kb_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
         self._blank  = ctx.texture((1, 1), 4, data=bytes(4))   # unbound channels read 0
+        # Read with texelFetch; NEAREST keeps a 32-bit float texture complete on V3D.
+        self._blobs_tex = ctx.texture((BLOB_SLOTS, BLOB_ROWS), 4, dtype="f4")
+        self._blobs_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        self._blobs_tex.repeat_x = self._blobs_tex.repeat_y = False
+        self.upload_blobs(np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32))
 
         self.output_tex = ctx.texture(size, 4)
         self.output   = ctx.framebuffer(color_attachments=[self.output_tex])
@@ -346,11 +370,27 @@ class Renderer:
             self._body_tex.repeat_x = self._body_tex.repeat_y = False
         self._body_tex.write(rgba.tobytes())
 
+    def upload_blobs(self, records: np.ndarray) -> None:
+        """(BLOB_ROWS, BLOB_SLOTS, 4) float records; row 0 of the array is texel row 0."""
+        if records.shape != (BLOB_ROWS, BLOB_SLOTS, 4):
+            raise ValueError(f"blob records must be {(BLOB_ROWS, BLOB_SLOTS, 4)}, got {records.shape}")
+        self._blobs_tex.write(np.ascontiguousarray(records, dtype=np.float32).tobytes())
+
+    def read_body(self) -> np.ndarray | None:
+        """Painter mode: the painted Body as float (h, w, 4), row 0 = bottom. None otherwise."""
+        if self._painter_buf is None:
+            return None
+        tex = self._painter_buf.read_tex
+        data = np.frombuffer(tex.read(), dtype=np.float16)
+        return data.reshape(tex.size[1], tex.size[0], 4).astype(np.float32)
+
     def _source_tex(self, src: str | None):
         if src is None:
             return None
         if src == "keyboard":
             return self._kb_tex
+        if src == "blobs":
+            return self._blobs_tex
         if src == "A":
             return self._painter_buf.read_tex if self._painter_buf else self._body_tex
         return self._buffers[f"buffer_{src.lower()}"].read_tex
@@ -412,8 +452,8 @@ class Renderer:
 
     def release(self) -> None:
         self._release_setup()
-        for o in (self.output_tex, self.output, self._kb_tex, self._blank, self.vbo,
-                  self._body_tex):
+        for o in (self.output_tex, self.output, self._kb_tex, self._blank, self._blobs_tex,
+                  self.vbo, self._body_tex):
             if o is not None:
                 o.release()
         if self._painter:

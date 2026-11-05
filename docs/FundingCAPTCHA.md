@@ -30,6 +30,7 @@ Key references:
 - ADR-0016 — `--test-input` mouse-paint dev mode
 - ADR-0019 — game UI shell
 - ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
+- ADR-0022 — shader player blob records (`blobs` channel source)
 - `app.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
@@ -57,7 +58,9 @@ Keys at runtime:
 
 Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, calibration, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
-Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`).
+Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`), `hunter_bird` ([design](superpowers/specs/2026-11-04-hunter-bird-design.md); a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`).
+
+Setups can also read the tracker's **blob records** (boxes, stable IDs, lifecycle) through the `blobs` channel source (ADR-0022). `blob_debug` is the reference reader, outside the rotation: `python3 shader_app.py --mock-camera --windowed --setup blob_debug`.
 
 | Flag | Effect |
 |---|---|
@@ -77,7 +80,7 @@ To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_a
 Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — not gitignored, but per-host).
 
 Top-level fields:
-- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `fps` (default 30)
+- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
 - `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
 - `detection` — `depth_delta_mm`, `min_blob_pixels`, `min_depth_mm`, `max_depth_mm`
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`
