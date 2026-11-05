@@ -188,7 +188,7 @@ def test_listed_setups_compile(ctx, name):
 def test_compile_error_reports_tab_line(ctx, tmp_path):
     d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {\n  o = nope;\n}"})
     r = Renderer(ctx, (8, 8))
-    with pytest.raises(ShaderError, match=r"0:2"):
+    with pytest.raises(ShaderError, match=r"\b0(:2\b|\(2\))"):    # Mesa "0:2", NVIDIA "0(2)"
         r.load(load_setup(d))
     r.release()
 
@@ -367,10 +367,10 @@ def test_uploaded_blobs_reach_texelfetch(ctx, tmp_path):
 def test_blobs_channel_resolution_is_slots_by_rows(ctx, tmp_path):
     r = Renderer(ctx, (8, 8))
     r.load(_blob_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                                  " o = vec4(iChannelResolution[0].xy / 16.0, 0.0, 1.0); }"},
+                                  " o = vec4(iChannelResolution[0].xy / 32.0, 0.0, 1.0); }"},
                        {"image": ["blobs"]}))
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[:2] == (round(BLOB_SLOTS / 16 * 255), round(BLOB_ROWS / 16 * 255))
+    assert _pixel(r, 1, 1)[:2] == (round(BLOB_SLOTS / 32 * 255), round(BLOB_ROWS / 32 * 255))   # no .5 ties: drivers round those either way
     r.release()
 
 
@@ -446,4 +446,20 @@ def test_blob_debug_reference_setup_renders(ctx):
     r.upload_blobs(rec)
     r.render(1 / 30, (32, 18, 32, 18))
     assert _pixel(r, int(0.1 * 64), 18)[:3] == (17, 17, 17)  # ink on the box's left edge
+    r.release()
+
+
+def test_rotation_calls_on_load_for_every_load(ctx, tmp_path):
+    """Buffer state resets on every load, so the blob tracker must too (stamps match on id)."""
+    from shader_app import Rotation
+    root = _setups(tmp_path, a=SOLID, b=SOLID)
+    r = Renderer(ctx, (4, 4))
+    loads = []
+    rot = Rotation(r, ["a", "b"], shader_dir=root, on_load=lambda: loads.append(r.setup.name))
+    rot.next()
+    rot.reload()
+    assert loads == [r.setup.name] * 2
+    (root / r.setup.name / "image.glsl").write_text("garbage")
+    rot.reload()                                          # broken edit: nothing reloaded
+    assert len(loads) == 2
     r.release()

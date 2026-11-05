@@ -104,6 +104,12 @@ bool candidate(int k) {
     vec4 s = bSlot(B, k), idn = recIdn(BLOBS, k);
     return isState(idn.y, S_CONFIRMED) && abs(idn.x - s.x) < 0.5 && s.w < 0.5 && s.z > TARGET_MIN;
 }
+// The current target's blob was missed for a camera frame or two: keep it, so
+// mask flicker doesn't hand the bird to a rival (and halve the lock twice).
+bool heldTarget(int k) {
+    vec4 s = bSlot(B, k), idn = recIdn(BLOBS, k);
+    return isState(idn.y, S_COASTING) && abs(idn.x - s.x) < 0.5 && s.w < 0.5;
+}
 bool present(int k) {
     float st = recIdn(BLOBS, k).y;
     return isState(st, S_TENTATIVE) || isState(st, S_CONFIRMED) || isState(st, S_COASTING);
@@ -134,10 +140,13 @@ vec4 attnNext(float dt) {
     int tgt = best;
     if (cur >= 0 && candidate(cur) && !(best != cur && bestI > bSlot(B, cur).z + TARGET_SWITCH))
         tgt = cur;                                           // keep: no rival beats it by enough
+    if (cur >= 0 && heldTarget(cur)) tgt = cur;              // keep through a dropped frame
     float lock = at.y;
     if (tgt >= 0 && tgt != cur && cur >= 0) lock *= SWITCH_KEEP;
 
-    float m = tgt >= 0 ? bSlot(B, tgt).y : 0.0;
+    // Lock builds on motion in place: a coasting target and a walker don't add to it.
+    float m = tgt >= 0 && !heldTarget(tgt) ? bSlot(B, tgt).y : 0.0;
+    m *= tgt >= 0 ? 1.0 - smoothstep(DRIFT_STILL, DRIFT_WALK, length(bDrift(B, tgt).xy)) : 0.0;
     if (tgt >= 0 && m > LOCK_ON) lock += dt * LOCK_RATE * m * m;
     else                           lock -= dt * LOCK_DRAIN;
     lock = clamp(lock, 0.0, 1.0);
@@ -228,7 +237,7 @@ vec4 blinkNext(vec4 at, float dt) {
 void mainImage(out vec4 o, in vec2 fc) {
     ivec2 c = ivec2(fc);
     o = vec4(0.0);
-    if (c.y > 4) return;
+    if (c.y > 5) return;
     if (iFrame == 0) { o = initial(c); return; }
     float dt = clamp(iTimeDelta, 1e-3, DT_MAX);
 
@@ -247,4 +256,8 @@ void mainImage(out vec4 o, in vec2 fc) {
         else               o = stampNext(at);
     }
     else if (c.y == 4 && c.x < SLOTS * PRINTS) o = printNext(c.x / PRINTS, c.x % PRINTS, dt);
+    else if (c.x < SLOTS && c.y == 5) {                      // DRIFT: the velocity, low-passed
+        vec2 v = isState(recIdn(BLOBS, c.x).y, S_CONFIRMED) ? toScreen(recMot(BLOBS, c.x).zw) : vec2(0.0);
+        o = isFresh(c.x) ? vec4(0.0) : vec4(mix(bDrift(B, c.x).xy, v, 1.0 - exp(-dt / DRIFT_S)), 0.0, 0.0);
+    }
 }

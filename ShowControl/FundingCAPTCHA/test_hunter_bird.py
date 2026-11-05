@@ -591,3 +591,62 @@ def test_still_person_with_box_jitter_escapes(ctx):        # Review Focus 1, wit
     rig.run(jittery_still(60, 6))
     s = rig.slot(0)
     assert s[1] < 0.2 and s[2] < 0.25 and rig.attn()[0] == 0 and rig.attn()[3] == 0
+
+
+# ── Adversarial review fixes ──────────────────────────────────────────────────
+
+def big_walker(n, px_per_frame, stride, x0=40, legs_hz=2.0):
+    """480 × 480: an 80 × 300 person walking right whose box widens by up to
+    `stride` px as the legs swing apart, twice per gait cycle (camera 10 Hz)."""
+    out = []
+    for k in range(n):
+        x = x0 + px_per_frame * k
+        w = 80 + stride * abs(np.sin(np.pi * legs_hz * k / 10.0))
+        m = np.zeros((480, 480), bool)
+        m[100:400, max(int(x), 0):min(int(x + w), 480)] = True
+        out.append(m)
+    return out
+
+
+def big_flailer(n, arm, one_sided=False, cx=240):
+    """480 × 480: an 80 × 300 person standing still, arms swinging out by `arm` px
+    (one arm only if one_sided, so the centroid wobbles too)."""
+    out = []
+    for k in range(n):
+        out_now = k % 5 in (1, 2, 3)
+        left = arm * out_now * (not one_sided)
+        right = arm * out_now
+        m = np.zeros((480, 480), bool)
+        m[100:400, cx - 40:cx + 40] = True
+        m[150:180, cx - 40 - left:cx + 40 + right] = True      # arms at shoulder height
+        out.append(m)
+    return out
+
+
+@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 20), (8, 40), (8, 80), (14, 20), (14, 60)])
+def test_striding_walker_never_strikes(ctx, speed, stride):  # "walking about never does" (spec)
+    rig = BigRig(ctx)
+    n = min(60, int((480 - 40 - 80 - stride) / speed))     # stay inside the frame
+    rig.run(big_walker(n, speed, stride))
+    assert rig.attn()[3] == 0 and rig.attn()[1] < 0.3, (rig.t, rig.attn())
+
+
+@pytest.mark.parametrize("one_sided", [False, True])
+def test_big_flailer_strikes(ctx, one_sided):              # "flail and it locks on and strikes"
+    rig = BigRig(ctx)
+    rig.run(big_flailer(50, 60, one_sided))                # 5 s
+    assert rig.attn()[3] != 0
+
+
+def test_target_keeps_lock_through_a_dropped_frame(ctx):   # mask flicker with a rival present
+    rig = Rig(ctx)
+    flail = flailing(40, x=12)
+    walk = [rect(40 + (k % 12), 8, 50 + (k % 12), 36) for k in range(40)]
+    rig.run(both(flail[:18], walk[:18]))
+    a = rig.attn()
+    assert a[3] == 0 and a[1] > 0.2, a                     # flailer targeted, not yet struck
+    tgt, before = int(a[0]) - 1, a[1]
+    rig.run([walk[18]])                                    # the flailer's blob is missed once
+    rig.run(both(flail[19:21], walk[19:21]))
+    a = rig.attn()
+    assert int(a[0]) - 1 == tgt and (a[1] > before - 0.1 or a[3] != 0), (before, a)

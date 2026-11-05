@@ -91,8 +91,9 @@ class Rotation:
     """
 
     def __init__(self, renderer: Renderer, names: list[str],
-                 shader_dir: Path = SHADER_DIR, clock=time.monotonic) -> None:
+                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None) -> None:
         self.renderer = renderer
+        self._on_load = on_load                       # called after every successful load
         self.names    = list(names)
         self._bag     = ShuffleBag(self.names)
         self._dir     = shader_dir
@@ -138,6 +139,8 @@ class Rotation:
             log.error("Setup %s skipped: %s", name, exc)
             return False
         self.started = self._clock()
+        if self._on_load is not None:
+            self._on_load()
         return True
 
 
@@ -203,7 +206,11 @@ def main() -> None:
     renderer.output_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
 
     # ── Setups ────────────────────────────────────────────────────────────────
-    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names())
+    # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
+    # with them: Setups that remember people by id must not meet ids from before.
+    blobs    = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
+    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names(),
+                        on_load=blobs.reset)
     rotation.next()
 
     # ── Camera ────────────────────────────────────────────────────────────────
@@ -226,7 +233,6 @@ def main() -> None:
                  "mock" if args.mock_camera else "Orbbec", standback)
 
     body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
-    blobs      = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
     painter_read_t = 0.0
     test_mouse = _TestMouse()
     mouse      = (0.0, 0.0, 0.0, 0.0)
@@ -288,8 +294,6 @@ def main() -> None:
                 blobs.update(painted[..., 0] > 0.5, painted[..., 1])
         if uses_blobs:
             renderer.upload_blobs(blobs.records())
-        elif blobs.active:
-            blobs.reset()                             # stale by the next Setup that reads them
 
         try:
             renderer.render(dt, mouse)

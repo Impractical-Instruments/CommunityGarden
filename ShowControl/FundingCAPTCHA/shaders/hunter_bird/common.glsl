@@ -12,6 +12,7 @@
 //   (3, 3) BLINK    seconds since blink start (negative = scheduled), idle countdown s,
 //                   seconds everyone present has been stamped
 //   (4, 3) STAMP    x, y (screen UV)
+//   (k, 5) DRIFT    this slot's velocity, low-passed over DRIFT_S (screen heights/s), 0, 0
 //   (k·PRINTS + j, 4) PRINT  x, y (Body UV), age s, angle — j = 0 newest
 
 const int   SLOTS = 8, PRINTS = 12;
@@ -30,6 +31,12 @@ const float INTEREST_GAIN  = 0.9;        // per second, × motion
 const float INTEREST_DRAIN = 0.45;       // per second
 const float TARGET_MIN     = 0.25, TARGET_SWITCH = 0.2, SWITCH_KEEP = 0.3;
 const float LOCK_ON        = 0.65;       // lock builds only above this motion: flailing, not walking
+// A walker's stride swings the box's size as much as waving arms do, so lock also
+// needs the person to stay put: their velocity, low-passed, must be small. A
+// flailer's centroid wobbles but averages out; a walker's keeps going.
+const float DRIFT_S        = 1.5;        // s; the velocity low-pass
+const float DRIFT_STILL    = 0.03;       // screen heights/s of drift below which lock builds fully
+const float DRIFT_WALK     = 0.06;       // and above which it doesn't build (a slow walk is ~0.08)
 const float LOCK_RATE      = 0.7;        // per second, × motion²
 const float LOCK_DRAIN     = 0.3;
 const float STRIKE_ACK_S   = 0.2;        // window in which a SLOT accepts the strike for its id
@@ -83,6 +90,7 @@ vec4 bMood   (sampler2D s)        { return texelFetch(s, ivec2(2, 3), 0); }
 vec4 bBlink  (sampler2D s)        { return texelFetch(s, ivec2(3, 3), 0); }
 vec4 bStamp  (sampler2D s)        { return texelFetch(s, ivec2(4, 3), 0); }
 vec4 bPrint  (sampler2D s, int k, int j) { return texelFetch(s, ivec2(k * PRINTS + j, 4), 0); }
+vec4 bDrift  (sampler2D s, int k) { return texelFetch(s, ivec2(k, 5), 0); }
 
 // UV → screen-height units. A macro: Shadertoy's Common tab can't see iResolution.
 #define toScreen(uv) ((uv) * iResolution.xy / iResolution.y)
@@ -172,7 +180,8 @@ const vec3 LEAF_K[LEAVES] = vec3[LEAVES](
 vec3 leafFill(float k) { return k < 0.5 ? PAPER : k < 1.5 ? SLATE : k < 2.5 ? DEEP : VIOLET; }
 
 // ── Field notes ───────────────────────────────────────────────────────────────
-const float COAST_FADE = 0.8;            // s; matches the tracker's max_miss_frames at 10 fps
+const float COAST_FADE = 0.8;            // s; a look, not a contract: ≈ the tracker's max_miss_frames at
+                                         // 10 fps (if that changes, a box just reaches its alpha floor sooner or later)
 const float LOST_FADE_START = 0.4, LOST_FADE_S = 0.5, SCRIBBLE_S = 0.25;
 const float DASH_ON = 4.0 / 360.0, DASH_OFF = 5.0 / 360.0, DASH_CRAWL = 20.0 / 360.0;   // tentative
 const float ARROW_MIN_SPEED = 22.0 / 360.0, ARROW_S = 0.35;
