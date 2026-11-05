@@ -33,7 +33,10 @@ void drawGround(inout vec3 col, vec2 p) {
 void drawPrints(inout vec3 col, vec2 p) {
     for (int i = 0; i < SLOTS * PRINTS; i++) {
         vec4 pr = texelFetch(B, ivec2(i, 4), 0);
-        if (pr.z >= PRINT_LIFE_S) continue;
+        if (pr.z >= PRINT_LIFE_S) {                              // ages grow with j: the rest of this slot is dead
+            i = (i / PRINTS + 1) * PRINTS - 1;
+            continue;
+        }
         vec2 q = p - uvToP(pr.xy);
         if (dot(q, q) > 36.0 / (360.0 * 360.0)) continue;       // early-out: 6 px
         q = rot(q, pr.w) / vec2(4.5 / 360.0, 2.6 / 360.0);
@@ -319,8 +322,8 @@ float eyeCover(vec2 p, float open, float lock, float since) {
     float r = length(e.q - e.c);
     float a = smoothstep(Ri - 2.0 * e.pxp, Ri - 1.0 * e.pxp, r);
     vec4 rim = lidRims(e, e.q.x, open);
-    float out_ = min(rim.x - e.q.y, e.q.y - rim.y);               // > 0 inside a lid
-    return max(a, smoothstep(-2.0 * e.pxp, -1.0 * e.pxp, out_));
+    float out_ = max(rim.x - e.q.y, e.q.y - rim.y);               // > 0 inside a lid (y down: top < bottom)
+    return max(a, step(2.0 * e.pxp, out_));                       // well inside, past the rim's antialiasing
 }
 
 void drawIris(inout vec3 col, vec2 p, float lock, float since) {

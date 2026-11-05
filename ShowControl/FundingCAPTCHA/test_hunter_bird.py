@@ -242,25 +242,6 @@ def test_only_confirmed_unstamped_can_be_target(ctx):      # Review Focus 4
     assert rig.slot(int(a[0]) - 1)[3] == 0
 
 
-def test_flailer_steals_target_from_walker(ctx):
-    rig = Rig(ctx)
-    rig.run(both(pacing(30, LEFT), still(30, RIGHT)))
-    left = int(rig.attn()[0]) - 1
-    assert left >= 0 and rig.slot(left)[0] == 1           # the left one (id 1) is the target
-    # The walker stops; while they are still interesting (> TARGET_MIN), the flailer beats them by 0.2.
-    stolen = None
-    for m in both(still(25, LEFT), flailing(25, x=48)):
-        rig.run([m])
-        a = rig.attn()
-        if a[0] - 1 not in (left, -1):
-            stolen = (int(a[0]) - 1, rig.slot(left)[2])
-            break
-    assert stolen is not None
-    right, left_interest = stolen
-    assert rig.slot(right)[0] == 2
-    assert left_interest > 0.25                           # a steal, not a drop-out
-
-
 def test_mood(ctx):
     rig = Rig(ctx)
     rig.run([EMPTY] * 30)
@@ -523,11 +504,11 @@ def iris_patch(rig):
 
 def test_iris_band_narrows_view_on_lock(ctx):
     rig = Rig(ctx, BIG)
-    rig.run(flailing(12))
+    rig.run(flailing(9))
     assert rig.attn()[1] < 0.2
     patch = iris_patch(rig)
     assert count(patch, "yellow", 30) == 0 and bluish(patch) == 0   # world at lock 0
-    for m in flailing(60)[12:]:
+    for m in flailing(60)[9:]:
         rig.run([m])
         if rig.attn()[1] > 0.9:
             break
@@ -551,3 +532,62 @@ def test_membrane_sweeps_during_blink(ctx):
             assert bluish(right_half()) > 3
             return
     pytest.fail("no blink")
+
+
+# ── Review fixes ──────────────────────────────────────────────────────────────
+
+def test_brisk_walking_never_strikes(ctx):                 # "walking about never does" (spec)
+    rig = Rig(ctx)
+    rig.run(walking(100, step=2))                         # ~0.56 screen heights/s for 10 s
+    assert rig.attn()[3] == 0 and rig.attn()[1] < 0.2
+
+
+def test_flailer_steals_target_from_moving_walker(ctx):
+    rig = Rig(ctx)
+    rig.run(both(walking(30, step=1)[:30], still(30, RIGHT)))
+    walker = int(rig.attn()[0]) - 1
+    assert walker >= 0
+    moving = [rect(4 + (k % 12), 8, 14 + (k % 12), 36) for k in range(40)]   # keeps walking on the left
+    rig.run(both(moving, flailing(40, x=48)))
+    a = rig.attn()
+    assert a[0] - 1 not in (walker, -1) or a[3] == rig.slot(1 - walker)[0]   # stolen (or already stamped)
+
+
+class BigRig(Rig):
+    """The shipped scale: a 480 × 480 Body (camera_roi) and the default BlobConfig."""
+    def __init__(self, ctx):
+        self.size = SIZE
+        self.r = Renderer(ctx, SIZE, body_mode="camera")
+        self.r.load(load_setup(SETUP))
+        self.blobs = BodyBlobs(BlobConfig())
+        self.t = 0.0
+
+    def run(self, masks, frames_per_camera=3):
+        for m in masks:
+            fg = np.where(m, 2000, 0).astype(np.uint16)
+            body = pack_body(fg, {"x": 0, "y": 0, "w": 480, "h": 480}, SLABS)
+            self.r.upload_body(body)
+            self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
+            for _ in range(frames_per_camera):
+                self.r.upload_blobs(self.blobs.records(now=self.t))
+                self.r.render(DT, (0, 0, 0, 0))
+                self.t += DT
+
+
+def jittery_still(n, k, seed=0):
+    """A still person at 480 × 480 whose every box side jitters by ±k px each camera frame."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n):
+        j = rng.integers(-k, k + 1, 4)
+        m = np.zeros((480, 480), bool)
+        m[100 + j[1]:400 + j[3], 200 + j[0]:280 + j[2]] = True
+        out.append(m)
+    return out
+
+
+def test_still_person_with_box_jitter_escapes(ctx):        # Review Focus 1, with the box breathing
+    rig = BigRig(ctx)
+    rig.run(jittery_still(60, 6))
+    s = rig.slot(0)
+    assert s[1] < 0.2 and s[2] < 0.25 and rig.attn()[0] == 0 and rig.attn()[3] == 0

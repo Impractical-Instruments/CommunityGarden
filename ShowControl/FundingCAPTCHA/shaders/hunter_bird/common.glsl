@@ -4,7 +4,7 @@
 //
 // Bird state (Buffer B) layout, texel (x, y), k = slot 0–7:
 //   (k, 0) SLOT     id, motion 0–1, interest 0–1, stamped 0/1
-//   (k, 1) PREV     this slot's box last frame (Body UV)
+//   (k, 1) PREV     this slot's box, low-passed over BOX_EMA_S (Body UV)
 //   (k, 2) HEAD     last print x, y, side 0/1, seconds since last print
 //   (0, 3) ATTN     target slot + 1 (0 none), lock 0–1, seconds since strike, id struck last
 //   (1, 3) RETICLE  x, y (screen UV), radius (screen heights), alpha
@@ -21,13 +21,16 @@ const float DT_MAX  = 0.25;              // a render hiccup longer than this is 
 const float SPEED_FULL    = 0.39;        // screen heights/s of speed that alone reads as motion 1
 const float SIZE_FULL     = 0.61;        // screen heights/s of (w + h) change that alone reads as motion 1
 const float MOTION_FLOOR  = 0.15;        // subtracted: eased-box breathing and flicker live below this
+const float SPEED_CAP     = 0.7;         // the speed term alone stops here: walking never reaches LOCK_ON
+const float BOX_EMA_S     = 0.15;        // PREV is the box low-passed over this; size change is measured against it
 const float MOTION_RISE_S = 0.15, MOTION_FALL_S = 0.3;
 // interest, target, lock
 const float MOTION_ON      = 0.2;        // above: interest rises; below: drains
 const float INTEREST_GAIN  = 0.9;        // per second, × motion
 const float INTEREST_DRAIN = 0.45;       // per second
 const float TARGET_MIN     = 0.25, TARGET_SWITCH = 0.2, SWITCH_KEEP = 0.3;
-const float LOCK_RATE      = 0.45;       // per second, × motion²
+const float LOCK_ON        = 0.65;       // lock builds only above this motion: flailing, not walking
+const float LOCK_RATE      = 0.7;        // per second, × motion²
 const float LOCK_DRAIN     = 0.3;
 const float STRIKE_ACK_S   = 0.2;        // window in which a SLOT accepts the strike for its id
 // reticle

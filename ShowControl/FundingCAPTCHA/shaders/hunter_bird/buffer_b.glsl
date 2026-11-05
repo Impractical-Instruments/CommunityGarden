@@ -36,8 +36,8 @@ vec4 slotNext(int k, float dt) {
         vec4  box = recBox(BLOBS, k), prev = bPrev(B, k);
         float speed = length(toScreen(recMot(BLOBS, k).zw));
         vec2  sz = toScreen(box.zw - box.xy), psz = toScreen(prev.zw - prev.xy);
-        float grow = abs((sz.x + sz.y) - (psz.x + psz.y)) / dt;
-        target = clamp(speed / SPEED_FULL + grow / SIZE_FULL - MOTION_FLOOR, 0.0, 1.0);
+        float grow = abs((sz.x + sz.y) - (psz.x + psz.y)) / BOX_EMA_S;   // d/dt of the low-passed size
+        target = clamp(min(speed / SPEED_FULL, SPEED_CAP) + grow / SIZE_FULL - MOTION_FLOOR, 0.0, 1.0);
     }
     float tau = target > s.y ? MOTION_RISE_S : MOTION_FALL_S;
     s.y += (target - s.y) * (1.0 - exp(-dt / tau));
@@ -47,7 +47,8 @@ vec4 slotNext(int k, float dt) {
     if (abs(at.w - s.x) < 0.5 && at.z < STRIKE_ACK_S) s.w = 1.0;
 
     // Interest: rises with motion while confirmed; tentative, coasting and lost drain.
-    if (confirmed && s.y > MOTION_ON) s.z += dt * INTEREST_GAIN * s.y;
+    // It settles at the motion level, so whoever moves most can win the bird.
+    if (confirmed && s.y > MOTION_ON) s.z = min(s.z + dt * INTEREST_GAIN * s.y, max(s.z - dt * INTEREST_DRAIN, s.y));
     else                              s.z -= dt * INTEREST_DRAIN;
     s.z = s.w > 0.5 ? 0.0 : clamp(s.z, 0.0, 1.0);
     return s;
@@ -137,7 +138,7 @@ vec4 attnNext(float dt) {
     if (tgt >= 0 && tgt != cur && cur >= 0) lock *= SWITCH_KEEP;
 
     float m = tgt >= 0 ? bSlot(B, tgt).y : 0.0;
-    if (tgt >= 0 && m > MOTION_ON) lock += dt * LOCK_RATE * m * m;
+    if (tgt >= 0 && m > LOCK_ON) lock += dt * LOCK_RATE * m * m;
     else                           lock -= dt * LOCK_DRAIN;
     lock = clamp(lock, 0.0, 1.0);
 
@@ -232,7 +233,10 @@ void mainImage(out vec4 o, in vec2 fc) {
     float dt = clamp(iTimeDelta, 1e-3, DT_MAX);
 
     if (c.x < SLOTS && c.y == 0) o = slotNext(c.x, dt);
-    else if (c.x < SLOTS && c.y == 1) o = recBox(BLOBS, c.x);
+    else if (c.x < SLOTS && c.y == 1) {                      // PREV: the box, low-passed
+        vec4 box = recBox(BLOBS, c.x);
+        o = isFresh(c.x) ? box : mix(bPrev(B, c.x), box, 1.0 - exp(-dt / BOX_EMA_S));
+    }
     else if (c.x < SLOTS && c.y == 2) o = headNext(c.x, dt);
     else if (c.y == 3 && c.x < 5) {
         vec4 at = attnNext(dt);
