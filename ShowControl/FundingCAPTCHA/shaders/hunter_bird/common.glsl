@@ -50,6 +50,7 @@ const float LID_DROWSY = 0.42, LID_DROOP = 0.05, LID_SQUINT = 0.7, LID_WIDE = 0.
 const float LID_OPEN_RATE = 9.0, LID_CLOSE_RATE = 3.0;
 const float STRIKE_WIDE_S = 0.9, STRIKE_SMUG_S = 3.2, ALL_STAMPED_DROWSY_S = 6.0;
 const float SHIVER_DECAY = 1.5;          // per second
+// A blink (BLINK_S): both eyes' lids snap shut and open again.
 const float BLINK_S = 0.32, BLINK_NEW_DELAY = 0.15, BLINK_STRIKE_DELAY = 2.3, IDLE_BLINK_MIN = 6.0, IDLE_BLINK_SPAN = 4.0;
 // strike sequence
 const float PUNCH_ZOOM = 0.38, PUNCH_RISE_S = 0.12, PUNCH_HOLD_S = 0.9, PUNCH_END_S = 1.7;
@@ -57,7 +58,15 @@ const float STAMP_SLAM_S = 0.12, STAMP_FADE_START_S = 2.6, STAMP_END_S = 3.2;
 // footprints
 const float PRINT_EVERY_S = 0.33, PRINT_MIN_SPEED = 25.0/360.0, PRINT_LIFE_S = 4.0;
 // eye
-const float IRIS_R_OPEN = 345.0/360.0, IRIS_R_LOCKED = 250.0/360.0, IRIS_R_STRIKE = 380.0/360.0, IRIS_BAND = 34.0/360.0;
+// Two eyes, each an ellipse EYE_LENS wide per unit tall, side by side: the view is the two
+// openings merged, like wraparound sunglasses. Mockup: docs/superpowers/specs/2026-11-05-hunter-bird-two-eyes-mockup.html
+const float EYE_R = 150.0/360.0;         // opening radius (tall) with no lock
+const float EYE_SEP = 150.0/360.0;       // half the distance between the eye centres, with no lock
+const float EYE_LENS = 1.25;             // width / height of each eye
+const float EYE_Y = 0.5;                 // centre height, from the bottom
+const float EYE_LOCK_K = 0.8;            // radius and separation at full lock, × no lock: the eyes draw together
+const float EYE_STRIKE_K = 380.0/345.0;  // … and on a strike, before easing back
+const float IRIS_BAND = 34.0/360.0;      // the yellow band, outside the opening
 // line weights
 const float INK_W = 2.2/360.0, INK_W_HEAVY = 2.6/360.0, INK_W_LIGHT = 1.6/360.0;
 
@@ -242,12 +251,10 @@ float sdTick(vec2 q) {
     return min(sdSegment(q, vec2(-14.0, 1.0), vec2(-4.0, 12.0)), sdSegment(q, vec2(-4.0, 12.0), vec2(16.0, -12.0)));
 }
 
-// ── Eye (mockup px, y down, centred on the screen) ────────────────────────────
-const float LID_SPAN = 0.76;             // × screen width: where the lid curve meets the eye's corners
-const float LID_TOP = 0.64, LID_BOT = 0.6;
+// ── Eye (mockup px unless noted) ──────────────────────────────────────────────
+// Lids live inside each eye. Openness 1 puts a lid's rim on the eye's outer edge.
+const float LID_BOT = 0.94;              // the bottom lid's reach, × the top's
 const float LID_RING_W = 5.0, LID_RING_IN = 4.0, LID_RIM_W = 3.0;
 const float SCALLOP_R = 9.0, SCALLOP_EVERY = 22.0, SCALLOP_IN = 22.0;
 const float HATCH_GAP = 7.07 / 360.0, HATCH_W = 1.4 / 360.0, EYE_HATCH = 0.55;
 const int   STRIATIONS = 110;
-const float MEMBRANE_ALPHA = 0.82, MEMBRANE_STREAK_GAP = 46.0;
-const int   MEMBRANE_STREAKS = 7;
