@@ -812,8 +812,33 @@ def test_one_root_at_the_feet(ctx):                 # one tree from the base: no
     assert above.min() > 0.15 * far, (above.min(), far)     # nothing above the feet is a root
     hand = tree_cells(rig, rect(36, 0, 39, 3))
     assert hand.min() > 0.8 * far, (hand.min(), far)       # the raised hand is reached last, via the shoulder
-    front = rig.buf("buffer_c")[3, K["TREE_P_X"], 1]
+    tp = rig.buf("buffer_c")[3, K["TREE_P_X"]]
+    front = tp[2] * tp[0]                           # growth × the farthest path distance
     assert left.max() < front < hand.min(), (left.max(), front, hand.min())   # mid growth: legs grown, hand not
+    rig.release()
+
+
+def test_still_trunk_and_root_hold_steady_under_flicker(ctx):   # no fidgeting root or trunk
+    rig = Rig(ctx, size=(240, 180))
+    rig.run(flickering(150, seed=3))
+    rows = K["TREE_ROWS"]
+
+    def state():
+        c = rig.buf("buffer_c")
+        return c[4:4 + rows, :int(240 / 180 / TREE_CELL)].copy(), c[3, K["TREE_P_X"]].copy()
+
+    prev, root_moves, width_moves, flips = state(), [], [], []
+    for k in range(20):
+        rig.run(flickering(1, seed=100 + k), frames_per_camera=1)
+        (g, tp), (pg, ptp) = state(), prev
+        trunk = (g[..., 0] >= 0) & (pg[..., 0] >= 0) & (pg[..., 1] >= 8)    # 8+ seeds above: trunk and main branches
+        root_moves.append(np.hypot(tp[3] - ptp[3], tp[1] - ptp[1]))
+        width_moves.append(np.abs(g[..., 1] - pg[..., 1])[trunk].mean())
+        flips.append((np.round(np.modf(g[..., 2])[0] * 16) != np.round(np.modf(pg[..., 2])[0] * 16))[trunk].sum())
+        prev = (g, tp)
+    assert max(root_moves) < 0.5 / 180, root_moves          # under half a pixel a frame
+    assert max(width_moves) < 0.2, width_moves              # seed counts (widths) barely move
+    assert sum(flips) == 0, flips                           # the trunk keeps its way back to the root
     rig.release()
 
 

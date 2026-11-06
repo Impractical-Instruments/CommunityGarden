@@ -12,8 +12,8 @@
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
 //   (0, 3) SUN     sun level 0–1 (eased), raw total growth, next footprint f (the ring's head), —
 //   (1 + f, 3) FOOT footprint f = 0–FOOTPRINTS-1: x, y (UV), seconds since dropped (T_CLAMP none), seed
-//   (TREE_P_X + k, 3) TREE PERSON  farthest path distance on k's body (eased), growth front, growth 0–1,
-//                  root x (screen heights: the middle of their lowest cells)
+//   (TREE_P_X + k, 3) TREE PERSON  farthest path distance on k's body (eased), root y, growth 0–1, root x
+//                  (screen heights; the root is the middle of their lowest cells, eased)
 //   (i, 4 + j) TREE  grid cell (i, j) = screen [i, i + 1] × [j, j + 1] · TREE_CELL (screen heights):
 //                    on a body: path distance to its person's root, seeds whose paths run through it (0: no
 //                    branch here), owner + parent / 16 (parent 0 the root, 1–8 TREE_DIRS), node offset in the
@@ -128,12 +128,15 @@ const float FOOT_REACH_UP = FOOT_H + max(SPRIG_LEN, FOOT_FLOWER_R * (1.0 + PETAL
 const float TREE_CELL = 1.0/48.0;       // cell size; 4 + 1/TREE_CELL rows of C must fit the render height (52 ≤ 72 at test size)
 const int   TREE_ROWS = 48;             // = 1 / TREE_CELL
 const int   TREE_COLS_MAX = 96;         // widest grid (aspect ≤ 2)
-const float TREE_FILL = 0.25;           // a cell is body when this much of it is (of 16 samples)
+const float TREE_FILL = 0.25;           // a cell is body when this much of it is (of 16 samples); stays until half that
 const float TREE_EDGE_COST = 8.0;       // a step costs 1 + this × (1 − how much of a ring round it is body): stay central
 const float TREE_EDGE_R = 1.6;          // the rings' radii: this and twice this, in cells
 const float TREE_ROOT_BAND = 1.5 * TREE_CELL;   // cells this close above the base are the root's (they join it on the floor)
 const float TREE_ROOT_WIN = 0.35;       // ... if within this of it sideways (screen heights): both feet, however wide
 const float TREE_FAR = 50.0;            // the path distance of a body cell no path reaches
+const float TREE_ROOT_EASE_S = 1.0;     // the root point eases over this
+const float TREE_WIDTH_EASE_S = 1.0;    // branch widths (seed counts) ease over this
+const float TREE_PARENT_HYST = 0.05;    // a cell changes its way back to the root only for one this much cheaper
 const float TREE_MAX_EASE_S = 1.0;      // the farthest path distance eases over this (so a raised arm doesn't jolt the front)
 const int   TREE_P_X = 34;              // TREE PERSON texels: row 3, from x = this (after the footprints)
 const float TREE_SEED_FRAC = 0.35;     // the share of body cells that are seeds: a branch runs from each to the root

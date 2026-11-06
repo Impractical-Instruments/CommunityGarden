@@ -263,7 +263,11 @@ vec4 treeNext(ivec2 cell) {
             n += 1.0; sum += sp;
             hold = max(hold, t.r >= BODY_ON ? 1.0 : bHold(t));
         }
-    if (n < TREE_FILL * 16.0 || own > SLOTS) return vec4(-1.0, treeNear(cell), 0.0, 0.0);
+    // Hysteresis: a cell joins the body at TREE_FILL, and stays until under half that, so a flickering edge
+    // doesn't take its branch (and sprig, or flower) with it every other frame.
+    vec4  was = cTree(C, cell, iResolution.xy);
+    float need = treeOwner(was) == own && own > 0 ? 0.5 * TREE_FILL : TREE_FILL;
+    if (n < need * 16.0 || own > SLOTS) return vec4(-1.0, treeNear(cell), 0.0, 0.0);
     int   k = own - 1;
     vec2  node = sum / n;
     vec2  q = clamp(floor(((node - lo) / TREE_CELL) * 16.0), 0.0, 15.0);
@@ -289,17 +293,23 @@ vec4 treeNext(ivec2 cell) {
     float d = TREE_FAR;
     int   parent = -1;
     vec4  tpk = cTreeP(C, k);
-    vec2  root = vec2(tpk.w > 0.0 ? tpk.w : b.x * aspect, b.y);
+    vec2  root = tpk.w > 0.0 ? tpk.wy : vec2(b.x * aspect, b.y);
     if (lo.y <= root.y + TREE_ROOT_BAND && abs(node.x - root.x) < TREE_ROOT_WIN) {
         d = length(node - root);
         parent = 0;
     }
+    float keep = TREE_FAR;                                       // the way it went last frame, if still open
+    int   keepP = treeOwner(prev) == own ? treeParent(prev) : -1;
     for (int i = 0; i < 8; i++) {
         vec4 t = cTree(C, cell + TREE_DIRS[i], iResolution.xy);
         if (treeOwner(t) != own || t.x >= TREE_FAR) continue;
         float cand = t.x + cost * length(vec2(TREE_DIRS[i]));
         if (cand < d) { d = cand; parent = i + 1; }
+        if (i + 1 == keepP) keep = cand;
     }
+    if (keepP == 0 && parent == 0) keep = d;
+    // Hysteresis: keep last frame's way unless another is clearly cheaper, so near-equal routes don't trade places.
+    if (keepP > 0 && keep < TREE_FAR && keep <= d * (1.0 + TREE_PARENT_HYST)) { d = keep; parent = keepP; }
     if (parent < 0) return vec4(TREE_FAR, 0.0, float(own), nodeQ);
     // Seeds whose paths run through this cell: its own, and its children's (last frame's, so a branch settles a
     // cell a frame from its seed down).
@@ -309,11 +319,14 @@ vec4 treeNext(ivec2 cell) {
         int  pa = treeParent(t);
         if (treeOwner(t) == own && t.x < TREE_FAR && pa > 0 && TREE_DIRS[pa - 1] == -TREE_DIRS[i]) seeds += t.y;
     }
+    // Eased (TREE_WIDTH_EASE_S), so a seed flickering in and out at an edge doesn't ripple down the trunk's width.
+    // Children pass on their eased counts, so a settled tree still adds up exactly.
+    if (treeOwner(prev) == own && prev.x < TREE_FAR) seeds = mix(prev.y, seeds, 1.0 - exp(-iTimeDelta / TREE_WIDTH_EASE_S));
     return vec4(d, seeds, float(own) + float(parent) / 16.0, nodeQ);
 }
 
-// TREE PERSON k: the farthest path distance on their body (eased), their growth front, their growth, and
-// their root's x: the middle of their lowest cells, so the root sits between the feet and both legs join it.
+// TREE PERSON k: the farthest path distance on their body (eased), their root's y, their growth, and their
+// root's x: the middle of their lowest cells, so the root sits between the feet and both legs join it.
 // (BASE follows one foot when the feet are apart, which is right for telling a step, not for a root.)
 vec4 treePersonNext(int k, float dt) {
     float raw = 0.0, n = 0.0, sx = 0.0;
@@ -330,8 +343,10 @@ vec4 treePersonNext(int k, float dt) {
     vec4  pr = cTreeP(C, k);
     float farD = pr.x <= 0.0 ? raw : mix(pr.x, raw, 1.0 - exp(-dt / TREE_MAX_EASE_S));
     float g = growthOf(C, k);
-    float rootX = n > 0.0 ? sx / n : cBase(C, k).x * iResolution.x / iResolution.y;
-    return vec4(farD, g * farD, g, rootX);
+    // The root eases (TREE_ROOT_EASE_S), so a foot's flickering edge doesn't shuffle it and the trunk with it.
+    vec2  raw2 = vec2(n > 0.0 ? sx / n : cBase(C, k).x * iResolution.x / iResolution.y, baseY);
+    vec2  root = pr.w <= 0.0 ? raw2 : mix(pr.wy, raw2, 1.0 - exp(-dt / TREE_ROOT_EASE_S));
+    return vec4(farD, root.y, g, root.x);
 }
 
 // ── SUN ───────────────────────────────────────────────────────────────────────

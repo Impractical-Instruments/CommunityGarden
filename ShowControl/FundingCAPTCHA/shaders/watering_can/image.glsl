@@ -166,14 +166,14 @@ vec4 tree(vec2 fc) {
             vec2  P  = nodeOf(cell, t, u);
             if (length(p - P) > slack) continue;
             vec4  bt = tapB(P.x, P.y);
-            float front = tp.y * (bt.r >= BODY_ON ? 1.0 : bHold(bt));
+            float front = tp.z * tp.x * (bt.r >= BODY_ON ? 1.0 : bHold(bt));   // growth × the farthest
             // The branch runs P → parent Q → grandparent R. Corners are cut: this cell draws the curve from
             // the middle of R–Q round Q to the middle of Q–P (its children's curves carry on from there), and
             // a tip the straight half on to P. Path distance s along the way says how far the growth reaches.
             vec2  Q, R;
             float dQ, dR, sQ, sR;
             vec4  b = cBase(iChannel1, own - 1);
-            vec2  root = vec2(tp.w > 0.0 ? tp.w : b.x * aspect, b.y);
+            vec2  root = tp.w > 0.0 ? tp.wy : vec2(b.x * aspect, b.y);
             int   pa = treeParent(t);
             if (pa == 0) { Q = root; dQ = 0.0; sQ = t.y; R = root; dR = 0.0; sR = t.y; }
             else {
