@@ -54,7 +54,7 @@ class Rig:
     def run(self, masks, frames_per_camera=3):
         for m in masks:                                   # one mask per camera frame, row 0 = top
             fg = np.where(m, 2000, 0).astype(np.uint16)
-            body = pack_body(fg, {"x": 0, "y": 0, "w": BODY[0], "h": BODY[1]}, SLABS)
+            body = pack_body(fg, {"x": 0, "y": 0, "w": m.shape[1], "h": m.shape[0]}, SLABS)   # usually BODY
             self.r.upload_body(body)
             self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
             for _ in range(frames_per_camera):
@@ -543,8 +543,8 @@ def on_screen(mask, size):
     """A Body mask (row 0 = top) as screen pixels (row 0 = bottom): the camera view is stretched to the screen."""
     w, h = size
     ys, xs = np.mgrid[0:h, 0:w]
-    col = ((xs + 0.5) / w * BODY[0]).astype(int)
-    row = ((1 - (ys + 0.5) / h) * BODY[1]).astype(int)
+    col = ((xs + 0.5) / w * mask.shape[1]).astype(int)
+    row = ((1 - (ys + 0.5) / h) * mask.shape[0]).astype(int)
     return mask[row, col]
 
 
@@ -651,6 +651,21 @@ def test_vines_follow_the_arm(ctx):
     assert drawn(rig.image())[arm].mean() > 0.5, drawn(rig.image())[arm].mean()
     rig.run([person(arm="down")] * 3)
     assert drawn(rig.image())[arm].mean() < 0.1, drawn(rig.image())[arm].mean()
+    rig.release()
+
+
+@pytest.mark.parametrize("thick", [6, 4])              # Body rows of a 96-row Body: 0.0625 and 0.042 screen heights
+def test_horizontal_arm_blooms(ctx, thick):          # a thin run grows to full bloom too: no bare stencil hole
+    # A finer Body than BODY, so the arm can be thinner than a flower and still be body after B's blur.
+    m = np.kron(person(arm="out"), np.ones((2, 2), dtype=bool))   # 128 x 96; the arm is rows 26-31
+    m[26 + thick:32, 72:] = False                                  # thin it from below
+    rig = Rig(ctx, size=IMG)
+    rig.run([m] * 220)
+    assert rig.person(0)[1] > 0.99
+    arm = rect(0, 0, 0, 0).repeat(2, 0).repeat(2, 1)
+    arm[26:26 + thick, 76:100] = True                              # the outstretched arm, clear of the torso
+    d = drawn(rig.image())[on_screen(arm, IMG)].mean()
+    assert d >= 0.5, d
     rig.release()
 
 

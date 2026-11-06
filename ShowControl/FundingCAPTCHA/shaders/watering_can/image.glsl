@@ -6,9 +6,10 @@
 // that opens into a flower late. The drawing derives from B and the owner's growth every frame,
 // so the plants ride along on the body.
 //
-// Each pixel looks at VINE_NEIGHBOURS vines each side and taps B three times per vine, on the
-// vine's own x: at the pixel's height, and a flower's reach above and below, so leaves and
-// flowers hanging past the edge of the body still find their run. The taps don't follow the
+// Each pixel looks at VINE_NEIGHBOURS vines each side and taps B on the vine's own x: at the
+// pixel's height, and a flower's reach above and below, so leaves and flowers hanging past the
+// edge of the body still find their run; halfway between too, so a run thinner than a flower
+// (an outstretched arm, a hand) is found from every row its plants cover. The taps don't follow the
 // wobble: a vine's runs must be the same from one pixel row to the next, or its leaves and
 // flowers would be cut into strips (B's runs agree along a column for the same reason). One more
 // tap, at the pixel, keeps stems inside the body, and a leaf taps B at its node, only on the
@@ -16,7 +17,7 @@
 
 const float TAU = 6.2831853;
 const int   NV  = 2 * VINE_NEIGHBOURS + 1;
-const int   TAPS = 3;
+const int   TAPS = 5;                             // offsets 0, ±REACH, ±REACH/2 (see plants())
 const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r)
 const float SAME_RUN = 0.5 * RUN_STEP_H;          // two taps whose extents agree this closely found the same run
 
@@ -85,10 +86,7 @@ bool tapRun(float x, float y, out Run r) {
     float h = t.r >= BODY_ON ? 1.0 : bHold(t);    // present body is fully held (its stored hold is ≈ 0.998)
     if (h <= 0.0) return false;
     float G = growthOf(own - 1);
-    // The three taps are REACH apart, so they only find a shorter run from some rows: nothing
-    // grows on one (a ragged edge, a fragment), and a run growing past that length grows in.
-    float len = smoothstep(REACH, 1.5 * REACH, t.b - t.g);
-    r = Run(t.g, t.b, 0.0, G * h * len, mix(SAT_MIN, SAT_MAX, G));
+    r = Run(t.g, t.b, 0.0, G * h, mix(SAT_MIN, SAT_MAX, G));
     r.tip = mix(r.g, r.b, r.f);
     return r.tip > r.g;
 }
@@ -143,6 +141,9 @@ void leaves(inout vec4 acc, vec2 p, int i, Run r) {
 
 void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     float open = clamp((r.f - FLOWER_FROM) / (FLOWER_FULL - FLOWER_FROM), 0.0, 1.0);
+    // The taps are REACH / 2 apart, so a run shorter than that isn't found from every row an open
+    // flower covers: on one (a ragged edge, a fragment) the flower stays a bud. Only the bloom.
+    open *= smoothstep(0.5 * REACH, 0.75 * REACH, r.b - r.g);
     // The bud sits on the stem's tip. Opening, the flower drifts to the vine's own x (on the body),
     // so the wobble can't carry it further past the edge than its own size.
     vec2  tip = vec2(vineX(i, r.tip, r), r.tip);
@@ -174,7 +175,14 @@ vec4 plants(vec2 fc) {
         float x = float(i0 + v - VINE_NEIGHBOURS) * VINE_SPACING;
         for (int t = 0; t < TAPS; t++) {
             int s = v * TAPS + t;
-            has[s] = tapRun(x, p.y + (t == 0 ? 0.0 : t == 1 ? REACH : -REACH), runs[s]);
+            has[s] = false;
+            // The halfway taps only matter when the outer two aren't on one run: if they are, so is
+            // everything between (a run is unbroken), and the halfway taps would find it again.
+            if (t >= 3 && has[v * TAPS + 1] && has[v * TAPS + 2]
+                && abs(runs[v * TAPS + 1].g - runs[v * TAPS + 2].g) < SAME_RUN
+                && abs(runs[v * TAPS + 1].b - runs[v * TAPS + 2].b) < SAME_RUN) continue;
+            float dy = t == 0 ? 0.0 : t == 1 ? REACH : t == 2 ? -REACH : t == 3 ? 0.5 * REACH : -0.5 * REACH;
+            has[s] = tapRun(x, p.y + dy, runs[s]);
             for (int u = 0; u < t; u++) {                             // taps on the same run draw it once
                 int o = v * TAPS + u;
                 if (has[s] && has[o] && abs(runs[s].g - runs[o].g) < SAME_RUN && abs(runs[s].b - runs[o].b) < SAME_RUN)
