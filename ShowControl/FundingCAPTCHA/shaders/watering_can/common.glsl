@@ -7,7 +7,8 @@
 //   .a owner + 0.9 * hold   (owner = slot + 1, 0 none; hold 0–1, 1 while the body is present)
 // Garden state (Buffer C), texel (x, y), k = slot 0–7:
 //   (k, 0) PERSON  id (0 none), growth 0–1, planted spot x, y (UV)
-//   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step, record state last frame
+//   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step (negative: re-planting,
+//                  -seconds to go), record state last frame
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
 //   (0, 3) SUN     sun level 0–1 (eased), raw total growth, —, —
 //   (i, 4 + j) NEAR  1 if body (or a held shape) lies within NEAR_PAD of grid cell (i, j), else 0;
@@ -30,9 +31,19 @@ const float HOLD_Q           = 1.0/128.0; // 0.9 * hold is stored in multiples o
 // Garden
 const float GROW_S = 20.0, REWIND_S = 20.0;           // empty → full bloom, full bloom → empty
 const float GROW_Q = 1.0/2048.0;        // growth is stored in multiples of this (a half float's step just below 1)
-const float BASE_BAND = 0.04;           // screen heights above the box bottom that count as feet
+const float BASE_BAND = 0.04;           // screen heights above the lowest body row that count as feet
 const int   BASE_TAPS = 16;
 const float BASE_EASE_S = 0.3;
+const float BASE_WIN = 0.14;            // feet count only this far either side of the last base (screen heights; about
+                                        // a stance), so a neighbour the tracker merges into the box can't pull it
+const float BASE_FEET = 1.0;            // the box bottom is this person's feet if their window finds this much presence
+                                        // there (in taps' worth); else it is a merged neighbour's (nearer the camera)
+const int   BASE_ITERS = 3;             // the window re-centres on the feet it finds this many times a frame, so it
+                                        // keeps up with a walk (each pass reaches BASE_WIN further)
+const float BASE_UP  = 0.1;             // the window finds the lowest body row from the legs this far above the last
+                                        // base (screen heights): more than the eased base lags a step up the image
+const float REPLANT_S = 0.5;            // for this long after a neighbour within SPLIT_GAP changes tracker state (a
+                                        // merge or a split), a person re-plants where they stand instead of stepping
 const float WALK_DIST   = 0.04;         // screen heights the base must move from the spot to count as a step
 const float WALK_HOLD_S = 0.4;          // walking lasts this long after the last step
 const float INHERIT_S = 3.0, INHERIT_DIST = 0.15;     // ghost lifetime; how near a new track must appear (screen heights)

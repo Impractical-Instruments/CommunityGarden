@@ -23,7 +23,7 @@ bool live(float st) { return isState(st, S_TENTATIVE) || isState(st, S_CONFIRMED
 // The box follows a real detection (a coasting or lost box only drifts on its last velocity).
 bool seen(float st) { return isState(st, S_TENTATIVE) || isState(st, S_CONFIRMED); }
 
-// The feet: presence-weighted mean x of B across the box, just above its bottom; y = the box bottom.
+// A new track's feet: presence-weighted mean x of B across the box, just above its bottom; y = the box bottom.
 vec2 baseTarget(vec4 box) {
     float y = box.y + 0.5 * BASE_BAND;                           // screen heights = UV in y
     float w = 0.0, wx = 0.0;
@@ -41,6 +41,64 @@ float boxGap(vec4 a, vec4 b) {
     return length(toScreen(d));
 }
 
+// Presence-weighted mean x of B over [x0, x1], BASE_BAND / 2 above row y (.y: the total weight, in taps).
+vec2 feetBand(float x0, float x1, float y) {
+    float w = 0.0, wx = 0.0;
+    for (int i = 0; i < BASE_TAPS; i++) {
+        float x = mix(x0, x1, (float(i) + 0.5) / float(BASE_TAPS));
+        float p = texture(BB, vec2(x, y + 0.5 * BASE_BAND)).r;
+        w += p; wx += p * x;
+    }
+    return vec2(w > 1e-3 ? wx / w : 0.5 * (x0 + x1), w);
+}
+
+// A tracked person's feet, measured near their last base so that only their own feet count: in a
+// window BASE_WIN either side of it (and inside the box), the presence-weighted mean x of the feet
+// band. The window then re-centres on that x and measures again (mean shift), so it keeps up with a
+// walk but stays on the feet it started on: when the tracker merges a neighbour in, the box swells but
+// this doesn't move. y is the box bottom while the window finds feet there; if it doesn't, the bottom
+// is a merged neighbour's (nearer the camera), and y is this person's lowest body row in the window:
+// the bottom of B's runs through their legs BASE_UP above the last base. The whole box if no body is
+// near (they have moved off it faster than the window follows: that's a step).
+vec2 baseNear(vec4 box, vec2 last) {
+    float hw = BASE_WIN * iResolution.y / iResolution.x;         // screen heights → UV x
+    vec2  bRes = iChannelResolution[0].xy;
+    float up = min(last.y + BASE_UP, 1.0);
+    vec2  base = last;
+    for (int n = 0; n < BASE_ITERS; n++) {
+        float x0 = max(box.x, base.x - hw), x1 = min(box.z, base.x + hw);
+        if (x1 <= x0) return n == 0 ? baseTarget(box) : base;
+        vec2 f = feetBand(x0, x1, box.y);
+        if (f.y >= BASE_FEET) { base = vec2(f.x, box.y); continue; }
+        float lo = 2.0;
+        for (int i = 0; i < BASE_TAPS; i++) {
+            float x = mix(x0, x1, (float(i) + 0.5) / float(BASE_TAPS));
+            vec4  t = texelFetch(BB, ivec2(min(vec2(x, up) * bRes, bRes - 1.0)), 0);
+            if (t.r >= BODY_ON && t.b > 0.0) lo = min(lo, t.g);
+        }
+        if (lo > 1.0) return n == 0 ? baseTarget(box) : base;
+        base = vec2(feetBand(x0, x1, lo).x, lo);
+    }
+    return base;
+}
+
+// A neighbour within SPLIT_GAP changed tracker state this frame (it appeared, coasted, came back or
+// was lost): the tracker is merging them into slot k's person or splitting them off, and slot k's box
+// swells or shrinks with it. That isn't a step: slot k's person re-plants for REPLANT_S.
+bool contactChange(int k) {
+    vec4 box = recBox(BLOBS, k);
+    for (int j = 0; j < SLOTS; j++) {
+        vec4 idn = recIdn(BLOBS, j);
+        if (j == k || isState(idn.y, S_EMPTY)) continue;
+        bool changed = fresh(j) || !isState(cBase(C, j).w, idn.y);
+        if (changed && boxGap(box, recBox(BLOBS, j)) <= SPLIT_GAP) return true;
+    }
+    return false;
+}
+// BASE .z, seconds since the last step, is negative while re-planting: -(seconds still to go).
+bool replanting(int k)   { return contactChange(k) || cBase(C, k).z < 0.0; }
+bool walking(float since) { return since >= 0.0 && since < WALK_HOLD_S; }
+
 // Growth a new track at `base` starts from: a recent ghost standing there, or a live
 // neighbour its box overlaps or all but touches (a split, a merge, or a part of a planted
 // person). A newcomer further away starts bare, so nobody pops into bloom on arrival.
@@ -57,17 +115,23 @@ float inherit(int k, vec2 base) {
 }
 
 // ── BASE ──────────────────────────────────────────────────────────────────────
-// This frame's BASE for slot k: eased base, seconds since the last step, record state (for GHOST).
+// This frame's BASE for slot k: eased base, seconds since the last step (negative: re-planting),
+// record state (for GHOST, and to see a neighbour's state change).
 vec4 baseNext(int k, float dt) {
     vec4 idn = recIdn(BLOBS, k);
     if (isState(idn.y, S_EMPTY)) return vec4(0.0, 0.0, T_CLAMP, S_EMPTY);
     if (fresh(k)) return vec4(baseTarget(recBox(BLOBS, k)), T_CLAMP, idn.y);
     vec4 b = cBase(C, k);
+    bool rp = replanting(k);
+    if (contactChange(k)) b.z = -REPLANT_S;
     // A coasting or lost box drifts without a body under it: hold the base, so a dropped
-    // camera frame can't read as a step.
-    if (seen(idn.y)) b.xy = mix(b.xy, baseTarget(recBox(BLOBS, k)), 1.0 - exp(-dt / BASE_EASE_S));
-    bool step = length(toScreen(b.xy - cPerson(C, k).zw)) > WALK_DIST;
-    b.z = step ? 0.0 : min(b.z + dt, T_CLAMP);
+    // camera frame can't read as a step. Re-planting, the base snaps to the feet (and the spot with it).
+    if (seen(idn.y)) {
+        vec2 t = baseNear(recBox(BLOBS, k), b.xy);
+        b.xy = rp ? t : mix(b.xy, t, 1.0 - exp(-dt / BASE_EASE_S));
+    }
+    if (rp) b.z = b.z + dt < 0.0 ? b.z + dt : WALK_HOLD_S;      // planted again: not walking
+    else    b.z = length(toScreen(b.xy - cPerson(C, k).zw)) > WALK_DIST ? 0.0 : min(b.z + dt, T_CLAMP);
     b.w = idn.y;
     return b;
 }
@@ -79,9 +143,21 @@ vec4 personNext(int k, float dt, vec2 fc) {
     vec4 b = baseNext(k, dt);
     if (fresh(k)) return vec4(idn.x, inherit(k, b.xy), b.xy);
     vec4 p = cPerson(C, k);
-    if (b.z == 0.0) p.zw = b.xy;                                 // a step: the new spot is here
-    if (isState(idn.y, S_CONFIRMED)) {                           // tentative and coasting hold their level
-        float rate = b.z < WALK_HOLD_S ? -1.0 / REWIND_S : 1.0 / GROW_S;
+    if (b.z == 0.0 || replanting(k)) p.zw = b.xy;                // a step or a re-plant: the new spot is here
+    // Tentative and coasting hold their level, but a coasting track the tracker has merged into a
+    // neighbour's blob shares that neighbour's walking or not, so merged people grow (or rewind) together.
+    float since = b.z;                                           // seconds since the last step
+    bool  moves = isState(idn.y, S_CONFIRMED);
+    if (isState(idn.y, S_COASTING)) {
+        vec4 box = recBox(BLOBS, k);
+        since = T_CLAMP;
+        for (int j = 0; j < SLOTS; j++) {
+            if (j == k || fresh(j) || !isState(recIdn(BLOBS, j).y, S_CONFIRMED)) continue;
+            if (boxGap(box, recBox(BLOBS, j)) <= SPLIT_GAP) { moves = true; since = min(since, cBase(C, j).z); }
+        }
+    }
+    if (moves) {
+        float rate = walking(since) ? -1.0 / REWIND_S : 1.0 / GROW_S;
         // The step is a few half-float ulps: round it stochastically to GROW_Q, so the
         // expected growth is exact at any render rate.
         float h = hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997));

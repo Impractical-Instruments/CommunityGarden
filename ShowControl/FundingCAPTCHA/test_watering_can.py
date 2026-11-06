@@ -438,6 +438,57 @@ def test_merge_then_split_both_inherit(ctx):
     rig.release()
 
 
+def confirmed_near(rig, x_px):
+    """The level of the confirmed track whose base is nearest Body column x_px (a coasting or lost record of
+    the same person, left over from a merge or split, doesn't count)."""
+    ks = [k for k in live_slots(rig) if rig.base(k)[3] == 2]
+    assert ks, [rig.base(k) for k in live_slots(rig)]
+    return float(rig.person(min(ks, key=lambda k: abs(rig.base(k)[0] - x_px / BODY[0])))[1])
+
+
+@pytest.mark.parametrize("contact", ["every 0.3 s", "every 1 s", "50% of frames"])
+def test_touching_still_people_keep_growing(ctx, contact):
+    # Two people planted side by side with a 1-px gap. The tracker merges them into one blob whenever the
+    # gap is bridged; neither moves, so neither may lose growth to the box swelling and shrinking.
+    rng = np.random.default_rng(1)
+    a, b = person(x=10), person(x=23)
+    rig = Rig(ctx)
+    rig.run([a | b] * 60)
+    before = confirmed_near(rig, 16), confirmed_near(rig, 29)
+    frames = []
+    for k in range(100):
+        m = a | b
+        if {"every 0.3 s": k // 3 % 2 == 0, "every 1 s": k // 10 % 2 == 0, "50% of frames": rng.random() < 0.5}[contact]:
+            m[:, 22] = True                                   # bridged: one blob
+        frames.append(m)
+    rig.run(frames + [a | b] * 8)
+    after = confirmed_near(rig, 16), confirmed_near(rig, 29)
+    want = 10.8 / GROW_S                                      # still for 10.8 s
+    for g0, g1 in zip(before, after):
+        assert abs((g1 - g0) - want) < 0.15 * want, (contact, before, after)
+    rig.release()
+
+
+@pytest.mark.parametrize("feet", [44, 47])                    # the passer-by level with A, or nearer the camera
+def test_passer_by_costs_nothing_once_past(ctx, feet):
+    # Someone walks across in front of planted A (merging with them on the way). Merged, they share a level;
+    # once the passer-by is clear, A loses nothing more and grows at the full rate straight away.
+    rig = Rig(ctx)
+    a = person(x=26)                                          # spans Body columns 26..38
+    rig.run([a] * 100)
+    xs = list(range(-12, 64, 2))                              # 2 px per camera frame: a brisk walk
+    clear = xs.index(40)                                      # the passer-by's left edge 2 px past A's right edge
+    rig.run([a | person(x=x, feet=feet) for x in xs[:clear]])
+    levels = []
+    for m in [a | person(x=x, feet=feet) for x in xs[clear:]] + [a] * 20:
+        rig.run([m])
+        levels.append(confirmed_near(rig, 32))
+    assert all(y >= x - 1e-3 for x, y in zip(levels, levels[1:])), str(np.round(levels, 3))
+    want = (len(levels) - 1) / 10 / GROW_S
+    assert levels[-1] - levels[0] > 0.85 * want, (want, levels)
+    rig.release()
+
+
 def detached_arm(x=26, feet=44):
     """person(arm="out") with a 1-px gap between the outstretched arm and the torso: two blobs."""
     m = person(x=x, feet=feet, arm="out")
