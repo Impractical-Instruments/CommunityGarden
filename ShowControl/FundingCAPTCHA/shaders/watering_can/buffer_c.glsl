@@ -157,7 +157,8 @@ vec4 personNext(int k, float dt, vec2 fc) {
         }
     }
     if (moves) {
-        float rate = walking(since) ? -1.0 / REWIND_S : 1.0 / GROW_S;
+        float grow = p.y < GROW_EARLY ? GROW_EARLY / GROW_EARLY_S : (1.0 - GROW_EARLY) / (GROW_S - GROW_EARLY_S);
+        float rate = walking(since) ? -1.0 / REWIND_S : grow;
         // The step is a few half-float ulps: round it stochastically to GROW_Q, so the
         // expected growth is exact at any render rate.
         float h = hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997));

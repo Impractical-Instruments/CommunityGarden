@@ -28,6 +28,8 @@ const float LEAVE_S          = 2.0;      // a lost person's plants rewind away o
 const float HOLD_Q           = 1.0/128.0; // 0.9 * hold is stored in multiples of this, so it is exact in a half float for any owner
 // Garden
 const float GROW_S = 20.0, REWIND_S = 20.0;           // empty → full bloom, full bloom → empty
+const float GROW_EARLY = 0.3, GROW_EARLY_S = 2.0;     // growth starts fast, reaching GROW_EARLY in GROW_EARLY_S,
+                                                      // then slows to reach full bloom at GROW_S
 const float GROW_Q = 1.0/2048.0;        // growth is stored in multiples of this (a half float's step just below 1)
 const float BASE_BAND = 0.04;           // screen heights above the lowest body row that count as feet
 const int   BASE_TAPS = 16;
@@ -49,7 +51,7 @@ const float SPLIT_GAP = 0.03;            // a new track this close to a live one
                                         // inherits its growth: the tracker merges touching people, so a gap this small means a split
 const float SUN_FULL = 1.0, SUN_EASE_S = 1.5;         // total growth that fully lights the sun
 // Plants
-const float VINE_SPACING = 7.0/360.0;   // ~19 branches across an adult; their twigs fill between
+const float VINE_SPACING = 8.0/360.0;   // ~17 branches across an adult; their twigs fill between
 const int   VINE_NEIGHBOURS = 4;        // vines evaluated each side of a pixel. Was 2: a twig or flower reaches
                                         // ~4 vines sideways (wobble + sway + its size), and at 2 they were cut off
                                         // in visible straight lines. Lower it first if the Pi falls short of frame rate.
@@ -62,7 +64,7 @@ const float INK_W = 0.8/360.0;
 const float STEM_W = 4.0/360.0, STEM_TIP_W = 1.2/360.0;   // trunk width at its base and at its tip
 const float STEM_TAPER_H = 60.0/360.0;  // the trunk tapers over this much branch below its tip
 const float BARK_HATCH = 0.2, BARK_FREQ = 90.0;       // a broken ink stroke down the trunk's shaded side: offset (× width), dash rate
-const float TWIG_STEP = 16.0/360.0;     // twigs fork off every this much trunk, on alternating sides
+const float TWIG_STEP = 18.5/360.0;     // twigs fork off every this much trunk, on alternating sides
 const float TWIG_LEN = 11.0/360.0, TWIG_W = 1.8/360.0; // twig length, and width where it leaves the trunk
 const float TWIG_RISE = 0.6, TWIG_RISE_VAR = 0.35;    // twig angle above horizontal, and its random spread (radians)
 const float TWIG_FORK = 0.45;           // the fraction of twigs that fork once more, partway along...

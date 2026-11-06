@@ -316,6 +316,18 @@ def test_fading_hold_agrees_along_a_run(ctx, dt, per_cam):
 # ── Task 2: Garden state (Buffer C) ───────────────────────────────────────────
 
 GROW_S, INHERIT_S, SUN_EASE_S = K["GROW_S"], K["INHERIT_S"], K["SUN_EASE_S"]
+EARLY, EARLY_S = K["GROW_EARLY"], K["GROW_EARLY_S"]
+LATE_RATE = (1 - EARLY) / (GROW_S - EARLY_S)       # growth per second once past GROW_EARLY
+
+
+def grown(t):
+    """Growth after t seconds planted from bare: fast to GROW_EARLY, then slower to full bloom at GROW_S."""
+    return min(1.0, EARLY / EARLY_S * t if t <= EARLY_S else EARLY + LATE_RATE * (t - EARLY_S))
+
+
+def seconds_to(g):
+    """Seconds planted from bare to reach growth g (the inverse of grown)."""
+    return g / EARLY * EARLY_S if g <= EARLY else EARLY_S + (g - EARLY) / LATE_RATE
 COAST_S = 0.8                                      # BlobConfig max_miss_frames at 10 Hz: missing → lost
 # Walks start at x=16 so 30 steps never reach walking()'s bounce at 48: a walker who turns
 # back crosses their own last spot, and that stretch (~0.7 s) rightly isn't a step.
@@ -337,7 +349,7 @@ def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, n
     for _ in range(22):
         rig.run(flickering(10))
         levels.append(rig.person(0)[1])
-    assert abs(levels[9] - 0.5) < 0.06 and levels[-1] > 0.98, levels
+    assert abs(levels[9] - grown(10)) < 0.06 and levels[-1] > 0.98, levels
     assert all(b >= a - 1e-3 for a, b in zip(levels, levels[1:])), levels
     rig.release()
 
@@ -345,14 +357,14 @@ def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, n
 def test_arm_waving_does_not_rewind(ctx):
     rig = Rig(ctx)
     rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
-    assert abs(rig.person(0)[1] - 0.5) < 0.06, rig.person(0)
+    assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
     rig.release()
 
 
 def test_weight_shift_does_not_rewind(ctx):
     rig = Rig(ctx)
     rig.run([person(lift=(None, "L", None, "R")[k // 3 % 4]) for k in range(100)])
-    assert abs(rig.person(0)[1] - 0.5) < 0.06, rig.person(0)
+    assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
     rig.release()
 
 
@@ -383,7 +395,7 @@ def test_growth_resumes_after_walking(ctx):
     walk = walking(30, x=WALK_X)
     rig.run(walk)
     g1 = rig.person(0)[1]
-    assert 0.25 < g1 < 0.45, g1                    # rewound, not reset
+    assert abs(g1 - (grown(10) - 3.0 / K["REWIND_S"])) < 0.1, g1    # rewound, not reset
     levels = []
     for _ in range(3):
         rig.run([walk[-1]] * 10)
@@ -391,7 +403,7 @@ def test_growth_resumes_after_walking(ctx):
     # Walking lasts WALK_HOLD_S (plus easing) past the last step, so the first ~0.6 s still
     # rewinds a little; then it grows at the full rate from where the rewind got to, not from 0.
     assert all(g >= g1 - 0.05 for g in levels), (g1, levels)
-    assert abs((levels[-1] - levels[0]) - 2.0 / GROW_S) < 0.02, (g1, levels)
+    assert abs((levels[-1] - levels[0]) - 2.0 * LATE_RATE) < 0.02, (g1, levels)
     rig.release()
 
 
@@ -401,7 +413,7 @@ def test_neighbour_walking_does_not_rewind_still_person(ctx):
     assert len(live_slots(rig)) == 2
     still, walker = slot_near(rig, 52), slot_near(rig, 4)
     assert still != walker
-    assert abs(rig.person(still)[1] - 0.5) < 0.06, rig.person(still)
+    assert abs(rig.person(still)[1] - grown(10)) < 0.06, rig.person(still)
     assert rig.person(walker)[1] < 0.1, rig.person(walker)
     rig.release()
 
@@ -423,7 +435,7 @@ def test_merge_then_split_both_inherit(ctx):
     rig.run(both([person(x=4)] * 30, [person(x=40)] * 30))             # B arrives, 3 s
     assert len(live_slots(rig)) == 2
     ga, gb = rig.person(slot_near(rig, 10))[1], rig.person(slot_near(rig, 46))[1]
-    assert ga > 0.8 and gb < 0.2, (ga, gb)
+    assert ga > 0.8 and gb < 0.45, (ga, gb)
     # B slides left into A until their masks overlap (one blob), and they stand merged for 3 s
     rig.run(both([person(x=4)] * 26, [person(x=max(40 - k, 14)) for k in range(26)]))
     rig.run(both([person(x=4)] * 30, [person(x=14)] * 30))
@@ -463,7 +475,7 @@ def test_touching_still_people_keep_growing(ctx, contact):
         frames.append(m)
     rig.run(frames + [a | b] * 8)
     after = confirmed_near(rig, 16), confirmed_near(rig, 29)
-    want = 10.8 / GROW_S                                      # still for 10.8 s
+    want = 10.8 * LATE_RATE                                   # still for 10.8 s, past the early spurt
     for g0, g1 in zip(before, after):
         assert abs((g1 - g0) - want) < 0.15 * want, (contact, before, after)
     rig.release()
@@ -484,7 +496,7 @@ def test_passer_by_costs_nothing_once_past(ctx, feet):
         rig.run([m])
         levels.append(confirmed_near(rig, 32))
     assert all(y >= x - 1e-3 for x, y in zip(levels, levels[1:])), str(np.round(levels, 3))
-    want = (len(levels) - 1) / 10 / GROW_S
+    want = (len(levels) - 1) / 10 * LATE_RATE
     assert levels[-1] - levels[0] > 0.85 * want, (want, levels)
     rig.release()
 
@@ -518,7 +530,7 @@ def test_feet_off_frame(ctx):                                   # Review Focus 2
     for _ in range(10):
         rig.run(flickering(10, x=WALK_X, feet=48))
     g0 = rig.person(0)[1]
-    assert abs(g0 - 0.5) < 0.06, g0
+    assert abs(g0 - grown(10)) < 0.06, g0
     rig.run(walking(30, x=WALK_X, feet=48))
     assert abs((g0 - rig.person(0)[1]) - 3.0 / 20.0) < 0.05, (g0, rig.person(0))
     rig.release()
@@ -534,7 +546,7 @@ def test_new_person_far_from_ghosts_starts_bare(ctx):
     rig.run([person(x=46)] * 10)
     b = slot_near(rig, 52)
     assert rig.person(b)[0] != 0 and rig.ghost(0)[3] < INHERIT_S
-    assert rig.person(b)[1] < 0.05, rig.person(b)
+    assert rig.person(b)[1] < grown(1.0) + 0.02, rig.person(b)   # its own second of growth, nothing inherited
     rig.release()
 
 
@@ -579,7 +591,7 @@ def test_newcomer_beside_bloomed_person_starts_bare(ctx):
     a, b = slot_near(rig, 10), slot_near(rig, 26)
     assert a != b
     assert rig.person(a)[1] > 0.9
-    assert rig.person(b)[1] < 0.05, rig.person(b)
+    assert rig.person(b)[1] < grown(1.0) + 0.02, rig.person(b)   # its own second of growth, nothing inherited
     rig.release()
 
 
@@ -601,7 +613,7 @@ def test_growth_independent_of_render_rate(ctx, dt, per_cam):
     a.run([person()] * 150, frames_per_camera=3)              # 15 s: through the coarser steps above 0.5
     b = Rig(ctx, dt=dt)
     b.run([person()] * 150, frames_per_camera=per_cam)
-    assert abs(a.person(0)[1] - 0.73) < 0.06, a.person(0)
+    assert abs(a.person(0)[1] - grown(15)) < 0.06, a.person(0)
     assert abs(a.person(0)[1] - b.person(0)[1]) < 0.02, (a.person(0), b.person(0))
     a.release(); b.release()
 
@@ -765,7 +777,7 @@ def test_sun_region_is_top_right():
 
 
 def test_nothing_drawn_before_growth(ctx):         # anti-goal: never draw the silhouette
-    rig = grown_rig(ctx, 5)
+    rig = grown_rig(ctx, 4)
     assert 0 < rig.person(0)[1] < 0.03, rig.person(0)          # growing, barely
     assert drawn(rig.image()).mean() < 0.002
     rig.release()
@@ -787,7 +799,7 @@ def test_bloom_fills_the_silhouette(ctx):
 
 
 def test_growth_climbs_from_the_feet(ctx):
-    rig = grown_rig(ctx, 60)
+    rig = grown_rig(ctx, round(10 * seconds_to(0.3)))
     assert abs(rig.person(0)[1] - 0.3) < 0.05, rig.person(0)
     d, fig = drawn(rig.image()), person()
     top, bottom = on_screen(fig & rows(6, 19), IMG), on_screen(fig & rows(31, 44), IMG)   # thirds of rows 6..44
@@ -798,7 +810,7 @@ def test_growth_climbs_from_the_feet(ctx):
 
 def test_colour_ripens(ctx):
     sats = []
-    for frames, g in ((60, 0.3), (220, 1.0)):
+    for frames, g in ((round(10 * seconds_to(0.3)), 0.3), (220, 1.0)):
         rig = grown_rig(ctx, frames)
         assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
         img = rig.image()
@@ -809,7 +821,7 @@ def test_colour_ripens(ctx):
 
 def test_flowers_only_late(ctx):
     found = []
-    for frames, g in ((85, 0.4), (220, 1.0)):
+    for frames, g in ((round(10 * seconds_to(0.4)), 0.4), (220, 1.0)):
         rig = grown_rig(ctx, frames)
         assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
         img = rig.image()
