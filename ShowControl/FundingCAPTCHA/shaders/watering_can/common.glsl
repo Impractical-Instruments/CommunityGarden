@@ -51,20 +51,37 @@ const float SPLIT_GAP = 0.03;            // a new track this close to a live one
                                         // inherits its growth: the tracker merges touching people, so a gap this small means a split
 const float SUN_FULL = 1.0, SUN_EASE_S = 1.5;         // total growth that fully lights the sun
 // Plants
-const float VINE_SPACING = 4.5/360.0;   // ~30 vines across an adult, as the mockup's Dense panel
-const int   VINE_NEIGHBOURS = 4;        // vines evaluated each side of a pixel. Was 2: a leaf or flower reaches
-                                        // ~4.5 vines sideways (wobble + sway + its size), and at 2 they were cut off
+const float VINE_SPACING = 7.0/360.0;   // ~19 branches across an adult; their twigs fill between
+const int   VINE_NEIGHBOURS = 4;        // vines evaluated each side of a pixel. Was 2: a twig or flower reaches
+                                        // ~4 vines sideways (wobble + sway + its size), and at 2 they were cut off
                                         // in visible straight lines. Lower it first if the Pi falls short of frame rate.
-const float VINE_WOBBLE = 5.0/360.0, SWAY_AMP = 2.0/360.0, SWAY_HZ = 0.25;
-const float STEM_W = 2.2/360.0, INK_W = 1.2/360.0;
-const float LEAF_STEP = 18.0/360.0, LEAF_LEN = 9.0/360.0, LEAF_WID = 3.8/360.0;
+const float VINE_WOBBLE = 2.5/360.0, SWAY_AMP = 2.0/360.0, SWAY_HZ = 0.25;
+const float WOBBLE_FREQ = 21.6;         // radians per screen height up a branch (the mockup's 0.06 / px)
+const float KINK_AMP = 0.5, KINK_FREQ = 2.7;          // a second, faster wobble (× VINE_WOBBLE, × WOBBLE_FREQ): gnarled, not wavy
+const float INK_W = 0.8/360.0;
+// Branches are drawn as the concept art's: a filled, ink-outlined trunk that tapers to its tip, with
+// twigs forking off it (blended into it, so the outline runs round the fork) that end in sprigs of petals.
+const float STEM_W = 4.0/360.0, STEM_TIP_W = 1.2/360.0;   // trunk width at its base and at its tip
+const float STEM_TAPER_H = 60.0/360.0;  // the trunk tapers over this much branch below its tip
+const float BARK_HATCH = 0.2, BARK_FREQ = 90.0;       // a broken ink stroke down the trunk's shaded side: offset (× width), dash rate
+const float TWIG_STEP = 16.0/360.0;     // twigs fork off every this much trunk, on alternating sides
+const float TWIG_LEN = 11.0/360.0, TWIG_W = 1.8/360.0; // twig length, and width where it leaves the trunk
+const float TWIG_RISE = 0.6, TWIG_RISE_VAR = 0.35;    // twig angle above horizontal, and its random spread (radians)
+const float TWIG_FORK = 0.45;           // the fraction of twigs that fork once more, partway along...
+const float FORK_AT = 0.55, FORK_LEN = 0.5, FORK_ANG = 0.75;   // ... at this fraction of the twig, this × as long, turned up this far
+const float WOOD_FILLET = 1.5/360.0;    // the trunk and its twigs blend over this, so a fork reads as one piece of wood
+const float PAIR_H = 50.0/360.0;        // branches rise in pairs from one root, parting over about this much branch
+const float SPRIG_LEN = 7.5/360.0, SPRIG_WID = 1.5/360.0;     // a sprig's petals: length, half-width
+const float SPRIG_FAN = 0.85, SPRIG_LIFT = 0.6;       // petals fan ± this (radians) round the twig, turned up by this much
 const float FLOWER_FROM = 0.6, FLOWER_FULL = 0.9;     // growth at which buds start, and are fully open
 const float FLOWER_R = 8.0/360.0, BUD_R = 2.5/360.0;
 const float SAT_MIN = 0.1, SAT_MAX = 0.95;
-const float WOBBLE_FREQ = 21.6;         // radians per screen height up a vine (the mockup's 0.06 / px)
-const float LEAF_DROOP = 0.8, LEAF_DROOP_VAR = 0.3;   // leaf angle below horizontal, and its random spread (radians)
-const float SPROUT_H = 18.0/360.0;      // a stem fades in, and a leaf or bud grows in, over this much vine below it
-const float PETAL_R = 0.8, HEART_R = 0.45;            // petal and yellow-centre radius, as fractions of the flower radius
+const float SPROUT_H = 18.0/360.0;      // a trunk fades in, and a twig or bud grows in, over this much branch below it
+// The flower is a daisy: DAISY_N long petals round an oval centre, hatched in ink near their roots.
+const float PETAL_R = 0.8, HEART_R = 0.7;            // petals reach FLOWER_R × (1 + PETAL_R); centre radius, × FLOWER_R
+const int   DAISY_N = 12;
+const float DAISY_FRAC = 0.5;            // the fraction of branch tips that open into a daisy; the rest end in a sprig
+const float DAISY_PETAL_W = 0.3;        // a petal's half-width at its tip, × the flower radius
 const float PEN_MIN = 1.5;              // thinnest line, render pixels: thinner ones are drawn this wide but fainter
 const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r);
                                         // the Image taps B at ±REACH and ±REACH / 2 above and below each pixel

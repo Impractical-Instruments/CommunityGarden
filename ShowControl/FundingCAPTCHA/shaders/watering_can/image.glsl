@@ -2,18 +2,19 @@
 // p is in screen heights, origin bottom left, y up; screen-height y and UV y are the same number.
 //
 // Vine i stands at screen x i * VINE_SPACING. Where it crosses a run of body (B), it grows from
-// the run's bottom g toward its top b: stem, leaves on alternating sides, and a bud at the tip
-// that opens into a flower late. The drawing derives from B and the owner's growth every frame,
-// so the plants ride along on the body.
+// the run's bottom g toward its top b, drawn as the concept art's branches: a trunk tapering to its
+// tip, twigs forking up off it on alternating sides with sprigs of petals at their ends, and at the
+// tip a sprig, or on some branches a bud that opens into a daisy late. Branches rise in pairs from
+// one root, and all the wood near a pixel is one inked shape, so they merge and fork as the art's.
+// The drawing derives from B and the owner's growth every frame, so the plants ride along on the body.
 //
 // Each pixel looks at VINE_NEIGHBOURS vines each side and taps B on the vine's own x: at the
-// pixel's height, and a flower's reach above and below, so leaves and flowers hanging past the
+// pixel's height, and a flower's reach above and below, so twigs and flowers reaching past the
 // edge of the body still find their run; halfway between too, so a run thinner than a flower
 // (an outstretched arm, a hand) is found from every row its plants cover. The taps don't follow the
-// wobble: a vine's runs must be the same from one pixel row to the next, or its leaves and
-// flowers would be cut into strips (B's runs agree along a column for the same reason). One more
-// tap, at the pixel, keeps stems inside the body, and a leaf taps B at its node, only on the
-// pixels it covers, so leaves grow only from nodes on the body.
+// wobble: a vine's runs must be the same from one pixel row to the next, or its twigs and
+// flowers would be cut into strips (B's runs agree along a column for the same reason). A twig
+// taps B at its node, only on the pixels it covers, so twigs grow only from nodes on the body.
 
 const float TAU = 6.2831853;
 const int   NV  = 2 * VINE_NEIGHBOURS + 1;
@@ -41,8 +42,8 @@ vec3 hsl(float h, float s, float l) {             // h in degrees
     return l - s * min(l, 1.0 - l) * clamp(min(k - 3.0, 9.0 - k), -1.0, 1.0);
 }
 vec3 desaturate(vec3 c, float sat) { return mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, sat / SAT_MAX); }
-vec3 stemColour(float sat) { return hsl(105.0, sat, 0.28); }
-vec3 leafColour(float sat) { return hsl(110.0, sat, 0.44); }
+vec3 stemColour(float sat) { return hsl(95.0, sat, 0.34); }
+vec3 leafColour(float sat) { return hsl(100.0, sat, 0.58); }
 vec3 flowerColour(int i) {
     float h = hash12(vec2(float(i), 9.7));
     return h < 0.25 ? PINK : h < 0.5 ? ORANGE : h < 0.75 ? VIOLET : RUST;
@@ -90,54 +91,137 @@ bool tapRun(float x, float y, out Run r) {
     return r.tip > r.g;
 }
 
-// ── Vines ─────────────────────────────────────────────────────────────────────
+// ── Branches ──────────────────────────────────────────────────────────────────
 
 float vineHash(int i) { return hash12(vec2(float(i), 1.7)); }
-float wobbleX(int i, float y) {
-    return float(i) * VINE_SPACING + VINE_WOBBLE * sin(y * WOBBLE_FREQ + TAU * vineHash(i));
+float wobbleX(int i, float y) {                   // a slow wave and a faster kink: gnarled wood
+    float ph = TAU * vineHash(i);
+    return float(i) * VINE_SPACING
+         + VINE_WOBBLE * (sin(y * WOBBLE_FREQ + ph) + KINK_AMP * sin(y * WOBBLE_FREQ * KINK_FREQ + 2.0 * ph));
+}
+float wobbleSlope(int i, float y) {
+    float ph = TAU * vineHash(i);
+    return VINE_WOBBLE * WOBBLE_FREQ * (cos(y * WOBBLE_FREQ + ph) + KINK_AMP * KINK_FREQ * cos(y * WOBBLE_FREQ * KINK_FREQ + 2.0 * ph));
 }
 float swayX(int i, float y, Run r) {              // grows up the run
     float up = clamp((y - r.g) / max(r.b - r.g, 1e-3), 0.0, 1.0);
     return SWAY_AMP * up * sin(TAU * SWAY_HZ * iTime - 3.0 * float(i) * VINE_SPACING + vineHash(i));
 }
-float vineX(int i, float y, Run r) { return wobbleX(i, y) + swayX(i, y, r); }
+// Branches come up in pairs from one root: at the run's bottom both lean to their pair's middle,
+// and part over PAIR_H, so the wood forks in a Y as the art's.
+float pairX(int i, float y, Run r) {
+    float pr = floor(float(i) / 2.0);
+    float h  = PAIR_H * (0.6 + 0.8 * hash12(vec2(pr, 4.4)));
+    return (2.0 * pr + 0.5 - float(i)) * VINE_SPACING * (1.0 - smoothstep(0.0, h, y - r.g));
+}
+float vineX(int i, float y, Run r) { return wobbleX(i, y) + pairX(i, y, r) + swayX(i, y, r); }
 
 float sprout(float len) { return smoothstep(0.0, SPROUT_H, len); }
 
-void stem(inout vec4 acc, vec2 p, int i, Run r) {
-    float y  = clamp(p.y, r.g, r.tip);
-    float s  = VINE_WOBBLE * WOBBLE_FREQ * cos(y * WOBBLE_FREQ + TAU * vineHash(i));   // slope of the wobble
-    float dx = (p.x - vineX(i, y, r)) / sqrt(1.0 + s * s);
-    over(acc, stemColour(r.sat), lineA(length(vec2(dx, p.y - y)), STEM_W) * sprout(r.tip - r.g));
+float smin(float a, float b, float k) {           // polynomial smooth min: the fillet where a twig leaves the trunk
+    float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+    return mix(b, a, h) - k * h * (1.0 - h);
+}
+// A segment a → b, radius ra at a tapering to rb at b.
+float sdTaper(vec2 p, vec2 a, vec2 b, float ra, float rb) {
+    vec2  pa = p - a, ba = b - a;
+    float h  = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-10), 0.0, 1.0);
+    return length(pa - ba * h) - mix(ra, rb, h);
+}
+vec2 rot(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(c * v.x - s * v.y, s * v.x + c * v.y); }
+
+// Twig j of vine i: where it leaves the trunk (o), its tip (e), and its fork's tip (f; f == m when
+// it doesn't fork, m being where the fork leaves the twig). k is how far it has grown in, 0–1.
+struct Twig { vec2 o, e, m, f, dir; float k; bool fork; };
+
+Twig twigOf(int i, int j, Run r, float off, float flip) {
+    Twig t;
+    float yj   = r.g + (float(j) + off) * TWIG_STEP;
+    t.k        = sprout(r.tip - yj);                                  // grows in as the tip passes
+    float side = mod(float(j) + flip, 2.0) < 0.5 ? 1.0 : -1.0;
+    float a    = TWIG_RISE + TWIG_RISE_VAR * (2.0 * hash12(vec2(float(i), float(j) + 0.5)) - 1.0);
+    t.dir  = vec2(side * cos(a), sin(a));
+    t.o    = vec2(vineX(i, yj, r), yj);
+    t.e    = t.o + t.dir * TWIG_LEN * t.k;
+    t.m    = mix(t.o, t.e, FORK_AT);
+    t.fork = hash12(vec2(float(i), float(j) + 7.3)) < TWIG_FORK;
+    t.f    = t.fork ? t.m + rot(t.dir, side * FORK_ANG) * TWIG_LEN * FORK_LEN * t.k : t.m;
+    return t;
 }
 
-void leaves(inout vec4 acc, vec2 p, int i, Run r) {
-    float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));            // the first leaf, in steps above g
-    float flip = step(0.5, hash12(vec2(float(i), 5.3)));
-    float down = 2.0 * LEAF_LEN + LEAF_WID;                           // a leaf hangs at most this far below its node
-    int   j0   = max(int(ceil((p.y - LEAF_WID - r.g) / LEAF_STEP - off)), 0);
-    float rr   = 0.5 * (LEAF_LEN * LEAF_LEN / LEAF_WID + LEAF_WID); // vesica of half-length LEAF_LEN, half-width LEAF_WID
-    float dd   = rr - LEAF_WID;
-    for (int n = 2; n >= 0; n--) {                                    // top leaf first, so lower leaves overlap it
-        int   j  = j0 + n;
-        float yj = r.g + (float(j) + off) * LEAF_STEP;
-        if (yj > p.y + down || yj >= r.tip) continue;
-        float k  = sprout(r.tip - yj);                                // grows in as the tip passes
-        float side = mod(float(j) + flip, 2.0) < 0.5 ? 1.0 : -1.0;
-        float a  = LEAF_DROOP + LEAF_DROOP_VAR * (2.0 * hash12(vec2(float(i), float(j) + 0.5)) - 1.0);
-        vec2  dir = vec2(side * cos(a), -sin(a));
-        vec2  q   = p - (vec2(vineX(i, yj, r), yj) + dir * LEAF_LEN * k);
-        vec2  lq  = vec2(dot(q, vec2(-dir.y, dir.x)), dot(q, dir));   // across, along
-        float sd  = sdVesica(lq / max(k, 1e-3), rr, dd) * k;
+// A sprig: SPRIG petals fanned round direction d from point s, at scale k, with an ink vein each.
+void sprig(inout vec4 acc, vec2 p, vec2 s, vec2 d, float k, float seed, vec3 col) {
+    if (length(p - s) > SPRIG_LEN * k + INK_W + 2.0 * AA) return;
+    d = normalize(d + vec2(0.0, SPRIG_LIFT));                         // sprigs turn to the light
+    float half_len = 0.5 * SPRIG_LEN * k, wid = SPRIG_WID * k;
+    float rr = 0.5 * (half_len * half_len / max(wid, 1e-6) + wid);    // vesica of half-length half_len, half-width wid
+    float dd = rr - wid;
+    int   n  = 3 + int(2.0 * hash12(vec2(seed, 2.9)));                // 3 or 4 petals
+    float o  = min(1.0, 3.0 * k);                                     // solid long before it's full size: flat, not a wash
+    for (int m = 0; m < 4; m++) {
+        if (m >= n) break;
+        float a  = SPRIG_FAN * (2.0 * float(m) / float(n - 1) - 1.0) + 0.25 * (hash12(vec2(seed, float(m))) - 0.5);
+        vec2  u  = rot(d, a);
+        vec2  q  = p - (s + u * half_len);
+        vec2  lq = vec2(dot(q, vec2(-u.y, u.x)), dot(q, u));          // across, along
+        float sd = sdVesica(lq, rr, dd);
         if (sd > INK_W + 2.0 * AA) continue;
-        if (!onBody(tapB(wobbleX(i, yj), yj))) continue;              // leaves grow from nodes on the body
-        float o  = min(1.0, 3.0 * k);                                 // solid long before it's full size: flat, not a wash
-        inked(acc, leafColour(r.sat), sd, o);
-        float rib = length(vec2(lq.x, max(abs(lq.y) - 0.6 * LEAF_LEN, 0.0)));
-        over(acc, INK, lineA(rib, 0.6 * INK_W) * fillA(sd) * o);       // midrib
+        inked(acc, col, sd, o);
+        float vein = length(vec2(lq.x, max(abs(lq.y + 0.15 * half_len) - 0.45 * half_len, 0.0)));
+        over(acc, INK, lineA(vein, 0.6 * INK_W) * fillA(sd) * o);
     }
 }
 
+// Vine i's wood near p: its trunk and the twigs near p, blended into one
+// shape, as a signed distance. Out: bark, the ink of the trunk's bark stroke at p; sat, the wood's
+// saturation; nodes, a bit per twig j0 + n (n = 0–2) near p, for sprigs(); j0.
+float wood(vec2 p, int i, Run r, out float bark, out int nodes, out int j0) {
+    float o    = sprout(r.tip - r.g);
+    float y    = clamp(p.y, r.g, r.tip);
+    float dx   = (p.x - vineX(i, y, r)) / sqrt(1.0 + pow(wobbleSlope(i, y), 2.0));
+    float w    = mix(STEM_TIP_W, STEM_W, clamp((r.tip - y) / STEM_TAPER_H, 0.0, 1.0));
+    // A sprouting trunk is thinned past nothing, so its outline doesn't draw a line where it hasn't grown.
+    float trunk = length(vec2(dx, p.y - y)) - 0.5 * w + (1.0 - o) * 2.0 * INK_W;
+    float dash = smoothstep(0.45, 0.55, noise(vec2(y * BARK_FREQ, float(i) * 7.1)));
+    bark = lineA(dx - BARK_HATCH * w, 0.5 * INK_W) * fillA(trunk) * dash;
+    float sd   = trunk;
+
+    float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));            // the first twig, in steps above g
+    float flip = step(0.5, hash12(vec2(float(i), 5.3)));
+    float up   = (1.0 + FORK_LEN) * TWIG_LEN + SPRIG_LEN;             // a twig reaches at most this far above its node
+    float down = SPRIG_LEN;                                           // ... and this far below
+    j0    = max(int(ceil((p.y - up - r.g) / TWIG_STEP - off)), 0);
+    nodes = 0;
+    for (int n = 0; n < 3; n++) {
+        int j = j0 + n;
+        float yj = r.g + (float(j) + off) * TWIG_STEP;
+        if (yj > p.y + down || yj >= r.tip || abs(p.x - vineX(i, yj, r)) > up) continue;
+        if (!onBody(tapB(wobbleX(i, yj), yj))) continue;              // twigs grow from nodes on the body
+        nodes |= 1 << n;
+        Twig t = twigOf(i, j, r, off, flip);
+        float tw = 0.5 * TWIG_W * t.k, tip = 0.5 * STEM_TIP_W * t.k, thin = (1.0 - min(1.0, 3.0 * t.k)) * 2.0 * INK_W;
+        sd = smin(sd, sdTaper(p, t.o, t.e, tw, tip) + thin, WOOD_FILLET);
+        if (t.fork) sd = smin(sd, sdTaper(p, t.m, t.f, mix(tw, tip, FORK_AT), tip) + thin, WOOD_FILLET);
+    }
+    return sd;
+}
+
+// The sprigs on vine i's twigs near p (as wood() found them), top twig first, so lower ones overlap it.
+void sprigs(inout vec4 acc, vec2 p, int i, Run r, int nodes, int j0) {
+    float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));
+    float flip = step(0.5, hash12(vec2(float(i), 5.3)));
+    vec3  col  = leafColour(r.sat);
+    for (int n = 2; n >= 0; n--) {
+        if ((nodes & (1 << n)) == 0) continue;
+        int  j = j0 + n;
+        Twig t = twigOf(i, j, r, off, flip);
+        float seed = float(i) * 31.0 + float(j);
+        sprig(acc, p, t.e, t.dir, t.k, seed, col);
+        if (t.fork) sprig(acc, p, t.f, normalize(t.f - t.m + 1e-6), 0.8 * t.k, seed + 0.5, col);
+    }
+}
+
+// The trunk's tip: a sprig, or on DAISY_FRAC of branches a bud, which late in growth opens into a daisy.
 void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     float open = clamp((r.f - FLOWER_FROM) / (FLOWER_FULL - FLOWER_FROM), 0.0, 1.0);
     // The taps are REACH / 2 apart, so a run shorter than that isn't found from every row an open
@@ -149,6 +233,10 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     vec2  c   = vec2(mix(tip.x, float(i) * VINE_SPACING + swayX(i, r.tip, r), open), r.tip);
     if (length(p - c) > REACH + INK_W + 2.0 * AA && length(p - tip) > BUD_R + INK_W + 2.0 * AA) return;
     float k = sprout(r.tip - r.g);
+    if (hash12(vec2(float(i), 13.9)) >= DAISY_FRAC) {              // no daisy: the branch ends in a sprig
+        sprig(acc, p, tip, vec2(0.0, 1.0), k, float(i) * 31.0 - 7.0, leafColour(r.sat));
+        return;
+    }
     inked(acc, leafColour(r.sat), length(p - mix(tip, c, open)) - BUD_R * k, k);   // the bud, later the calyx
     if (open <= 0.0) return;
     vec2  q  = p - c;
@@ -156,14 +244,35 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     float e  = smoothstep(0.0, 0.25, open);                           // petals swell out of the bud
     vec3  pc = desaturate(flowerColour(i), r.sat);
     float a0 = TAU * hash12(vec2(float(i), 11.3));
-    for (int n = 0; n < 5; n++) {
-        float a = a0 + TAU * float(n) / 5.0;
-        inked(acc, pc, length(q - fr * vec2(cos(a), sin(a))) - PETAL_R * fr * e, 1.0);
-    }
-    inked(acc, desaturate(YELLOW, r.sat), length(q) - HEART_R * fr * e, 1.0);
+    float da = TAU / float(DAISY_N);
+    float r0 = 0.55 * fr, r1 = mix(r0, fr * (1.0 + PETAL_R), e), pw = DAISY_PETAL_W * fr * e;
+    // Only the three petals nearest p's angle can cover it (the centre hides where more overlap).
+    // Even petals lie under odd ones, the same at every pixel, so the overlaps agree.
+    int nn = int(floor((atan(q.y, q.x) - a0) / da + 0.5));
+    for (int pass = 0; pass < 2; pass++)
+        for (int m = nn - 1; m <= nn + 1; m++) {
+            float id = mod(float(m), float(DAISY_N));
+            if (int(mod(id, 2.0)) != pass) continue;
+            float a  = a0 + da * float(m) + 0.15 * (hash12(vec2(float(i), id)) - 0.5);
+            vec2  u  = vec2(cos(a), sin(a));
+            vec2  lq = vec2(dot(q, vec2(-u.y, u.x)), dot(q, u));      // across, along
+            float sd = sdTaper(lq, vec2(0.0, r0), vec2(0.0, r1 - pw), 0.7 * pw, pw);
+            if (sd > INK_W + 2.0 * AA) continue;
+            inked(acc, pc, sd, 1.0);
+            float root = 1.0 - smoothstep(r0, mix(r0, r1, 0.55), lq.y); // hatched in ink near the centre
+            over(acc, INK, lineA(abs(lq.x) - 0.4 * pw, 0.5 * INK_W) * fillA(sd) * root * e);
+        }
+    // The centre: an oval, hatched on its shaded side.
+    vec2  rad = HEART_R * fr * e * vec2(0.8, 1.05);
+    float hs  = length(q / rad) - 1.0;
+    float sd  = hs * min(rad.x, rad.y);
+    inked(acc, desaturate(YELLOW, r.sat), sd, 1.0);
+    float step_ = 0.22 * rad.y;
+    float stripe = abs(fract(q.y / step_) - 0.5) * step_;
+    over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
 }
 
-// The plants over transparent, premultiplied. Stems and leaves vine by vine, then buds and flowers on top.
+// The plants over transparent, premultiplied. Branches vine by vine, then buds and flowers on top.
 vec4 plants(vec2 fc) {
     vec2 p  = fc / iResolution.y;
     if (!cNear(iChannel1, p)) return vec4(0.0);                       // no body near (Buffer C's grid): paper, one fetch
@@ -193,15 +302,29 @@ vec4 plants(vec2 fc) {
     }
     vec4 acc = vec4(0.0);
     if (!found) return acc;                                           // nothing grows near: paper
-    bool inside = onBody(tapB(p.x, p.y));                             // stems stay inside the body
-    for (int v = 0; v < NV; v++) {
-        int i = i0 + v - VINE_NEIGHBOURS;
+    // All the wood near p is one shape, inked once: branches that meet merge, as the art's forks.
+    float wd = 1e3, bark = 0.0, sat = SAT_MIN;
+    int   nodes[NV * TAPS], j0s[NV * TAPS];
+    for (int v = 0; v < NV; v++)
         for (int t = 0; t < TAPS; t++) {
-            if (!has[v * TAPS + t]) continue;
-            if (inside) stem(acc, p, i, runs[v * TAPS + t]);
-            leaves(acc, p, i, runs[v * TAPS + t]);
+            int s = v * TAPS + t;
+            nodes[s] = 0;
+            if (!has[s]) continue;
+            float bk;
+            float d = wood(p, i0 + v - VINE_NEIGHBOURS, runs[s], bk, nodes[s], j0s[s]);
+            if (d < wd) sat = runs[s].sat;
+            wd = smin(wd, d, WOOD_FILLET);
+            bark = max(bark, bk);
         }
+    if (wd < INK_W + 2.0 * AA) {
+        inked(acc, stemColour(sat), wd, 1.0);
+        over(acc, INK, bark * fillA(wd));
     }
+    for (int v = 0; v < NV; v++)
+        for (int t = 0; t < TAPS; t++) {
+            int s = v * TAPS + t;
+            if (nodes[s] != 0) sprigs(acc, p, i0 + v - VINE_NEIGHBOURS, runs[s], nodes[s], j0s[s]);
+        }
     for (int v = 0; v < NV; v++)
         for (int t = 0; t < TAPS; t++)
             if (has[v * TAPS + t]) bloom(acc, p, i0 + v - VINE_NEIGHBOURS, runs[v * TAPS + t]);

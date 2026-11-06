@@ -624,7 +624,8 @@ def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 
 # ── Task 3: plants (Image) ────────────────────────────────────────────────────
 
 PAPER = np.array([246, 241, 228])
-FLOWER_R, LEAF_LEN = K["FLOWER_R"], K["LEAF_LEN"]
+FLOWER_R, REACH = K["FLOWER_R"], K["REACH"]
+TWIG_REACH = (1 + K["FORK_LEN"]) * K["TWIG_LEN"] + K["SPRIG_LEN"]   # a forked twig and its sprig, from its node
 SUN_POS, SUN_R, RAY_LEN = K["SUN_POS"], K["SUN_R"], K["RAY_LEN"]
 FLOWER_RGB = np.array([[232, 149, 127], [232, 134, 47], [107, 91, 149], [188, 76, 38]])   # pink, orange, violet, rust
 IMG = (256, 144)                                   # image tests: big enough that petals have pure-colour pixels
@@ -737,12 +738,13 @@ def test_bloom_fills_the_silhouette(ctx):
     assert rig.person(0)[1] > 0.99
     d, fig = drawn(rig.image()), on_screen(person(), IMG)
     assert d[fig].mean() >= 0.7, d[fig].mean()
-    # Overhang is leaves and flowers only: within FLOWER_R + LEAF_LEN (and a pixel of antialiasing) of the figure.
+    # Overhang is twigs, sprigs and flowers only: within a twig's or a daisy's reach (plus sway and a pixel
+    # of antialiasing) of the figure.
     x, y = screen_xy(IMG)
     fx, fy = x[fig], y[fig]
     out = d & ~fig
     far = [np.hypot(fx - x[r, c], fy - y[r, c]).min() for r, c in np.argwhere(out)]
-    assert out.sum() > 0 and max(far) <= FLOWER_R + LEAF_LEN + 1.5 / IMG[1], max(far)
+    assert out.sum() > 0 and max(far) <= max(TWIG_REACH, REACH) + K["SWAY_AMP"] + 1.5 / IMG[1], max(far)
     rig.release()
 
 
@@ -775,7 +777,7 @@ def test_flowers_only_late(ctx):
         img = rig.image()
         found.append((flower_pixels(img) & drawn(img)).sum())
         rig.release()
-    assert found[0] == 0 and found[1] > 100, found
+    assert found[0] == 0 and found[1] > 50, found       # only DAISY_FRAC of tips bloom, each petal partly hatched
 
 
 def test_vines_follow_the_arm(ctx):
@@ -783,7 +785,8 @@ def test_vines_follow_the_arm(ctx):
     # The raised arm above the head (arm-only columns, clear of the shoulders' flowers).
     arm = on_screen(rect(36, 0, 38, 8), IMG)
     assert drawn(rig.image())[arm].mean() > 0.5, drawn(rig.image())[arm].mean()
-    rig.run([person(arm="down")] * 3)
+    # 0.6 s: the rewinding tip clears in a few camera frames; twigs point up, so they outlast it by a frame or two
+    rig.run([person(arm="down")] * 6)
     assert drawn(rig.image())[arm].mean() < 0.1, drawn(rig.image())[arm].mean()
     rig.release()
 
