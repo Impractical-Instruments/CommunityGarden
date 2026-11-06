@@ -20,6 +20,7 @@ SIZE  = (128, 72)                         # render
 BODY  = (64, 48)                          # camera ROI (w, h)
 SLABS = [{"near_mm": 1000, "far_mm": 4000}]
 DT    = 1 / 30
+LEAVE_S = 2.0                              # shaders/watering_can/common.glsl
 BLOBS = BlobConfig(min_blob_pixels=20)    # the shipped defaults, but for the small test Body
 
 
@@ -43,8 +44,8 @@ def ctx():
 class Rig:
     """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at `dt`."""
 
-    def __init__(self, ctx, size=SIZE, dt=DT):
-        self.size, self.dt = size, dt
+    def __init__(self, ctx, size=SIZE, dt=DT, slot=0):
+        self.size, self.dt, self.slot = size, dt, slot   # slot: move the tracker's records there (owner = slot + 1)
         self.r = Renderer(ctx, size, body_mode="camera")
         self.r.load(load_setup(SETUP))
         self.blobs = BodyBlobs(BLOBS)
@@ -57,7 +58,7 @@ class Rig:
             self.r.upload_body(body)
             self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
             for _ in range(frames_per_camera):
-                self.r.upload_blobs(self.blobs.records(now=self.t))
+                self.r.upload_blobs(np.roll(self.blobs.records(now=self.t), self.slot, axis=1))
                 self.r.render(self.dt, (0, 0, 0, 0))
                 self.t += self.dt
 
@@ -223,4 +224,27 @@ def test_lost_person_holds_then_fades(ctx):
     h2 = b_at(rig, 32, 20)
     assert h2[3] == 0
     assert g1 > 0 and b1 > g1                         # the extents were kept while hold > 0
+    rig.release()
+
+
+@pytest.mark.parametrize("slot", [0, 7])               # owner 8 has the coarsest half-float spacing
+@pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 240, 24)])
+def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam, slot):
+    """A lost person's hold falls by 1/LEAVE_S per second, +/- 15%, at any render rate.
+    Measured as the slope of the mean hold over the torso between 0.5 s and 1.5 s into the fade."""
+    rig = Rig(ctx, dt=dt, slot=slot)
+    rig.run([person()] * 20, frames_per_camera=per_cam)
+
+    def hold():                                        # mean over a torso patch, so per-pixel noise averages out
+        a = np.array([b_at(rig, c, r)[3] for c in range(30, 35) for r in range(14, 22)])
+        return float(np.mean((a % 1.0) / 0.9))
+
+    h = []
+    for _ in range(16):
+        rig.run([EMPTY], frames_per_camera=per_cam)
+        h.append(hold())
+    assert h[1] < 1.0                                  # fading has started
+    # camera frames are 0.1 s apart: frames 4 -> 14 span 1.0 s
+    fall = h[4] - h[14]
+    assert abs(fall - 1.0 / LEAVE_S) < 0.15 * (1.0 / LEAVE_S), fall
     rig.release()

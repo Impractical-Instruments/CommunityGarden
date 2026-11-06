@@ -60,7 +60,7 @@ void mainImage(out vec4 o, in vec2 fc) {
         float ease = 1.0 - exp(-iTimeDelta / RUN_EASE_S);
         g = (!had || abs(lo - prev.g) > RUN_SNAP) ? lo : mix(prev.g, lo, ease);
         b = (!had || abs(hi - prev.b) > RUN_SNAP) ? hi : mix(prev.b, hi, ease);
-        a = float(own) + 0.9;
+        a = float(own) + floor(0.9 / HOLD_Q) * HOLD_Q;
     } else {
         int po = bOwner(prev);
         float ph = bHold(prev);
@@ -68,8 +68,12 @@ void mainImage(out vec4 o, in vec2 fc) {
             float st = recIdn(iChannel2, po - 1).y;
             // A missing body coasts first: keep its plants until the track is lost, then rewind them away.
             if (!isState(st, S_TENTATIVE) && !isState(st, S_CONFIRMED)) {
-                float h = ph - iTimeDelta / LEAVE_S;
-                if (h > 0.0) { g = prev.g; b = prev.b; a = float(po) + 0.9 * h; }
+                // The step is below a half float's resolution at high render rates, so round it
+                // stochastically to HOLD_Q: the expected fade is exact at any rate.
+                float f = fract(prev.a);
+                float d = 0.9 * iTimeDelta / LEAVE_S;
+                f -= floor(d / HOLD_Q + hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997))) * HOLD_Q;
+                if (f > 0.5 * HOLD_Q) { g = prev.g; b = prev.b; a = float(po) + f; }
             }
         }
     }

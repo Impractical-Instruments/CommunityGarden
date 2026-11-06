@@ -22,6 +22,7 @@ const float RUN_STEP_H       = 1.0/64.0; // march step, screen heights: RUN_STEP
 const float RUN_EASE_S       = 0.15;     // eases run extents; snaps when they jump more than RUN_SNAP
 const float RUN_SNAP         = 0.08;     // screen heights
 const float LEAVE_S          = 2.0;      // a lost person's plants rewind away over this
+const float HOLD_Q           = 1.0/128.0; // 0.9 * hold is stored in multiples of this, so it is exact in a half float for any owner
 // Garden
 const float GROW_S = 20.0, REWIND_S = 20.0;           // empty → full bloom, full bloom → empty
 const float BASE_BAND = 0.04;           // screen heights above the box bottom that count as feet
