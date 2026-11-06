@@ -149,6 +149,11 @@ def stepping_toward(n, **kw):
     return [person(feet=min(36 + k, 47), **kw) for k in range(n)]
 
 
+def both(a, b):
+    """Two people at once: the camera frames of two mask lists, overlaid."""
+    return [x | y for x, y in zip(a, b)]
+
+
 def owner(texel):
     return int(np.floor(texel[3]))
 
@@ -247,4 +252,212 @@ def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam, slot):
     # camera frames are 0.1 s apart: frames 4 -> 14 span 1.0 s
     fall = h[4] - h[14]
     assert abs(fall - 1.0 / LEAVE_S) < 0.15 * (1.0 / LEAVE_S), fall
+    rig.release()
+
+
+# ── Task 2: Garden state (Buffer C) ───────────────────────────────────────────
+
+GROW_S = 20.0                                      # shaders/watering_can/common.glsl
+INHERIT_S, SUN_EASE_S = 3.0, 1.5
+COAST_S = 0.8                                      # BlobConfig max_miss_frames at 10 Hz: missing → lost
+# Walks start at x=16 so 30 steps never reach walking()'s bounce at 48: a walker who turns
+# back crosses their own last spot, and that stretch (~0.7 s) rightly isn't a step.
+WALK_X = 16
+
+
+def live_slots(rig):
+    return [k for k in range(8) if rig.person(k)[0] != 0]
+
+
+def slot_near(rig, x_px):
+    """The live slot whose base is nearest Body column x_px."""
+    return min(live_slots(rig), key=lambda k: abs(rig.base(k)[0] - x_px / BODY[0]))
+
+
+def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, never loses growth
+    rig = Rig(ctx)
+    levels = []
+    for _ in range(22):
+        rig.run(flickering(10))
+        levels.append(rig.person(0)[1])
+    assert abs(levels[9] - 0.5) < 0.06 and levels[-1] > 0.98, levels
+    assert all(b >= a - 1e-3 for a, b in zip(levels, levels[1:])), levels
+    rig.release()
+
+
+def test_arm_waving_does_not_rewind(ctx):
+    rig = Rig(ctx)
+    rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
+    assert abs(rig.person(0)[1] - 0.5) < 0.06, rig.person(0)
+    rig.release()
+
+
+def test_weight_shift_does_not_rewind(ctx):
+    rig = Rig(ctx)
+    rig.run([person(lift=(None, "L", None, "R")[k // 3 % 4]) for k in range(100)])
+    assert abs(rig.person(0)[1] - 0.5) < 0.06, rig.person(0)
+    rig.release()
+
+
+def test_walking_sideways_rewinds(ctx):
+    rig = Rig(ctx)
+    rig.run([person(x=WALK_X)] * 100)
+    g0 = rig.person(0)[1]
+    rig.run(walking(30, x=WALK_X))
+    assert abs((g0 - rig.person(0)[1]) - 3.0 / 20.0) < 0.05, (g0, rig.person(0))
+    rig.release()
+
+
+def test_stepping_toward_camera_rewinds(ctx):
+    # Toward the camera for 1.1 s, then back away for 1.1 s. Detecting a step takes ~2 px of
+    # movement plus easing (~0.4 s, still growing meanwhile), so 1.1 s alone nets only ~0.01.
+    rig = Rig(ctx)
+    rig.run([person(feet=36)] * 100)
+    g0 = rig.person(0)[1]
+    assert g0 > 0.4
+    rig.run(stepping_toward(11) + [person(feet=46 - k) for k in range(11)])
+    assert rig.person(0)[1] < g0 - 0.03, (g0, rig.person(0))
+    rig.release()
+
+
+def test_growth_resumes_after_walking(ctx):
+    rig = Rig(ctx)
+    rig.run([person(x=WALK_X)] * 100)
+    walk = walking(30, x=WALK_X)
+    rig.run(walk)
+    g1 = rig.person(0)[1]
+    assert 0.25 < g1 < 0.45, g1                    # rewound, not reset
+    levels = []
+    for _ in range(3):
+        rig.run([walk[-1]] * 10)
+        levels.append(rig.person(0)[1])
+    # Walking lasts WALK_HOLD_S (plus easing) past the last step, so the first ~0.6 s still
+    # rewinds a little; then it grows at the full rate from where the rewind got to, not from 0.
+    assert all(g >= g1 - 0.05 for g in levels), (g1, levels)
+    assert abs((levels[-1] - levels[0]) - 2.0 / GROW_S) < 0.02, (g1, levels)
+    rig.release()
+
+
+def test_neighbour_walking_does_not_rewind_still_person(ctx):
+    rig = Rig(ctx)
+    rig.run(both([person(x=46)] * 100, walking(100, x=4, bounce=(4, 20))))
+    assert len(live_slots(rig)) == 2
+    still, walker = slot_near(rig, 52), slot_near(rig, 4)
+    assert still != walker
+    assert abs(rig.person(still)[1] - 0.5) < 0.06, rig.person(still)
+    assert rig.person(walker)[1] < 0.1, rig.person(walker)
+    rig.release()
+
+
+def test_brief_loss_keeps_growth(ctx):
+    rig = Rig(ctx)
+    rig.run([person()] * 100)
+    rig.run([EMPTY] * 20)                          # lost, then emptied: the track is gone
+    assert rig.person(0)[0] == 0
+    rig.run([person()] * 5)
+    assert rig.person(slot_of_live(rig))[1] > 0.45            # whichever slot and id it came back in
+    rig.release()
+
+
+def test_merge_then_split_both_inherit(ctx):
+    rig = Rig(ctx)
+    rig.run(both([person(x=4)] * 100, [person(x=40)] * 100))
+    assert len(live_slots(rig)) == 2
+    # B slides left into A until their masks overlap (one blob), and they stand merged for 3 s
+    rig.run(both([person(x=4)] * 26, [person(x=max(40 - k, 14)) for k in range(26)]))
+    rig.run(both([person(x=4)] * 30, [person(x=14)] * 30))
+    merged = max(rig.person(k)[1] for k in live_slots(rig))
+    assert merged > 0.4
+    # then B jumps back out: two blobs again
+    rig.run(both([person(x=4)] * 8, [person(x=22)] * 8))
+    live = live_slots(rig)
+    assert len(live) == 2, live
+    for k in live:
+        assert rig.person(k)[1] >= merged - 0.05, (merged, [rig.person(j) for j in live])
+    rig.release()
+
+
+def detached_arm(x=26, feet=44):
+    """person(arm="out") with a 1-px gap between the outstretched arm and the torso: two blobs."""
+    m = person(x=x, feet=feet, arm="out")
+    m[:, x + 10] = False
+    return m
+
+
+def test_split_off_part_inherits(ctx):                          # Review Focus 1
+    from body_blobs import find_blobs
+    arm = detached_arm()
+    sizes = sorted(d.pixels for d in find_blobs(arm, np.zeros(arm.shape), BLOBS.min_blob_pixels))
+    assert len(sizes) == 2 and sizes[0] >= BLOBS.min_blob_pixels, sizes   # really a second blob
+    rig = Rig(ctx)
+    rig.run([person(arm="out")] * 100)
+    g = rig.person(0)[1]
+    assert g > 0.4
+    rig.run([arm] * 20)
+    live = live_slots(rig)
+    assert len(live) == 2, live                    # a second live track exists
+    new = [k for k in live if k != 0][0]
+    assert rig.person(new)[1] >= rig.person(0)[1] - 0.05, (rig.person(0), rig.person(new))
+    rig.release()
+
+
+def test_feet_off_frame(ctx):                                   # Review Focus 2
+    rig = Rig(ctx)
+    for _ in range(10):
+        rig.run(flickering(10, x=WALK_X, feet=48))
+    g0 = rig.person(0)[1]
+    assert abs(g0 - 0.5) < 0.06, g0
+    rig.run(walking(30, x=WALK_X, feet=48))
+    assert abs((g0 - rig.person(0)[1]) - 3.0 / 20.0) < 0.05, (g0, rig.person(0))
+    rig.release()
+
+
+def test_new_person_far_from_ghosts_starts_bare(ctx):
+    rig = Rig(ctx)
+    rig.run([person(x=4)] * 100)
+    assert rig.person(0)[1] > 0.4
+    rig.run([EMPTY] * 10)                          # A is lost; its ghost is fresh
+    gh = rig.ghost(0)
+    assert gh[2] > 0.4 and gh[3] < INHERIT_S, gh
+    rig.run([person(x=46)] * 10)
+    b = slot_near(rig, 52)
+    assert rig.person(b)[0] != 0 and rig.ghost(0)[3] < INHERIT_S
+    assert rig.person(b)[1] < 0.05, rig.person(b)
+    rig.release()
+
+
+def test_sun_tracks_growth(ctx):
+    rig = Rig(ctx)
+    rig.run([EMPTY] * 30)
+    assert rig.sun()[0] < 0.02
+    rig.run([person()] * 220)
+    assert rig.sun()[0] > 0.95, rig.sun()
+    rig.run([EMPTY] * int(round((COAST_S + LEAVE_S + 3 * SUN_EASE_S) * 10)))
+    assert rig.sun()[0] < 0.05, rig.sun()
+    rig.release()
+
+
+@pytest.mark.parametrize("dt, per_cam", [(1 / 60, 6), (1 / 240, 24)])   # a half float stalls small steps
+def test_growth_independent_of_render_rate(ctx, dt, per_cam):
+    a = Rig(ctx, dt=1 / 30)
+    a.run([person()] * 150, frames_per_camera=3)              # 15 s: through the coarser steps above 0.5
+    b = Rig(ctx, dt=dt)
+    b.run([person()] * 150, frames_per_camera=per_cam)
+    assert abs(a.person(0)[1] - 0.73) < 0.06, a.person(0)
+    assert abs(a.person(0)[1] - b.person(0)[1]) < 0.02, (a.person(0), b.person(0))
+    a.release(); b.release()
+
+
+def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 4
+    rig = Rig(ctx)
+    rig.run([person()] * 10)
+    rig.r.render(200.0, (0, 0, 0, 0))              # one huge dt
+    rig.run([EMPTY] * 3)
+    rig.r.render(200.0, (0, 0, 0, 0))
+    rig.run([EMPTY] * 3)
+    for name in ("buffer_b", "buffer_c"):
+        v = rig.buf(name)
+        assert np.isfinite(v).all(), name
+    assert np.abs(rig.buf("buffer_c")).max() <= 99.0
+    assert rig.ghost(0)[3] > INHERIT_S             # the counters ran: the ghost is long gone
     rig.release()

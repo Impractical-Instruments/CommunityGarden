@@ -7,7 +7,7 @@
 //   .a owner + 0.9 * hold   (owner = slot + 1, 0 none; hold 0–1, 1 while the body is present)
 // Garden state (Buffer C), texel (x, y), k = slot 0–7:
 //   (k, 0) PERSON  id (0 none), growth 0–1, planted spot x, y (UV)
-//   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step, —
+//   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step, record state last frame
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
 //   (0, 3) SUN     sun level 0–1 (eased), raw total growth, —, —
 
@@ -25,6 +25,7 @@ const float LEAVE_S          = 2.0;      // a lost person's plants rewind away o
 const float HOLD_Q           = 1.0/128.0; // 0.9 * hold is stored in multiples of this, so it is exact in a half float for any owner
 // Garden
 const float GROW_S = 20.0, REWIND_S = 20.0;           // empty → full bloom, full bloom → empty
+const float GROW_Q = 1.0/2048.0;        // growth is stored in multiples of this (a half float's step just below 1)
 const float BASE_BAND = 0.04;           // screen heights above the box bottom that count as feet
 const int   BASE_TAPS = 16;
 const float BASE_EASE_S = 0.3;
