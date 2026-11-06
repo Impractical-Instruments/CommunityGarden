@@ -70,6 +70,13 @@ const int   NEAR_TAPS = int(ceil((NEAR_CELL + 2.0 * NEAR_PAD) / NEAR_STEP)) + 1;
 // Sun
 const vec2  SUN_POS = vec2(-0.16, 0.84);   // x from the right edge (screen heights), y as a fraction of height
 const float SUN_R = 0.09, RAY_LEN = 0.07;
+const int   SUN_RAYS = 12;               // crayon rays at full level
+const float SUN_MUTE = 0.8;              // paper mixed into the yellow at level 0 (0 = full yellow)
+const float SUN_EDGE_WOBBLE = 0.07;      // the disc's edge is broken by noise: ± this fraction of SUN_R
+const float SUN_GRAIN = 45.0;            // crayon grain scale, cycles per screen height
+const float SUN_COVER = 0.4;             // grain threshold: higher = more paper shows through the fill
+const float SUN_RAY_W = 0.011;           // ray half-width (screen heights), tapering to a point
+const float SUN_RAY_FROM = 1.2;          // rays start this many SUN_R from the centre
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const vec3 PAPER  = vec3(0.965, 0.945, 0.894);   // #f6f1e4

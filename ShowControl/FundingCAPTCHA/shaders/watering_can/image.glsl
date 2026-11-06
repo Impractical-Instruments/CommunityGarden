@@ -1,4 +1,4 @@
-// Image — paper and plants (the sun is Task 4).  iChannel0 = Buffer B, iChannel1 = Buffer C, iChannel2 = blobs
+// Image — paper, the crayon sun and plants.  iChannel0 = Buffer B, iChannel1 = Buffer C, iChannel2 = blobs
 // p is in screen heights, origin bottom left, y up; screen-height y and UV y are the same number.
 //
 // Vine i stands at screen x i * VINE_SPACING. Where it crosses a run of body (B), it grows from
@@ -208,9 +208,42 @@ vec4 plants(vec2 fc) {
     return acc;
 }
 
+// The crayon sun: a waxy, grain-filled disc with a noise-broken edge, and rays in the same hand.
+// Level 0 is a muted, paper-mixed yellow with no rays; level 1 is full yellow with its rays out.
+vec3 sunColour(vec2 fc) {
+    vec2 d = fc / iResolution.y - vec2(iResolution.x / iResolution.y + SUN_POS.x, SUN_POS.y);
+    float r = length(d);
+    if (r > SUN_R * (1.0 + SUN_EDGE_WOBBLE) + RAY_LEN) return PAPER;
+    float lv = clamp(cSun(iChannel1).x, 0.0, 1.0);
+    float t = iTime * 0.3;                                             // a slow wobble; nothing is stored
+    float grain = 0.6 * noise(d * SUN_GRAIN + t) + 0.4 * noise(vec2(d.x + d.y, d.x - d.y) * vec2(SUN_GRAIN * 0.2, SUN_GRAIN * 1.3));
+    float cov = 0.0;
+    float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * 25.0 + t) - 1.0));
+    if (r < edge) {
+        float rim = smoothstep(0.75, 1.0, r / edge);                   // the stroke round the edge is pressed harder
+        cov = smoothstep(SUN_COVER - 0.03, SUN_COVER + 0.03, grain + 0.25 * rim);
+    }
+    float len = RAY_LEN * lv;
+    float r0 = SUN_R * SUN_RAY_FROM;
+    if (len > 0.003 && r > r0 && r < SUN_R + len) {
+        float a = atan(d.y, d.x) / TAU * float(SUN_RAYS) + 0.02 * t;
+        float id = floor(a + 0.5);
+        float rl = (SUN_R + len - r0) * (0.8 + 0.2 * hash12(vec2(id, 3.1)));
+        float u = (r - r0) / rl;                                       // 0 at the root, 1 at the tip
+        float perp = (a - id + 0.1 * (hash12(vec2(id, 7.7)) - 0.5)) * TAU * r / float(SUN_RAYS);
+        float w = SUN_RAY_W * (1.0 - 0.6 * u) * (0.85 + 0.3 * noise(vec2(u * 6.0, id)));
+        if (u < 1.0 && abs(perp) < w) {
+            float rg = smoothstep(SUN_COVER - 0.2, SUN_COVER - 0.1, 0.7 * noise(d * SUN_GRAIN + 9.0) + 0.25 * (1.0 - u) + 0.3);
+            cov = max(cov, rg);
+        }
+    }
+    vec3 c = mix(mix(YELLOW, PAPER, SUN_MUTE), YELLOW, lv);
+    return mix(PAPER, c, cov);
+}
+
 void mainImage(out vec4 o, in vec2 fc) {
     AA = 1.0 / iResolution.y;
-    vec3 col = PAPER;                                                 // Task 4: the sun goes here, under the plants
+    vec3 col = sunColour(fc);                                         // the sun, under the plants
     vec4 pl  = plants(fc);
     o = vec4(pl.rgb + col * (1.0 - pl.a), 1.0);
 }

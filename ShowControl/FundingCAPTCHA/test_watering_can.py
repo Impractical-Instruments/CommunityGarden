@@ -720,3 +720,35 @@ def test_lost_person_plants_rewind_without_popping(ctx):
     assert all(p - c <= max(0.3 * p, 0.1 * n0) for p, c in zip(prev, counts)), (n0, counts)
     assert counts[4] > 0.5 * n0, (n0, counts)       # it rewinds: still mostly there half a second in
     rig.release()
+
+
+# ── Task 4: the crayon sun (Image) ────────────────────────────────────────────
+
+def sun_patch(img):
+    """(disc, ring) masks: pixels inside the sun's disc, and in the ring where its rays reach."""
+    size = (img.shape[1], img.shape[0])
+    x, y = screen_xy(size)
+    r = np.hypot(x - (size[0] / size[1] + SUN_POS[0]), y - SUN_POS[1])
+    return r <= 0.85 * SUN_R, (r >= 1.2 * SUN_R) & (r <= SUN_R + RAY_LEN)
+
+
+def test_sun_is_muted_when_empty(ctx):
+    rig = Rig(ctx, size=IMG)
+    rig.run([EMPTY] * 30)
+    img = rig.image()
+    disc, ring = sun_patch(img)
+    d = drawn(img, disc)
+    assert d.sum() > 0.3 * disc.sum(), (d.sum(), disc.sum())          # the sun is drawn, not paper
+    assert saturation(img[..., :3][d]).mean() < 0.35
+    assert drawn(img, ring).sum() == 0                                 # no rays
+    rig.release()
+
+
+def test_sun_brightens_and_grows_rays_with_bloom(ctx):
+    rig = grown_rig(ctx, 220)
+    img = rig.image()
+    disc, ring = sun_patch(img)
+    d = drawn(img, disc)
+    assert saturation(img[..., :3][d]).mean() > 0.7
+    assert drawn(img, ring).sum() > 0.15 * ring.sum(), (drawn(img, ring).sum(), ring.sum())
+    rig.release()
