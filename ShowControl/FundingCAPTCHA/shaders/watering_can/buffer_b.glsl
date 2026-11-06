@@ -33,14 +33,32 @@ int ownerAt(vec2 uv) {
     return best;
 }
 
-// How far the run extends from uv in direction dir (±1, in UV y) while previous presence stays on body.
+// Was this texel body last frame? From BODY_ON, and once body, until below BODY_OFF: hysteresis,
+// so a flickering edge holds still. (A held, fading texel has less than full hold: not body.)
+bool wasBody(vec4 t) {
+    bool run = t.g > 0.0 || t.b > 0.0;
+    return t.r >= BODY_ON || (run && t.r >= BODY_OFF && fract(t.a) > floor(0.9 / HOLD_Q) * HOLD_Q - 0.5 * HOLD_Q);
+}
+bool bodyAt(float x, float y) {
+    return wasBody(texelFetch(iChannel1, ivec2(min(vec2(x, y) * iResolution.xy, iResolution.xy - 1.0)), 0));
+}
+
+// How far the run extends from uv in direction dir (±1, in UV y) while last frame's body continues.
+// Every texel of a run must agree on its ends, or the plants tear into rows: the march steps on a
+// grid fixed to the screen, so the texels of a run all probe the same points along a ragged edge,
+// then bisects the last step to find the edge texel itself.
 float march(vec2 uv, float dir) {
-    float y = uv.y;
+    float y = uv.y, off = clamp(uv.y + dir * float(RUN_STEPS + 1) * RUN_STEP_H, 0.0, 1.0);
+    float k0 = dir > 0.0 ? floor(uv.y / RUN_STEP_H) : ceil(uv.y / RUN_STEP_H);
     for (int i = 1; i <= RUN_STEPS; i++) {
-        float ny = uv.y + dir * float(i) * RUN_STEP_H;
-        if (ny < 0.0 || ny > 1.0) break;
-        if (texture(iChannel1, vec2(uv.x, ny)).r < BODY_ON) break;
+        float ny = (k0 + dir * float(i)) * RUN_STEP_H;
+        if (ny < 0.0 || ny > 1.0) { off = clamp(ny, 0.0, 1.0); break; }
+        if (!bodyAt(uv.x, ny)) { off = ny; break; }
         y = ny;
+    }
+    for (int i = 0; i < RUN_REFINE; i++) {
+        float m = 0.5 * (y + off);
+        if (bodyAt(uv.x, m)) y = m; else off = m;
     }
     return y;
 }
@@ -53,14 +71,13 @@ void mainImage(out vec4 o, in vec2 fc) {
     float pres = iFrame == 0 ? target : mix(prev.r, target, 1.0 - exp(-iTimeDelta / PRESENCE_EASE_S));
 
     float g = 0.0, b = 0.0, a = 0.0;
-    if (pres >= BODY_ON) {
-        int own = ownerAt(uv);
+    bool had = prev.g > 0.0 || prev.b > 0.0;
+    if (pres >= BODY_ON || (wasBody(prev) && pres >= BODY_OFF)) {
         float lo = march(uv, -1.0), hi = march(uv, 1.0);
-        bool had = prev.g > 0.0 || prev.b > 0.0;
         float ease = 1.0 - exp(-iTimeDelta / RUN_EASE_S);
         g = (!had || abs(lo - prev.g) > RUN_SNAP) ? lo : mix(prev.g, lo, ease);
         b = (!had || abs(hi - prev.b) > RUN_SNAP) ? hi : mix(prev.b, hi, ease);
-        a = float(own) + floor(0.9 / HOLD_Q) * HOLD_Q;
+        a = float(ownerAt(uv)) + floor(0.9 / HOLD_Q) * HOLD_Q;
     } else {
         int po = bOwner(prev);
         float ph = bHold(prev);

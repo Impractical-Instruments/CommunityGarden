@@ -506,3 +506,180 @@ def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 
     assert np.abs(rig.buf("buffer_c")).max() <= 99.0
     assert rig.ghost(0)[3] > INHERIT_S             # the counters ran: the ghost is long gone
     rig.release()
+
+
+# ── Task 3: plants (Image) ────────────────────────────────────────────────────
+
+PAPER = np.array([246, 241, 228])
+FLOWER_R, LEAF_LEN = 8.0 / 360.0, 9.0 / 360.0     # shaders/watering_can/common.glsl
+SUN_POS, SUN_R, RAY_LEN = (-0.16, 0.84), 0.09, 0.07
+FLOWER_RGB = np.array([[232, 149, 127], [232, 134, 47], [107, 91, 149], [188, 76, 38]])   # pink, orange, violet, rust
+IMG = (256, 144)                                   # image tests: big enough that petals have pure-colour pixels
+
+
+def screen_xy(size):
+    """Pixel centres in screen heights, (h, w) each, row 0 = bottom."""
+    w, h = size
+    ys, xs = np.mgrid[0:h, 0:w]
+    return (xs + 0.5) / h, (ys + 0.5) / h
+
+
+def sun_region(size):
+    """Pixels the sun (Task 4) may draw on: within SUN_R + RAY_LEN of its centre."""
+    x, y = screen_xy(size)
+    cx = size[0] / size[1] + SUN_POS[0]
+    return np.hypot(x - cx, y - SUN_POS[1]) <= SUN_R + RAY_LEN
+
+
+def drawn(img, region=None):
+    """Pixels differing from paper by > 12 in any channel, within region (default: all but the sun's corner)."""
+    d = (np.abs(img[..., :3].astype(int) - PAPER) > 12).any(axis=-1)
+    if region is None:
+        region = ~sun_region((img.shape[1], img.shape[0]))
+    return d & region
+
+
+def on_screen(mask, size):
+    """A Body mask (row 0 = top) as screen pixels (row 0 = bottom): the camera view is stretched to the screen."""
+    w, h = size
+    ys, xs = np.mgrid[0:h, 0:w]
+    col = ((xs + 0.5) / w * BODY[0]).astype(int)
+    row = ((1 - (ys + 0.5) / h) * BODY[1]).astype(int)
+    return mask[row, col]
+
+
+def rows(r0, r1):
+    """Body rows r0..r1 (row 0 = top) as a Body mask."""
+    return rect(0, r0, BODY[0], r1)
+
+
+def saturation(px):
+    """HSV saturation of uint8 RGB pixels (n, 3)."""
+    px = px.astype(float)
+    mx, mn = px.max(axis=-1), px.min(axis=-1)
+    return np.where(mx > 0, (mx - mn) / np.maximum(mx, 1), 0.0)
+
+
+def flower_pixels(img):
+    """Pixels within 30 per channel of a flower colour."""
+    rgb = img[..., :3].astype(int)
+    return (np.abs(rgb[..., None, :] - FLOWER_RGB).max(axis=-1) <= 30).any(axis=-1)
+
+
+def grown_rig(ctx, frames, size=IMG, **kw):
+    rig = Rig(ctx, size=size)
+    rig.run([person(**kw)] * frames)
+    return rig
+
+
+def test_run_ends_agree_along_a_column(ctx):          # else the plants tear into rows
+    size = (640, 360)                               # the march's step is 5.6 px here
+    rig = Rig(ctx, size=size)
+    rig.run(flickering(20))
+    b = rig.buf("buffer_b")
+    for col in (29.5, 32.5, 34.5):                  # inside the legs and torso (an edge is ragged under flicker)
+        c = b[:, int(col / BODY[0] * size[0])]
+        run = c[(c[:, 0] > 0.9) & (c[:, 2] > 0)]
+        assert len(run) > 100
+        assert (np.ptp(run[:, 1:3], axis=0) < 1.0 / size[1]).all(), (col, np.ptp(run[:, 1:3], axis=0) * size[1])
+    rig.release()
+
+
+def test_sun_region_is_top_right():
+    r, (w, h) = sun_region(IMG), IMG
+    assert r[int(0.84 * h), int(w - 0.16 * h)]                 # its centre
+    assert not r[: h // 2].any() and not r[:, : w // 2].any()   # only in the top right quarter
+
+
+def test_nothing_drawn_before_growth(ctx):         # anti-goal: never draw the silhouette
+    rig = grown_rig(ctx, 5)
+    assert 0 < rig.person(0)[1] < 0.03, rig.person(0)          # growing, barely
+    assert drawn(rig.image()).mean() < 0.002
+    rig.release()
+
+
+def test_bloom_fills_the_silhouette(ctx):
+    rig = grown_rig(ctx, 220)
+    assert rig.person(0)[1] > 0.99
+    d, fig = drawn(rig.image()), on_screen(person(), IMG)
+    assert d[fig].mean() >= 0.7, d[fig].mean()
+    # Overhang is leaves and flowers only: within FLOWER_R + LEAF_LEN (and a pixel of antialiasing) of the figure.
+    x, y = screen_xy(IMG)
+    fx, fy = x[fig], y[fig]
+    out = d & ~fig
+    far = [np.hypot(fx - x[r, c], fy - y[r, c]).min() for r, c in np.argwhere(out)]
+    assert out.sum() > 0 and max(far) <= FLOWER_R + LEAF_LEN + 1.5 / IMG[1], max(far)
+    rig.release()
+
+
+def test_growth_climbs_from_the_feet(ctx):
+    rig = grown_rig(ctx, 60)
+    assert abs(rig.person(0)[1] - 0.3) < 0.05, rig.person(0)
+    d, fig = drawn(rig.image()), person()
+    top, bottom = on_screen(fig & rows(6, 19), IMG), on_screen(fig & rows(31, 44), IMG)   # thirds of rows 6..44
+    assert d[bottom].mean() > 0.5, d[bottom].mean()
+    assert d[top].mean() < 0.1, d[top].mean()
+    rig.release()
+
+
+def test_colour_ripens(ctx):
+    sats = []
+    for frames, g in ((60, 0.3), (220, 1.0)):
+        rig = grown_rig(ctx, frames)
+        assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
+        img = rig.image()
+        sats.append(saturation(img[..., :3][drawn(img)]).mean())
+        rig.release()
+    assert sats[0] < sats[1] - 0.25, sats
+
+
+def test_flowers_only_late(ctx):
+    found = []
+    for frames, g in ((85, 0.4), (220, 1.0)):
+        rig = grown_rig(ctx, frames)
+        assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
+        img = rig.image()
+        found.append((flower_pixels(img) & drawn(img)).sum())
+        rig.release()
+    assert found[0] == 0 and found[1] > 100, found
+
+
+def test_vines_follow_the_arm(ctx):
+    rig = grown_rig(ctx, 220, arm="up")
+    # The raised arm above the head (arm-only columns, clear of the shoulders' flowers).
+    arm = on_screen(rect(36, 0, 38, 8), IMG)
+    assert drawn(rig.image())[arm].mean() > 0.5, drawn(rig.image())[arm].mean()
+    rig.run([person(arm="down")] * 3)
+    assert drawn(rig.image())[arm].mean() < 0.1, drawn(rig.image())[arm].mean()
+    rig.release()
+
+
+def test_bloom_is_stable_under_flicker(ctx):        # Review Focus 3
+    rig = Rig(ctx, size=IMG)
+    rig.run(flickering(220))
+    fig = on_screen(person(), IMG)
+    prev, deltas = rig.image()[..., :3].astype(int), []
+    for k in range(10):
+        rig.run(flickering(1, seed=100 + k))
+        img = rig.image()[..., :3].astype(int)
+        deltas.append(np.abs(img - prev)[fig].mean())
+        prev = img
+    assert max(deltas) < 6, deltas
+    rig.release()
+
+
+def test_lost_person_plants_rewind_without_popping(ctx):
+    rig = grown_rig(ctx, 220)
+    n0, counts = drawn(rig.image()).sum(), []
+    for _ in range(40):
+        rig.run([EMPTY])
+        counts.append(drawn(rig.image()).sum())
+    end = int(round((1.5 + LEAVE_S + 0.5) * 10))
+    assert counts[end - 1] == 0, counts
+    # No popping: no camera frame loses more than 30% of the previous count. A steady fade over
+    # LEAVE_S loses ~5% of the bloom a frame, so near its end that is more than 30% of what's
+    # left: drops of up to 10% of the full bloom (twice the steady rate) are allowed too.
+    prev = [n0] + counts[:-1]
+    assert all(p - c <= max(0.3 * p, 0.1 * n0) for p, c in zip(prev, counts)), (n0, counts)
+    assert counts[4] > 0.5 * n0, (n0, counts)       # it rewinds: still mostly there half a second in
+    rig.release()

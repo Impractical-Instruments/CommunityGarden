@@ -17,8 +17,10 @@ const float T_CLAMP = 99.0;              // every "seconds since" counter clamps
 const float BODY_BLUR_TEXELS = 1.5, HOLE_FILL_TEXELS = 2.5;   // as endless_sunset
 const float PRESENCE_EASE_S  = 0.12;     // eases presence so 1-px edge flicker averages out
 const float BODY_ON          = 0.5;      // presence above this is body
+const float BODY_OFF         = 0.3;      // ... and a texel stays body until below this, so a flickering edge holds still
 const int   RUN_STEPS        = 64;       // max march taps each way
 const float RUN_STEP_H       = 1.0/64.0; // march step, screen heights: RUN_STEPS of them cover a full screen height
+const int   RUN_REFINE       = 6;        // bisections of the last march step, down to the edge texel (to 1080p), so a run's texels agree
 const float RUN_EASE_S       = 0.15;     // eases run extents; snaps when they jump more than RUN_SNAP
 const float RUN_SNAP         = 0.08;     // screen heights
 const float LEAVE_S          = 2.0;      // a lost person's plants rewind away over this
@@ -37,13 +39,20 @@ const float SPLIT_GAP = 0.03;            // a new track this close to a live one
 const float SUN_FULL = 1.0, SUN_EASE_S = 1.5;         // total growth that fully lights the sun
 // Plants
 const float VINE_SPACING = 4.5/360.0;   // ~30 vines across an adult, as the mockup's Dense panel
-const int   VINE_NEIGHBOURS = 2;        // vines evaluated each side of a pixel
+const int   VINE_NEIGHBOURS = 4;        // vines evaluated each side of a pixel. Was 2: a leaf or flower reaches
+                                        // ~4.5 vines sideways (wobble + sway + its size), and at 2 they were cut off
+                                        // in visible straight lines. Lower it first if the Pi falls short of frame rate.
 const float VINE_WOBBLE = 5.0/360.0, SWAY_AMP = 2.0/360.0, SWAY_HZ = 0.25;
 const float STEM_W = 2.2/360.0, INK_W = 1.2/360.0;
 const float LEAF_STEP = 18.0/360.0, LEAF_LEN = 9.0/360.0, LEAF_WID = 3.8/360.0;
 const float FLOWER_FROM = 0.6, FLOWER_FULL = 0.9;     // growth at which buds start, and are fully open
 const float FLOWER_R = 8.0/360.0, BUD_R = 2.5/360.0;
 const float SAT_MIN = 0.1, SAT_MAX = 0.95;
+const float WOBBLE_FREQ = 21.6;         // radians per screen height up a vine (the mockup's 0.06 / px)
+const float LEAF_DROOP = 0.8, LEAF_DROOP_VAR = 0.3;   // leaf angle below horizontal, and its random spread (radians)
+const float SPROUT_H = 18.0/360.0;      // a stem fades in, and a leaf or bud grows in, over this much vine below it
+const float PETAL_R = 0.8, HEART_R = 0.45;            // petal and yellow-centre radius, as fractions of the flower radius
+const float PEN_MIN = 1.5;              // thinnest line, render pixels: thinner ones are drawn this wide but fainter
 // Sun
 const vec2  SUN_POS = vec2(-0.16, 0.84);   // x from the right edge (screen heights), y as a fraction of height
 const float SUN_R = 0.09, RAY_LEN = 0.07;
