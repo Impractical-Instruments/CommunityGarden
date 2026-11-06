@@ -1,0 +1,9 @@
+{
+  "_comment": "Watering can: stay put and vines grow up your silhouette and bloom; walking rewinds. Spec: docs/superpowers/specs/2026-11-06-watering-can-design.md",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["A", "B", "blobs"],
+    "buffer_c": ["B", "C", "blobs"],
+    "image":    ["B", "C", "blobs"]
+  }
+}
