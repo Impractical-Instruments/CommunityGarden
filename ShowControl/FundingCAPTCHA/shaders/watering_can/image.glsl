@@ -221,6 +221,37 @@ void sprigs(inout vec4 acc, vec2 p, int i, Run r, int nodes, int j0) {
     }
 }
 
+// A daisy at q = 0 of radius fr (its petals' ring; they reach fr × (1 + PETAL_R)), petals swollen e of
+// the way out, in petal colour pc; seed picks its turn and petal jitter.
+void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, float sat, float seed) {
+    float a0 = TAU * hash12(vec2(seed, 11.3));
+    float da = TAU / float(DAISY_N);
+    float r0 = 0.55 * fr, r1 = mix(r0, fr * (1.0 + PETAL_R), e), pw = DAISY_PETAL_W * fr * e;
+    // Only the three petals nearest q's angle can cover it (the centre hides where more overlap).
+    // Even petals lie under odd ones, the same at every pixel, so the overlaps agree.
+    int nn = int(floor((atan(q.y, q.x) - a0) / da + 0.5));
+    for (int pass = 0; pass < 2; pass++)
+        for (int m = nn - 1; m <= nn + 1; m++) {
+            float id = mod(float(m), float(DAISY_N));
+            if (int(mod(id, 2.0)) != pass) continue;
+            float a  = a0 + da * float(m) + 0.15 * (hash12(vec2(seed, id)) - 0.5);
+            vec2  u  = vec2(cos(a), sin(a));
+            vec2  lq = vec2(dot(q, vec2(-u.y, u.x)), dot(q, u));      // across, along
+            float sd = sdTaper(lq, vec2(0.0, r0), vec2(0.0, r1 - pw), 0.7 * pw, pw);
+            if (sd > INK_W + 2.0 * AA) continue;
+            inked(acc, pc, sd, 1.0);
+            float root = 1.0 - smoothstep(r0, mix(r0, r1, 0.55), lq.y); // hatched in ink near the centre
+            over(acc, INK, lineA(abs(lq.x) - 0.4 * pw, 0.5 * INK_W) * fillA(sd) * root * e);
+        }
+    // The centre: an oval, hatched on its shaded side.
+    vec2  rad = HEART_R * fr * e * vec2(0.8, 1.05);
+    float sd  = (length(q / rad) - 1.0) * min(rad.x, rad.y);
+    inked(acc, desaturate(YELLOW, sat), sd, 1.0);
+    float step_  = 0.22 * rad.y;
+    float stripe = abs(fract(q.y / step_) - 0.5) * step_;
+    over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
+}
+
 // The trunk's tip: a sprig, or on DAISY_FRAC of branches a bud, which late in growth opens into a daisy.
 void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     float open = clamp((r.f - FLOWER_FROM) / (FLOWER_FULL - FLOWER_FROM), 0.0, 1.0);
@@ -239,37 +270,8 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     }
     inked(acc, leafColour(r.sat), length(p - mix(tip, c, open)) - BUD_R * k, k);   // the bud, later the calyx
     if (open <= 0.0) return;
-    vec2  q  = p - c;
     float fr = mix(BUD_R, FLOWER_R, open);
-    float e  = smoothstep(0.0, 0.25, open);                           // petals swell out of the bud
-    vec3  pc = desaturate(flowerColour(i), r.sat);
-    float a0 = TAU * hash12(vec2(float(i), 11.3));
-    float da = TAU / float(DAISY_N);
-    float r0 = 0.55 * fr, r1 = mix(r0, fr * (1.0 + PETAL_R), e), pw = DAISY_PETAL_W * fr * e;
-    // Only the three petals nearest p's angle can cover it (the centre hides where more overlap).
-    // Even petals lie under odd ones, the same at every pixel, so the overlaps agree.
-    int nn = int(floor((atan(q.y, q.x) - a0) / da + 0.5));
-    for (int pass = 0; pass < 2; pass++)
-        for (int m = nn - 1; m <= nn + 1; m++) {
-            float id = mod(float(m), float(DAISY_N));
-            if (int(mod(id, 2.0)) != pass) continue;
-            float a  = a0 + da * float(m) + 0.15 * (hash12(vec2(float(i), id)) - 0.5);
-            vec2  u  = vec2(cos(a), sin(a));
-            vec2  lq = vec2(dot(q, vec2(-u.y, u.x)), dot(q, u));      // across, along
-            float sd = sdTaper(lq, vec2(0.0, r0), vec2(0.0, r1 - pw), 0.7 * pw, pw);
-            if (sd > INK_W + 2.0 * AA) continue;
-            inked(acc, pc, sd, 1.0);
-            float root = 1.0 - smoothstep(r0, mix(r0, r1, 0.55), lq.y); // hatched in ink near the centre
-            over(acc, INK, lineA(abs(lq.x) - 0.4 * pw, 0.5 * INK_W) * fillA(sd) * root * e);
-        }
-    // The centre: an oval, hatched on its shaded side.
-    vec2  rad = HEART_R * fr * e * vec2(0.8, 1.05);
-    float hs  = length(q / rad) - 1.0;
-    float sd  = hs * min(rad.x, rad.y);
-    inked(acc, desaturate(YELLOW, r.sat), sd, 1.0);
-    float step_ = 0.22 * rad.y;
-    float stripe = abs(fract(q.y / step_) - 0.5) * step_;
-    over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
+    daisy(acc, p - c, fr, smoothstep(0.0, 0.25, open), desaturate(flowerColour(i), r.sat), r.sat, float(i));
 }
 
 // The plants over transparent, premultiplied. Branches vine by vine, then buds and flowers on top.
@@ -331,6 +333,61 @@ vec4 plants(vec2 fc) {
     return acc;
 }
 
+// ── Footprints ────────────────────────────────────────────────────────────────
+// Where a walker steps, Buffer C leaves a footprint: a clump of FOOT_SPROUTS little branches grows up
+// off the floor there, each with a twig and a sprig, the middle one ending in a small daisy. It grows
+// fast, holds, then rewinds away (footGrowth). Drawn as the body's plants are, but stands on its own.
+
+void footprint(inout vec4 acc, vec2 p, vec2 at, float g, float seed) {
+    if (abs(p.x - at.x) > FOOT_REACH_X || p.y < at.y - FOOT_REACH_DOWN || p.y > at.y + FOOT_REACH_UP) return;
+    float sat  = mix(SAT_MIN, SAT_MAX, g);
+    float wd   = 1e3;
+    vec2  tips[FOOT_SPROUTS], twigs[FOOT_SPROUTS], dirs[FOOT_SPROUTS];
+    float ks[FOOT_SPROUTS];
+    for (int s = 0; s < FOOT_SPROUTS; s++) {                          // the wood: stems and twigs, one shape
+        float h  = hash12(vec2(seed, float(s) + 0.5));
+        float x  = at.x + FOOT_SPREAD * (2.0 * (float(s) + 0.5) / float(FOOT_SPROUTS) - 1.0 + 0.4 * (h - 0.5));
+        float ht = FOOT_H * (0.6 + 0.4 * hash12(vec2(seed, float(s) + 3.5))) * g;
+        float lean = FOOT_LEAN * (2.0 * hash12(vec2(seed, float(s) + 6.5)) - 1.0);
+        vec2  o  = vec2(x, at.y);
+        tips[s]  = o + vec2(lean * ht, ht);
+        float tw = 0.5 * STEM_W * min(1.0, 3.0 * g), tip = 0.5 * STEM_TIP_W * g, thin = (1.0 - min(1.0, 3.0 * g)) * 2.0 * INK_W;
+        wd = smin(wd, sdTaper(p, o, tips[s], tw, tip) + thin, WOOD_FILLET);
+        // One twig, halfway up, on alternating sides.
+        float side = mod(float(s), 2.0) < 0.5 ? 1.0 : -1.0;
+        vec2  n  = mix(o, tips[s], 0.5);
+        dirs[s]  = vec2(side * cos(TWIG_RISE), sin(TWIG_RISE));
+        ks[s]    = smoothstep(0.3, 0.7, g);
+        twigs[s] = n + dirs[s] * TWIG_LEN * 0.7 * ks[s];
+        wd = smin(wd, sdTaper(p, n, twigs[s], 0.5 * TWIG_W * ks[s], tip) + (1.0 - min(1.0, 3.0 * ks[s])) * 2.0 * INK_W, WOOD_FILLET);
+    }
+    if (wd < INK_W + 2.0 * AA) inked(acc, stemColour(sat), wd, 1.0);
+    for (int s = 0; s < FOOT_SPROUTS; s++) {                          // then sprigs, and the middle one's daisy
+        float sd = seed * 17.0 + float(s);
+        if (ks[s] > 0.0) sprig(acc, p, twigs[s], dirs[s], ks[s], sd, leafColour(sat));
+        if (s == FOOT_SPROUTS / 2) {
+            float open = smoothstep(FOOT_FLOWER_FROM, 1.0, g);
+            if (open > 0.0 && length(p - tips[s]) < FOOT_FLOWER_R * (1.0 + PETAL_R) + INK_W + 2.0 * AA)
+                daisy(acc, p - tips[s], FOOT_FLOWER_R * open, smoothstep(0.0, 0.25, open),
+                      desaturate(flowerColour(int(seed * 97.0)), sat), sat, sd);
+        } else sprig(acc, p, tips[s], vec2(0.0, 1.0), g, sd + 0.5, leafColour(sat));
+    }
+}
+
+// Every live footprint near p, over transparent, premultiplied.
+vec4 footprints(vec2 fc) {
+    vec2  p = fc / iResolution.y;
+    vec4  acc = vec4(0.0);
+    if (!cNear(iChannel1, p)) return acc;                             // the near grid counts footprints too
+    float aspect = iResolution.x / iResolution.y;
+    for (int f = 0; f < FOOTPRINTS; f++) {
+        vec4 ft = cFoot(iChannel1, f);
+        float g = footGrowth(ft.z);
+        if (g > 0.0) footprint(acc, p, vec2(ft.x * aspect, ft.y), g, ft.w);
+    }
+    return acc;
+}
+
 // The crayon sun: a waxy, grain-filled disc with a noise-broken edge, and rays in the same hand.
 // Level 0 is a muted, paper-mixed yellow with no rays; level 1 is full yellow with its rays out.
 vec3 sunColour(vec2 fc) {
@@ -367,6 +424,8 @@ vec3 sunColour(vec2 fc) {
 void mainImage(out vec4 o, in vec2 fc) {
     AA = 1.0 / iResolution.y;
     vec3 col = sunColour(fc);                                         // the sun, under the plants
+    vec4 fp  = footprints(fc);                                        // behind the people
+    col = fp.rgb + col * (1.0 - fp.a);
     vec4 pl  = plants(fc);
     o = vec4(pl.rgb + col * (1.0 - pl.a), 1.0);
 }

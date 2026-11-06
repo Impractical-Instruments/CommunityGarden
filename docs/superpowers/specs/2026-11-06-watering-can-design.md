@@ -123,3 +123,9 @@ The walking threshold, and how often the real tracker drops or re-IDs a still pe
 - How vines are generated procedurally: placement, wobble, leaf rhythm, flower shapes, bud-to-bloom animation, and how vines follow a moving silhouette without shimmering.
 - The crayon texture technique for the sun, and the ray style.
 - Exact line weights and default constants beyond those stated.
+
+## Revisions after the first build
+
+- **Look:** the vines are drawn after the concept art's branches. Trunks taper and are ink-outlined, and they rise in pairs and merge where they meet. Forking twigs end in sprigs of pointed petals. About half the branch tips open into hatched daisies. The palette and ripening are unchanged. Density is about three quarters of the mockup's Dense panel.
+- **Growth curve:** growth starts fast, reaching `GROW_EARLY` in `GROW_EARLY_S`, then slows so full bloom still comes at about `GROW_S`.
+- **Footprints:** a walker leaves plants on the floor where they step. Each footprint is a small clump of branches with a daisy that grows in fast, holds, then rewinds away (`FOOT_*` in `common.glsl`). This is the one exception to "a person's plants leave with them". A person's own plants still ride on their body and rewind while they walk. Live footprints are never overwritten. When all `FOOTPRINTS` are live, walkers leave none until the oldest has gone.

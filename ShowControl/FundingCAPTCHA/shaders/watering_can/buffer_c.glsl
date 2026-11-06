@@ -1,5 +1,5 @@
 // Buffer C — Garden state.  iChannel0 = Buffer B, iChannel1 = Buffer C (itself), iChannel2 = blobs
-// Layout: see common.glsl (rows 0–3 garden state, rows 4+ the near-body grid). Each texel reads the
+// Layout: see common.glsl (rows 0–3 garden state and footprints, rows 4+ the near-body grid). Each texel reads the
 // previous frame of every other texel; texels that need the same derived value (PERSON and BASE
 // both need this frame's base) compute it from the same inputs.
 
@@ -11,6 +11,7 @@
 vec4 initial(ivec2 c) {
     if (c.y == 1) return vec4(0.0, 0.0, T_CLAMP, S_EMPTY);       // BASE
     if (c.y == 2) return vec4(0.0, 0.0, 0.0, T_CLAMP);           // GHOST
+    if (c.y == 3 && c.x > 0) return vec4(0.0, 0.0, T_CLAMP, 0.0); // FOOT: none
     return vec4(0.0);
 }
 
@@ -185,6 +186,39 @@ vec4 ghostNext(int k, float dt) {
     return g;
 }
 
+// ── FOOT ──────────────────────────────────────────────────────────────────────
+// The slot of the walker who drops a footprint this frame, or -1. A seen person who is walking drops one
+// where their feet are once they're FOOT_GAP from every live footprint: the first such slot, one a frame
+// (another stepping the same frame drops next frame). Only into the ring's head, and only once the
+// footprint there has gone, so a live one never pops. The SUN texel (which keeps the head) and every
+// FOOT texel compute this from the same last frame, so they agree.
+int footDropper() {
+    if (cFoot(C, int(cSun(C).z)).z < FOOT_LIFE) return -1;
+    for (int k = 0; k < SLOTS; k++) {
+        if (!seen(recIdn(BLOBS, k).y) || fresh(k)) continue;
+        vec4 b = cBase(C, k);
+        if (!walking(b.z)) continue;
+        bool clear = true;
+        for (int f = 0; f < FOOTPRINTS; f++) {
+            vec4 ft = cFoot(C, f);
+            if (ft.z < FOOT_LIFE && length(toScreen(ft.xy - b.xy)) < FOOT_GAP) { clear = false; break; }
+        }
+        if (clear) return k;
+    }
+    return -1;
+}
+
+vec4 footNext(int f, float dt) {
+    int k = footDropper();
+    if (k >= 0 && f == int(cSun(C).z)) {
+        vec2 at = cBase(C, k).xy;
+        return vec4(at, 0.0, fract(hash12(at * 1000.0 + float(iFrame % 997)) * 0.999) * 8.0);
+    }
+    vec4 ft = cFoot(C, f);
+    ft.z = min(ft.z + dt, T_CLAMP);
+    return ft;
+}
+
 // ── NEAR ──────────────────────────────────────────────────────────────────────
 // Is there body (or a held shape: anything a vine could grow on) within NEAR_PAD of cell (i, j)?
 // Reads this frame's B, so the grid never lags the plants.
@@ -201,6 +235,15 @@ float nearNext(ivec2 cell) {
             vec4 t = texelFetch(BB, ivec2(vec2(sx / aspect, sy) * bRes), 0);
             if (bOwner(t) > 0 && bHold(t) > 0.0) return 1.0;
         }
+    }
+    // A footprint's plants reach into the cell (last frame's footprints: a new one starts bare).
+    vec2 c0 = vec2(cell) * NEAR_CELL, c1 = c0 + NEAR_CELL;
+    for (int f = 0; f < FOOTPRINTS; f++) {
+        vec4 ft = cFoot(C, f);
+        if (ft.z >= FOOT_LIFE) continue;
+        vec2 at = vec2(ft.x * aspect, ft.y);
+        if (at.x + FOOT_REACH_X >= c0.x && at.x - FOOT_REACH_X <= c1.x
+            && at.y + FOOT_REACH_UP >= c0.y && at.y - FOOT_REACH_DOWN <= c1.y) return 1.0;
     }
     return 0.0;
 }
@@ -219,7 +262,9 @@ vec4 sunNext(float dt, vec2 fc) {
     // full: round it stochastically to GROW_Q, as growth is, so the expected easing is exact.
     float h = hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997));
     lvl = clamp(lvl + sign(step) * floor(abs(step) / GROW_Q + h) * GROW_Q, 0.0, 1.0);
-    return vec4(lvl, raw, 0.0, 0.0);
+    float head = cSun(C).z;                                     // the footprint ring's head moves on past a drop
+    if (footDropper() >= 0) head = mod(head + 1.0, float(FOOTPRINTS));
+    return vec4(lvl, raw, head, 0.0);
 }
 
 void mainImage(out vec4 o, in vec2 fc) {
@@ -229,12 +274,13 @@ void mainImage(out vec4 o, in vec2 fc) {
         if (c.y < 4 + NEAR_ROWS && float(c.x) * NEAR_CELL < iResolution.x / iResolution.y) o.x = nearNext(c - ivec2(0, 4));
         return;
     }
-    if (c.x >= SLOTS || (c.y == 3 && c.x > 0)) return;
+    if (c.y == 3 ? c.x > FOOTPRINTS : c.x >= SLOTS) return;
     if (iFrame == 0) { o = initial(c); return; }
     float dt = clamp(iTimeDelta, 0.0, T_CLAMP);
 
     if      (c.y == 0) o = personNext(c.x, dt, fc);
     else if (c.y == 1) o = baseNext(c.x, dt);
     else if (c.y == 2) o = ghostNext(c.x, dt);
-    else               o = sunNext(dt, fc);
+    else if (c.x == 0) o = sunNext(dt, fc);
+    else               o = footNext(c.x - 1, dt);
 }

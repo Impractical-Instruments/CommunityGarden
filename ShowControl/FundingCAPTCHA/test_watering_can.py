@@ -887,6 +887,67 @@ def test_lost_person_plants_rewind_without_popping(ctx):
     rig.release()
 
 
+# ── Footprints: a walker leaves plants on the floor where they step ──────────
+
+FOOTPRINTS, FOOT_GAP, FOOT_LIFE = K["FOOTPRINTS"], K["FOOT_GAP"], K["FOOT_LIFE"]
+
+
+def footprints(rig):
+    """The live footprints: (x, y UV, seconds since dropped) of each."""
+    c = rig.buf("buffer_c")
+    return [tuple(c[3, 1 + f, :3]) for f in range(FOOTPRINTS) if c[3, 1 + f, 2] < FOOT_LIFE]
+
+
+def test_walker_leaves_footprints_along_their_path(ctx):
+    rig = Rig(ctx)
+    rig.run([person(x=WALK_X)] * 30)
+    rig.run(walking(30, x=WALK_X))                  # 30 px right in 3 s
+    fps = sorted(footprints(rig))
+    assert len(fps) >= 4, fps
+    feet = 1 - 44 / BODY[1]                         # the feet's row, UV y
+    aspect = SIZE[0] / SIZE[1]
+    xs = [x for x, _, _ in fps]
+    assert all(abs(y - feet) < 0.04 for _, y, _ in fps), fps
+    assert WALK_X / BODY[0] - 0.05 < xs[0] and xs[-1] < (WALK_X + 42) / BODY[0], fps   # on the path
+    assert all((b - a) * aspect >= FOOT_GAP - 1e-3 for a, b in zip(xs, xs[1:])), fps    # spaced
+    ages = [t for _, _, t in sorted(fps)]
+    assert ages == sorted(ages, reverse=True), ages  # dropped in walking order: oldest first
+    rig.release()
+
+
+@pytest.mark.parametrize("kind", ["planted", "waving"])
+def test_no_footprints_without_walking(ctx, kind):
+    rig = Rig(ctx)
+    if kind == "planted":
+        rig.run(flickering(100))
+    else:
+        rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
+    assert footprints(rig) == []
+    rig.release()
+
+
+def test_footprints_grow_where_the_walker_was_then_rewind_away(ctx):
+    rig = Rig(ctx, size=IMG)
+    rig.run([person(x=WALK_X)] * 30)
+    rig.run(walking(30, x=WALK_X))
+    rig.run([EMPTY] * 15)                           # the walker leaves; their own plants rewind away
+    assert footprints(rig)
+    # Off the body, where the walker passed: footprint plants, standing up off the floor at the feet's row.
+    x, y = screen_xy(IMG)
+    feet = 1 - 44 / BODY[1]
+    floor = (y > feet - 0.03) & (y < feet + 0.12)
+    n0 = drawn(rig.image(), floor).sum()
+    assert n0 > 200, n0
+    counts = []
+    for _ in range(int(FOOT_LIFE * 10)):            # then they rewind away, without popping
+        rig.run([EMPTY])
+        counts.append(drawn(rig.image()).sum())
+    assert footprints(rig) == [] and counts[-1] == 0, counts
+    prev = [n0] + counts[:-1]
+    assert all(p - c <= max(0.3 * p, 0.1 * n0) for p, c in zip(prev, counts)), (n0, counts)
+    rig.release()
+
+
 # ── Task 4: the crayon sun (Image) ────────────────────────────────────────────
 
 def sun_patch(img):

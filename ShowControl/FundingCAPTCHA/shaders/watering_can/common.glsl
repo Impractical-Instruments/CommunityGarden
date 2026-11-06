@@ -10,8 +10,10 @@
 //   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step (negative: re-planting,
 //                  -seconds to go), record state last frame
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
-//   (0, 3) SUN     sun level 0–1 (eased), raw total growth, —, —
-//   (i, 4 + j) NEAR  1 if body (or a held shape) lies within NEAR_PAD of grid cell (i, j), else 0;
+//   (0, 3) SUN     sun level 0–1 (eased), raw total growth, next footprint f (the ring's head), —
+//   (1 + f, 3) FOOT footprint f = 0–FOOTPRINTS-1: x, y (UV), seconds since dropped (T_CLAMP none), seed
+//   (i, 4 + j) NEAR  1 if body (or a held shape) lies within NEAR_PAD of grid cell (i, j), or a footprint's plants
+//                    reach it, else 0;
 //                    cell (i, j) is screen [i, i + 1] × [j, j + 1] · NEAR_CELL (screen heights). See cNear().
 
 const int   SLOTS = 8;
@@ -87,6 +89,21 @@ const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FL
                                         // the Image taps B at ±REACH and ±REACH / 2 above and below each pixel
 const float SHORT_BLOOM_FROM = 0.5, SHORT_BLOOM_FULL = 0.75;   // a run shorter than these × REACH keeps a bud, not a flower
                                         // (the taps are REACH / 2 apart: they don't find it from every row a flower covers)
+// Footprints: a walker leaves plants behind on the floor where they step (Buffer C row 3, a ring).
+const int   FOOTPRINTS = 32;            // live at once; when all are, walkers leave none until the oldest has gone
+const float FOOT_GAP = 0.12;            // a walker drops a footprint where their feet are this far (screen heights)
+                                        // from every live one
+const float FOOT_GROW_S = 1.5, FOOT_HOLD_S = 4.0, FOOT_FADE_S = 2.0;   // grows in fast, holds, rewinds away
+const float FOOT_LIFE = FOOT_GROW_S + FOOT_HOLD_S + FOOT_FADE_S;
+const int   FOOT_SPROUTS = 3;           // little branches in a footprint's clump
+const float FOOT_H = 0.08;              // the tallest stands this high (screen heights)
+const float FOOT_SPREAD = 0.025;        // they stand across this either side of the footprint
+const float FOOT_LEAN = 0.35;           // and lean up to this far sideways per unit height
+const float FOOT_FLOWER_FROM = 0.5, FOOT_FLOWER_R = 5.0/360.0;   // the middle one's daisy opens from this growth; its size
+// How far a footprint's plants reach from it: sideways, below, above (for the near grid and the Image's bounds).
+const float FOOT_REACH_X = FOOT_SPREAD * 1.2 + FOOT_LEAN * FOOT_H + 0.7 * TWIG_LEN + SPRIG_LEN + INK_W;
+const float FOOT_REACH_DOWN = SPRIG_LEN + INK_W;
+const float FOOT_REACH_UP = FOOT_H + max(SPRIG_LEN, FOOT_FLOWER_R * (1.0 + PETAL_R)) + INK_W;
 // Near-body grid (Buffer C rows 4+): the Image skips cells with no body near, so empty paper costs one fetch.
 const float NEAR_CELL = 1.0/32.0;       // cell size; 4 + 1/NEAR_CELL rows of C must fit the render height (36 ≤ 72 at test size)
 const float NEAR_STEP = 0.01;           // B is sampled this far apart across a padded cell: finer than the thinnest body
@@ -143,6 +160,13 @@ vec4 cPerson(sampler2D c, int k) { return texelFetch(c, ivec2(k, 0), 0); }
 vec4 cBase  (sampler2D c, int k) { return texelFetch(c, ivec2(k, 1), 0); }
 vec4 cGhost (sampler2D c, int k) { return texelFetch(c, ivec2(k, 2), 0); }
 vec4 cSun   (sampler2D c)        { return texelFetch(c, ivec2(0, 3), 0); }
+vec4 cFoot  (sampler2D c, int f) { return texelFetch(c, ivec2(1 + f, 3), 0); }
+// A footprint's growth at `age` seconds: fast in (easing out), holding, then rewinding away; 0 when gone.
+float footGrowth(float age) {
+    if (age >= FOOT_LIFE) return 0.0;
+    if (age < FOOT_GROW_S) { float u = 1.0 - age / FOOT_GROW_S; return 1.0 - u * u; }
+    return clamp((FOOT_LIFE - age) / FOOT_FADE_S, 0.0, 1.0);
+}
 bool cNear  (sampler2D c, vec2 screenPos) {      // screenPos in screen heights; is any body near?
     return texelFetch(c, ivec2(floor(screenPos / NEAR_CELL)) + ivec2(0, 4), 0).x > 0.5;
 }
