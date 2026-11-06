@@ -4,12 +4,12 @@ A new FundingCAPTCHA shader player Setup (ADR-0021): a debug view of the blob tr
 
 ## Intent
 
-Role reversal: the bird is birdwatching *you*. The screen is what the bird sees, framed by its eyelids. The tracker's real boxes, IDs and states are the bird's field notes on the specimens in the clearing. Its attention, a reticle, follows whoever moves most. Hold still and it loses interest. Let it lock on and it strikes, stamping you with a tick: verified. It's a CAPTCHA joke drawn in the storybook ink style of The Community Garden concept art.
+Role reversal: the bird is birdwatching *you*. The screen is what the bird sees, through its two eyes. The tracker's real boxes, IDs and states are the bird's field notes on the specimens in the clearing. Its attention, a reticle, follows whoever moves most. Hold still and it loses interest. Let it lock on and it strikes, stamping you with a tick: verified. It's a CAPTCHA joke drawn in the storybook ink style of The Community Garden concept art.
 
 ## Goals
 
 - An honest tracker debug view. Every box, number and state change on screen is the real tracker's record, not a dramatisation.
-- A bird you only ever see as its eye: eyelids for mood, a nictitating membrane for blinks, a yellow iris band that closes in as it locks on.
+- A bird you only ever see as its eyes: two merged lenses, eyelids for mood and blinks, a yellow iris band that closes in as it locks on.
 - A play loop visitors discover on their own:
   - **Move** and the bird notices you.
   - **Freeze** and it loses interest.
@@ -21,7 +21,7 @@ Role reversal: the bird is birdwatching *you*. The screen is what the bird sees,
 
 - No depth image or contour map. The background is the empty clearing on paper.
 - No words, letters or numbers other than the IDs. Language-free: numbers and glyphs only (`?`, tick).
-- The bird's body is never seen. Eyelids, membrane and iris only.
+- The bird's body is never seen. Eyes, eyelids and iris only.
 - No sound.
 
 ## Anti-goals
@@ -58,9 +58,10 @@ Back to front:
    - **Reticle**: a wobbly rust circle with four diagonal ticks. Its radius shrinks from ~58 px to ~20 px as lock builds, and it trembles slightly near full lock. A thick rust arc around it fills with lock. When the bird has no target, the reticle wanders, half-transparent, with a rust `?` inside.
    - **Stamp**: a rust double ring with radiating dashes and a bold tick, rotated about −13°. It slams down from 2.4× scale to 1× in 0.12 s on the target's box centre, follows the box, and fades out by 3.2 s.
 4. **Eye** (screen space, never zooms):
-   - **Iris band**: a yellow annulus ~34 px wide, centred on the screen, with short ink striations and ink edges. Outside it is a hatched socket. The inner radius goes from ~345 px with no lock to ~250 px at full lock, and snaps wide to ~380 px on a strike before easing back.
-   - **Eyelids**: top and bottom lids with almond-curved rims. They're paper with slate hatching, an ink rim, a yellow eye-ring just inside the rim, and feather scallops along the crease. Their openness is the bird's mood (Behaviour).
-   - **Nictitating membrane**: a translucent warm-paper sheet with an ink leading edge and faint slate streaks. It sweeps across from the left and back in ~0.32 s. This is the bird's blink.
+   - **Two eyes** (changed 2026-11-05, from one centred eye; mockup: `2026-11-05-hunter-bird-two-eyes-mockup.html`): two ellipses 1.25× as wide as tall, centres ~150 px either side of the screen's centre line. They overlap, and their openings merge into one view, like wraparound sunglasses. Each eye owns its side of the centre line, and the two meet in a notch at top and bottom. Outside the eyes is a hatched socket.
+   - **Iris band**: a yellow band ~34 px wide around each opening, with short ink striations and ink edges. The opening is ~150 px tall-radius with no lock. At full lock the radius and the eyes' separation both shrink to 0.8×, so the view narrows toward the centre. On a strike they snap to ~1.1× before easing back.
+   - **Eyelids**: each eye has its own top and bottom lid, inside the eye, with almond-curved rims. They're paper with slate hatching, an ink rim, a yellow eye-ring just inside the rim, and feather scallops along the crease. The eye's outer rim is drawn over them, so the shape always reads. Their openness is the bird's mood (Behaviour). At openness 1 a lid's rim sits on the eye's outer edge.
+   - **Blink**: both eyes' lids snap shut and open again over ~0.32 s. (This replaced a nictitating membrane that swept across the screen.)
 
 ## Behaviour (decided)
 
@@ -84,7 +85,7 @@ The bird's attention is separate from the tracker. The tracker says who is there
   | everyone present is stamped | smug, then drowsy after a few seconds |
 
   The lids open quickly and close slowly.
-- **Blinks** (membrane): 0.15 s after a new ID appears, 2.3 s after a strike, and at irregular idle intervals of ~6–10 s.
+- **Blinks** (lids): 0.15 s after a new ID appears, 2.3 s after a strike, and at irregular idle intervals of ~6–10 s.
 - **Strike sequence**: punch-in zoom about the stamp point, up to 1.38× in 0.12 s, held to 0.9 s, eased out by 1.7 s.
 
 **Real camera** *(builder-check call)*: on the Pi, records ease toward each new camera frame, so a standing person's box breathes by a pixel or two. That must read as motion 0, so the noise floor and the on-threshold are named constants at the top of `common.glsl`. "Freeze and it loses you" is unverified until it has been run with the real camera (`--camera`; `--mock-camera` and `--test-input` are first approximations). The plan must include that pass and say so if it couldn't happen.
@@ -100,7 +101,7 @@ The bird's attention is separate from the tracker. The tracker says who is there
   - The Pi renders at half resolution.
 - The `blobs` contract (ADR-0022) is read-only from here. If the Setup needs more from the tracker, that's a contract change, not a workaround.
 - It must paste into Shadertoy with `body_painter.glsl` (Buffer A) and `blob_painter.glsl` (a spare buffer).
-- It must hold a smooth frame rate on the Pi 5. If something has to give, cut in this order: canopy leaf count, membrane streaks, footprints. Never the tracker notes.
+- It must hold a smooth frame rate on the Pi 5. If something has to give, cut in this order: canopy leaf count, footprints. Never the tracker notes.
 - No show, artist or album names in any file (repo rule).
 
 ## Where it goes (decided)

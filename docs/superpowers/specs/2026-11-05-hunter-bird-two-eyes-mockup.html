@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hunter Bird Two Eyes</title>
+<style>
+  :root { --paper:#f6f1e4; --ink:#111; --slate:#719aad; --rust:#bc4c26; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.45 Georgia, serif; }
+  main { max-width:980px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { margin:0 0 14px; color:#444; }
+  canvas { width:100%; display:block; border:2px solid var(--ink); background:var(--paper); }
+  .bar { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin:10px 0; }
+  .bar input[type=range] { flex:1 1 220px; }
+  button { font:inherit; padding:3px 12px; border:2px solid var(--ink); background:#fff; cursor:pointer; }
+  #state { font-weight:bold; color:var(--rust); min-width:20ch; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 14px; margin:18px 0 0; }
+  dt { font-weight:bold; }
+  dd { margin:0; }
+  .knobs { display:grid; grid-template-columns:max-content 1fr 5ch; gap:4px 12px; align-items:center; margin:10px 0; }
+  .knobs output { text-align:right; font-variant-numeric:tabular-nums; }
+  #vals { font:13px/1.4 ui-monospace, monospace; background:#fff; border:2px solid var(--ink); padding:6px 10px; white-space:pre-wrap; user-select:all; }
+</style>
+</head>
+<body>
+<main>
+<h1>Hunter bird: two eyes</h1>
+<p class="sub">The 2026-11-04 mockup with two overlapping eyes that merge into one view, shaped like wraparound sunglasses. The lids are shared and dip at the bridge, and the blink sweeps from the bridge outward. Tune the sliders, then copy the values line at the bottom.</p>
+<canvas id="cv"></canvas>
+<div class="bar">
+  <button id="play">Pause</button>
+  <input id="scrub" type="range" min="0" max="28" step="0.05" value="0">
+  <span id="state"></span>
+</div>
+<div class="bar">
+  <label><input id="smooth" type="checkbox" checked> Smooth boxes between camera frames</label>
+  <label><input id="iris" type="checkbox" checked> Iris aperture closes on lock</label>
+  <label><input id="two" type="checkbox" checked> Two eyes (untick for the current single eye)</label>
+  <label><input id="sepLock" type="checkbox" checked> Eyes draw together as lock builds</label>
+  <label>Blink: <select id="blinkStyle">
+    <option value="lids" selected>lids snap shut</option>
+    <option value="membrane">membrane sweep</option>
+    <option value="both">both</option>
+  </select></label>
+  <button id="blink">Blink now</button>
+  <button id="lockBtn">Hold lock: <span id="lockVal">off</span></button>
+</div>
+<div class="knobs" id="knobs"></div>
+<div id="vals"></div>
+<dl>
+  <dt>Eyelids</dt><dd>Mood. Drowsy when empty, wide when hunting, a suspicious squint when it has lost interest, a smug half-lid after a strike.</dd>
+  <dt>Nictitating blink</dt><dd>The quick sideways sweep of a translucent membrane, which is how birds really blink. It fires when someone new appears and after a strike, and hides state changes.</dd>
+  <dt>Corner brackets</dt><dd>Tracker boxes. Dashed slate means tentative; ink means confirmed; faint and drifting means coasting on predicted velocity; scribbled out means lost.</dd>
+  <dt>Tag</dt><dd>The stable ID on a hanging tag, like a bird-ringing band. Yellow means it's the bird's current target.</dd>
+  <dt>Blue arrow, slate prints</dt><dd>Velocity and track history.</dd>
+  <dt>Rust reticle</dt><dd>The bird's attention, which is separate from the tracker. It follows whoever moves most. The arc fills as lock builds. Hold still and it drains, the reticle wanders off and a ? appears.</dd>
+  <dt>Strike</dt><dd>When lock is full: a punch-in zoom, the pupil snaps wide, and a stamp marked with a tick lands on the target.</dd>
+</dl>
+</main>
+<script>
+(() => {
+  const P = { slate:'#719aad', deep:'#2076a3', rust:'#bc4c26', yellow:'#fff200', pale:'#fbe9a0',
+              orange:'#e8862f', pink:'#e8957f', violet:'#6b5b95', ink:'#111', paper:'#f6f1e4', white:'#fffaf0' };
+  const W = 640, H = 360, DPR = 2, LOOP = 28;
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  cv.width = W*DPR; cv.height = H*DPR;
+  const off = document.createElement('canvas'); off.width = cv.width; off.height = cv.height;
+  const octx = off.getContext('2d');
+
+  const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+  const lerp = (a,b,u) => a + (b-a)*u;
+  const ramp = (s,a,b) => clamp((s-a)/(b-a), 0, 1);
+  const smooth = u => u*u*(3-2*u);
+  const hash = n => { const s = Math.sin(n*127.1 + 311.7)*43758.5453; return s - Math.floor(s); };
+  const vnoise = x => { const i = Math.floor(x), f = x-i; return lerp(hash(i), hash(i+1), smooth(f))*2 - 1; };
+  const ui = { smooth:true, iris:true, two:true, sepLock:true, lockPreview:null, blinkStyle:'lids' };
+  // Two-eye knobs, in mockup px (screen height = 360). The shader takes these / 360.
+  const K = {
+    R:     { v:150, min:90,  max:300, step:1,    label:'Eye radius, no lock (px)' },
+    lockK: { v:0.8, min:0.55, max:1,  step:0.01, label:'Radius at full lock (× no-lock)' },
+    sep:   { v:150, min:40,  max:260, step:1,    label:'Half the distance between eye centres (px)' },
+    lens:  { v:1.25, min:0.8, max:1.6, step:0.01, label:'Lens width / height' },
+    cy:    { v:180, min:120, max:240, step:1,    label:'Eye centre height (px from top)' },
+    band:  { v:34,  min:14,  max:60,  step:1,    label:'Iris band width (px)' },
+    lidBot:{ v:0.94, min:0.6, max:1,  step:0.01, label:'Bottom lid reach (× top)' },
+    blinkS:{ v:0.32, min:0.15, max:0.6, step:0.01, label:'Blink length (s)' },
+  };
+  { const box = document.getElementById('knobs');
+    for (const [key, k] of Object.entries(K)){
+      const lab = document.createElement('label'); lab.textContent = k.label; lab.htmlFor = 'k_' + key;
+      const inp = document.createElement('input'); inp.type = 'range'; inp.id = 'k_' + key;
+      Object.assign(inp, { min:k.min, max:k.max, step:k.step, value:k.v });
+      const out = document.createElement('output'); out.textContent = k.v;
+      inp.oninput = () => { k.v = +inp.value; out.textContent = k.v; showVals(); };
+      box.append(lab, inp, out);
+    } }
+  function showVals(){
+    document.getElementById('vals').textContent =
+      'two=' + ui.two + ' sepLock=' + ui.sepLock + ' blink=' + ui.blinkStyle + ' ' + Object.entries(K).map(([k, o]) => k + '=' + o.v).join(' ');
+  }
+  showVals();
+
+  // hatch pattern (slate diagonal), used on figures, lids and wood
+  const hp = document.createElement('canvas'); hp.width = hp.height = 10;
+  { const h = hp.getContext('2d'); h.strokeStyle = P.slate; h.lineWidth = 1.4;
+    h.beginPath(); h.moveTo(-2,12); h.lineTo(12,-2); h.moveTo(8,12); h.lineTo(12,8); h.moveTo(-2,2); h.lineTo(2,-2); h.stroke(); }
+  const HATCH = ctx.createPattern(hp, 'repeat');
+  const OHATCH = octx.createPattern(hp, 'repeat');
+
+  // ── Stand-in people ─────────────────────────────────────────────────────────
+  function figure(p, t){
+    const {x, gy, sc, e, walk} = p, ph = t*7;
+    const Q = (dx,dy) => [x + dx*sc, gy - dy*sc];
+    const sw = Math.sin(ph)*16*walk, swing = Math.sin(ph)*0.35*walk;
+    const up = Math.min(1, e*1.2), fl = e*1.3*Math.sin(t*8.5), fr = e*1.3*Math.sin(t*8.5 + 1.3);
+    const aL = lerp(Math.PI/2 + 0.3 + swing, 4.28, up) + fl*0.6;
+    const aR = lerp(Math.PI/2 - 0.3 - swing, -1.14, up) - fr*0.6;
+    const shL = Q(-9,116), shR = Q(9,116), L = 60*sc;
+    const segs = [
+      [...Q(0,122), ...Q(0,72), 15*sc],
+      [...Q(-5,72), ...Q(-12+sw,0), 9*sc],
+      [...Q(5,72),  ...Q(12-sw,0), 9*sc],
+      [...shL, shL[0]+Math.cos(aL)*L, shL[1]+Math.sin(aL)*L, 6.5*sc],
+      [...shR, shR[0]+Math.cos(aR)*L, shR[1]+Math.sin(aR)*L, 6.5*sc],
+    ];
+    const head = [...Q(e*5*Math.sin(t*6), 142), 15*sc];
+    return { segs, head };
+  }
+  function bboxOf(f){
+    let x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+    const add = (x,y,r) => { x0=Math.min(x0,x-r); x1=Math.max(x1,x+r); y0=Math.min(y0,y-r); y1=Math.max(y1,y+r); };
+    for (const s of f.segs){ add(s[0],s[1],s[4]+3); add(s[2],s[3],s[4]+3); }
+    add(f.head[0], f.head[1], f.head[2]+3);
+    return { x0:Math.max(0,x0), y0:Math.max(0,y0), x1:Math.min(W,x1), y1:Math.min(H,y1) };
+  }
+  const xfA = 220 + 40*Math.sin(4*1.6), xfB = 470 + 12*Math.sin(4.8*2.2);
+  function scriptA(s){
+    if (s < 4.6 || s > 27.5) return null;
+    let x, walk = 0, e = 0;
+    if (s < 8)        { x = lerp(-50, 220, smooth(ramp(s,4.6,8))); walk = 1; }
+    else if (s < 12)  { x = 220 + 40*Math.sin((s-8)*1.6); walk = 0.2 + 0.8*Math.abs(Math.cos((s-8)*1.6)); e = 0.12; }
+    else if (s < 24.5){ x = xfA; }
+    else              { x = lerp(xfA, -70, smooth(ramp(s,24.5,27.5))); walk = 1; }
+    return { x, gy:318, sc:1, e, walk };
+  }
+  function scriptB(s){
+    if (s < 15 || s > 26.5) return null;
+    let x, walk = 0, e = 0;
+    if (s < 17)        { x = lerp(720, 470, smooth(ramp(s,15,17))); walk = 1; }
+    else if (s < 21.8) { x = 470 + 12*Math.sin((s-17)*2.2); e = smooth(ramp(s,17,17.6))*(1 - smooth(ramp(s,21.3,21.8))); walk = 0.3; }
+    else if (s < 23.8) { x = xfB; }
+    else               { x = lerp(xfB, 720, smooth(ramp(s,23.8,26.5))); walk = 1; }
+    return { x, gy:328, sc:1.12, e, walk };
+  }
+  const SCRIPTS = [scriptA, scriptB];
+
+  // ── Simulated tracker + bird attention ──────────────────────────────────────
+  let sim;
+  function resetSim(){
+    sim = { t:0, camAcc:0, frame:0, tracks:[], nextId:1, prints:[], blinks:[2.6], shiver:0, lids:0.42,
+            att:{ primary:-1, lock:0, cooldown:0, rx:320, ry:170, rr:64, ra:0, wx:320, wy:170, stamp:null } };
+  }
+  const ctr = b => [(b.x0+b.x1)/2, (b.y0+b.y1)/2];
+  function cameraFrame(s){
+    sim.frame++;
+    SCRIPTS.forEach((script, i) => {
+      const p = script(s);
+      let tr = sim.tracks.find(q => q.pi === i && q.lostAt === null);
+      let clean = null;
+      if (p){ clean = bboxOf(figure(p, sim.t)); if (clean.x1 - clean.x0 < 18) clean = null; }
+      if (clean){
+        const nz = k => (hash(sim.frame*13 + i*101 + k)*2 - 1)*3.5;        // depth-mask edge flicker
+        const raw = { x0:clean.x0+nz(0), y0:clean.y0+nz(1), x1:clean.x1+nz(2), y1:clean.y1+nz(3) };
+        if (!tr){
+          tr = { id:sim.nextId++, pi:i, raw, box:{...raw}, clean, vel:[0,0], seen:0, miss:0, motion:0,
+                 interest:0, lostAt:null, printAcc:0, side:0 };
+          sim.tracks.push(tr); sim.blinks.push(sim.t + 0.15); sim.shiver = 1;
+        } else {
+          const c0 = ctr(tr.clean), c1 = ctr(clean);
+          const v = [(c1[0]-c0[0])/0.1, (c1[1]-c0[1])/0.1];
+          tr.vel = [lerp(tr.vel[0], v[0], 0.4), lerp(tr.vel[1], v[1], 0.4)];
+          const dw = Math.abs((clean.x1-clean.x0) - (tr.clean.x1-tr.clean.x0)) + Math.abs((clean.y1-clean.y0) - (tr.clean.y1-tr.clean.y0));
+          tr.motion = lerp(tr.motion, Math.max(0, Math.hypot(...v)/140 + dw/0.1/220 - 0.15), 0.3);
+          tr.raw = raw; tr.clean = clean; tr.miss = 0;
+        }
+        tr.seen++;
+      } else if (tr){
+        tr.miss++; tr.motion *= 0.5;
+        const dx = tr.vel[0]*0.1, dy = tr.vel[1]*0.1;
+        tr.raw = { x0:tr.raw.x0+dx, y0:tr.raw.y0+dy, x1:tr.raw.x1+dx, y1:tr.raw.y1+dy };
+        if (tr.miss > 10) tr.lostAt = sim.t;
+      }
+    });
+  }
+  const confirmed = tr => tr.lostAt === null && tr.seen >= 6 && tr.miss === 0;
+  function step(dt){
+    sim.t += dt;
+    const s = sim.t, A = sim.att;
+    sim.camAcc += dt;
+    while (sim.camAcc >= 0.1){ sim.camAcc -= 0.1; cameraFrame(s); }
+    sim.shiver = Math.max(0, sim.shiver - dt*1.5);
+
+    for (const tr of sim.tracks){
+      if (ui.smooth){ const k = 1 - Math.exp(-dt*9); for (const key of ['x0','y0','x1','y1']) tr.box[key] = lerp(tr.box[key], tr.raw[key], k); }
+      else tr.box = { ...tr.raw };
+      if (confirmed(tr)){
+        tr.interest = clamp(tr.interest + dt*(tr.motion > 0.2 ? tr.motion*0.9 : -0.45), 0, 1);
+        tr.printAcc += dt;
+        if (tr.printAcc > 0.33 && Math.hypot(...tr.vel) > 25){
+          tr.printAcc = 0; tr.side ^= 1;
+          sim.prints.push({ x:(tr.box.x0+tr.box.x1)/2, y:tr.box.y1 + 4 + (tr.side ? 4 : -2), a:Math.atan2(tr.vel[1], tr.vel[0]), at:sim.t });
+        }
+      } else tr.interest = Math.max(0, tr.interest - dt*0.6);
+    }
+    sim.tracks = sim.tracks.filter(tr => tr.lostAt === null || sim.t - tr.lostAt < 0.9);
+    sim.prints = sim.prints.filter(p => sim.t - p.at < 4);
+
+    // attention: whoever moves most, with hysteresis
+    let cur = sim.tracks.find(q => q.id === A.primary && confirmed(q));
+    let best = null;
+    for (const tr of sim.tracks) if (confirmed(tr) && tr.interest > 0.25 && (!best || tr.interest > best.interest)) best = tr;
+    if (cur && cur.interest < 0.25) cur = null;
+    if (!cur || (best && best !== cur && best.interest > cur.interest + 0.2)){
+      if (cur || best) A.lock *= 0.3;
+      cur = best;
+    }
+    if (A.primary !== -1 && !cur){ A.wx = A.rx; A.wy = A.ry; }
+    A.primary = cur ? cur.id : -1;
+    A.cooldown = Math.max(0, A.cooldown - dt);
+    if (cur && cur.motion > 0.2 && A.cooldown <= 0) A.lock += dt*0.32*cur.motion*cur.motion;
+    else A.lock -= dt*0.3;
+    A.lock = clamp(A.lock, 0, 1);
+
+    let tx, ty, trad, k, ta;
+    const alive = sim.tracks.some(q => q.lostAt === null);
+    if (cur){
+      const b = cur.box; tx = (b.x0+b.x1)/2; ty = b.y0 + (b.y1-b.y0)*0.3; trad = lerp(58, 20, A.lock); k = 3 + 6*cur.interest; ta = 1;
+      if (A.lock >= 1){
+        A.stamp = { tid:cur.id, at:sim.t, x:tx, y:(b.y0+b.y1)/2 };
+        A.lock = 0; A.cooldown = 6; sim.blinks.push(sim.t + 2.3);
+      }
+    } else {
+      tx = clamp(A.wx + vnoise(sim.t*0.6)*90, 60, W-60); ty = clamp(A.wy + vnoise(sim.t*0.6 + 40)*40, 60, H-80);
+      trad = 66; k = 1.2; ta = alive ? 0.55 : 0;
+    }
+    const e = 1 - Math.exp(-dt*k);
+    A.rx = lerp(A.rx, tx, e); A.ry = lerp(A.ry, ty, e); A.rr = lerp(A.rr, trad, 1 - Math.exp(-dt*5));
+    A.ra = lerp(A.ra, ta, 1 - Math.exp(-dt*3));
+    if (A.stamp){ const st = sim.tracks.find(q => q.id === A.stamp.tid); if (st) { const c = ctr(st.box); A.stamp.x = c[0]; A.stamp.y = c[1]; } }
+
+    // eyelid mood
+    const since = A.stamp ? sim.t - A.stamp.at : 99;
+    let lt;
+    if (since < 0.9) lt = 1.0;                          // strike: eyes wide
+    else if (since < 3.2) lt = 0.58;                    // smug
+    else if (cur) lt = 0.96;                            // hunting
+    else if (alive) lt = 0.7;                           // suspicious squint
+    else lt = 0.42 + 0.05*Math.sin(sim.t*0.6);          // drowsy
+    sim.lids = lerp(sim.lids, lt, 1 - Math.exp(-dt*(lt > sim.lids ? 9 : 3)));
+  }
+
+  // ── Drawing helpers ─────────────────────────────────────────────────────────
+  function ink(c, w, col = P.ink){ c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; }
+  function wobLine(c, x0, y0, x1, y1, seed, amp = 1.2){
+    const n = Math.max(2, Math.round(Math.hypot(x1-x0, y1-y0)/8));
+    c.beginPath();
+    for (let i = 0; i <= n; i++){
+      const u = i/n, j = (i === 0 || i === n) ? 0.4 : 1;
+      const x = lerp(x0, x1, u) + vnoise(seed + u*3 + sim.t*1.1)*amp*j, y = lerp(y0, y1, u) + vnoise(seed + 50 + u*3 + sim.t*1.1)*amp*j;
+      i ? c.lineTo(x, y) : c.moveTo(x, y);
+    }
+    c.stroke();
+  }
+
+  const SEG7 = { a:[0,0,6,0], b:[6,0,6,5], c:[6,5,6,10], d:[0,10,6,10], e:[0,5,0,10], f:[0,0,0,5], g:[0,5,6,5] };
+  const DIG = ['abcdef','bc','abged','abgcd','fgbc','afgcd','afgedc','abc','abcdefg','abcdfg'];
+  function digits(c, str, x, y, sz){
+    ink(c, 1.8);
+    [...str].forEach((ch, k) => {
+      for (const sgn of DIG[+ch]){
+        const [a,b,cc,d] = SEG7[sgn], s = sz/10, ox = x + k*sz*0.85;
+        wobLine(c, ox + a*s, y + b*s, ox + cc*s, y + d*s, k*17 + sgn.charCodeAt(0), 0.5);
+      }
+    });
+  }
+
+  function drawGround(c){
+    ink(c, 1.3, P.slate);
+    for (const [y, a] of [[300,2],[316,2.5],[338,3],[362,3.5]]){
+      c.beginPath();
+      for (let x = -40; x <= W+40; x += 8){ const yy = y + Math.sin(x*0.035 + y)*a; x === -40 ? c.moveTo(x, yy) : c.lineTo(x, yy); }
+      c.stroke();
+    }
+  }
+
+  function drawFigure(c, f, t){
+    for (const [col, extra] of [[P.ink, 2.6], [P.white, 0]]){
+      c.strokeStyle = col; c.fillStyle = col; c.lineCap = 'round';
+      for (const s of f.segs){ c.lineWidth = 2*(s[4] + extra); c.beginPath(); c.moveTo(s[0], s[1]); c.lineTo(s[2], s[3]); c.stroke(); }
+      c.beginPath(); c.arc(f.head[0], f.head[1], f.head[2] + extra, 0, Math.PI*2); c.fill();
+    }
+    // flat hatch on the lower body, as in the concept art
+    octx.setTransform(c.getTransform()); octx.clearRect(-W, -H, 3*W, 3*H);
+    octx.globalCompositeOperation = 'source-over'; octx.strokeStyle = '#000'; octx.lineCap = 'round';
+    for (const s of f.segs.slice(1, 3)){ octx.lineWidth = 2*s[4]; octx.beginPath(); octx.moveTo(s[0], s[1]); octx.lineTo(s[2], s[3]); octx.stroke(); }
+    octx.globalCompositeOperation = 'source-in'; octx.fillStyle = OHATCH; octx.fillRect(-W, -H, 3*W, 3*H);
+    c.save(); c.setTransform(1,0,0,1,0,0); c.globalAlpha = 0.8; c.drawImage(off, 0, 0); c.restore();
+  }
+
+  // canopy, generated once
+  const LEAVES = [];
+  { let n = 0; const add = (x, y, a, L) => { const h = hash(n++ * 3.7); LEAVES.push({ x, y, a, L, fill: h < 0.6 ? P.paper : h < 0.8 ? P.slate : h < 0.93 ? P.deep : P.violet, hat: hash(n*9.1) < 0.3, i:n }); };
+    for (let i = 0; i < 19; i++) add(i*36 - 8 + hash(i)*20, -8 + hash(i+40)*26, Math.PI/2 + (hash(i+80) - 0.5)*1.5, 22 + hash(i+9)*14);
+    for (let i = 0; i < 7; i++)  add(-8 + hash(i+200)*22, 40 + i*34, (hash(i+210) - 0.5)*1.3, 20 + hash(i+220)*12);
+    for (let i = 0; i < 7; i++)  add(W + 8 - hash(i+300)*22, 30 + i*34, Math.PI + (hash(i+310) - 0.5)*1.3, 20 + hash(i+320)*12);
+    for (let i = 0; i < 6; i++)  add(20 + i*42 + hash(i+400)*14, 334 + hash(i+410)*14, -Math.PI/2 + (hash(i+420) - 0.5)*1.6, 18 + hash(i+430)*10);
+  }
+  function drawBranch(c, pts, w){
+    for (const [col, ww] of [[P.ink, w + 5], [P.paper, w]]){
+      c.strokeStyle = col; c.lineWidth = ww; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(pts[0], pts[1]); c.quadraticCurveTo(pts[2], pts[3], pts[4], pts[5]); c.stroke();
+    }
+    ink(c, 1.2);
+    for (let u = 0.05; u < 0.95; u += 0.07){
+      const x = (1-u)*(1-u)*pts[0] + 2*u*(1-u)*pts[2] + u*u*pts[4], y = (1-u)*(1-u)*pts[1] + 2*u*(1-u)*pts[3] + u*u*pts[5];
+      c.beginPath(); c.moveTo(x - w*0.25, y - w*0.15); c.lineTo(x + w*0.15, y + w*0.25); c.stroke();
+    }
+  }
+  function drawCanopy(c, t){
+    drawBranch(c, [-20, 22, 120, 30, 270, 6], 8);
+    drawBranch(c, [W + 20, 34, 540, 30, 420, 4], 7);
+    drawBranch(c, [-30, 378, 130, 330, 310, 352], 17);          // the perch, close in the foreground
+    for (const l of LEAVES){
+      const a = l.a + 0.07*Math.sin(t*0.9 + l.i*1.7) + sim.shiver*0.16*Math.sin(t*28 + l.i);
+      c.save(); c.translate(l.x, l.y); c.rotate(a);
+      c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(l.L*0.5, -l.L*0.42, l.L, 0); c.quadraticCurveTo(l.L*0.5, l.L*0.42, 0, 0);
+      c.fillStyle = l.fill; c.fill();
+      if (l.hat){ c.fillStyle = HATCH; c.fill(); }
+      ink(c, 1.8); c.stroke();
+      ink(c, 1); c.beginPath(); c.moveTo(0, 0); c.lineTo(l.L*0.85, 0);
+      for (const u of [0.35, 0.6]){ c.moveTo(l.L*u, 0); c.lineTo(l.L*(u + 0.14), -l.L*0.16); c.moveTo(l.L*u, 0); c.lineTo(l.L*(u + 0.14), l.L*0.16); }
+      c.stroke(); c.restore();
+    }
+  }
+
+  function drawPrints(c){
+    c.fillStyle = P.slate;
+    for (const p of sim.prints){
+      c.globalAlpha = 0.85*(1 - (sim.t - p.at)/4);
+      c.save(); c.translate(p.x, p.y); c.rotate(p.a); c.beginPath(); c.ellipse(0, 0, 4.5, 2.6, 0, 0, Math.PI*2); c.fill(); c.restore();
+    }
+    c.globalAlpha = 1;
+  }
+
+  function drawTrack(c, tr){
+    const b = tr.box, w = b.x1 - b.x0, h = b.y1 - b.y0, isP = tr.id === sim.att.primary;
+    const tentative = tr.seen < 6 && tr.lostAt === null, coasting = tr.miss > 0 && tr.lostAt === null, lost = tr.lostAt !== null;
+    c.save();
+    if (tentative){
+      ink(c, 1.6, P.slate); c.setLineDash([4, 5]); c.lineDashOffset = -sim.t*20;
+      c.strokeRect(b.x0, b.y0, w, h); c.setLineDash([]);
+      c.fillStyle = P.slate; c.font = 'bold 18px Georgia'; c.fillText('?', b.x1 - 4, b.y0 - 4);
+      c.restore(); return;
+    }
+    if (coasting){ c.globalAlpha = clamp(1 - tr.miss/11, 0.15, 1); c.setLineDash([3, 4]); }
+    if (lost){ c.globalAlpha = clamp(1 - (sim.t - tr.lostAt - 0.4)/0.5, 0, 1); }
+    // corner brackets
+    ink(c, isP ? 2.6 : 1.7); if (!isP && !coasting) c.globalAlpha *= 0.75;
+    const L = clamp(Math.min(w, h)*0.22, 10, 24);
+    const corners = [[b.x0, b.y0, 1, 1], [b.x1, b.y0, -1, 1], [b.x0, b.y1, 1, -1], [b.x1, b.y1, -1, -1]];
+    corners.forEach(([x, y, sx, sy], k) => {
+      const sd = tr.id*31 + k*7;
+      wobLine(c, x, y, x + sx*L, y, sd); wobLine(c, x, y, x, y + sy*L, sd + 3);
+    });
+    c.setLineDash([]);
+    // velocity arrow
+    const [cx, cy] = ctr(b), sp = Math.hypot(...tr.vel);
+    if (sp > 22 && !lost){
+      const ex = cx + tr.vel[0]*0.35, ey = cy + tr.vel[1]*0.35, a = Math.atan2(ey - cy, ex - cx);
+      ink(c, 2, P.deep); wobLine(c, cx, cy, ex, ey, tr.id*13, 0.8);
+      c.beginPath(); c.moveTo(ex + Math.cos(a + 2.6)*8, ey + Math.sin(a + 2.6)*8); c.lineTo(ex, ey); c.lineTo(ex + Math.cos(a - 2.6)*8, ey + Math.sin(a - 2.6)*8); c.stroke();
+    }
+    // leg-band tag with the stable ID
+    const id = String(tr.id), tw = 12 + id.length*9, sw = clamp(-tr.vel[0]*0.003, -0.5, 0.5) + Math.sin(sim.t*2.6 + tr.id)*0.08;
+    c.save(); c.translate(b.x1 - 2, b.y0 + 4); c.rotate(sw);
+    ink(c, 1.2); c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(4, 8, 8, 12); c.stroke();
+    c.translate(8, 12);
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(tw, 0); c.lineTo(tw, 17); c.lineTo(5, 17); c.lineTo(0, 12); c.closePath();
+    c.fillStyle = isP ? P.yellow : P.paper; c.fill(); ink(c, 1.6); c.stroke();
+    c.beginPath(); c.arc(4, 4, 1.6, 0, Math.PI*2); c.stroke();
+    digits(c, id, 9, 3.5, 10);
+    c.restore();
+    if (coasting){ c.fillStyle = P.ink; c.font = 'bold 16px Georgia'; c.fillText('?', b.x1 + 4, b.y0 + 12); }
+    // lost: scribbled out
+    if (lost){
+      const u = clamp((sim.t - tr.lostAt)/0.25, 0, 1), n = 7;
+      ink(c, 2.2); c.beginPath(); c.moveTo(b.x0, b.y0 + h*0.1);
+      for (let i = 1; i <= Math.floor(n*u); i++) c.lineTo(i % 2 ? b.x1 : b.x0, b.y0 + h*(0.1 + 0.8*i/n));
+      c.stroke();
+    }
+    c.restore();
+  }
+
+  function drawReticle(c){
+    const A = sim.att; if (A.ra < 0.02) return;
+    const tremble = A.lock*1.4;
+    const x = A.rx + Math.sin(sim.t*41)*tremble, y = A.ry + Math.cos(sim.t*37)*tremble, r = A.rr;
+    c.save(); c.globalAlpha = A.ra;
+    ink(c, 2.2, P.rust);
+    c.beginPath();
+    for (let k = 0; k <= 48; k++){ const a = k/48*Math.PI*2, rr = r + vnoise(k*0.7 + sim.t*1.5)*1.4; k ? c.lineTo(x + Math.cos(a)*rr, y + Math.sin(a)*rr) : c.moveTo(x + Math.cos(a)*rr, y + Math.sin(a)*rr); }
+    c.stroke();
+    for (let k = 0; k < 4; k++){ const a = k*Math.PI/2 + Math.PI/4; wobLine(c, x + Math.cos(a)*(r - 6), y + Math.sin(a)*(r - 6), x + Math.cos(a)*(r + 9), y + Math.sin(a)*(r + 9), k*5, 0.6); }
+    if (A.lock > 0.01){ ink(c, 5, P.rust); c.beginPath(); c.arc(x, y, r + 7, -Math.PI/2, -Math.PI/2 + A.lock*Math.PI*2); c.stroke(); }
+    if (A.primary === -1){ c.fillStyle = P.rust; c.font = 'bold 26px Georgia'; c.fillText('?', x - 7, y + 9); }
+    c.restore();
+  }
+
+  function drawStamp(c){
+    const st = sim.att.stamp; if (!st) return;
+    const k = sim.t - st.at; if (k > 3.2) return;
+    const s = k < 0.12 ? 2.4 - 1.4*(k/0.12) : 1, a = k < 2.6 ? 0.92 : 0.92*(1 - (k - 2.6)/0.6);
+    c.save(); c.translate(st.x, st.y); c.rotate(-0.22); c.scale(s, s); c.globalAlpha = a;
+    ink(c, 4.5, P.rust); c.beginPath(); c.arc(0, 0, 36, 0, Math.PI*2); c.stroke();
+    ink(c, 1.6, P.rust); c.beginPath(); c.arc(0, 0, 28, 0, Math.PI*2); c.stroke();
+    for (let i = 0; i < 12; i++){ const an = i/12*Math.PI*2; c.beginPath(); c.moveTo(Math.cos(an)*42, Math.sin(an)*42); c.lineTo(Math.cos(an)*50, Math.sin(an)*50); c.stroke(); }
+    ink(c, 7, P.rust); c.beginPath(); c.moveTo(-14, 1); c.lineTo(-4, 12); c.lineTo(16, -12); c.stroke();
+    c.restore();
+  }
+
+  // eye furniture, in screen space
+  // Each eye is an ellipse: radius r tall, r·lens wide. The view is the union of the two openings.
+  const eyeLayer = document.createElement('canvas'); eyeLayer.width = cv.width; eyeLayer.height = cv.height;
+  const ectx = eyeLayer.getContext('2d');
+  const EHATCH = ectx.createPattern(hp, 'repeat');
+  const curLock = () => ui.lockPreview ?? sim.att.lock;
+  function eyes(){
+    const st = sim.att.stamp, k = st ? sim.t - st.at : 99;
+    const dil = k < 0.9 ? 1 - k/0.9 : 0;
+    if (!ui.two){ const f = lerp(lerp(1, 250/345, smooth(curLock())), 380/345, dil); return { Ri:345*f, band:34, lens:1, cs:[[W/2, H/2]] }; }
+    const f = lerp(lerp(1, K.lockK.v, smooth(curLock())), 380/345, dil);
+    const sep = K.sep.v*(ui.sepLock ? f : 1);
+    return { Ri:K.R.v*f, band:K.band.v, lens:K.lens.v, cs:[[W/2 - sep, K.cy.v], [W/2 + sep, K.cy.v]] };
+  }
+  function ell(c, e, ctr, r){ c.ellipse(ctr[0], ctr[1], r*e.lens, r, 0, 0, Math.PI*2); }
+  function clipOutside(c, e, ctr, r){ c.beginPath(); c.rect(-20, -20, W + 40, H + 40); ell(c, e, ctr, r); c.clip('evenodd'); }
+  // outer rims, each hidden inside the other eye's band, so they meet in a notch at the bridge
+  function drawOuterRims(L, e){
+    e.cs.forEach((ctr, i) => {
+      L.save(); e.cs.forEach((o, j) => { if (j !== i) clipOutside(L, e, o, e.Ri + e.band); });
+      ink(L, 2); L.beginPath(); ell(L, e, ctr, e.Ri + e.band); L.stroke(); L.restore();
+    });
+  }
+  // 0 open … 1 shut, over the course of each blink
+  function blinkShut(){
+    let s = 0;
+    for (const bt of sim.blinks){ const u = (sim.t - bt)/K.blinkS.v; if (u >= 0 && u <= 1) s = Math.max(s, Math.sin(Math.PI*u)); }
+    return s;
+  }
+  // Two eyes: each eye has its own lids, inside its lens. Each eye owns its side of the bridge.
+  function drawEyeLids(c, open){
+    const e = eyes(), Rb = e.Ri + e.band;
+    if (ui.blinkStyle !== 'membrane') open *= 1 - blinkShut();
+    e.cs.forEach(([ex, ey]) => {
+      const rx = Rb*e.lens, left = ex < W/2;
+      const prof = x => Math.sqrt(Math.max(0, 1 - ((x - ex)/rx)**2));
+      const topY = x => ey - Rb*open*prof(x) + Math.sin(x*0.05)*1.2;
+      const botY = x => ey + Rb*K.lidBot.v*open*prof(x) + Math.sin(x*0.05 + 2)*1.2;
+      c.save();
+      c.beginPath(); left ? c.rect(-20, -20, W/2 + 20, H + 40) : c.rect(W/2, -20, W/2 + 20, H + 40); c.clip();
+      c.beginPath(); ell(c, e, [ex, ey], Rb); c.clip();
+      const x0 = ex - rx - 4, x1 = ex + rx + 4;
+      const path = (f, off = 0) => { c.beginPath(); for (let x = x0; x <= x1; x += 3){ const y = f(x) + off; x === x0 ? c.moveTo(x, y) : c.lineTo(x, y); } };
+      for (const [edge, far, dir] of [[topY, ey - Rb - 10, -1], [botY, ey + Rb + 10, 1]]){
+        path(edge); c.lineTo(x1, far); c.lineTo(x0, far); c.closePath();
+        c.fillStyle = P.paper; c.fill(); c.save(); c.globalAlpha = 0.55; c.fillStyle = HATCH; c.fill(); c.restore();
+        ink(c, 5, P.yellow); path(edge, dir*4); c.stroke();
+        ink(c, 3); path(edge); c.stroke();
+        ink(c, 1.4);
+        for (let x = ex - Math.floor(rx/22)*22; x < x1; x += 22){
+          const y = edge(x) + dir*22; c.beginPath(); c.arc(x, y, 9, dir < 0 ? 0 : Math.PI, dir < 0 ? Math.PI : Math.PI*2); c.stroke(); }
+      }
+      c.restore();
+    });
+    drawOuterRims(c, e);
+  }
+  function drawIris(c){
+    if (!ui.iris) return;
+    const e = eyes(), { Ri, band } = e, L = ectx;
+    L.setTransform(1,0,0,1,0,0); L.clearRect(0, 0, eyeLayer.width, eyeLayer.height);
+    L.setTransform(DPR, 0, 0, DPR, 0, 0); L.globalCompositeOperation = 'source-over';
+    // hatched socket everywhere, then each eye's yellow band disc over it
+    L.fillStyle = P.paper; L.fillRect(-10, -10, W + 20, H + 20);
+    L.globalAlpha = 0.55; L.fillStyle = EHATCH; L.fillRect(-10, -10, W + 20, H + 20); L.globalAlpha = 1;
+    L.fillStyle = P.yellow;
+    for (const ctr of e.cs){ L.beginPath(); ell(L, e, ctr, Ri + band); L.fill(); }
+    // striations, each eye on its own side of the bridge (anything in the openings is cut away below)
+    ink(L, 1.2);
+    for (const ctr of e.cs){
+      L.save();
+      if (e.cs.length > 1){ L.beginPath(); ctr[0] < W/2 ? L.rect(-20, -20, W/2 + 20, H + 40) : L.rect(W/2, -20, W/2 + 20, H + 40); L.clip(); }
+      for (let i = 0; i < 110; i++){ const a = i/110*Math.PI*2 + hash(i)*0.02, l = 8 + hash(i + 7)*(band - 12);
+        const ca = Math.cos(a)*e.lens, sa = Math.sin(a);
+        L.beginPath(); L.moveTo(ctr[0] + ca*(Ri + 3), ctr[1] + sa*(Ri + 3)); L.lineTo(ctr[0] + ca*(Ri + l), ctr[1] + sa*(Ri + l)); L.stroke(); }
+      L.restore();
+    }
+    drawOuterRims(L, e);
+    // cut the openings: one merged view
+    L.globalCompositeOperation = 'destination-out';
+    for (const ctr of e.cs){ L.beginPath(); ell(L, e, ctr, Ri); L.fill(); }
+    L.globalCompositeOperation = 'source-over';
+    // inner rims, each hidden inside the other opening
+    e.cs.forEach((ctr, i) => {
+      L.save(); e.cs.forEach((o, j) => { if (j !== i) clipOutside(L, e, o, Ri); });
+      ink(L, 3); L.beginPath(); ell(L, e, ctr, Ri); L.stroke(); L.restore();
+    });
+    c.save(); c.setTransform(1,0,0,1,0,0); c.drawImage(eyeLayer, 0, 0); c.restore();
+  }
+  function drawLids(c, open){
+    if (ui.two) return drawEyeLids(c, open);
+    const cx = W/2, cy = H/2, wx = W*0.76;
+    const prof = x => Math.max(0, 1 - ((x - cx)/wx)**2);
+    const topY = x => cy - H*0.64*open*prof(x) + Math.sin(x*0.05)*1.2;
+    const botY = x => cy + H*0.6*open*prof(x) + Math.sin(x*0.05 + 2)*1.2;
+    for (const [edge, far, dir] of [[topY, -10, -1], [botY, H + 10, 1]]){
+      c.beginPath(); c.moveTo(-10, far);
+      for (let x = -10; x <= W + 10; x += 6) c.lineTo(x, edge(x));
+      c.lineTo(W + 10, far); c.closePath();
+      c.fillStyle = P.paper; c.fill(); c.save(); c.globalAlpha = 0.55; c.fillStyle = HATCH; c.fill(); c.restore();
+      // yellow eye-ring just inside the rim, then the ink rim
+      ink(c, 5, P.yellow); c.beginPath(); for (let x = -10; x <= W + 10; x += 6){ const y = edge(x) + dir*4; x === -10 ? c.moveTo(x, y) : c.lineTo(x, y); } c.stroke();
+      ink(c, 3); c.beginPath(); for (let x = -10; x <= W + 10; x += 6){ const y = edge(x); x === -10 ? c.moveTo(x, y) : c.lineTo(x, y); } c.stroke();
+      // feather scallops along the crease
+      ink(c, 1.4);
+      for (let x = 4; x < W; x += 22){ const y = edge(x) + dir*22; c.beginPath(); c.arc(x, y, 9, dir < 0 ? 0 : Math.PI, dir < 0 ? Math.PI : Math.PI*2); c.stroke(); }
+    }
+  }
+  function drawMembrane(c){
+    if (ui.two) return drawMembranes(c);
+    for (const bt of sim.blinks){
+      const u = (sim.t - bt)/0.32; if (u < 0 || u > 1) continue;
+      const cover = Math.sin(Math.PI*u), ex = -30 + cover*(W + 90);
+      const edgeX = y => ex + (y - H/2)*0.28 + Math.sin(y*0.04 + u*4)*9;
+      c.beginPath(); c.moveTo(-20, -10);
+      for (let y = -10; y <= H + 10; y += 8) c.lineTo(edgeX(y), y);
+      c.lineTo(-20, H + 10); c.closePath();
+      c.fillStyle = 'rgba(240,236,222,0.82)'; c.fill();
+      ink(c, 1, P.slate); c.globalAlpha = 0.5;
+      for (let k = 1; k < 8; k++){ c.beginPath(); for (let y = -10; y <= H + 10; y += 8){ const x = edgeX(y) - k*46; y === -10 ? c.moveTo(x, y) : c.lineTo(x, y); } c.stroke(); }
+      c.globalAlpha = 1; ink(c, 2.2); c.beginPath(); for (let y = -10; y <= H + 10; y += 8) y === -10 ? c.moveTo(edgeX(y), y) : c.lineTo(edgeX(y), y); c.stroke();
+    }
+  }
+
+  // Two eyes: each membrane leaves the bridge and sweeps out to its own outer corner, then back.
+  function drawMembranes(c){
+    if (ui.blinkStyle === 'lids') return;
+    const cx = W/2, e = eyes();
+    c.save();
+    c.beginPath(); for (const ctr of e.cs){ c.moveTo(ctr[0] + (e.Ri + e.band)*e.lens, ctr[1]); ell(c, e, ctr, e.Ri + e.band); }
+    c.clip();                                                    // nonzero: the union of the two eyes
+    for (const bt of sim.blinks){
+      const u = (sim.t - bt)/K.blinkS.v; if (u < 0 || u > 1) continue;
+      const reach = -20 + Math.sin(Math.PI*u)*(W/2 + 70);
+      for (const s of [-1, 1]){
+        // distance of the leading edge from the bridge at height y; the sheet leans back toward the bridge at the top
+        const ed = y => reach - (H/2 - y)*0.28 + Math.sin(y*0.04 + u*4 + (s > 0 ? 1.7 : 0))*9;
+        const X = (y, back = 0) => cx + s*Math.max(0, ed(y) - back);
+        c.save();
+        c.beginPath(); c.moveTo(cx, -10);
+        for (let y = -10; y <= H + 10; y += 8) c.lineTo(X(y), y);
+        c.lineTo(cx, H + 10); c.closePath();
+        c.fillStyle = 'rgba(240,236,222,0.82)'; c.fill();
+        c.clip();
+        ink(c, 1, P.slate); c.globalAlpha = 0.5;
+        for (let k = 1; k < 8; k++){ c.beginPath(); for (let y = -10; y <= H + 10; y += 8){ const x = X(y, k*46); y === -10 ? c.moveTo(x, y) : c.lineTo(x, y); } c.stroke(); }
+        c.restore();
+        ink(c, 2.2); c.beginPath();
+        for (let y = -10; y <= H + 10; y += 8){ const x = X(y); y === -10 ? c.moveTo(x, y) : c.lineTo(x, y); }
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+
+  function render(){
+    const s = sim.t, A = sim.att;
+    ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle = P.paper; ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    // strike punch-in, about the target
+    const k = A.stamp ? s - A.stamp.at : 99;
+    const punch = k < 0.12 ? smooth(k/0.12) : k < 0.9 ? 1 : k < 1.7 ? 1 - smooth((k - 0.9)/0.8) : 0;
+    if (punch > 0){ const z = 1 + 0.38*punch; ctx.translate(A.stamp.x, A.stamp.y); ctx.scale(z, z); ctx.translate(-A.stamp.x, -A.stamp.y); }
+    drawGround(ctx);
+    drawPrints(ctx);
+    SCRIPTS.forEach(script => { const p = script(s); if (p) drawFigure(ctx, figure(p, s), s); });
+    drawCanopy(ctx, s);
+    for (const tr of sim.tracks) drawTrack(ctx, tr);
+    drawReticle(ctx);
+    drawStamp(ctx);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawIris(ctx);
+    drawLids(ctx, sim.lids);
+    drawMembrane(ctx);
+    document.getElementById('state').textContent = label(s);
+  }
+  function label(s){
+    const A = sim.att, k = A.stamp ? s - A.stamp.at : 99;
+    if (k < 3.2) return 'strike: punch-in, stamp, smug lids';
+    if (s < 4.6) return 'empty: drowsy';
+    if (s < 7) return 'someone enters: tentative, blink';
+    if (s < 12) return 'hunting: tagged, lock builds';
+    if (s < 16.4) return 'they froze: lock drains, ? wander';
+    if (s < 22) return 'a flailer steals attention';
+    if (s < 27.4) return 'leaving: coasting, struck out';
+    return 'empty';
+  }
+
+  // ── Loop, scrub, toggles ────────────────────────────────────────────────────
+  const DT = 1/60;
+  function simulateTo(t){ resetSim(); while (sim.t + DT <= t) step(DT); }
+  resetSim();
+  let playing = true, last = performance.now();
+  const scrub = document.getElementById('scrub'), btn = document.getElementById('play');
+  function frame(now){
+    const dt = Math.min(0.05, (now - last)/1000); last = now;
+    if (playing){
+      let left = dt; while (left > 1e-6){ const d = Math.min(DT, left); step(d); left -= d; }
+      if (sim.t >= LOOP) resetSim();
+      scrub.value = sim.t;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+  btn.onclick = () => { playing = !playing; btn.textContent = playing ? 'Pause' : 'Play'; };
+  scrub.oninput = () => { simulateTo(+scrub.value); render(); };
+  document.getElementById('smooth').onchange = e => { ui.smooth = e.target.checked; };
+  document.getElementById('iris').onchange = e => { ui.iris = e.target.checked; };
+  document.getElementById('two').onchange = e => { ui.two = e.target.checked; showVals(); };
+  document.getElementById('sepLock').onchange = e => { ui.sepLock = e.target.checked; showVals(); };
+  document.getElementById('blinkStyle').onchange = e => { ui.blinkStyle = e.target.value; showVals(); };
+  document.getElementById('blink').onclick = () => { sim.blinks.push(sim.t); };
+  { const seq = [null, 0, 0.5, 1], lb = document.getElementById('lockVal'); let i = 0;
+    document.getElementById('lockBtn').onclick = () => { i = (i + 1) % seq.length; ui.lockPreview = seq[i]; lb.textContent = seq[i] === null ? 'off' : seq[i]; }; }
+  // #t=10 jumps to 10 s and pauses; #t=10&lock=1&two=0&blink=0.16 previews a moment (blink: seconds into a blink)
+  { const q = new URLSearchParams(location.hash.slice(1));
+    if (q.has('two')) { ui.two = q.get('two') !== '0'; document.getElementById('two').checked = ui.two; showVals(); }
+    if (q.has('lock')) ui.lockPreview = +q.get('lock');
+    if (q.has('t')) { simulateTo(+q.get('t')); scrub.value = sim.t; playing = false; btn.textContent = 'Play'; }
+    if (q.has('style')) { ui.blinkStyle = q.get('style'); document.getElementById('blinkStyle').value = ui.blinkStyle; showVals(); }
+    if (q.has('blink')) sim.blinks.push(sim.t - +q.get('blink'));
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

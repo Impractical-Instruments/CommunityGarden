@@ -348,6 +348,17 @@ def to_px(u, v, size=BIG):
     return int(v * size[1]), int(u * size[0])
 
 
+# The eyes at no lock (common.glsl: EYE_R, EYE_SEP, EYE_LENS, EYE_Y), in BIG pixels.
+EYE_R, EYE_SEP, EYE_LENS = BIG[1] * 150 / 360, BIG[1] * 150 / 360, 1.25
+EYE_ROW = BIG[1] // 2
+EYE_COLS = (int(BIG[0] / 2 - EYE_SEP), int(BIG[0] / 2 + EYE_SEP))     # left, right eye centres
+
+
+def in_opening(row, col, margin=0.0):
+    """Is (row, col) inside an eye's opening at no lock, by at least `margin` px (roughly)?"""
+    return any(((col - c) / EYE_LENS) ** 2 + (row - EYE_ROW) ** 2 < (EYE_R - margin) ** 2 for c in EYE_COLS)
+
+
 def test_person_has_white_fill_and_ink_outline(ctx):
     rig = Rig(ctx, BIG)
     rig.run(standing(10))                                 # rect(36, 8, 46, 36): UV x 0.5625–0.719, y 0.1–0.8
@@ -376,9 +387,11 @@ def test_canopy_stays_in_its_band(ctx):
     img = rig.image()
     assert near(img[BIG[1] // 2, BIG[0] // 2], "paper", 12)   # the screen centre is the clearing
     rig = Rig(ctx, BIG)
-    rig.run(walking(30))                                  # lids wide: the top centre is in view
-    top = rig.image()[BIG[1] - 4, int(BIG[0] * 0.3):int(BIG[0] * 0.7)]
-    assert any(near(p, "ink") for p in top)               # the canopy along the top
+    rig.run(walking(30))                                  # lids wide, no lock: the eyes' tops are in view
+    img = rig.image()
+    top = [img[r, c] for r in range(int(BIG[1] * 0.82), BIG[1]) for c in range(BIG[0])
+           if in_opening(r, c, margin=4)]                 # above the walker's brackets, clear of the eye's rim
+    assert top and any(not near(p, "paper", 12) for p in top)   # the canopy, through the tops of the eyes
 
 
 # ── Task 5: field notes and attention ─────────────────────────────────────────
@@ -470,10 +483,10 @@ def test_reticle_drawn_on_target(ctx):
 # ── Task 6: the eye ───────────────────────────────────────────────────────────
 
 def lid_patch(rig):
-    """Pixels 0.35 H above the screen centre."""
+    """Pixels 0.3 H above the left eye's centre: under the lid when drowsy, in view when wide."""
     img = rig.image()
-    r, c = int(BIG[1] * 0.85), BIG[0] // 2
-    return img[r - 3:r + 3, c - 12:c + 12]
+    r, c = int(BIG[1] * 0.8), EYE_COLS[0]
+    return img[r - 3:r + 3, c - 8:c + 8]
 
 
 def bluish(patch):
@@ -496,10 +509,11 @@ def test_lids_open_on_target(ctx):
 
 
 def iris_patch(rig):
-    """Pixels 0.72–0.80 H left of the screen centre, inside the lids when they're wide."""
+    """Pixels 0.78–0.86 H left of the screen centre, at eye height: the left eye's outer corner.
+    In view at no lock (the opening reaches 0.94 H); in the iris band at full lock (0.75–0.87 H)."""
     img = rig.image()
     c = BIG[0] // 2
-    return img[BIG[1] // 2 - 2:BIG[1] // 2 + 2, c - int(0.80 * BIG[1]):c - int(0.72 * BIG[1])]
+    return img[EYE_ROW - 2:EYE_ROW + 2, c - int(0.86 * BIG[1]):c - int(0.78 * BIG[1])]
 
 
 def test_iris_band_narrows_view_on_lock(ctx):
@@ -517,19 +531,20 @@ def test_iris_band_narrows_view_on_lock(ctx):
     assert count(patch, "yellow", 30) + bluish(patch) > 10            # iris band or socket
 
 
-def test_membrane_sweeps_during_blink(ctx):
+def test_lids_shut_during_blink(ctx):
     rig = Rig(ctx, BIG)
     rec = fake_records((0.02, 0.35, 0.12, 0.6), 1)        # a new id at the far left, no Body
-    def right_half():
+    def right_eye():                                      # 0.15 H above its centre: in view between blinks
         img = rig.image()
-        return img[BIG[1] // 2 - 3:BIG[1] // 2 + 3, BIG[0] // 2:]
+        r, c = int(BIG[1] * 0.65), EYE_COLS[1]
+        return img[r - 3:r + 3, c - 8:c + 8]
     render_records(rig, rec, frames=2)
     assert -0.16 < rig.blink()[0] < 0.0                   # scheduled
-    assert bluish(right_half()) == 0
+    assert bluish(right_eye()) == 0
     for _ in range(15):
         render_records(rig, rec, frames=1)
-        if 0.1 < rig.blink()[0] < 0.22:                   # mid-blink: the sheet's streaks cross the view
-            assert bluish(right_half()) > 3
+        if 0.1 < rig.blink()[0] < 0.22:                   # mid-blink: the lids are nearly shut
+            assert bluish(right_eye()) > 5
             return
     pytest.fail("no blink")
 

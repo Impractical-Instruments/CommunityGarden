@@ -1,5 +1,5 @@
 // Image — the bird's view. iChannel0 = Body (A), iChannel1 = bird state (B), iChannel2 = blobs.
-// Back to front: world (zooms on a strike) → field notes → attention → the eye (screen space).
+// Back to front: world (zooms on a strike) → field notes → attention → the two eyes (screen space).
 // Positions: `p` is in screen heights (x 0…aspect, y 0…1); records and Body are in UV.
 
 #define BODY  iChannel0
@@ -285,102 +285,106 @@ void drawStamp(inout vec3 col, vec2 p, vec2 at, float since) {
 }
 
 
-// ── The eye (screen space, never zooms) ───────────────────────────────────────
-// Mockup pixels, y down: X across the screen, Y down from the top, eye centre C.
-struct Eye { vec2 q, c; float W, pxp; };
+// ── The eyes (screen space, never zoom) ──────────────────────────────────────
+// Two mirror-image eyes, one each side of the bridge (the screen's centre line).
+// On its own side, an eye's ellipse *is* the merged view, so every pixel only
+// needs the eye on its side. Lengths here are screen heights; G is a mockup pixel.
+struct Eye { vec2 c; float Ri, Rb; };    // centre, opening radius, outer radius (band's edge)
 
-Eye eyeAt(vec2 p) {
+Eye eyeAt(vec2 p, float lock, float since) {
+    float dil = since < STRIKE_WIDE_S ? 1.0 - since / STRIKE_WIDE_S : 0.0;
+    float f = mix(mix(1.0, EYE_LOCK_K, smoothstep(0.0, 1.0, lock)), EYE_STRIKE_K, dil);
     Eye e;
-    e.q = vec2(p.x, 1.0 - p.y) * 360.0;
-    e.W = ASPECT * 360.0;
-    e.c = vec2(e.W, 360.0) * 0.5;
-    e.pxp = PX * 360.0;
+    e.c  = vec2(ASPECT * 0.5 + (p.x < ASPECT * 0.5 ? -1.0 : 1.0) * EYE_SEP * f, EYE_Y);
+    e.Ri = EYE_R * f;
+    e.Rb = e.Ri + IRIS_BAND;
     return e;
 }
 
-float irisR(float lock, float since) {
-    float r = mix(IRIS_R_OPEN, IRIS_R_LOCKED, smoothstep(0.0, 1.0, lock));
-    float dil = since < STRIKE_WIDE_S ? 1.0 - since / STRIKE_WIDE_S : 0.0;
-    return mix(r, IRIS_R_STRIKE, dil) * 360.0;
+// Signed distance to the eye's ellipse of radius R (R tall, R·EYE_LENS wide), < 0 inside.
+// The ellipse's level-set value over its gradient: good to well under a pixel near the rim.
+float sdEye(vec2 p, Eye e, float R) {
+    vec2  L = vec2(EYE_LENS, 1.0);
+    vec2  q = (p - e.c) / L;
+    float r = length(q);
+    return (r - R) / max(length(q / max(r, 1e-6) / L), 1e-6);
 }
 
-// Lid rims (y down) and their slopes at X.
+// Openness after blinks: 1 − how shut the blink has the lids.
+float lidOpen(float mood, float sinceBlink) {
+    float shut = sinceBlink >= 0.0 && sinceBlink <= BLINK_S ? sin(3.14159265 * sinceBlink / BLINK_S) : 0.0;
+    return mood * (1.0 - shut);
+}
+
+// Lid rims (y up) at x: top and bottom, and their slopes.
 vec4 lidRims(Eye e, float x, float open) {
-    float wx = e.W * LID_SPAN, u = (x - e.c.x) / wx;
-    float prof = max(0.0, 1.0 - u * u), dprof = prof > 0.0 ? -2.0 * u / wx : 0.0;
-    float top = e.c.y - 360.0 * LID_TOP * open * prof + sin(x * 0.05) * 1.2;
-    float bot = e.c.y + 360.0 * LID_BOT * open * prof + sin(x * 0.05 + 2.0) * 1.2;
-    float sT = -360.0 * LID_TOP * open * dprof + 0.06 * cos(x * 0.05);
-    float sB =  360.0 * LID_BOT * open * dprof + 0.06 * cos(x * 0.05 + 2.0);
+    float rx = e.Rb * EYE_LENS, u = (x - e.c.x) / rx;
+    float prof = sqrt(max(0.0, 1.0 - u * u));
+    float dprof = prof > 1e-3 ? -u / (rx * prof) : 0.0;
+    float xm = x * 360.0;                                         // wobble, as the mockup: in its pixels
+    float top = e.c.y + e.Rb * open * prof - sin(xm * 0.05) * 1.2 * G;
+    float bot = e.c.y - e.Rb * LID_BOT * open * prof - sin(xm * 0.05 + 2.0) * 1.2 * G;
+    float sT = clamp( e.Rb * open * dprof - 0.06 * cos(xm * 0.05), -8.0, 8.0);
+    float sB = clamp(-e.Rb * LID_BOT * open * dprof - 0.06 * cos(xm * 0.05 + 2.0), -8.0, 8.0);
     return vec4(top, bot, sT, sB);
 }
 
-// How much of this pixel the iris socket and lids hide (1 = the world can't show through).
+// Signed distance past a lid's rim (< 0 inside the lid). top: the lid above its rim.
+float sdLid(vec2 p, Eye e, float open, bool top) {
+    vec4 rim = lidRims(e, p.x, open);
+    float y = top ? rim.x : rim.y, s = top ? rim.z : rim.w;
+    return (top ? y - p.y : p.y - y) / sqrt(1.0 + s * s);
+}
+
+// How much of this pixel the socket and lids hide (1 = the world can't show through).
 float eyeCover(vec2 p, float open, float lock, float since) {
-    Eye e = eyeAt(p);
-    float Ri = irisR(lock, since);
-    float r = length(e.q - e.c);
-    float a = smoothstep(Ri - 2.0 * e.pxp, Ri - 1.0 * e.pxp, r);
-    vec4 rim = lidRims(e, e.q.x, open);
-    float out_ = max(rim.x - e.q.y, e.q.y - rim.y);               // > 0 inside a lid (y down: top < bottom)
-    return max(a, step(2.0 * e.pxp, out_));                       // well inside, past the rim's antialiasing
+    Eye e = eyeAt(p, lock, since);
+    float a = smoothstep(-2.0 * PX, -1.0 * PX, sdEye(p, e, e.Ri));
+    float lid = min(sdLid(p, e, open, true), sdLid(p, e, open, false));
+    return max(a, step(lid, -2.0 * PX));                          // well inside, past the rim's antialiasing
 }
 
-void drawIris(inout vec3 col, vec2 p, float lock, float since) {
-    Eye e = eyeAt(p);
-    float Ri = irisR(lock, since), band = IRIS_BAND * 360.0;
-    vec2  d = e.q - e.c;
-    float r = length(d);
-    if (r < Ri - 3.0) return;
-    float px = e.pxp;
-    vec3 c = r < Ri + band ? YELLOW : mix(PAPER, SLATE, EYE_HATCH * hatch(p, HATCH_GAP, HATCH_W, PX));
-    over(col, c, smoothstep(Ri - 0.5 * px, Ri + 0.5 * px, r));
-    if (r < Ri + band + 2.0) {                                    // short ink striations
+void drawIris(inout vec3 col, vec2 p, Eye e) {
+    float d = sdEye(p, e, e.Ri);
+    if (d < -3.0 * PX) return;
+    float db = sdEye(p, e, e.Rb);
+    vec3 socket = mix(PAPER, SLATE, EYE_HATCH * hatch(p, HATCH_GAP, HATCH_W, PX));
+    over(col, mix(YELLOW, socket, smoothstep(-0.5 * PX, 0.5 * PX, db)), smoothstep(-0.5 * PX, 0.5 * PX, d));
+    if (db < 2.0 * G) {                                           // short ink striations, radial in lens space
+        vec2  L = vec2(EYE_LENS, 1.0), q = (p - e.c) / L;
         float n = float(STRIATIONS);
-        float i = mod(floor(atan(d.y, d.x) / 6.2831853 * n + 0.5), n);
+        float i = mod(floor(atan(q.y, q.x) / 6.2831853 * n + 0.5), n);
         float ai = i / n * 6.2831853 + hash11(i) * 0.02;
-        float l  = 8.0 + hash11(i + 7.0) * (band - 12.0);
-        vec2  dir = vec2(cos(ai), sin(ai));
-        over(col, INK, pen(sdSegment(e.q, e.c + dir * (Ri + 3.0), e.c + dir * (Ri + l)), 1.2, px));
+        float l  = (8.0 + hash11(i + 7.0) * (IRIS_BAND * 360.0 - 12.0)) * G;
+        vec2  dir = L * vec2(cos(ai), sin(ai));
+        over(col, INK, step(0.0, d) * pen(sdSegment(p, e.c + dir * (e.Ri + 3.0 * G), e.c + dir * (e.Ri + l)), 1.2 * G, PX));
     }
-    over(col, INK, pen(abs(r - Ri), 3.0, px));
-    over(col, INK, pen(abs(r - Ri - band), 2.0, px));
+    over(col, INK, pen(abs(d), 3.0 * G, PX));
 }
 
-// One lid. dir −1 = top (the lid lies above its rim), +1 = bottom.
-void drawLid(inout vec3 col, vec2 p, Eye e, float open, float dir) {
-    vec4  rim = lidRims(e, e.q.x, open);
-    float y = dir < 0.0 ? rim.x : rim.y, s = dir < 0.0 ? rim.z : rim.w;
-    float sd = dir * (y - e.q.y) / sqrt(1.0 + s * s);           // < 0 inside the lid
-    float px = e.pxp;
-    if (sd > LID_RIM_W) return;
-    float fill = smoothstep(0.5 * px, -0.5 * px, sd);
+// The outer rim: drawn over the lids, so the eyes' shape always reads.
+void drawOuterRim(inout vec3 col, vec2 p, Eye e) {
+    over(col, INK, pen(abs(sdEye(p, e, e.Rb)), 2.0 * G, PX));
+}
+
+// One lid, clipped to its eye.
+void drawLid(inout vec3 col, vec2 p, Eye e, float open, bool top) {
+    float sd = sdLid(p, e, open, top);
+    if (sd > LID_RIM_W * G) return;
+    float inEye = smoothstep(0.5 * PX, -0.5 * PX, sdEye(p, e, e.Rb));
+    float fill = inEye * smoothstep(0.5 * PX, -0.5 * PX, sd);
     over(col, mix(PAPER, SLATE, EYE_HATCH * hatch(p, HATCH_GAP, HATCH_W, PX)), fill);
-    over(col, YELLOW, fill * pen(abs(sd + LID_RING_IN), LID_RING_W, px));
+    over(col, YELLOW, fill * pen(abs(sd + LID_RING_IN * G), LID_RING_W * G, PX));
     // feather scallops along the crease: half-circles cupped toward the rim
-    float xn = 4.0 + SCALLOP_EVERY * floor((e.q.x - 4.0) / SCALLOP_EVERY + 0.5);
+    float every = SCALLOP_EVERY * G;
+    float xn = e.c.x + every * floor((p.x - e.c.x) / every + 0.5);
     vec4  rn = lidRims(e, xn, open);
-    vec2  sc = vec2(xn, (dir < 0.0 ? rn.x : rn.y) + dir * SCALLOP_IN);
-    vec2  v = e.q - sc;
-    float arc = -dir * v.y >= 0.0 ? abs(length(v) - SCALLOP_R)
-              : min(length(v - vec2(SCALLOP_R, 0.0)), length(v + vec2(SCALLOP_R, 0.0)));
-    over(col, INK, fill * pen(arc, 1.4, px));
-    over(col, INK, pen(abs(sd), LID_RIM_W, px));
-}
-
-void drawMembrane(inout vec3 col, vec2 p, float since) {
-    if (since < 0.0 || since > BLINK_S) return;
-    Eye e = eyeAt(p);
-    float u = since / BLINK_S;
-    float ex = -30.0 + sin(3.14159265 * u) * (e.W + 90.0);
-    float edge = ex + (e.q.y - 180.0) * 0.28 + sin(e.q.y * 0.04 + u * 4.0) * 9.0;
-    float sd = e.q.x - edge, px = e.pxp;
-    if (sd > 3.0) return;
-    over(col, PAPER, MEMBRANE_ALPHA * smoothstep(0.5 * px, -0.5 * px, sd));
-    float k = floor(-sd / MEMBRANE_STREAK_GAP + 0.5);            // nearest streak behind the edge
-    if (k >= 1.0 && k <= float(MEMBRANE_STREAKS))
-        over(col, SLATE, 0.5 * pen(abs(sd + k * MEMBRANE_STREAK_GAP), 1.0, px));
-    over(col, INK, pen(abs(sd), 2.2, px));
+    vec2  sc = vec2(xn, top ? rn.x + SCALLOP_IN * G : rn.y - SCALLOP_IN * G);
+    vec2  v = p - sc;
+    float R = SCALLOP_R * G;
+    float arc = (top ? -v.y : v.y) >= 0.0 ? abs(length(v) - R) : min(length(v - vec2(R, 0.0)), length(v + vec2(R, 0.0)));
+    over(col, INK, fill * pen(arc, 1.4 * G, PX));
+    over(col, INK, inEye * pen(abs(sd), LID_RIM_W * G, PX));
 }
 
 // ── Strike punch-in ───────────────────────────────────────────────────────────
@@ -399,7 +403,8 @@ void mainImage(out vec4 o, in vec2 fc) {
 
     vec3 col = PAPER;
     PX = px;
-    if (eyeCover(p, mood.x, at.y, at.z) < 1.0) {             // skip the world where the eye hides it
+    float open = lidOpen(mood.x, bBlink(B).x);
+    if (eyeCover(p, open, at.y, at.z) < 1.0) {               // skip the world where the eyes hide it
         vec2  sp   = uvToP(bStamp(B).xy);
         float zoom = 1.0 + PUNCH_ZOOM * punch(at.z);
         vec2  wp   = sp + (p - sp) / zoom;                   // world point under this pixel
@@ -410,10 +415,10 @@ void mainImage(out vec4 o, in vec2 fc) {
         drawStamp(col, wp, sp, at.z);
     }
     PX = px;
-    drawIris(col, p, at.y, at.z);
-    Eye e = eyeAt(p);
-    drawLid(col, p, e, mood.x, -1.0);
-    drawLid(col, p, e, mood.x, 1.0);
-    drawMembrane(col, p, bBlink(B).x);
+    Eye e = eyeAt(p, at.y, at.z);
+    drawIris(col, p, e);
+    drawLid(col, p, e, open, true);
+    drawLid(col, p, e, open, false);
+    drawOuterRim(col, p, e);
     o = vec4(col, 1.0);
 }
