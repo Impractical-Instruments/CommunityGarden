@@ -426,6 +426,43 @@ def test_new_person_far_from_ghosts_starts_bare(ctx):
     rig.release()
 
 
+def test_fragment_in_freed_slot_keeps_ghost(ctx):
+    # A is lost and their slot frees; a short fragment takes that slot and expires; A comes
+    # back at their old spot within INHERIT_S and must still inherit their own ghost.
+    rig = Rig(ctx)
+    rig.run([person(x=4)] * 100)
+    g = rig.person(0)[1]
+    assert g > 0.4
+    rig.run([EMPTY] * 19)                          # coasted, lost, and the slot freed
+    assert rig.person(0)[0] == 0 and rig.ghost(0)[2] > 0.4
+    rig.run([person(x=46)])                        # a fragment takes the freed slot 0 ...
+    assert rig.person(0)[0] != 0 and rig.person(0)[2] > 0.5
+    for _ in range(12):                            # ... and expires
+        rig.run([EMPTY])
+        if rig.person(0)[0] == 0:
+            break
+    assert rig.person(0)[0] == 0
+    assert rig.ghost(0)[3] < INHERIT_S
+    rig.run([person(x=4)] * 5)
+    k = slot_of_live(rig)
+    assert abs(rig.person(k)[1] - g) < 0.05, (g, rig.person(k))
+    rig.release()
+
+
+def test_newcomer_beside_bloomed_person_starts_bare(ctx):
+    rig = Rig(ctx)
+    rig.run([person(x=4)] * 200)                   # A in full bloom
+    assert rig.person(0)[1] > 0.9
+    rig.run(both([person(x=4)] * 10, [person(x=20)] * 10))   # B appears with a 4 px gap
+    live = live_slots(rig)
+    assert len(live) == 2, live                    # a live, separate track
+    a, b = slot_near(rig, 10), slot_near(rig, 26)
+    assert a != b
+    assert rig.person(a)[1] > 0.9
+    assert rig.person(b)[1] < 0.05, rig.person(b)
+    rig.release()
+
+
 def test_sun_tracks_growth(ctx):
     rig = Rig(ctx)
     rig.run([EMPTY] * 30)

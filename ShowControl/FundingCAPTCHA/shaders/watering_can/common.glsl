@@ -32,6 +32,8 @@ const float BASE_EASE_S = 0.3;
 const float WALK_DIST   = 0.04;         // screen heights the base must move from the spot to count as a step
 const float WALK_HOLD_S = 0.4;          // walking lasts this long after the last step
 const float INHERIT_S = 3.0, INHERIT_DIST = 0.15;     // ghost lifetime; how near a new track must appear (screen heights)
+const float SPLIT_GAP = 0.03;            // a new track this close to a live one (box gap, screen heights) is a split of it and
+                                        // inherits its growth: the tracker merges touching people, so a gap this small means a split
 const float SUN_FULL = 1.0, SUN_EASE_S = 1.5;         // total growth that fully lights the sun
 // Plants
 const float VINE_SPACING = 4.5/360.0;   // ~30 vines across an adult, as the mockup's Dense panel

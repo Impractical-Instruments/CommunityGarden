@@ -41,7 +41,8 @@ float boxGap(vec4 a, vec4 b) {
 }
 
 // Growth a new track at `base` starts from: a recent ghost standing there, or a live
-// neighbour its box overlaps or touches (a split, a merge, or a part of a planted person).
+// neighbour its box overlaps or all but touches (a split, a merge, or a part of a planted
+// person). A newcomer further away starts bare, so nobody pops into bloom on arrival.
 float inherit(int k, vec2 base) {
     vec4 box = recBox(BLOBS, k);
     float g = 0.0;
@@ -49,7 +50,7 @@ float inherit(int k, vec2 base) {
         vec4 gh = cGhost(C, j);
         if (gh.w < INHERIT_S && length(toScreen(gh.xy - base)) < INHERIT_DIST) g = max(g, gh.z);
         if (j == k || fresh(j) || !live(recIdn(BLOBS, j).y)) continue;
-        if (boxGap(box, recBox(BLOBS, j)) < INHERIT_DIST) g = max(g, cPerson(C, j).y);
+        if (boxGap(box, recBox(BLOBS, j)) <= SPLIT_GAP) g = max(g, cPerson(C, j).y);
     }
     return g;
 }
@@ -96,8 +97,12 @@ vec4 ghostNext(int k, float dt) {
     float st = recIdn(BLOBS, k).y, was = cBase(C, k).w;          // was = the record state last frame
     bool  fr = fresh(k);
     bool  gone = !isState(was, S_LOST) && (fr || isState(st, S_LOST));
-    if (p.x > 0.5 && gone) return vec4(p.zw, p.y, 0.0);
-    vec4 g = cGhost(C, k);
+    vec4  g = cGhost(C, k);
+    // The slot is reused as soon as a lost record frees it: a short-lived fragment leaving
+    // must not wipe a ghost someone may still come back to. Replace a stale ghost, or one
+    // worth less than the leaver (strictly, so a bare fragment never wins).
+    bool  stronger = g.w >= INHERIT_S || p.y > g.z * max(0.0, 1.0 - g.w / LEAVE_S);
+    if (p.x > 0.5 && gone && stronger) return vec4(p.zw, p.y, 0.0);
     g.w = min(g.w + dt, T_CLAMP);
     return g;
 }
