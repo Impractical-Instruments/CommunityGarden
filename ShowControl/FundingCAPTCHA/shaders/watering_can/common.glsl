@@ -12,9 +12,13 @@
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
 //   (0, 3) SUN     sun level 0–1 (eased), raw total growth, next footprint f (the ring's head), —
 //   (1 + f, 3) FOOT footprint f = 0–FOOTPRINTS-1: x, y (UV), seconds since dropped (T_CLAMP none), seed
-//   (i, 4 + j) NEAR  1 if body (or a held shape) lies within NEAR_PAD of grid cell (i, j), or a footprint's plants
-//                    reach it, else 0;
-//                    cell (i, j) is screen [i, i + 1] × [j, j + 1] · NEAR_CELL (screen heights). See cNear().
+//   (TREE_P_X + k, 3) TREE PERSON  farthest path distance on k's body (eased), growth front, growth 0–1,
+//                  root x (screen heights: the middle of their lowest cells)
+//   (i, 4 + j) TREE  grid cell (i, j) = screen [i, i + 1] × [j, j + 1] · TREE_CELL (screen heights):
+//                    on a body: path distance to its person's root, seeds whose paths run through it (0: no
+//                    branch here), owner + parent / 16 (parent 0 the root, 1–8 TREE_DIRS), node offset in the
+//                    cell (qx * 16 + qy, q 0–15);
+//                    off a body: -1, 1 if a body or a footprint's plants are near else 0, 0, 0. See cTree().
 
 const int   SLOTS = 8;
 const float T_CLAMP = 99.0;              // every "seconds since" counter clamps here
@@ -112,14 +116,35 @@ const float FOOT_FLOWER_FROM = 0.5, FOOT_FLOWER_R = 5.0/360.0;   // the middle o
 const float FOOT_REACH_X = FOOT_SPREAD * 1.2 + FOOT_LEAN * FOOT_H + 0.7 * TWIG_LEN + SPRIG_LEN + INK_W;
 const float FOOT_REACH_DOWN = SPRIG_LEN + INK_W;
 const float FOOT_REACH_UP = FOOT_H + max(SPRIG_LEN, FOOT_FLOWER_R * (1.0 + PETAL_R)) + INK_W;
-// Near-body grid (Buffer C rows 4+): the Image skips cells with no body near, so empty paper costs one fetch.
-const float NEAR_CELL = 1.0/32.0;       // cell size; 4 + 1/NEAR_CELL rows of C must fit the render height (36 ≤ 72 at test size)
-const float NEAR_STEP = 0.01;           // B is sampled this far apart across a padded cell: finer than the thinnest body
-// Furthest a pixel's B taps reach from it: sideways to its outermost vine, up and down to ±REACH. A pixel whose
-// taps find no grown run draws nothing, so a cell whose padded box holds no body is paper. Plus a step of slack.
-const float NEAR_PAD = max((float(VINE_NEIGHBOURS) + 0.5) * VINE_SPACING, REACH) + NEAR_STEP;
-const int   NEAR_ROWS = int(ceil(1.0 / NEAR_CELL));
-const int   NEAR_TAPS = int(ceil((NEAR_CELL + 2.0 * NEAR_PAD) / NEAR_STEP)) + 1;   // B samples per side of a padded cell
+// The tree (Buffer C rows 4+). Each person's plants are one tree, rooted on the floor at their base (feet).
+// Every body cell's parent is its neighbour on the cheapest path back to the root through that person's body;
+// paths cost more near the silhouette's edge, so they run up the middle of the legs, torso and arms. A cell is
+// grown once its path distance is within growth × the farthest on the body: growth climbs from the root, up
+// the legs, then out along the arms and up the neck, and never starts a new root. Only the paths of a
+// scattering of seed cells (TREE_SEED_FRAC) are branches, so the tree is sparse; a branch's width comes from how
+// many seeds lie above it (thick at the root, thin at the tips), and every seed carries a sprig or a daisy.
+// The branches don't depend on growth, so growth runs along them: tips extend, nothing pops in. An arm's path through the shoulder
+// doesn't change as it waves, so waving keeps its growth.
+const float TREE_CELL = 1.0/48.0;       // cell size; 4 + 1/TREE_CELL rows of C must fit the render height (52 ≤ 72 at test size)
+const int   TREE_ROWS = 48;             // = 1 / TREE_CELL
+const int   TREE_COLS_MAX = 96;         // widest grid (aspect ≤ 2)
+const float TREE_FILL = 0.25;           // a cell is body when this much of it is (of 16 samples)
+const float TREE_EDGE_COST = 8.0;       // a step costs 1 + this × (1 − how much of a ring round it is body): stay central
+const float TREE_EDGE_R = 1.6;          // the rings' radii: this and twice this, in cells
+const float TREE_ROOT_BAND = 1.5 * TREE_CELL;   // cells this close above the base are the root's (they join it on the floor)
+const float TREE_ROOT_WIN = 0.35;       // ... if within this of it sideways (screen heights): both feet, however wide
+const float TREE_FAR = 50.0;            // the path distance of a body cell no path reaches
+const float TREE_MAX_EASE_S = 1.0;      // the farthest path distance eases over this (so a raised arm doesn't jolt the front)
+const int   TREE_P_X = 34;              // TREE PERSON texels: row 3, from x = this (after the footprints)
+const float TREE_SEED_FRAC = 0.35;     // the share of body cells that are seeds: a branch runs from each to the root
+const float TREE_ROOT_W = 7.0/360.0, TREE_W_K = 1.1/360.0;   // branch width: TREE_W_K × sqrt(seeds above), up to TREE_ROOT_W
+const float TREE_JITTER = 0.5;          // nodes are jittered this much (cells) so the grid doesn't show
+const float TREE_FILLET = 4.0/360.0;     // the tree's branches blend over this where they meet (closes slits between near paths)
+const int   TREE_R = 3;                 // the Image draws the cells within this many of a pixel's
+const int   MAX_TIPS = 12;              // sprigs and flowers a pixel can see at once
+const float TREE_OPEN_D = 3.0 * TREE_CELL;   // a flower opens as the growth front passes this far beyond it
+const ivec2 TREE_DIRS[8] = ivec2[8](ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1), ivec2(-1, 0),
+                                    ivec2(1, 0), ivec2(-1, 1), ivec2(0, 1), ivec2(1, 1));
 // Sun
 const vec2  SUN_POS = vec2(-0.16, 0.84);   // x from the right edge (screen heights), y as a fraction of height
 const float SUN_R = 0.09, RAY_LEN = 0.07;
@@ -174,8 +199,25 @@ float footGrowth(float age) {
     if (age < FOOT_GROW_S) { float u = 1.0 - age / FOOT_GROW_S; return 1.0 - u * u; }
     return clamp((FOOT_LIFE - age) / FOOT_FADE_S, 0.0, 1.0);
 }
-bool cNear  (sampler2D c, vec2 screenPos) {      // screenPos in screen heights; is any body near?
-    return texelFetch(c, ivec2(floor(screenPos / NEAR_CELL)) + ivec2(0, 4), 0).x > 0.5;
+vec4 cTreeP (sampler2D c, int k) { return texelFetch(c, ivec2(TREE_P_X + k, 3), 0); }
+int  treeCols(vec2 res) { return min(int(ceil(res.x / res.y / TREE_CELL)), TREE_COLS_MAX); }
+vec4 cTree  (sampler2D c, ivec2 cell, vec2 res) {   // a cell off the grid is empty, far from anything
+    if (cell.x < 0 || cell.y < 0 || cell.x >= treeCols(res) || cell.y >= TREE_ROWS) return vec4(-1.0, 0.0, 0.0, 0.0);
+    return texelFetch(c, cell + ivec2(0, 4), 0);
+}
+int  treeOwner (vec4 t) { return t.x < 0.0 ? 0 : int(floor(t.z)); }
+int  treeParent(vec4 t) { return int(floor(fract(t.z) * 16.0 + 0.5)); }
+vec2 treeOffset(vec4 t) { return (vec2(floor(t.w / 16.0), mod(t.w, 16.0)) + 0.5) / 16.0 - 0.5; }   // in cells
+bool cNear(sampler2D c, vec2 screenPos, vec2 res) {   // is a body, or a footprint's plants, near?
+    vec4 t = cTree(c, ivec2(floor(screenPos / TREE_CELL)), res);
+    return t.x >= 0.0 || t.y > 0.5;
+}
+// Growth for owner slot k: the live person's, or while their plants rewind away, their ghost's.
+float growthOf(sampler2D c, int k) {
+    vec4 pr = cPerson(c, k);
+    if (abs(pr.x) > 0.5) return pr.y;
+    vec4 gh = cGhost(c, k);
+    return gh.w < LEAVE_S ? gh.z : 0.0;
 }
 
 // ── Body memory accessors (Buffer B .a = owner + 0.9 * hold) ──────────────────
@@ -191,6 +233,8 @@ float hash12(vec2 p) {
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
 }
+// Is tree cell `cell` a seed (a branch runs from it to the root, and it carries a sprig or a daisy)?
+bool treeSeed(ivec2 cell) { return hash12(vec2(cell) * 1.618 + 0.37) < TREE_SEED_FRAC; }
 float noise(vec2 p) {                    // value noise, 0…1
     vec2 i = floor(p), f = fract(p);
     f = f * f * (3.0 - 2.0 * f);

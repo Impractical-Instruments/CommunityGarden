@@ -1,5 +1,5 @@
 // Buffer C — Garden state.  iChannel0 = Buffer B, iChannel1 = Buffer C (itself), iChannel2 = blobs
-// Layout: see common.glsl (rows 0–3 garden state and footprints, rows 4+ the near-body grid). Each texel reads the
+// Layout: see common.glsl (rows 0–3 garden state and footprints, rows 4+ the tree grid). Each texel reads the
 // previous frame of every other texel; texels that need the same derived value (PERSON and BASE
 // both need this frame's base) compute it from the same inputs.
 
@@ -11,7 +11,7 @@
 vec4 initial(ivec2 c) {
     if (c.y == 1) return vec4(0.0, 0.0, T_CLAMP, S_EMPTY);       // BASE
     if (c.y == 2) return vec4(0.0, 0.0, 0.0, T_CLAMP);           // GHOST
-    if (c.y == 3 && c.x > 0) return vec4(0.0, 0.0, T_CLAMP, 0.0); // FOOT: none
+    if (c.y == 3 && c.x > 0 && c.x <= FOOTPRINTS) return vec4(0.0, 0.0, T_CLAMP, 0.0); // FOOT: none
     return vec4(0.0);
 }
 
@@ -219,25 +219,23 @@ vec4 footNext(int f, float dt) {
     return ft;
 }
 
-// ── NEAR ──────────────────────────────────────────────────────────────────────
-// Is there body (or a held shape: anything a vine could grow on) within NEAR_PAD of cell (i, j)?
-// Reads this frame's B, so the grid never lags the plants.
-float nearNext(ivec2 cell) {
+// ── TREE ──────────────────────────────────────────────────────────────────────
+// The B texel under screen point sp (screen heights).
+vec4 tapB(vec2 sp) {
     float aspect = iResolution.x / iResolution.y;
-    vec2  lo = vec2(cell) * NEAR_CELL - NEAR_PAD;
-    vec2  bRes = iChannelResolution[0].xy;
-    for (int y = 0; y < NEAR_TAPS; y++) {
-        float sy = lo.y + float(y) * NEAR_STEP;
-        if (sy < 0.0 || sy >= 1.0) continue;
-        for (int x = 0; x < NEAR_TAPS; x++) {
-            float sx = lo.x + float(x) * NEAR_STEP;
-            if (sx < 0.0 || sx >= aspect) continue;
-            vec4 t = texelFetch(BB, ivec2(vec2(sx / aspect, sy) * bRes), 0);
-            if (bOwner(t) > 0 && bHold(t) > 0.0) return 1.0;
-        }
-    }
-    // A footprint's plants reach into the cell (last frame's footprints: a new one starts bare).
-    vec2 c0 = vec2(cell) * NEAR_CELL, c1 = c0 + NEAR_CELL;
+    if (sp.x < 0.0 || sp.y < 0.0 || sp.x >= aspect || sp.y >= 1.0) return vec4(0.0);
+    return texelFetch(BB, ivec2(vec2(sp.x / aspect, sp.y) * iChannelResolution[0].xy), 0);
+}
+bool onBody(vec4 t) { return bOwner(t) > 0 && bHold(t) > 0.0; }
+
+// Is anything a pixel in this (non-body) cell might draw near: a body cell within TREE_R (last frame's
+// grid), or a footprint's plants?
+float treeNear(ivec2 cell) {
+    for (int y = -TREE_R; y <= TREE_R; y++)
+        for (int x = -TREE_R; x <= TREE_R; x++)
+            if (cTree(C, cell + ivec2(x, y), iResolution.xy).x >= 0.0) return 1.0;
+    float aspect = iResolution.x / iResolution.y;
+    vec2 c0 = vec2(cell) * TREE_CELL, c1 = c0 + TREE_CELL;
     for (int f = 0; f < FOOTPRINTS; f++) {
         vec4 ft = cFoot(C, f);
         if (ft.z >= FOOT_LIFE) continue;
@@ -246,6 +244,94 @@ float nearNext(ivec2 cell) {
             && at.y + FOOT_REACH_UP >= c0.y && at.y - FOOT_REACH_DOWN <= c1.y) return 1.0;
     }
     return 0.0;
+}
+
+vec4 treeNext(ivec2 cell) {
+    float aspect = iResolution.x / iResolution.y;
+    vec2  lo = vec2(cell) * TREE_CELL;
+    // Which person's body covers the cell, how much, how firmly held, and where its body sits in the cell.
+    int   own = 0;
+    float n = 0.0, hold = 0.0;
+    vec2  sum = vec2(0.0);
+    for (int y = 0; y < 4; y++)
+        for (int x = 0; x < 4; x++) {
+            vec2 sp = lo + (vec2(x, y) + 0.5) * 0.25 * TREE_CELL;
+            vec4 t = tapB(sp);
+            if (!onBody(t)) continue;
+            if (own == 0) own = bOwner(t);
+            if (bOwner(t) != own) continue;
+            n += 1.0; sum += sp;
+            hold = max(hold, t.r >= BODY_ON ? 1.0 : bHold(t));
+        }
+    if (n < TREE_FILL * 16.0 || own > SLOTS) return vec4(-1.0, treeNear(cell), 0.0, 0.0);
+    int   k = own - 1;
+    vec2  node = sum / n;
+    vec2  q = clamp(floor(((node - lo) / TREE_CELL) * 16.0), 0.0, 15.0);
+    float nodeQ = q.x * 16.0 + q.y;
+    vec4  prev = cTree(C, cell, iResolution.xy);
+    vec4  b = cBase(C, k);
+    // A person whose track is gone has no base: their held shape keeps the tree it had, as it rewinds away.
+    if (isState(b.w, S_EMPTY) || b.w > S_COASTING + 0.5) {
+        if (treeOwner(prev) == own) return vec4(prev.x, prev.y, prev.z, nodeQ);
+        return vec4(TREE_FAR, 0.0, float(own), nodeQ);
+    }
+    // A step costs more near the body's edge, so paths keep to the middle.
+    // How central: the body on rings round the cell, near and further out, so a wide torso has a middle too.
+    float ring = 0.0;
+    for (int r = 1; r <= 2; r++)
+        for (int i = 0; i < 8; i++) {
+            float a = 0.7853982 * (float(i) + 0.5 * float(r));
+            vec4 t = tapB(node + vec2(cos(a), sin(a)) * TREE_EDGE_R * float(r) * TREE_CELL);
+            ring += (onBody(t) && bOwner(t) == own) ? 1.0 : 0.0;
+        }
+    float cost = TREE_CELL * (1.0 + TREE_EDGE_COST * (1.0 - ring / 16.0));
+    // The cheapest way back to the root: straight there along the floor, for a cell at the base, or via a neighbour.
+    float d = TREE_FAR;
+    int   parent = -1;
+    vec4  tpk = cTreeP(C, k);
+    vec2  root = vec2(tpk.w > 0.0 ? tpk.w : b.x * aspect, b.y);
+    if (lo.y <= root.y + TREE_ROOT_BAND && abs(node.x - root.x) < TREE_ROOT_WIN) {
+        d = length(node - root);
+        parent = 0;
+    }
+    for (int i = 0; i < 8; i++) {
+        vec4 t = cTree(C, cell + TREE_DIRS[i], iResolution.xy);
+        if (treeOwner(t) != own || t.x >= TREE_FAR) continue;
+        float cand = t.x + cost * length(vec2(TREE_DIRS[i]));
+        if (cand < d) { d = cand; parent = i + 1; }
+    }
+    if (parent < 0) return vec4(TREE_FAR, 0.0, float(own), nodeQ);
+    // Seeds whose paths run through this cell: its own, and its children's (last frame's, so a branch settles a
+    // cell a frame from its seed down).
+    float seeds = treeSeed(cell) ? 1.0 : 0.0;
+    for (int i = 0; i < 8; i++) {
+        vec4 t = cTree(C, cell + TREE_DIRS[i], iResolution.xy);
+        int  pa = treeParent(t);
+        if (treeOwner(t) == own && t.x < TREE_FAR && pa > 0 && TREE_DIRS[pa - 1] == -TREE_DIRS[i]) seeds += t.y;
+    }
+    return vec4(d, seeds, float(own) + float(parent) / 16.0, nodeQ);
+}
+
+// TREE PERSON k: the farthest path distance on their body (eased), their growth front, their growth, and
+// their root's x: the middle of their lowest cells, so the root sits between the feet and both legs join it.
+// (BASE follows one foot when the feet are apart, which is right for telling a step, not for a root.)
+vec4 treePersonNext(int k, float dt) {
+    float raw = 0.0, n = 0.0, sx = 0.0;
+    float baseY = cBase(C, k).y;
+    int cols = treeCols(iResolution.xy);
+    for (int j = 0; j < TREE_ROWS; j++)
+        for (int i = 0; i < TREE_COLS_MAX; i++) {
+            if (i >= cols) break;
+            vec4 t = cTree(C, ivec2(i, j), iResolution.xy);
+            if (treeOwner(t) != k + 1) continue;
+            if (t.x < TREE_FAR) raw = max(raw, t.x);
+            if (float(j) * TREE_CELL <= baseY + TREE_ROOT_BAND) { n += 1.0; sx += (float(i) + 0.5) * TREE_CELL; }
+        }
+    vec4  pr = cTreeP(C, k);
+    float farD = pr.x <= 0.0 ? raw : mix(pr.x, raw, 1.0 - exp(-dt / TREE_MAX_EASE_S));
+    float g = growthOf(C, k);
+    float rootX = n > 0.0 ? sx / n : cBase(C, k).x * iResolution.x / iResolution.y;
+    return vec4(farD, g * farD, g, rootX);
 }
 
 // ── SUN ───────────────────────────────────────────────────────────────────────
@@ -270,17 +356,19 @@ vec4 sunNext(float dt, vec2 fc) {
 void mainImage(out vec4 o, in vec2 fc) {
     ivec2 c = ivec2(fc);
     o = vec4(0.0);
-    if (c.y >= 4) {                                              // the near-body grid
-        if (c.y < 4 + NEAR_ROWS && float(c.x) * NEAR_CELL < iResolution.x / iResolution.y) o.x = nearNext(c - ivec2(0, 4));
+    if (c.y >= 4) {                                              // the tree grid
+        if (c.y < 4 + TREE_ROWS && c.x < treeCols(iResolution.xy)) o = iFrame == 0 ? vec4(-1.0, 0.0, 0.0, 0.0) : treeNext(c - ivec2(0, 4));
         return;
     }
-    if (c.y == 3 ? c.x > FOOTPRINTS : c.x >= SLOTS) return;
+    bool treeP = c.y == 3 && c.x >= TREE_P_X && c.x < TREE_P_X + SLOTS;
+    if (!treeP && (c.y == 3 ? c.x > FOOTPRINTS : c.x >= SLOTS)) return;
     if (iFrame == 0) { o = initial(c); return; }
     float dt = clamp(iTimeDelta, 0.0, T_CLAMP);
 
     if      (c.y == 0) o = personNext(c.x, dt, fc);
     else if (c.y == 1) o = baseNext(c.x, dt);
     else if (c.y == 2) o = ghostNext(c.x, dt);
+    else if (treeP)    o = treePersonNext(c.x - TREE_P_X, dt);
     else if (c.x == 0) o = sunNext(dt, fc);
     else               o = footNext(c.x - 1, dt);
 }
