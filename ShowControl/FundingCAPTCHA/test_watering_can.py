@@ -752,3 +752,33 @@ def test_sun_brightens_and_grows_rays_with_bloom(ctx):
     assert saturation(img[..., :3][d]).mean() > 0.7
     assert drawn(img, ring).sum() > 0.15 * ring.sum(), (drawn(img, ring).sum(), ring.sum())
     rig.release()
+
+
+def seam_extents(img):
+    """Farthest drawn radius from the sun's centre in the two pixel rows of the left-pointing ray that are just above
+    and just below atan's branch cut (the ray's axis when it hasn't drifted). 0 where the ray isn't drawn in a row."""
+    size = (img.shape[1], img.shape[0])
+    x, y = screen_xy(size)
+    dx, dy = x - (size[0] / size[1] + SUN_POS[0]), y - SUN_POS[1]
+    r = np.hypot(dx, dy)
+    ray = (dx < 0) & (r > 1.3 * SUN_R) & (r < SUN_R + RAY_LEN + 0.02)
+    d = (np.abs(img[..., :3].astype(int) - PAPER) > 12).any(axis=-1)
+    row = 1.0 / size[1]
+    far = lambda m: r[m].max(initial=0.0)
+    return far(ray & d & (dy > 0) & (dy < row)), far(ray & d & (dy <= 0) & (dy > -row))
+
+
+def test_sun_ray_has_no_seam_at_the_atan_cut(ctx):
+    # The ray pointing left lies on atan's branch cut, and the slow drift (one ray width in ~170 s) carries it across.
+    # It must stay one ray, not two halves with their own length. Drift is a function of iTime: sample it directly.
+    rig = grown_rig(ctx, 220, size=(1024, 576))
+    straddled = 0
+    for k in range(16):                                      # iTime 0–3.75 s: the ray is within a pixel or two of the cut
+        rig.r.time = 0.25 * k
+        rig.r.render(1e-4, (0, 0, 0, 0))
+        up, down = seam_extents(rig.image())
+        if up and down:
+            straddled += 1
+            assert abs(up - down) < 0.0025, (up, down, rig.r.time)      # 0.0025 = 1.4 px of this render
+    assert straddled >= 4, straddled                                      # the ray did sit on the cut
+    rig.release()

@@ -215,25 +215,25 @@ vec3 sunColour(vec2 fc) {
     float r = length(d);
     if (r > SUN_R * (1.0 + SUN_EDGE_WOBBLE) + RAY_LEN) return PAPER;
     float lv = clamp(cSun(iChannel1).x, 0.0, 1.0);
-    float t = iTime * 0.3;                                             // a slow wobble; nothing is stored
-    float grain = 0.6 * noise(d * SUN_GRAIN + t) + 0.4 * noise(vec2(d.x + d.y, d.x - d.y) * vec2(SUN_GRAIN * 0.2, SUN_GRAIN * 1.3));
+    float t = iTime * SUN_WOBBLE_RATE;                                             // a slow wobble; nothing is stored
+    float grain = SUN_GRAIN_A * noise(d * SUN_GRAIN + t) + (1.0 - SUN_GRAIN_A) * noise(vec2(d.x + d.y, d.x - d.y) * SUN_GRAIN * SUN_HATCH);
     float cov = 0.0;
-    float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * 25.0 + t) - 1.0));
+    float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * SUN_EDGE_SCALE + t) - 1.0));
     if (r < edge) {
-        float rim = smoothstep(0.75, 1.0, r / edge);                   // the stroke round the edge is pressed harder
-        cov = smoothstep(SUN_COVER - 0.03, SUN_COVER + 0.03, grain + 0.25 * rim);
+        float rim = smoothstep(SUN_RIM_FROM, 1.0, r / edge);                   // the stroke round the edge is pressed harder
+        cov = smoothstep(SUN_COVER - SUN_FILL_SOFT, SUN_COVER + SUN_FILL_SOFT, grain + SUN_RIM_WEIGHT * rim);
     }
     float len = RAY_LEN * lv;
     float r0 = SUN_R * SUN_RAY_FROM;
-    if (len > 0.003 && r > r0 && r < SUN_R + len) {
-        float a = atan(d.y, d.x) / TAU * float(SUN_RAYS) + 0.02 * t;
-        float id = floor(a + 0.5);
-        float rl = (SUN_R + len - r0) * (0.8 + 0.2 * hash12(vec2(id, 3.1)));
+    if (len > SUN_RAY_MIN && r > r0 && r < SUN_R + len) {
+        float a = atan(d.y, d.x) / TAU * float(SUN_RAYS) + SUN_DRIFT * t;
+        float id = mod(floor(a + 0.5), float(SUN_RAYS));   // atan's branch cut splits one ray in two: wrap its id
+        float rl = (SUN_R + len - r0) * (1.0 - SUN_RAY_LEN_JITTER + SUN_RAY_LEN_JITTER * hash12(vec2(id, 3.1)));
         float u = (r - r0) / rl;                                       // 0 at the root, 1 at the tip
-        float perp = (a - id + 0.1 * (hash12(vec2(id, 7.7)) - 0.5)) * TAU * r / float(SUN_RAYS);
-        float w = SUN_RAY_W * (1.0 - 0.6 * u) * (0.85 + 0.3 * noise(vec2(u * 6.0, id)));
+        float perp = (a - floor(a + 0.5) + SUN_RAY_SKEW * (hash12(vec2(id, 7.7)) - 0.5)) * TAU * r / float(SUN_RAYS);
+        float w = SUN_RAY_W * (1.0 - SUN_RAY_TAPER * u) * (1.0 - 0.5 * SUN_RAY_W_JITTER + SUN_RAY_W_JITTER * noise(vec2(u * SUN_RAY_W_RATE, id)));
         if (u < 1.0 && abs(perp) < w) {
-            float rg = smoothstep(SUN_COVER - 0.2, SUN_COVER - 0.1, 0.7 * noise(d * SUN_GRAIN + 9.0) + 0.25 * (1.0 - u) + 0.3);
+            float rg = smoothstep(SUN_COVER - 2.0 * SUN_RAY_SOFT, SUN_COVER - SUN_RAY_SOFT, SUN_RAY_GRAIN * noise(d * SUN_GRAIN + 9.0) + SUN_RAY_FADE * (1.0 - u) + SUN_RAY_BIAS);
             cov = max(cov, rg);
         }
     }

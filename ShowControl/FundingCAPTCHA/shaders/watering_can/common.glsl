@@ -77,6 +77,21 @@ const float SUN_GRAIN = 45.0;            // crayon grain scale, cycles per scree
 const float SUN_COVER = 0.4;             // grain threshold: higher = more paper shows through the fill
 const float SUN_RAY_W = 0.011;           // ray half-width (screen heights), tapering to a point
 const float SUN_RAY_FROM = 1.2;          // rays start this many SUN_R from the centre
+const float SUN_WOBBLE_RATE = 0.3;       // the wobble's clock: noise offsets move this fast per second
+const float SUN_DRIFT = 0.02;            // rays turn this many ray-widths per wobble-second (slow drift)
+const float SUN_EDGE_SCALE = 25.0;       // scale of the noise that breaks the disc's edge, cycles per screen height
+const float SUN_RIM_FROM = 0.75, SUN_RIM_WEIGHT = 0.25;   // the pressed stroke starts at this fraction of the edge; extra grain it adds
+const float SUN_FILL_SOFT = 0.03;        // softness of the fill's grain threshold
+const float SUN_GRAIN_A = 0.6;           // weight of the round grain; the stretched (hatching) grain gets the rest
+const vec2  SUN_HATCH = vec2(0.2, 1.3);  // the hatching grain's scale along and across the stroke, × SUN_GRAIN
+const float SUN_RAY_MIN = 0.003;         // rays shorter than this (screen heights) aren't drawn
+const float SUN_RAY_LEN_JITTER = 0.2;    // each ray's length varies by up to this fraction below full
+const float SUN_RAY_SKEW = 0.1;          // each ray's angle varies by ± half this many ray spacings
+const float SUN_RAY_TAPER = 0.6;         // a ray's width shrinks by this fraction toward its tip
+const float SUN_RAY_W_JITTER = 0.3;      // width varies by ± half this fraction, along the ray (noise rate SUN_RAY_W_RATE)
+const float SUN_RAY_W_RATE = 6.0;
+const float SUN_RAY_GRAIN = 0.7, SUN_RAY_FADE = 0.25, SUN_RAY_BIAS = 0.3;   // ray grain weight; extra fill near the root; base fill
+const float SUN_RAY_SOFT = 0.1;          // softness of the ray grain threshold
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const vec3 PAPER  = vec3(0.965, 0.945, 0.894);   // #f6f1e4
