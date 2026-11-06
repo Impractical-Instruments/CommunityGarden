@@ -99,9 +99,9 @@ vec4 ghostNext(int k, float dt) {
     bool  gone = !isState(was, S_LOST) && (fr || isState(st, S_LOST));
     vec4  g = cGhost(C, k);
     // The slot is reused as soon as a lost record frees it: a short-lived fragment leaving
-    // must not wipe a ghost someone may still come back to. Replace a stale ghost, or one
-    // worth less than the leaver (strictly, so a bare fragment never wins).
-    bool  stronger = g.w >= INHERIT_S || p.y > g.z * max(0.0, 1.0 - g.w / LEAVE_S);
+    // must not wipe a ghost someone may still come back to. Replace a ghost only once it can
+    // no longer be inherited, or with one at least as grown.
+    bool  stronger = g.w >= INHERIT_S || p.y >= g.z;
     if (p.x > 0.5 && gone && stronger) return vec4(p.zw, p.y, 0.0);
     g.w = min(g.w + dt, T_CLAMP);
     return g;

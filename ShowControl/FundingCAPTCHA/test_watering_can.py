@@ -426,25 +426,33 @@ def test_new_person_far_from_ghosts_starts_bare(ctx):
     rig.release()
 
 
-def test_fragment_in_freed_slot_keeps_ghost(ctx):
-    # A is lost and their slot frees; a short fragment takes that slot and expires; A comes
+@pytest.mark.parametrize("frag_frames", [1, 6])
+def test_fragment_in_freed_slot_keeps_ghost(ctx, frag_frames):
+    # A is lost and their slot frees; a short fragment takes that slot and leaves; A comes
     # back at their old spot within INHERIT_S and must still inherit their own ghost.
+    # 1 frame: a tentative fragment that expires bare. 6 frames: it confirms, grows a little,
+    # and is lost after the ghost has faded from the sun (since > LEAVE_S) but is still inheritable.
     rig = Rig(ctx)
     rig.run([person(x=4)] * 100)
     g = rig.person(0)[1]
     assert g > 0.4
     rig.run([EMPTY] * 19)                          # coasted, lost, and the slot freed
     assert rig.person(0)[0] == 0 and rig.ghost(0)[2] > 0.4
-    rig.run([person(x=46)])                        # a fragment takes the freed slot 0 ...
+    rig.run([person(x=46)] * frag_frames)          # a fragment takes the freed slot 0 ...
     assert rig.person(0)[0] != 0 and rig.person(0)[2] > 0.5
-    for _ in range(12):                            # ... and expires
+    frag_g = rig.person(0)[1]
+    for _ in range(12):                            # ... and leaves: lost or expired
         rig.run([EMPTY])
-        if rig.person(0)[0] == 0:
+        if rig.person(0)[0] == 0 or rig.base(0)[3] > 3.5:
             break
-    assert rig.person(0)[0] == 0
-    assert rig.ghost(0)[3] < INHERIT_S
-    rig.run([person(x=4)] * 5)
-    k = slot_of_live(rig)
+    assert rig.person(0)[0] == 0 or rig.base(0)[3] > 3.5
+    since = rig.ghost(0)[3]
+    assert since < INHERIT_S
+    if frag_frames > 1:                            # the case R5 measured wrongly
+        assert 0 < frag_g < g and since > LEAVE_S, (frag_g, since)
+    rig.run([person(x=4)] * 3)
+    k = slot_near(rig, 10)
+    assert rig.person(k)[2] < 0.3                  # A, back at their spot
     assert abs(rig.person(k)[1] - g) < 0.05, (g, rig.person(k))
     rig.release()
 
