@@ -37,7 +37,7 @@ int ownerAt(vec2 uv) {
 // so a flickering edge holds still. (A held, fading texel has less than full hold: not body.)
 bool wasBody(vec4 t) {
     bool run = t.g > 0.0 || t.b > 0.0;
-    return t.r >= BODY_ON || (run && t.r >= BODY_OFF && fract(t.a) > floor(0.9 / HOLD_Q) * HOLD_Q - 0.5 * HOLD_Q);
+    return fract(t.a) > floor(0.9 / HOLD_Q) * HOLD_Q - 0.5 * HOLD_Q && (t.r >= BODY_ON || (run && t.r >= BODY_OFF));
 }
 bool bodyAt(float x, float y) {
     return wasBody(texelFetch(iChannel1, ivec2(min(vec2(x, y) * iResolution.xy, iResolution.xy - 1.0)), 0));
@@ -72,24 +72,29 @@ void mainImage(out vec4 o, in vec2 fc) {
 
     float g = 0.0, b = 0.0, a = 0.0;
     bool had = prev.g > 0.0 || prev.b > 0.0;
-    if (pres >= BODY_ON || (wasBody(prev) && pres >= BODY_OFF)) {
+    // The body has gone from under a person whose track is missing: every texel of theirs lets go this
+    // frame, not as its eased presence crosses BODY_OFF (sooner at the edges), so their hold fades in step.
+    int   po = bOwner(prev);
+    float pst = po > 0 ? recIdn(iChannel2, po - 1).y : S_EMPTY;
+    bool  leaving = po > 0 && target < BODY_OFF && !isState(pst, S_TENTATIVE) && !isState(pst, S_CONFIRMED);
+    if (!leaving && (pres >= BODY_ON || (wasBody(prev) && pres >= BODY_OFF))) {
         float lo = march(uv, -1.0), hi = march(uv, 1.0);
         float ease = 1.0 - exp(-iTimeDelta / RUN_EASE_S);
         g = (!had || abs(lo - prev.g) > RUN_SNAP) ? lo : mix(prev.g, lo, ease);
         b = (!had || abs(hi - prev.b) > RUN_SNAP) ? hi : mix(prev.b, hi, ease);
         a = float(ownerAt(uv)) + floor(0.9 / HOLD_Q) * HOLD_Q;
     } else {
-        int po = bOwner(prev);
         float ph = bHold(prev);
         if (po > 0 && ph > 0.0) {
-            float st = recIdn(iChannel2, po - 1).y;
             // A missing body coasts first: keep its plants until the track is lost, then rewind them away.
-            if (!isState(st, S_TENTATIVE) && !isState(st, S_CONFIRMED)) {
+            if (!isState(pst, S_TENTATIVE) && !isState(pst, S_CONFIRMED)) {
                 // The step is below a half float's resolution at high render rates, so round it
-                // stochastically to HOLD_Q: the expected fade is exact at any rate.
+                // stochastically to HOLD_Q: the expected fade is exact at any rate. The offset depends on
+                // the frame only, so every texel of a person steps together and their vines don't tear
+                // into rows; a golden-ratio sequence, not a hash, so the count of steps stays near exact.
                 float f = fract(prev.a);
                 float d = 0.9 * iTimeDelta / LEAVE_S;
-                f -= floor(d / HOLD_Q + hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997))) * HOLD_Q;
+                f -= floor(d / HOLD_Q + fract(float(iFrame % 4096) * 0.618034)) * HOLD_Q;
                 if (f > 0.5 * HOLD_Q) { g = prev.g; b = prev.b; a = float(po) + f; }
             }
         }

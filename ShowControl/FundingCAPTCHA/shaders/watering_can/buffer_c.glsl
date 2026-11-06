@@ -129,7 +129,7 @@ float nearNext(ivec2 cell) {
 }
 
 // ── SUN ───────────────────────────────────────────────────────────────────────
-vec4 sunNext(float dt) {
+vec4 sunNext(float dt, vec2 fc) {
     float raw = 0.0;
     for (int k = 0; k < SLOTS; k++) {
         if (live(recIdn(BLOBS, k).y) && !fresh(k)) raw += cPerson(C, k).y;
@@ -137,7 +137,11 @@ vec4 sunNext(float dt) {
         raw += g.z * max(0.0, 1.0 - g.w / LEAVE_S);
     }
     float lvl = cSun(C).x;
-    lvl = mix(lvl, clamp(raw / SUN_FULL, 0.0, 1.0), 1.0 - exp(-dt / SUN_EASE_S));
+    float step = (clamp(raw / SUN_FULL, 0.0, 1.0) - lvl) * (1.0 - exp(-dt / SUN_EASE_S));
+    // Near the target the step is below a half float's resolution and the easing would stall short of
+    // full: round it stochastically to GROW_Q, as growth is, so the expected easing is exact.
+    float h = hash12(fc + vec2(113.0, 57.0) * float(iFrame % 997));
+    lvl = clamp(lvl + sign(step) * floor(abs(step) / GROW_Q + h) * GROW_Q, 0.0, 1.0);
     return vec4(lvl, raw, 0.0, 0.0);
 }
 
@@ -155,5 +159,5 @@ void mainImage(out vec4 o, in vec2 fc) {
     if      (c.y == 0) o = personNext(c.x, dt, fc);
     else if (c.y == 1) o = baseNext(c.x, dt);
     else if (c.y == 2) o = ghostNext(c.x, dt);
-    else               o = sunNext(dt);
+    else               o = sunNext(dt, fc);
 }

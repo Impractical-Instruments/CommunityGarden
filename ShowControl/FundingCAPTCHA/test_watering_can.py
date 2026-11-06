@@ -6,7 +6,9 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
+import math
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -16,11 +18,41 @@ from body_blobs import BlobConfig, BodyBlobs
 from shadertoy import Renderer, load_setup, pack_body
 
 SETUP = Path(__file__).parent / "shaders" / "watering_can"
+
+
+def glsl_consts(path=SETUP / "common.glsl") -> dict:
+    """Every `const float|int|vec2|vec3 NAME = <expr>, ...;` in common.glsl, evaluated: simple arithmetic,
+    earlier constants, max/min/ceil, float(...)/int(...); vec2/vec3 become tuples."""
+    src = re.sub(r"//[^\n]*", "", path.read_text())
+    env = {"max": max, "min": min, "ceil": math.ceil, "float": float, "int": int,
+           "vec2": lambda *a: tuple(float(x) for x in a), "vec3": lambda *a: tuple(float(x) for x in a)}
+    out = {}
+    for m in re.finditer(r"\bconst\s+(?:float|int|vec2|vec3)\s+([^;]*);", src):
+        depth, start, decls = 0, 0, []
+        body = m.group(1)
+        for i, ch in enumerate(body + ","):                 # split on top-level commas only
+            depth += (ch == "(") - (ch == ")")
+            if ch == "," and depth == 0:
+                decls.append(body[start:i]); start = i + 1
+        for d in decls:
+            name, expr = (x.strip() for x in d.split("=", 1))
+            out[name] = env[name] = eval(expr, {"__builtins__": {}}, env)
+    return out
+
+
+class _Consts(dict):
+    def __getitem__(self, name):
+        if name not in self:
+            raise KeyError(f"{name} is not a constant in common.glsl")
+        return dict.__getitem__(self, name)
+
+
+K = _Consts(glsl_consts())
 SIZE  = (128, 72)                         # render
 BODY  = (64, 48)                          # camera ROI (w, h)
 SLABS = [{"near_mm": 1000, "far_mm": 4000}]
 DT    = 1 / 30
-LEAVE_S = 2.0                              # shaders/watering_can/common.glsl
+LEAVE_S = K["LEAVE_S"]
 BLOBS = BlobConfig(min_blob_pixels=20)    # the shipped defaults, but for the small test Body
 
 
@@ -214,6 +246,10 @@ def test_walker_leaves_no_hold_trail(ctx):
     b = rig.buf("buffer_b")
     gone = b[..., 0] < 0.05
     assert gone.any() and (b[..., 3][gone] == 0).all()
+    body = b[..., 0] > 0.95                           # under the walker now: owned, and held at ~1 (present
+    assert body.any()                                 # texels decode to floor(0.9 / HOLD_Q) * HOLD_Q / 0.9)
+    assert (b[..., 3][body] >= 1).all()
+    assert (np.abs((b[..., 3][body] % 1.0) / 0.9 - 1) < 0.01).all(), np.unique(b[..., 3][body])
     rig.release()
 
 
@@ -255,10 +291,31 @@ def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam, slot):
     rig.release()
 
 
+@pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 60, 6)])
+def test_fading_hold_agrees_along_a_run(ctx, dt, per_cam):
+    """Every texel of a lost person's run fades in step, so the Image rebuilds each vine tip from one value:
+    the hold's peak-to-peak down a torso column stays within 2 * HOLD_Q at every point of the fade."""
+    size = (640, 360)
+    rig = Rig(ctx, size=size, dt=dt)
+    rig.run([person()] * 20, frames_per_camera=per_cam)
+    seen = []
+    for k in range(28):                                # coasting (0.8 s), then the whole LEAVE_S fade
+        rig.run([EMPTY], frames_per_camera=per_cam)
+        col = rig.buf("buffer_b")[:, int(32.5 / BODY[0] * size[0])]
+        held = col[col[:, 3] > 0]
+        if len(held) < 50:
+            continue
+        f = held[:, 3] % 1.0
+        if f.max() < 0.89:                             # mid-fade
+            seen.append(round((k + 1) / 10, 1))
+            assert np.ptp(f) <= 2 * K["HOLD_Q"] + 1e-6, ((k + 1) / 10, np.ptp(f) / K["HOLD_Q"])
+    assert len(seen) >= 10, seen
+    rig.release()
+
+
 # ── Task 2: Garden state (Buffer C) ───────────────────────────────────────────
 
-GROW_S = 20.0                                      # shaders/watering_can/common.glsl
-INHERIT_S, SUN_EASE_S = 3.0, 1.5
+GROW_S, INHERIT_S, SUN_EASE_S = K["GROW_S"], K["INHERIT_S"], K["SUN_EASE_S"]
 COAST_S = 0.8                                      # BlobConfig max_miss_frames at 10 Hz: missing → lost
 # Walks start at x=16 so 30 steps never reach walking()'s bounce at 48: a walker who turns
 # back crosses their own last spot, and that stretch (~0.7 s) rightly isn't a step.
@@ -360,20 +417,24 @@ def test_brief_loss_keeps_growth(ctx):
 
 
 def test_merge_then_split_both_inherit(ctx):
+    # A has grown far more than B, so B starting from the merged level is told apart from B keeping its own.
     rig = Rig(ctx)
-    rig.run(both([person(x=4)] * 100, [person(x=40)] * 100))
+    rig.run([person(x=4)] * 150)                                       # A alone, 15 s
+    rig.run(both([person(x=4)] * 30, [person(x=40)] * 30))             # B arrives, 3 s
     assert len(live_slots(rig)) == 2
+    ga, gb = rig.person(slot_near(rig, 10))[1], rig.person(slot_near(rig, 46))[1]
+    assert ga > 0.8 and gb < 0.2, (ga, gb)
     # B slides left into A until their masks overlap (one blob), and they stand merged for 3 s
     rig.run(both([person(x=4)] * 26, [person(x=max(40 - k, 14)) for k in range(26)]))
     rig.run(both([person(x=4)] * 30, [person(x=14)] * 30))
     merged = max(rig.person(k)[1] for k in live_slots(rig))
-    assert merged > 0.4
+    assert merged > ga
     # then B jumps back out: two blobs again
     rig.run(both([person(x=4)] * 8, [person(x=22)] * 8))
     live = live_slots(rig)
     assert len(live) == 2, live
     for k in live:
-        assert rig.person(k)[1] >= merged - 0.05, (merged, [rig.person(j) for j in live])
+        assert rig.person(k)[1] >= merged - 0.05, (merged, gb, [rig.person(j) for j in live])
     rig.release()
 
 
@@ -471,13 +532,14 @@ def test_newcomer_beside_bloomed_person_starts_bare(ctx):
     rig.release()
 
 
-def test_sun_tracks_growth(ctx):
-    rig = Rig(ctx)
-    rig.run([EMPTY] * 30)
+@pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 60, 6)])   # a half float stalls the easing short of full
+def test_sun_tracks_growth(ctx, dt, per_cam):
+    rig = Rig(ctx, dt=dt)
+    rig.run([EMPTY] * 30, frames_per_camera=per_cam)
     assert rig.sun()[0] < 0.02
-    rig.run([person()] * 220)
-    assert rig.sun()[0] > 0.95, rig.sun()
-    rig.run([EMPTY] * int(round((COAST_S + LEAVE_S + 3 * SUN_EASE_S) * 10)))
+    rig.run([person()] * 300, frames_per_camera=per_cam)   # full bloom from ~21 s, then 6 SUN_EASE_S to catch up
+    assert rig.person(0)[1] == 1.0 and rig.sun()[0] > 0.99, rig.sun()
+    rig.run([EMPTY] * int(round((COAST_S + LEAVE_S + 3 * SUN_EASE_S) * 10)), frames_per_camera=per_cam)
     assert rig.sun()[0] < 0.05, rig.sun()
     rig.release()
 
@@ -511,8 +573,8 @@ def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 
 # ── Task 3: plants (Image) ────────────────────────────────────────────────────
 
 PAPER = np.array([246, 241, 228])
-FLOWER_R, LEAF_LEN = 8.0 / 360.0, 9.0 / 360.0     # shaders/watering_can/common.glsl
-SUN_POS, SUN_R, RAY_LEN = (-0.16, 0.84), 0.09, 0.07
+FLOWER_R, LEAF_LEN = K["FLOWER_R"], K["LEAF_LEN"]
+SUN_POS, SUN_R, RAY_LEN = K["SUN_POS"], K["SUN_R"], K["RAY_LEN"]
 FLOWER_RGB = np.array([[232, 149, 127], [232, 134, 47], [107, 91, 149], [188, 76, 38]])   # pink, orange, violet, rust
 IMG = (256, 144)                                   # image tests: big enough that petals have pure-colour pixels
 
@@ -585,8 +647,7 @@ def test_run_ends_agree_along_a_column(ctx):          # else the plants tear int
     rig.release()
 
 
-NEAR_CELL = 1 / 32                                 # shaders/watering_can/common.glsl
-NEAR_PAD = max(4.5 * 4.5 / 360, 1.8 * FLOWER_R) + 0.01   # (VINE_NEIGHBOURS + 0.5) * VINE_SPACING vs REACH, + NEAR_STEP
+NEAR_CELL, NEAR_PAD = K["NEAR_CELL"], K["NEAR_PAD"]
 
 
 def test_near_grid_marks_body_neighbourhood(ctx):
