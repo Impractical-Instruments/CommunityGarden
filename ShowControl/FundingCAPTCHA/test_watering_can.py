@@ -819,15 +819,31 @@ def test_colour_ripens(ctx):
     assert sats[1] > 2 * sats[0], sats              # at least doubles: the palette is pastel and the wood is ink on paper
 
 
-def test_flowers_only_late(ctx):
-    found = []
-    for frames, g in ((round(10 * seconds_to(0.4)), 0.4), (220, 1.0)):
-        rig = grown_rig(ctx, frames)
-        assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
-        img = rig.image()
-        found.append((flower_pixels(img) & drawn(img)).sum())
-        rig.release()
-    assert found[0] == 0 and found[1] > 50, found       # only DAISY_FRAC of tips bloom, each petal partly hatched
+def coloured(img):
+    """Flower pixels: drawn and not grey. The wood and leaves are ink on paper; only flowers carry colour."""
+    rgb = img[..., :3].astype(int)
+    return drawn(img) & (rgb.max(axis=-1) - rgb.min(axis=-1) > 20)
+
+
+def test_flowers_bloom_pale_low_then_bold_high(ctx):
+    fig = on_screen(person(), IMG)
+    _, y = screen_xy(IMG)
+    top, bottom = y[fig].max(), y[fig].min()
+    low = y < bottom + (top - bottom) / 3                  # the figure's lower and upper thirds
+    high = y > top - (top - bottom) / 3
+    early = grown_rig(ctx, round(10 * seconds_to(0.3)))     # 2 s in
+    img = early.image()
+    c = coloured(img)
+    assert c[low].sum() > 20, c[low].sum()                  # flowers already open, low on the body ...
+    assert (flower_pixels(img) & drawn(img)).sum() == 0     # ... and pale: none in full colour yet
+    early.release()
+    full = grown_rig(ctx, 220)
+    img = full.image()
+    c = coloured(img)
+    sat = saturation(img[..., :3])
+    assert (flower_pixels(img) & drawn(img)).sum() > 50     # bold flowers at full bloom
+    assert sat[c & high].mean() > sat[c & low].mean() + 0.1, (sat[c & high].mean(), sat[c & low].mean())
+    full.release()
 
 
 def test_vines_follow_the_arm(ctx):

@@ -41,12 +41,17 @@ vec3 hsl(float h, float s, float l) {             // h in degrees
     vec3 k = mod(vec3(0.0, 8.0, 4.0) + h / 30.0, 12.0);
     return l - s * min(l, 1.0 - l) * clamp(min(k - 3.0, 9.0 - k), -1.0, 1.0);
 }
-vec3 desaturate(vec3 c, float sat) { return mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, sat / SAT_MAX); }
-vec3 leafColour(float sat) { return hsl(100.0, sat, 0.58); }
 // The style guide's pale yellow, light blue and orange; and a centre that stands out from each.
-vec3 flowerColour(int i) {
-    float h = hash12(vec2(float(i), 9.7));
+vec3 flowerColour(float seed) {
+    float h = hash12(vec2(seed, 9.7));
     return h < 0.34 ? PALE : h < 0.67 ? SKY : ORANGE;
+}
+vec3 heartColour(float seed) { return hash12(vec2(seed, 9.7)) < 0.34 ? ORANGE : YELLOW; }   // stands out from its petals
+// A flower colour as drawn: paled toward the paper, keeping its hue, by how low it is (bold 0–1) and how
+// young the person's growth is (sat, from SAT_MIN to SAT_MAX as it ripens): pale, never grey.
+vec3 tint(vec3 c, float sat, float bold) {
+    float ripe = clamp((sat - SAT_MIN) / (SAT_MAX - SAT_MIN), 0.0, 1.0);
+    return mix(PAPER, c, bold * mix(BOLD_YOUNG, 1.0, ripe));
 }
 
 // iq's vesica: a pointed leaf along y, half-length sqrt(r² − d²), half-width r − d.
@@ -188,7 +193,8 @@ float wood(vec2 p, int i, Run r, out float bark, out int nodes, out int j0) {
 
     float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));            // the first twig, in steps above g
     float flip = step(0.5, hash12(vec2(float(i), 5.3)));
-    float up   = (1.0 + FORK_LEN) * TWIG_LEN + SPRIG_LEN;             // a twig reaches at most this far above its node
+    float up   = max((1.0 + FORK_LEN) * TWIG_LEN + SPRIG_LEN,        // a twig (or its flower) reaches at most this far
+                     TWIG_LEN + TWIG_FLOWER_R_MAX * (1.0 + PETAL_R)); // above its node
     float down = SPRIG_LEN;                                           // ... and this far below
     j0    = max(int(ceil((p.y - up - r.g) / TWIG_STEP - off)), 0);
     nodes = 0;
@@ -206,24 +212,26 @@ float wood(vec2 p, int i, Run r, out float bark, out int nodes, out int j0) {
     return sd;
 }
 
+bool twigFlower(int i, int j) { return hash12(vec2(float(i), float(j) + 9.1)) < TWIG_FLOWER_FRAC; }
+
 // The sprigs on vine i's twigs near p (as wood() found them), top twig first, so lower ones overlap it.
 void sprigs(inout vec4 acc, vec2 p, int i, Run r, int nodes, int j0) {
     float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));
     float flip = step(0.5, hash12(vec2(float(i), 5.3)));
-    vec3  col  = leafColour(r.sat);
+    vec3  col  = PAPER;                                               // unfilled: ink on paper, as the art
     for (int n = 2; n >= 0; n--) {
         if ((nodes & (1 << n)) == 0) continue;
         int  j = j0 + n;
         Twig t = twigOf(i, j, r, off, flip);
         float seed = float(i) * 31.0 + float(j);
-        sprig(acc, p, t.e, t.dir, t.k, seed, col);
+        if (!twigFlower(i, j)) sprig(acc, p, t.e, t.dir, t.k, seed, col);
         if (t.fork) sprig(acc, p, t.f, normalize(t.f - t.m + 1e-6), 0.8 * t.k, seed + 0.5, col);
     }
 }
 
 // A daisy at q = 0 of radius fr (its petals' ring; they reach fr × (1 + PETAL_R)), petals swollen e of
-// the way out, in petal colour pc; seed picks its turn and petal jitter.
-void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, float sat, float seed) {
+// the way out, petals pc and centre hc; seed picks its turn and petal jitter.
+void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, vec3 hc, float seed) {
     float a0 = TAU * hash12(vec2(seed, 11.3));
     float da = TAU / float(DAISY_N);
     float r0 = 0.55 * fr, r1 = mix(r0, fr * (1.0 + PETAL_R), e), pw = DAISY_PETAL_W * fr * e;
@@ -246,11 +254,29 @@ void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, float sat, float 
     // The centre: an oval, hatched on its shaded side.
     vec2  rad = HEART_R * fr * e * vec2(0.8, 1.05);
     float sd  = (length(q / rad) - 1.0) * min(rad.x, rad.y);
-    vec3 heart = dot(abs(pc - desaturate(PALE, sat)), vec3(1.0)) < 0.05 ? ORANGE : YELLOW;
-    inked(acc, desaturate(heart, sat), sd, 1.0);
+    inked(acc, hc, sd, 1.0);
     float step_  = 0.22 * rad.y;
     float stripe = abs(fract(q.y / step_) - 0.5) * step_;
     over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
+}
+
+// The daisies on vine i's twigs near p: sized and coloured by how high up the run their twig is.
+void twigFlowers(inout vec4 acc, vec2 p, int i, Run r, int nodes, int j0) {
+    float off  = 0.5 + 0.5 * hash12(vec2(float(i), 3.1));
+    float flip = step(0.5, hash12(vec2(float(i), 5.3)));
+    for (int n = 2; n >= 0; n--) {
+        int j = j0 + n;
+        if ((nodes & (1 << n)) == 0 || !twigFlower(i, j)) continue;
+        Twig  t    = twigOf(i, j, r, off, flip);
+        float up   = clamp((t.o.y - r.g) / max(r.b - r.g, 1e-3), 0.0, 1.0);
+        float open = smoothstep(0.0, TWIG_FLOWER_OPEN_H, r.tip - t.o.y - SPROUT_H);
+        float fr   = mix(TWIG_FLOWER_R_MIN, TWIG_FLOWER_R_MAX, up) * open;
+        if (fr <= 0.0 || length(p - t.e) > fr * (1.0 + PETAL_R) + INK_W + 2.0 * AA) continue;
+        float seed = float(i) * 31.0 + float(j);
+        float bold = mix(BOLD_MIN, 1.0, up);
+        daisy(acc, p - t.e, fr, smoothstep(0.0, 0.4, open), tint(flowerColour(seed), r.sat, bold),
+              tint(heartColour(seed), r.sat, bold), seed);
+    }
 }
 
 // The trunk's tip: a sprig, or on DAISY_FRAC of branches a bud, which late in growth opens into a daisy.
@@ -266,13 +292,14 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     if (length(p - c) > REACH + INK_W + 2.0 * AA && length(p - tip) > BUD_R + INK_W + 2.0 * AA) return;
     float k = sprout(r.tip - r.g);
     if (hash12(vec2(float(i), 13.9)) >= DAISY_FRAC) {              // no daisy: the branch ends in a sprig
-        sprig(acc, p, tip, vec2(0.0, 1.0), k, float(i) * 31.0 - 7.0, leafColour(r.sat));
+        sprig(acc, p, tip, vec2(0.0, 1.0), k, float(i) * 31.0 - 7.0, PAPER);
         return;
     }
-    inked(acc, leafColour(r.sat), length(p - mix(tip, c, open)) - BUD_R * k, k);   // the bud, later the calyx
+    inked(acc, PAPER, length(p - mix(tip, c, open)) - BUD_R * k, k);   // the bud, later the calyx
     if (open <= 0.0) return;
     float fr = mix(BUD_R, FLOWER_R, open);
-    daisy(acc, p - c, fr, smoothstep(0.0, 0.25, open), desaturate(flowerColour(i), r.sat), r.sat, float(i));
+    daisy(acc, p - c, fr, smoothstep(0.0, 0.25, open), tint(flowerColour(float(i)), r.sat, 1.0),
+          tint(heartColour(float(i)), r.sat, 1.0), float(i));
 }
 
 // The plants over transparent, premultiplied. Branches vine by vine, then buds and flowers on top.
@@ -327,6 +354,11 @@ vec4 plants(vec2 fc) {
             int s = v * TAPS + t;
             if (nodes[s] != 0) sprigs(acc, p, i0 + v - VINE_NEIGHBOURS, runs[s], nodes[s], j0s[s]);
         }
+    for (int v = 0; v < NV; v++)                                      // flowers over every vine's leaves
+        for (int t = 0; t < TAPS; t++) {
+            int s = v * TAPS + t;
+            if (nodes[s] != 0) twigFlowers(acc, p, i0 + v - VINE_NEIGHBOURS, runs[s], nodes[s], j0s[s]);
+        }
     for (int v = 0; v < NV; v++)
         for (int t = 0; t < TAPS; t++)
             if (has[v * TAPS + t]) bloom(acc, p, i0 + v - VINE_NEIGHBOURS, runs[v * TAPS + t]);
@@ -364,13 +396,13 @@ void footprint(inout vec4 acc, vec2 p, vec2 at, float g, float seed) {
     if (wd < INK_W + 2.0 * AA) inked(acc, PAPER, wd, 1.0);
     for (int s = 0; s < FOOT_SPROUTS; s++) {                          // then sprigs, and the middle one's daisy
         float sd = seed * 17.0 + float(s);
-        if (ks[s] > 0.0) sprig(acc, p, twigs[s], dirs[s], ks[s], sd, leafColour(sat));
+        if (ks[s] > 0.0) sprig(acc, p, twigs[s], dirs[s], ks[s], sd, PAPER);
         if (s == FOOT_SPROUTS / 2) {
             float open = smoothstep(FOOT_FLOWER_FROM, 1.0, g);
             if (open > 0.0 && length(p - tips[s]) < FOOT_FLOWER_R * (1.0 + PETAL_R) + INK_W + 2.0 * AA)
                 daisy(acc, p - tips[s], FOOT_FLOWER_R * open, smoothstep(0.0, 0.25, open),
-                      desaturate(flowerColour(int(seed * 97.0)), sat), sat, sd);
-        } else sprig(acc, p, tips[s], vec2(0.0, 1.0), g, sd + 0.5, leafColour(sat));
+                      tint(flowerColour(seed), sat, 1.0), tint(heartColour(seed), sat, 1.0), sd);
+        } else sprig(acc, p, tips[s], vec2(0.0, 1.0), g, sd + 0.5, PAPER);
     }
 }
 

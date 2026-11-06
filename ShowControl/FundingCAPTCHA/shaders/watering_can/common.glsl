@@ -83,6 +83,14 @@ const float SPROUT_H = 18.0/360.0;      // a trunk fades in, and a twig or bud g
 const float PETAL_R = 0.8, HEART_R = 0.7;            // petals reach FLOWER_R × (1 + PETAL_R); centre radius, × FLOWER_R
 const int   DAISY_N = 12;
 const float DAISY_FRAC = 0.5;            // the fraction of branch tips that open into a daisy; the rest end in a sprig
+// Flowers bloom all through the growth: TWIG_FLOWER_FRAC of twigs end in a daisy instead of a sprig, opening
+// once the growing tip has climbed TWIG_FLOWER_OPEN_H past it. Low on a run they are small and pale; higher
+// (so later, as growth climbs and slows) larger and bolder. The tips' late daisies are the largest and boldest.
+const float TWIG_FLOWER_FRAC = 0.5;
+const float TWIG_FLOWER_OPEN_H = 30.0/360.0;
+const float TWIG_FLOWER_R_MIN = 2.5/360.0, TWIG_FLOWER_R_MAX = 6.5/360.0;   // radius (petals' ring) at a run's bottom, top
+const float BOLD_MIN = 0.35;            // how much colour a flower at a run's bottom has (the rest is paper); 1 at its top
+const float BOLD_YOUNG = 0.6;           // ... times this while the person's growth is young, rising to 1 at full bloom
 const float DAISY_PETAL_W = 0.3;        // a petal's half-width at its tip, × the flower radius
 const float PEN_MIN = 1.5;              // thinnest line, render pixels: thinner ones are drawn this wide but fainter
 const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r);
