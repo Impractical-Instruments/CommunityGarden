@@ -33,14 +33,19 @@ int ownerAt(vec2 uv) {
     return best;
 }
 
-// Was this texel body last frame? From BODY_ON, and once body, until below BODY_OFF: hysteresis,
-// so a flickering edge holds still. (A held, fading texel has less than full hold: not body.)
-bool wasBody(vec4 t) {
+// Is this texel body this frame? Decided from last frame's stored texel t alone, so the march below,
+// probing its neighbours, judges each exactly as that texel judges itself: every texel of a run then
+// finds the same ends, even while the body moves (a rule using this frame's presence can't be
+// evaluated at a neighbour, and the two disagreed wherever the body had just arrived or left, tearing
+// the plants into rows). The cost is a frame of latency. From BODY_ON, and once body, until below
+// BODY_OFF: hysteresis, so a flickering edge holds still. (A held, fading texel isn't body.)
+bool fullHold(vec4 t) { return fract(t.a) > floor(0.9 / HOLD_Q) * HOLD_Q - 0.5 * HOLD_Q; }
+bool member(vec4 t) {
     bool run = t.g > 0.0 || t.b > 0.0;
-    return fract(t.a) > floor(0.9 / HOLD_Q) * HOLD_Q - 0.5 * HOLD_Q && (t.r >= BODY_ON || (run && t.r >= BODY_OFF));
+    return t.r >= BODY_ON || (fullHold(t) && run && t.r >= BODY_OFF);
 }
 bool bodyAt(float x, float y) {
-    return wasBody(texelFetch(iChannel1, ivec2(min(vec2(x, y) * iResolution.xy, iResolution.xy - 1.0)), 0));
+    return member(texelFetch(iChannel1, ivec2(min(vec2(x, y) * iResolution.xy, iResolution.xy - 1.0)), 0));
 }
 
 // How far the run extends from uv in direction dir (±1, in UV y) while last frame's body continues.
@@ -71,17 +76,16 @@ void mainImage(out vec4 o, in vec2 fc) {
     float pres = iFrame == 0 ? target : mix(prev.r, target, 1.0 - exp(-iTimeDelta / PRESENCE_EASE_S));
 
     float g = 0.0, b = 0.0, a = 0.0;
-    bool had = prev.g > 0.0 || prev.b > 0.0;
     // The body has gone from under a person whose track is missing: every texel of theirs lets go this
     // frame, not as its eased presence crosses BODY_OFF (sooner at the edges), so their hold fades in step.
     int   po = bOwner(prev);
     float pst = po > 0 ? recIdn(iChannel2, po - 1).y : S_EMPTY;
     bool  leaving = po > 0 && target < BODY_OFF && !isState(pst, S_TENTATIVE) && !isState(pst, S_CONFIRMED);
-    if (!leaving && (pres >= BODY_ON || (wasBody(prev) && pres >= BODY_OFF))) {
-        float lo = march(uv, -1.0), hi = march(uv, 1.0);
-        float ease = 1.0 - exp(-iTimeDelta / RUN_EASE_S);
-        g = (!had || abs(lo - prev.g) > RUN_SNAP) ? lo : mix(prev.g, lo, ease);
-        b = (!had || abs(hi - prev.b) > RUN_SNAP) ? hi : mix(prev.b, hi, ease);
+    if (!leaving && iFrame > 0 && member(prev)) {
+        // Not eased: an eased end has a history per texel, and texels that joined the run at different
+        // times would disagree. The hysteresis above already holds a flickering edge still.
+        g = march(uv, -1.0);
+        b = march(uv, 1.0);
         a = float(ownerAt(uv)) + floor(0.9 / HOLD_Q) * HOLD_Q;
     } else {
         float ph = bHold(prev);

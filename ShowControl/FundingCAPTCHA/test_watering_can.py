@@ -686,6 +686,44 @@ def grown_rig(ctx, frames, size=IMG, **kw):
     return rig
 
 
+def column_runs(b):
+    """Each vertical run of body texels in B (h, w, 4) as its texels' (bottom, top) arrays."""
+    member = (b[..., 1] > 0) | (b[..., 2] > 0)
+    for c in range(b.shape[1]):
+        col, r = member[:, c], 0
+        while r < len(col):
+            if not col[r]:
+                r += 1
+                continue
+            s = r
+            while r < len(col) and col[r]:
+                r += 1
+            yield b[s:r, c, 1], b[s:r, c, 2]
+
+
+def swinging_arm(angle_deg, dx=0):
+    """person() on a 4x finer Body (256 x 192), right arm a 12 px bar from the shoulder at angle_deg
+    (0 hanging, 90 out, 180 up), shifted dx px sideways."""
+    m = np.roll(np.kron(person(), np.ones((4, 4), dtype=bool)), dx, axis=1)
+    yy, xx = np.mgrid[0:m.shape[0], 0:m.shape[1]]
+    a = np.radians(angle_deg)
+    px, py = xx - (36 * 4 + dx), yy - 14 * 4                     # from the right shoulder, y down
+    along = px * np.sin(a) + py * np.cos(a)
+    return m | ((along > 0) & (along < 60) & (np.abs(-px * np.cos(a) + py * np.sin(a)) < 6))
+
+
+def test_run_ends_agree_while_moving(ctx):          # a waving arm, a swaying body: the plants don't tear
+    rig = Rig(ctx, size=(320, 240))
+    rig.run([swinging_arm(20)] * 30)
+    worst = []
+    for k in range(16):                             # down to up over 1.6 s, drifting a Body px a frame
+        rig.run([swinging_arm(20 + 160 * (0.5 - 0.5 * np.cos(np.pi * k / 15)), dx=k % 4)])
+        spreads = [max(np.ptp(g), np.ptp(t)) for g, t in column_runs(rig.buf("buffer_b"))]
+        worst.append(max(spreads))
+    assert max(worst) < 2.0 / 240, worst            # every texel of a run finds the same ends, to a texel or two
+    rig.release()
+
+
 def test_run_ends_agree_along_a_column(ctx):          # else the plants tear into rows
     size = (640, 360)                               # the march's step is 5.6 px here
     rig = Rig(ctx, size=size)

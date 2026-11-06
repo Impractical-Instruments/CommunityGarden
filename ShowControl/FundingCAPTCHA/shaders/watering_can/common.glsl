@@ -24,8 +24,6 @@ const float BODY_OFF         = 0.3;      // ... and a texel stays body until bel
 const int   RUN_STEPS        = 64;       // max march taps each way
 const float RUN_STEP_H       = 1.0/64.0; // march step, screen heights: RUN_STEPS of them cover a full screen height
 const int   RUN_REFINE       = 6;        // bisections of the last march step, down to the edge texel (to 1080p), so a run's texels agree
-const float RUN_EASE_S       = 0.15;     // eases run extents; snaps when they jump more than RUN_SNAP
-const float RUN_SNAP         = 0.08;     // screen heights
 const float LEAVE_S          = 2.0;      // a lost person's plants rewind away over this
 const float HOLD_Q           = 1.0/128.0; // 0.9 * hold is stored in multiples of this, so it is exact in a half float for any owner
 // Garden
