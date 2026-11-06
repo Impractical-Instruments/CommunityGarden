@@ -18,7 +18,6 @@
 const float TAU = 6.2831853;
 const int   NV  = 2 * VINE_NEIGHBOURS + 1;
 const int   TAPS = 5;                             // offsets 0, ±REACH, ±REACH/2 (see plants())
-const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r)
 const float SAME_RUN = 0.5 * RUN_STEP_H;          // two taps whose extents agree this closely found the same run
 
 float AA;                                         // one render pixel, in screen heights
@@ -143,7 +142,7 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
     float open = clamp((r.f - FLOWER_FROM) / (FLOWER_FULL - FLOWER_FROM), 0.0, 1.0);
     // The taps are REACH / 2 apart, so a run shorter than that isn't found from every row an open
     // flower covers: on one (a ragged edge, a fragment) the flower stays a bud. Only the bloom.
-    open *= smoothstep(0.5 * REACH, 0.75 * REACH, r.b - r.g);
+    open *= smoothstep(SHORT_BLOOM_FROM * REACH, SHORT_BLOOM_FULL * REACH, r.b - r.g);
     // The bud sits on the stem's tip. Opening, the flower drifts to the vine's own x (on the body),
     // so the wobble can't carry it further past the edge than its own size.
     vec2  tip = vec2(vineX(i, r.tip, r), r.tip);
@@ -167,6 +166,7 @@ void bloom(inout vec4 acc, vec2 p, int i, Run r) {
 // The plants over transparent, premultiplied. Stems and leaves vine by vine, then buds and flowers on top.
 vec4 plants(vec2 fc) {
     vec2 p  = fc / iResolution.y;
+    if (!cNear(iChannel1, p)) return vec4(0.0);                       // no body near (Buffer C's grid): paper, one fetch
     int  i0 = int(floor(p.x / VINE_SPACING + 0.5));
     Run  runs[NV * TAPS];
     bool has[NV * TAPS];

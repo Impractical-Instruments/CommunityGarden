@@ -585,6 +585,28 @@ def test_run_ends_agree_along_a_column(ctx):          # else the plants tear int
     rig.release()
 
 
+NEAR_CELL = 1 / 32                                 # shaders/watering_can/common.glsl
+NEAR_PAD = max(4.5 * 4.5 / 360, 1.8 * FLOWER_R) + 0.01   # (VINE_NEIGHBOURS + 0.5) * VINE_SPACING vs REACH, + NEAR_STEP
+
+
+def test_near_grid_marks_body_neighbourhood(ctx):
+    rig = Rig(ctx)                                  # SIZE: 4 + 32 grid rows fit in 72
+    rig.run([person()] * 10)
+    c = rig.buf("buffer_c")
+    aspect = SIZE[0] / SIZE[1]
+
+    def near(x_sh, y_sh):                           # the cell holding screen point (x, y), screen heights
+        return c[4 + int(y_sh / NEAR_CELL), int(x_sh / NEAR_CELL), 0]
+
+    y = 1 - 18 / BODY[1]                            # torso height
+    edge = 38 / BODY[0] * aspect                    # the figure's right edge (arm hanging at x 35..38)
+    assert near(32 / BODY[0] * aspect, y) == 1      # under the torso
+    assert near(edge + 0.5 * NEAR_PAD, y) == 1      # just outside, within NEAR_PAD
+    assert near(edge + NEAR_PAD + 1.5 * NEAR_CELL, y) == 0   # beyond NEAR_PAD
+    assert near(0.05, 0.05) == 0 and near(aspect - 0.05, 0.5) == 0
+    rig.release()
+
+
 def test_sun_region_is_top_right():
     r, (w, h) = sun_region(IMG), IMG
     assert r[int(0.84 * h), int(w - 0.16 * h)]                 # its centre

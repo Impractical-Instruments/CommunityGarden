@@ -10,6 +10,8 @@
 //   (k, 1) BASE    base x, base y (UV, smoothed), seconds since last walking step, record state last frame
 //   (k, 2) GHOST   spot x, y, growth at loss, seconds since loss (T_CLAMP = no ghost)
 //   (0, 3) SUN     sun level 0–1 (eased), raw total growth, —, —
+//   (i, 4 + j) NEAR  1 if body (or a held shape) lies within NEAR_PAD of grid cell (i, j), else 0;
+//                    cell (i, j) is screen [i, i + 1] × [j, j + 1] · NEAR_CELL (screen heights). See cNear().
 
 const int   SLOTS = 8;
 const float T_CLAMP = 99.0;              // every "seconds since" counter clamps here
@@ -53,6 +55,18 @@ const float LEAF_DROOP = 0.8, LEAF_DROOP_VAR = 0.3;   // leaf angle below horizo
 const float SPROUT_H = 18.0/360.0;      // a stem fades in, and a leaf or bud grows in, over this much vine below it
 const float PETAL_R = 0.8, HEART_R = 0.45;            // petal and yellow-centre radius, as fractions of the flower radius
 const float PEN_MIN = 1.5;              // thinnest line, render pixels: thinner ones are drawn this wide but fainter
+const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r);
+                                        // the Image taps B at ±REACH and ±REACH / 2 above and below each pixel
+const float SHORT_BLOOM_FROM = 0.5, SHORT_BLOOM_FULL = 0.75;   // a run shorter than these × REACH keeps a bud, not a flower
+                                        // (the taps are REACH / 2 apart: they don't find it from every row a flower covers)
+// Near-body grid (Buffer C rows 4+): the Image skips cells with no body near, so empty paper costs one fetch.
+const float NEAR_CELL = 1.0/32.0;       // cell size; 4 + 1/NEAR_CELL rows of C must fit the render height (36 ≤ 72 at test size)
+const float NEAR_STEP = 0.01;           // B is sampled this far apart across a padded cell: finer than the thinnest body
+// Furthest a pixel's B taps reach from it: sideways to its outermost vine, up and down to ±REACH. A pixel whose
+// taps find no grown run draws nothing, so a cell whose padded box holds no body is paper. Plus a step of slack.
+const float NEAR_PAD = max((float(VINE_NEIGHBOURS) + 0.5) * VINE_SPACING, REACH) + NEAR_STEP;
+const int   NEAR_ROWS = int(ceil(1.0 / NEAR_CELL));
+const int   NEAR_TAPS = int(ceil((NEAR_CELL + 2.0 * NEAR_PAD) / NEAR_STEP)) + 1;   // B samples per side of a padded cell
 // Sun
 const vec2  SUN_POS = vec2(-0.16, 0.84);   // x from the right edge (screen heights), y as a fraction of height
 const float SUN_R = 0.09, RAY_LEN = 0.07;
@@ -79,6 +93,9 @@ vec4 cPerson(sampler2D c, int k) { return texelFetch(c, ivec2(k, 0), 0); }
 vec4 cBase  (sampler2D c, int k) { return texelFetch(c, ivec2(k, 1), 0); }
 vec4 cGhost (sampler2D c, int k) { return texelFetch(c, ivec2(k, 2), 0); }
 vec4 cSun   (sampler2D c)        { return texelFetch(c, ivec2(0, 3), 0); }
+bool cNear  (sampler2D c, vec2 screenPos) {      // screenPos in screen heights; is any body near?
+    return texelFetch(c, ivec2(floor(screenPos / NEAR_CELL)) + ivec2(0, 4), 0).x > 0.5;
+}
 
 // ── Body memory accessors (Buffer B .a = owner + 0.9 * hold) ──────────────────
 int   bOwner(vec4 b) { return int(floor(b.a)); }

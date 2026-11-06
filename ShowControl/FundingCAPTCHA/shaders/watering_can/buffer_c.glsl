@@ -1,6 +1,7 @@
 // Buffer C — Garden state.  iChannel0 = Buffer B, iChannel1 = Buffer C (itself), iChannel2 = blobs
-// Layout: see common.glsl. Each texel reads the previous frame of every other texel; texels that
-// need the same derived value (PERSON and BASE both need this frame's base) compute it from the same inputs.
+// Layout: see common.glsl (rows 0–3 garden state, rows 4+ the near-body grid). Each texel reads the
+// previous frame of every other texel; texels that need the same derived value (PERSON and BASE
+// both need this frame's base) compute it from the same inputs.
 
 #define BB    iChannel0
 #define C     iChannel1
@@ -107,6 +108,26 @@ vec4 ghostNext(int k, float dt) {
     return g;
 }
 
+// ── NEAR ──────────────────────────────────────────────────────────────────────
+// Is there body (or a held shape: anything a vine could grow on) within NEAR_PAD of cell (i, j)?
+// Reads this frame's B, so the grid never lags the plants.
+float nearNext(ivec2 cell) {
+    float aspect = iResolution.x / iResolution.y;
+    vec2  lo = vec2(cell) * NEAR_CELL - NEAR_PAD;
+    vec2  bRes = iChannelResolution[0].xy;
+    for (int y = 0; y < NEAR_TAPS; y++) {
+        float sy = lo.y + float(y) * NEAR_STEP;
+        if (sy < 0.0 || sy >= 1.0) continue;
+        for (int x = 0; x < NEAR_TAPS; x++) {
+            float sx = lo.x + float(x) * NEAR_STEP;
+            if (sx < 0.0 || sx >= aspect) continue;
+            vec4 t = texelFetch(BB, ivec2(vec2(sx / aspect, sy) * bRes), 0);
+            if (bOwner(t) > 0 && bHold(t) > 0.0) return 1.0;
+        }
+    }
+    return 0.0;
+}
+
 // ── SUN ───────────────────────────────────────────────────────────────────────
 vec4 sunNext(float dt) {
     float raw = 0.0;
@@ -123,7 +144,11 @@ vec4 sunNext(float dt) {
 void mainImage(out vec4 o, in vec2 fc) {
     ivec2 c = ivec2(fc);
     o = vec4(0.0);
-    if (c.y > 3 || c.x >= SLOTS || (c.y == 3 && c.x > 0)) return;
+    if (c.y >= 4) {                                              // the near-body grid
+        if (c.y < 4 + NEAR_ROWS && float(c.x) * NEAR_CELL < iResolution.x / iResolution.y) o.x = nearNext(c - ivec2(0, 4));
+        return;
+    }
+    if (c.x >= SLOTS || (c.y == 3 && c.x > 0)) return;
     if (iFrame == 0) { o = initial(c); return; }
     float dt = clamp(iTimeDelta, 0.0, T_CLAMP);
 
