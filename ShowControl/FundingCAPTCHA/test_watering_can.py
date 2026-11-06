@@ -639,7 +639,7 @@ PAPER = np.array([246, 241, 228])
 FLOWER_R, REACH = K["FLOWER_R"], K["REACH"]
 TWIG_REACH = (1 + K["FORK_LEN"]) * K["TWIG_LEN"] + K["SPRIG_LEN"]   # a forked twig and its sprig, from its node
 SUN_POS, SUN_R, RAY_LEN = K["SUN_POS"], K["SUN_R"], K["RAY_LEN"]
-FLOWER_RGB = np.array([[232, 149, 127], [232, 134, 47], [107, 91, 149], [188, 76, 38]])   # pink, orange, violet, rust
+FLOWER_RGB = np.array([[251, 233, 160], [113, 154, 173], [232, 134, 47]])   # pale yellow, light blue, orange
 IMG = (256, 144)                                   # image tests: big enough that petals have pure-colour pixels
 
 
@@ -816,7 +816,7 @@ def test_colour_ripens(ctx):
         img = rig.image()
         sats.append(saturation(img[..., :3][drawn(img)]).mean())
         rig.release()
-    assert sats[0] < sats[1] - 0.25, sats
+    assert sats[1] > 2 * sats[0], sats              # at least doubles: the palette is pastel and the wood is ink on paper
 
 
 def test_flowers_only_late(ctx):

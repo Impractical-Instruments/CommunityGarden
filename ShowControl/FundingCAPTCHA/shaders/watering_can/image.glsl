@@ -42,11 +42,11 @@ vec3 hsl(float h, float s, float l) {             // h in degrees
     return l - s * min(l, 1.0 - l) * clamp(min(k - 3.0, 9.0 - k), -1.0, 1.0);
 }
 vec3 desaturate(vec3 c, float sat) { return mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, sat / SAT_MAX); }
-vec3 stemColour(float sat) { return hsl(95.0, sat, 0.34); }
 vec3 leafColour(float sat) { return hsl(100.0, sat, 0.58); }
+// The style guide's pale yellow, light blue and orange; and a centre that stands out from each.
 vec3 flowerColour(int i) {
     float h = hash12(vec2(float(i), 9.7));
-    return h < 0.25 ? PINK : h < 0.5 ? ORANGE : h < 0.75 ? VIOLET : RUST;
+    return h < 0.34 ? PALE : h < 0.67 ? SKY : ORANGE;
 }
 
 // iq's vesica: a pointed leaf along y, half-length sqrt(r² − d²), half-width r − d.
@@ -246,7 +246,8 @@ void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, float sat, float 
     // The centre: an oval, hatched on its shaded side.
     vec2  rad = HEART_R * fr * e * vec2(0.8, 1.05);
     float sd  = (length(q / rad) - 1.0) * min(rad.x, rad.y);
-    inked(acc, desaturate(YELLOW, sat), sd, 1.0);
+    vec3 heart = dot(abs(pc - desaturate(PALE, sat)), vec3(1.0)) < 0.05 ? ORANGE : YELLOW;
+    inked(acc, desaturate(heart, sat), sd, 1.0);
     float step_  = 0.22 * rad.y;
     float stripe = abs(fract(q.y / step_) - 0.5) * step_;
     over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
@@ -305,7 +306,7 @@ vec4 plants(vec2 fc) {
     vec4 acc = vec4(0.0);
     if (!found) return acc;                                           // nothing grows near: paper
     // All the wood near p is one shape, inked once: branches that meet merge, as the art's forks.
-    float wd = 1e3, bark = 0.0, sat = SAT_MIN;
+    float wd = 1e3, bark = 0.0;
     int   nodes[NV * TAPS], j0s[NV * TAPS];
     for (int v = 0; v < NV; v++)
         for (int t = 0; t < TAPS; t++) {
@@ -314,12 +315,11 @@ vec4 plants(vec2 fc) {
             if (!has[s]) continue;
             float bk;
             float d = wood(p, i0 + v - VINE_NEIGHBOURS, runs[s], bk, nodes[s], j0s[s]);
-            if (d < wd) sat = runs[s].sat;
             wd = smin(wd, d, WOOD_FILLET);
             bark = max(bark, bk);
         }
     if (wd < INK_W + 2.0 * AA) {
-        inked(acc, stemColour(sat), wd, 1.0);
+        inked(acc, PAPER, wd, 1.0);                                  // unfilled: ink on paper, as the art
         over(acc, INK, bark * fillA(wd));
     }
     for (int v = 0; v < NV; v++)
@@ -361,7 +361,7 @@ void footprint(inout vec4 acc, vec2 p, vec2 at, float g, float seed) {
         twigs[s] = n + dirs[s] * TWIG_LEN * 0.7 * ks[s];
         wd = smin(wd, sdTaper(p, n, twigs[s], 0.5 * TWIG_W * ks[s], tip) + (1.0 - min(1.0, 3.0 * ks[s])) * 2.0 * INK_W, WOOD_FILLET);
     }
-    if (wd < INK_W + 2.0 * AA) inked(acc, stemColour(sat), wd, 1.0);
+    if (wd < INK_W + 2.0 * AA) inked(acc, PAPER, wd, 1.0);
     for (int s = 0; s < FOOT_SPROUTS; s++) {                          // then sprigs, and the middle one's daisy
         float sd = seed * 17.0 + float(s);
         if (ks[s] > 0.0) sprig(acc, p, twigs[s], dirs[s], ks[s], sd, leafColour(sat));

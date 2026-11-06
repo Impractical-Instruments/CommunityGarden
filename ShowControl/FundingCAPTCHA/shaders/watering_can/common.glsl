@@ -143,9 +143,8 @@ const vec3 PAPER  = vec3(0.965, 0.945, 0.894);   // #f6f1e4
 const vec3 INK    = vec3(0.067);                 // #111111
 const vec3 YELLOW = vec3(1.000, 0.949, 0.000);   // #fff200
 const vec3 ORANGE = vec3(0.910, 0.525, 0.184);   // #e8862f
-const vec3 PINK   = vec3(0.910, 0.584, 0.498);   // #e8957f
-const vec3 VIOLET = vec3(0.420, 0.357, 0.584);   // #6b5b95
-const vec3 RUST   = vec3(0.737, 0.298, 0.149);   // #bc4c26
+const vec3 PALE   = vec3(0.984, 0.914, 0.627);   // #fbe9a0  pale yellow
+const vec3 SKY    = vec3(0.443, 0.604, 0.678);   // #719aad  light blue: the site's band, the concept art's sky
 
 // ── Blob records (ADR-0022) ───────────────────────────────────────────────────
 const float S_EMPTY = 0., S_TENTATIVE = 1., S_CONFIRMED = 2., S_COASTING = 3., S_LOST = 4.;
