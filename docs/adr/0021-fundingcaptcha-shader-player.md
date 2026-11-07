@@ -1,6 +1,6 @@
 # FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera
 
-**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle)
+**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle); [ADR-0023](0023-shader-player-image-channel.md) (an `image` channel source: one shuffled image per load)
 
 ## Context
 

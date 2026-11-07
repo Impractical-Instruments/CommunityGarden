@@ -23,7 +23,7 @@ Mouse controls in Buffer A: **hold left button** = a person at the cursor · **h
 - Buffers are 16-bit float on the Pi (Shadertoy uses 32-bit). Keep stored values small: past ~2048, whole numbers start rounding. Store positions as UVs (0–1), not pixels.
 - `HW_PERFORMANCE` is 0 on the Pi — the low-quality branch.
 - `iMouse` works: on the Pi it's the centre of everyone in frame, "pressed" while anyone is there.
-- No textures, videos, sound, cubemaps, or webcam — procedural + Body only.
+- No videos, sound, cubemaps, or webcam. The only texture is the `"image"` source (see Images); everything else is procedural + Body.
 - Channel filter/wrap settings are ignored: always linear, clamp.
 - The Pi renders at half resolution by default. Keep it cheap; avoid long raymarch loops.
 
@@ -51,6 +51,17 @@ When handing in, don't copy the blob painter tab. In `setup.json`, write `"blobs
 "channels": { "image": ["A", "blobs"] }
 ```
 
+## Images (optional)
+
+A Setup can paint over a picture instead of generating everything ([ADR-0023](../../../docs/adr/0023-shader-player-image-channel.md)). Put `.png` or `.jpg` files in `shaders/<your-setup>/images/` and bind `"image"` in `setup.json`. Each time the Setup plays, the player shuffles to the next one. No repeats until all have shown.
+
+- In Shadertoy, use one of its built-in textures in that channel as a stand-in.
+- Sample it with `texture()` and its `iChannelResolution` for aspect. Row 0 is the bottom, as with every channel.
+- **No images in the folder** leaves the channel unbound: it reads 0 and `iChannelResolution[n].x == 0.0`. Test for that and fall back to something procedural, so the Setup still plays in a fresh clone.
+- Keep images near display size; larger ones are downscaled on load and add a hitch.
+- Images are committed publicly. Nothing private goes here.
+- For smear-type Setups, fairly saturated images with clear colour regions smear more legibly than soft, low-contrast ones.
+
 ## Hand it in
 
 Copy [`ripples/`](ripples/) to `shaders/<your-setup>/` and replace:
@@ -75,7 +86,7 @@ Copy [`ripples/`](ripples/) to `shaders/<your-setup>/` and replace:
 }
 ```
 
-Sources: `"A"` (Body), `"B"`, `"C"`, `"D"`, `"keyboard"`, `"blobs"` (blob records, above), or `null`. List position = iChannel number.
+Sources: `"A"` (Body), `"B"`, `"C"`, `"D"`, `"keyboard"`, `"blobs"` (blob records, above), `"image"` (images, above), or `null`. List position = iChannel number.
 
 Add the folder name to [`setups.json`](setups.json) to put it in the rotation. `make test` compiles every listed Setup.
 

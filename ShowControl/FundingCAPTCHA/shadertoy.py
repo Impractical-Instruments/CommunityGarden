@@ -23,7 +23,10 @@ BLOB_ROWS rows of RGBA32F, read with texelFetch(ch, ivec2(slot, row), 0):
 A slot keeps its track for the track's whole life. In Shadertoy the source is
 shaders/blob_painter.glsl in a spare buffer.
 
-Channel sources: "A" "B" "C" "D" "keyboard" "blobs" or null. Buffers are linear-
+Source "image" is one image from <setup>/images/, chosen per load by
+shader_app.Rotation (ADR-0023); unbound (reads 0, resolution 0) without one.
+
+Channel sources: "A" "B" "C" "D" "keyboard" "blobs" "image" or null. Buffers are linear-
 filtered and clamped like Shadertoy's, but RGBA16F where Shadertoy's are
 32-bit: the Pi's V3D can't linear-filter 32-bit float. Values above ~2048
 lose integer precision.
@@ -45,7 +48,8 @@ import numpy as np
 log = logging.getLogger("shader_app")
 
 BUFFERS  = ("buffer_b", "buffer_c", "buffer_d")      # render order, before image
-SOURCES  = {"A", "B", "C", "D", "keyboard", "blobs"}
+SOURCES  = {"A", "B", "C", "D", "keyboard", "blobs", "image"}
+IMAGE_EXTS = (".png", ".jpg", ".jpeg")                # <setup>/images/ files, any case
 _BUF_KEY = {"buffer_b": "B", "buffer_c": "C", "buffer_d": "D"}
 
 PAINTER_PATH = Path(__file__).parent / "shaders" / "body_painter.glsl"
@@ -102,10 +106,15 @@ class Setup:
     common:     str
     passes:     dict[str, str]                     # pass → source, render order
     channels:   dict[str, list[str | None]] = field(default_factory=dict)
+    images:     list[Path] = field(default_factory=list)  # <setup>/images/, sorted
 
     @property
     def uses_blobs(self) -> bool:
         return any("blobs" in chans for chans in self.channels.values())
+
+    @property
+    def uses_image(self) -> bool:
+        return any("image" in chans for chans in self.channels.values())
 
 
 def load_setup(path: Path) -> Setup:
@@ -138,6 +147,11 @@ def load_setup(path: Path) -> Setup:
             raise ShaderError(f"{path.name}: {p} reads {missing} but no such buffer file")
         channels[p] = list(chans) + [None] * (4 - len(chans))
 
+    img_dir = path / "images"
+    images  = sorted((f for f in img_dir.iterdir()
+                      if f.is_file() and f.suffix.lower() in IMAGE_EXTS),
+                     key=lambda f: f.name.lower()) if img_dir.is_dir() else []
+
     common_path = path / "common.glsl"
     return Setup(
         name       = path.name,
@@ -145,7 +159,21 @@ def load_setup(path: Path) -> Setup:
         common     = common_path.read_text() if common_path.exists() else "",
         passes     = passes,
         channels   = channels,
+        images     = images,
     )
+
+
+def decode_image(path: Path, max_size: tuple[int, int]) -> np.ndarray:
+    """An image file as uint8 RGBA (h, w, 4), row 0 = bottom (GL), fitted inside max_size."""
+    from PIL import Image
+    try:
+        with Image.open(path) as im:
+            im = im.convert("RGBA")
+            if im.width > max_size[0] or im.height > max_size[1]:
+                im.thumbnail(max_size, Image.Resampling.LANCZOS)
+            return np.ascontiguousarray(np.flipud(np.asarray(im, dtype=np.uint8)))
+    except Exception as exc:
+        raise ShaderError(f"{Path(path).name}: can't decode image: {exc}") from exc
 
 
 def wrap_source(common: str, body: str) -> str:
@@ -306,6 +334,7 @@ class Renderer:
             self._painter = self._compile("", PAINTER_PATH.read_text(), "body_painter")
             self._painter_buf = _PingPong(ctx, size)
 
+        self._image_tex = None                     # this load's "image" source (ADR-0023)
         self._passes:  dict[str, tuple] = {}       # pass → (prog, vao)
         self._buffers: dict[str, _PingPong] = {}
         self.setup: Setup | None = None
@@ -322,8 +351,12 @@ class Renderer:
         vao = self.ctx.vertex_array(prog, [(self.vbo, "2f", "in_vert")])
         return prog, vao
 
-    def load(self, setup: Setup) -> None:
-        """Compile every pass first so a broken Setup leaves the current one running."""
+    def load(self, setup: Setup, image: np.ndarray | None = None) -> None:
+        """Compile every pass first so a broken Setup leaves the current one running.
+
+        `image` (uint8 RGBA, row 0 = bottom, from decode_image) is bound to the
+        "image" source; without one that source reads 0 with resolution 0.
+        """
         compiled = {}
         try:
             for p, src in setup.passes.items():
@@ -336,6 +369,11 @@ class Renderer:
         self._release_setup()
         self._passes  = compiled
         self._buffers = {p: _PingPong(self.ctx, self.size) for p in setup.passes if p in BUFFERS}
+        if image is not None:
+            h, w = image.shape[:2]
+            self._image_tex = self.ctx.texture((w, h), 4, data=np.ascontiguousarray(image).tobytes())
+            self._image_tex.filter = (self._mgl.LINEAR, self._mgl.LINEAR)
+            self._image_tex.repeat_x = self._image_tex.repeat_y = False
         self.setup    = setup
         self.reset_clock()
         log.info("Setup loaded: %s (%s)", setup.name, ", ".join(setup.passes))
@@ -351,6 +389,14 @@ class Renderer:
         for b in self._buffers.values():
             b.release()
         self._passes, self._buffers = {}, {}
+        if self._image_tex is not None:
+            self._image_tex.release()
+            self._image_tex = None
+
+    @property
+    def image_size(self) -> tuple[int, int] | None:
+        """(w, h) of the bound "image" source, or None."""
+        return tuple(self._image_tex.size) if self._image_tex is not None else None
 
     def reset_clock(self) -> None:
         self.time  = 0.0
@@ -391,6 +437,8 @@ class Renderer:
             return self._kb_tex
         if src == "blobs":
             return self._blobs_tex
+        if src == "image":
+            return self._image_tex
         if src == "A":
             return self._painter_buf.read_tex if self._painter_buf else self._body_tex
         return self._buffers[f"buffer_{src.lower()}"].read_tex

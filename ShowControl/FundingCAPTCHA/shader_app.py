@@ -32,12 +32,14 @@ os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
 
 import moderngl
+import numpy as np
 import pygame
 
 from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
 from body_blobs import BlobConfig, BodyBlobs
-from shadertoy import BodyMouse, Renderer, VERT, js_keycode, load_setup, pack_body
+from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, decode_image, js_keycode,
+                       load_setup, pack_body)
 
 try:
     from IIVision import MockCamera, OrbbecCamera
@@ -91,8 +93,11 @@ class Rotation:
     """
 
     def __init__(self, renderer: Renderer, names: list[str],
-                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None) -> None:
+                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None,
+                 image_max: tuple[int, int] = (4096, 4096)) -> None:
         self.renderer = renderer
+        self._image_max  = image_max
+        self._image_bags: dict[str, tuple] = {}   # name → (files, ShuffleBag, undecodable)
         self._on_load = on_load                       # called after every successful load
         self.names    = list(names)
         self._bag     = ShuffleBag(self.names)
@@ -132,9 +137,32 @@ class Rotation:
             self._bag = ShuffleBag(self.names)
         self.next()
 
+    def _next_image(self, setup) -> np.ndarray | None:
+        """Decode the next image from this Setup's bag (ADR-0023); None if none decode."""
+        files, bag, bad = self._image_bags.get(setup.name, (None, None, set()))
+        if files != setup.images:                     # first load, or images/ changed (R)
+            files, bag = list(setup.images), ShuffleBag([p for p in setup.images if p not in bad])
+        for _ in range(len(files)):
+            path = bag.next()
+            if path is None:
+                break
+            try:
+                image = decode_image(path, self._image_max)
+            except ShaderError as exc:
+                log.error("%s: image dropped: %s", setup.name, exc)
+                bad.add(path)
+                bag = ShuffleBag([p for p in files if p not in bad])
+                continue
+            self._image_bags[setup.name] = (files, bag, bad)
+            return image
+        self._image_bags[setup.name] = (files, bag, bad)
+        return None
+
     def _load(self, name: str) -> bool:
         try:
-            self.renderer.load(load_setup(self._dir / name))
+            setup = load_setup(self._dir / name)
+            image = self._next_image(setup) if setup.uses_image else None
+            self.renderer.load(setup, image=image)
         except Exception as exc:                      # team-authored content: never fatal
             log.error("Setup %s skipped: %s", name, exc)
             return False
@@ -209,8 +237,10 @@ def main() -> None:
     # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
     # with them: Setups that remember people by id must not meet ids from before.
     blobs    = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
+    max_tex  = int(ctx.info["GL_MAX_TEXTURE_SIZE"])
     rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names(),
-                        on_load=blobs.reset)
+                        on_load=blobs.reset,
+                        image_max=(min(win[0], max_tex), min(win[1], max_tex)))
     rotation.next()
 
     # ── Camera ────────────────────────────────────────────────────────────────
