@@ -1,0 +1,10 @@
+{
+  "_comment": "Watercolor smudge: a watercolor painting that visitors' moving hands, feet and head smear; heals once the room empties. Images: images/ (shuffled per load, ADR-0023); none = procedural sunset. Spec: docs/superpowers/specs/2026-11-07-watercolor-smudge-design.md",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["B", "image"],
+    "buffer_c": ["A", "C"],
+    "buffer_d": ["D", "B", "C"],
+    "image":    ["D", "B", "image"]
+  }
+}
