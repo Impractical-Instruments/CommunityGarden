@@ -166,6 +166,21 @@ def test_moving_limb_smears(ctx):
     r.release()
 
 
+def _checker(cell: int = 6) -> np.ndarray:
+    yy, xx = np.mgrid[0:SIZE[1], 0:SIZE[0]]
+    ch = ((xx // cell + yy // cell) % 2).astype(np.uint8) * 255
+    return np.stack([ch, 255 - ch, np.full_like(ch, 128), np.full_like(ch, 255)], -1)
+
+
+def test_moving_limb_smears_most_of_its_path(ctx):
+    """A camera-hard Body edge still carries paint along, as the sketch's soft figure did."""
+    r = _rig(ctx, image=_checker())
+    _frames(r, 2)
+    _sweep(r, 0.02, 0.2, 0.6)
+    assert (_diff(r)[:, _cols(0.25, 0.55)] > 0.1).mean() > 0.3
+    r.release()
+
+
 def test_moving_torso_does_not_smear(ctx):
     r = _rig(ctx)
     _frames(r, 2)

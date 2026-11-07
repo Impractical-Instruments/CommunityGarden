@@ -17,11 +17,14 @@ const float MIX_MOVE       = 0.35;   // pigment mixing where paint is moving
 const float MIX_WET        = 0.04;   // ... and where it's still wet
 
 // ── Motion (normal flow from the eased Body changing between frames) ─────────
+const float BODY_SOFT      = 0.04;   // softens the Body edge (screen heights). The camera's 10 Hz frames move a
+                                     // limb ~0.07 per frame; a soft edge wider than that makes the cross-fade
+                                     // between frames read as a sliding edge, which carries paint along
 const float BODY_EASE_S    = 0.12;   // eases the 10 Hz Body so flow is smooth and 1-px flicker averages out
 const float FLOW_TAP       = 0.006;  // gradient half-step, screen heights
-const float FLOW_EPS       = 60.0;   // regularises v = −dB/dt · ∇B / (|∇B|² + eps)
+const float FLOW_EPS       = 4.0;    // regularises v = −dB/dt · ∇B / (|∇B|² + eps); small, as the soft Body's |∇B| is small
 const float FLOW_MAX       = 2.5;    // screen heights per second
-const float MIN_FLOW       = 0.05;   // edge motion slower than this (screen heights/s) is ignored
+const float MIN_FLOW       = 0.1;    // edge motion slower than this (screen heights/s) is ignored: 1-camera-px jitter is ~0.05, limbs 0.5–1.5
 const float BALANCE_LO     = 0.35;   // movement gains Body ahead and loses it behind in equal measure;
 const float BALANCE_HI     = 0.7;    // appearing, vanishing and flicker only gain or only lose. |gain−loss|/(gain+loss)
                                      // above BALANCE_LO starts suppressing the smear, fully by BALANCE_HI
@@ -63,16 +66,14 @@ float paperGrain(vec2 q) {
 
 // How thin the Body is around uv: 1 for limbs and head, 0 for the torso.
 // Coverage of two rings of Body samples; a thin part leaves most of each ring empty.
-// Measured on max(raw Body, eased Body): the flow uses the eased Body, which lags the raw one,
-// so a broad part's trailing edge must still read as broad.
-float bodyAt(sampler2D raw, sampler2D eased, vec2 uv) { return max(texture(raw, uv).r, texture(eased, uv).r); }
-
-float extremity(sampler2D raw, sampler2D eased, vec2 uv, float A) {
+// Measured on the same eased, softened Body (.r) that drives the flow, so a broad part's
+// lagging trailing edge still reads as broad.
+float extremity(sampler2D body, vec2 uv, float A) {
     float s = 0.0;
     for (int i = 0; i < 12; i++) {
         float a = float(i) * 0.5235988;
         vec2 d = vec2(cos(a), sin(a)) / vec2(A, 1.0);
-        s += bodyAt(raw, eased, uv + d * RING_R1) + bodyAt(raw, eased, uv + d * RING_R2);
+        s += texture(body, uv + d * RING_R1).r + texture(body, uv + d * RING_R2).r;
     }
     float t = mix(0.18, 0.45, THIN);
     return 1.0 - smoothstep(t - 0.08, t + 0.08, s / 24.0);
