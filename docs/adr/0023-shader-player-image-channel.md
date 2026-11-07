@@ -16,7 +16,7 @@ ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't 
    - A Setup that's the only one playing (`--setup NAME`, or a one-entry `setups.json`) isn't reloaded when its `duration_s` runs out (ADR-0021), so it keeps its image.
    - If the folder's file list changes, the bag is rebuilt on the next load.
 
-3. **Decoding.** Images are decoded on load with Pillow into RGBA with row 0 at the bottom (GL, matching the Body). An image larger than the window or `GL_MAX_TEXTURE_SIZE` is downscaled, keeping aspect, before upload.
+3. **Decoding.** Images are decoded on load with Pillow into RGBA with row 0 at the bottom (GL, matching the Body), turned upright per their EXIF orientation (phone photos). Before upload, an image is downscaled, keeping aspect and never upscaled, to the smallest size that still *covers* the window, since Setups cover-fit it. No side may exceed `GL_MAX_TEXTURE_SIZE`.
 
 4. **No images is not an error.** With an empty or missing `images/` folder, the source is unbound: it reads 0 and `iChannelResolution[n]` is `(0, 0, 0)`. A Setup can test `iChannelResolution[n].x == 0.0` and fall back to something procedural. CI and fresh clones play such Setups normally.
 

@@ -21,9 +21,11 @@ float imbalance(vec2 uv, float A) {
 }
 
 void mainImage(out vec4 o, in vec2 f) {
+    // Paint never goes below PAINT_FLOOR, so an exactly-zero centre means "buffer cleared" (a
+    // Shadertoy resize), never black paint.
     vec3 ctr = texelFetch(iChannel0, ivec2(iResolution.xy * 0.5), 0).rgb;
     if (iFrame == 0 || ctr == vec3(0.0)) {
-        o = vec4(texelFetch(iChannel1, ivec2(f), 0).rgb, 0.0);
+        o = vec4(max(texelFetch(iChannel1, ivec2(f), 0).rgb, vec3(PAINT_FLOOR)), 0.0);
         return;
     }
     vec2 uv = f / iResolution.xy;
@@ -68,5 +70,5 @@ void mainImage(out vec4 o, in vec2 f) {
     } else {
         c.rgb = mix(c.rgb, orig.rgb, 1.0 - exp(-dt * PRESENT_HEAL));
     }
-    o = vec4(c.rgb, wet);
+    o = vec4(max(c.rgb, vec3(PAINT_FLOOR)), wet);
 }

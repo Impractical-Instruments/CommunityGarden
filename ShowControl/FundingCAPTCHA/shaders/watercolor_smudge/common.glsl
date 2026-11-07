@@ -27,7 +27,9 @@ const float FLOW_MAX       = 2.5;    // screen heights per second
 const float MIN_FLOW       = 0.1;    // edge motion slower than this (screen heights/s) is ignored: 1-camera-px jitter is ~0.05, limbs 0.5–1.5
 const float BALANCE_LO     = 0.35;   // movement gains Body ahead and loses it behind in equal measure;
 const float BALANCE_HI     = 0.7;    // appearing, vanishing and flicker only gain or only lose. |gain−loss|/(gain+loss)
-                                     // above BALANCE_LO starts suppressing the smear, fully by BALANCE_HI
+                                     // above BALANCE_LO starts suppressing the smear, fully by BALANCE_HI.
+                                     // Known cost: an arm reaching along its own axis only gains, so it doesn't
+                                     // smear; raise BALANCE_LO/HI at the rig if reaching matters more than flicker
 const float MIX_TAP        = 0.0045; // pigment-mixing neighbourhood, screen heights
 
 // ── Wet look ─────────────────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ const float DISTURB_LO     = 0.01;   // |canvas − original| below this shows t
 const float DISTURB_HI     = 0.04;   // ... above this shows the canvas
 
 const float T_CLAMP        = 99.0;   // every "seconds since" counter clamps here
+const float PAINT_FLOOR    = 1.0 / 512.0;  // canvas paint floor: keeps black paint distinct from a cleared buffer
 const vec3  PAPER          = vec3(0.965, 0.94, 0.885);
 
 // ── Noise ────────────────────────────────────────────────────────────────────

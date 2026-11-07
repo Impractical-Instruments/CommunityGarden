@@ -192,10 +192,20 @@ def test_decode_image_puts_bottom_row_first(tmp_path):
     assert tuple(a[0, 0]) == (0, 0, 255, 255) and tuple(a[1, 0]) == (255, 0, 0, 255)
 
 
-def test_decode_image_fits_inside_max_keeping_aspect(tmp_path):
+def test_decode_image_downscales_only_while_still_covering(tmp_path):
     p = _png(tmp_path / "w.png", (400, 200), (10, 20, 30, 255))
-    assert decode_image(p, (100, 100)).shape == (50, 100, 4)
-    assert decode_image(p, (1000, 1000)).shape == (200, 400, 4)
+    assert decode_image(p, (100, 100)).shape == (100, 200, 4)     # covers 100×100, aspect kept
+    assert decode_image(p, (1000, 1000)).shape == (200, 400, 4)   # never upscaled
+    assert decode_image(p, (100, 100), max_side=150).shape == (75, 150, 4)
+
+
+def test_decode_image_applies_exif_orientation(tmp_path):
+    from PIL import Image
+    im = Image.new("RGB", (40, 20), (200, 10, 10))
+    exif = Image.Exif()
+    exif[0x0112] = 6                                      # "rotate 90° CW to display"
+    im.save(tmp_path / "phone.jpg", exif=exif)
+    assert decode_image(tmp_path / "phone.jpg", (1000, 1000)).shape == (40, 20, 4)
 
 
 def test_decode_image_corrupt_raises(tmp_path):
@@ -603,12 +613,12 @@ def test_rotation_with_only_corrupt_images_binds_nothing(ctx, tmp_path):
     r.release()
 
 
-def test_rotation_fits_images_inside_image_max(ctx, tmp_path):
+def test_rotation_scales_images_to_cover_image_max(ctx, tmp_path):
     from shader_app import Rotation
     d = _image_setup(tmp_path, {})
     _png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
     r = Renderer(ctx, (4, 4))
     rot = Rotation(r, ["s"], shader_dir=tmp_path, image_max=(10, 10))
     rot.next()
-    assert r.image_size == (10, 5)
+    assert r.image_size == (20, 10)                       # smallest size that still covers 10×10
     r.release()

@@ -94,9 +94,10 @@ class Rotation:
 
     def __init__(self, renderer: Renderer, names: list[str],
                  shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None,
-                 image_max: tuple[int, int] = (4096, 4096)) -> None:
+                 image_max: tuple[int, int] = (4096, 4096), image_max_side: int = 16384) -> None:
         self.renderer = renderer
-        self._image_max  = image_max
+        self._image_max  = image_max                  # images keep enough pixels to cover this
+        self._image_max_side = image_max_side         # ... but no side beyond the GPU's limit
         self._image_bags: dict[str, tuple] = {}   # name → (files, ShuffleBag, undecodable)
         self._on_load = on_load                       # called after every successful load
         self.names    = list(names)
@@ -147,7 +148,7 @@ class Rotation:
             if path is None:
                 break
             try:
-                image = decode_image(path, self._image_max)
+                image = decode_image(path, self._image_max, self._image_max_side)
             except ShaderError as exc:
                 log.error("%s: image dropped: %s", setup.name, exc)
                 bad.add(path)
@@ -240,7 +241,7 @@ def main() -> None:
     max_tex  = int(ctx.info["GL_MAX_TEXTURE_SIZE"])
     rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names(),
                         on_load=blobs.reset,
-                        image_max=(min(win[0], max_tex), min(win[1], max_tex)))
+                        image_max=win, image_max_side=max_tex)
     rotation.next()
 
     # ── Camera ────────────────────────────────────────────────────────────────

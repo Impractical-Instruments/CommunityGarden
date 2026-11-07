@@ -163,14 +163,21 @@ def load_setup(path: Path) -> Setup:
     )
 
 
-def decode_image(path: Path, max_size: tuple[int, int]) -> np.ndarray:
-    """An image file as uint8 RGBA (h, w, 4), row 0 = bottom (GL), fitted inside max_size."""
-    from PIL import Image
+def decode_image(path: Path, cover: tuple[int, int], max_side: int = 16384) -> np.ndarray:
+    """An image file as uint8 RGBA (h, w, 4), row 0 = bottom (GL), upright per its EXIF.
+
+    Downscaled (aspect kept, never upscaled) to the smallest size that still covers
+    `cover`, since Setups cover-fit it to the screen; no side exceeds `max_side`.
+    """
+    from PIL import Image, ImageOps
     try:
         with Image.open(path) as im:
-            im = im.convert("RGBA")
-            if im.width > max_size[0] or im.height > max_size[1]:
-                im.thumbnail(max_size, Image.Resampling.LANCZOS)
+            im = ImageOps.exif_transpose(im).convert("RGBA")
+            w, h = im.size
+            scale = min(1.0, max(cover[0] / w, cover[1] / h), max_side / max(w, h))
+            if scale < 1.0:
+                im = im.resize((max(1, round(w * scale)), max(1, round(h * scale))),
+                               Image.Resampling.LANCZOS)
             return np.ascontiguousarray(np.flipud(np.asarray(im, dtype=np.uint8)))
     except Exception as exc:
         raise ShaderError(f"{Path(path).name}: can't decode image: {exc}") from exc

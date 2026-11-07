@@ -181,6 +181,42 @@ def test_moving_limb_smears_most_of_its_path(ctx):
     r.release()
 
 
+def test_black_paint_at_centre_still_smears(ctx):
+    img = _checker()
+    img[20:34, 40:56, :3] = 0                              # pure black patch over the centre
+    r = _rig(ctx, image=img)
+    _frames(r, 2)
+    _sweep(r, 0.02, 0.2, 0.6)
+    assert (_diff(r)[:, _cols(0.25, 0.55)] > 0.1).mean() > 0.3
+    r.release()
+
+
+def _arm(x0: float, x1: float, y: float = 0.5, h: float = 0.07) -> np.ndarray:
+    """Body: a horizontal arm from x0 to x1 (screen widths), h screen heights thick."""
+    body = np.zeros((SIZE[1], SIZE[0], 4), dtype=np.uint8)
+    xs = (np.arange(SIZE[0]) + 0.5) / SIZE[0]
+    ys = (np.arange(SIZE[1]) + 0.5) / SIZE[1]
+    body[np.ix_(np.abs(ys - y) < h / 2, (xs >= x0) & (xs <= x1))] = (255, 0, 0, 0)
+    return body
+
+
+def test_reaching_arm_along_its_axis_does_not_smear_yet(ctx):
+    """Known limitation (final-review ruling): an arm extending along its own axis only gains
+    Body at the tip, so the balance gate reads it as appearing and suppresses the smear.
+    Pinned so a gate change that fixes it is noticed; flip the assertion when it does."""
+    r = _rig(ctx, image=_checker())
+    r.upload_body(_arm(0.25, 0.3))
+    _frames(r, 15, PRESENT)
+    n = 30
+    for i in range(n + 1):
+        if i % 3 == 0:
+            r.upload_body(_arm(0.25, 0.3 + 0.5 * i / n))
+        r.render(DT, PRESENT)
+    rows = slice(int(0.4 * SIZE[1]), int(0.6 * SIZE[1]))
+    assert (_diff(r)[rows, _cols(0.35, 0.75)] > 0.1).mean() < 0.02
+    r.release()
+
+
 def test_moving_torso_does_not_smear(ctx):
     r = _rig(ctx)
     _frames(r, 2)
