@@ -622,3 +622,18 @@ def test_rotation_scales_images_to_cover_image_max(ctx, tmp_path):
     rot.next()
     assert r.image_size == (20, 10)                       # smallest size that still covers 10×10
     r.release()
+
+
+# ── Display choice ────────────────────────────────────────────────────────────
+
+def test_pick_display_uses_that_displays_own_size():
+    from shader_app import pick_display
+    sizes = [(3072, 1920), (1600, 1200)]
+    assert pick_display(sizes, 1) == (1, (1600, 1200))
+    assert pick_display(sizes, 0) == (0, (3072, 1920))
+
+
+def test_pick_display_out_of_range_falls_back_to_first():
+    from shader_app import pick_display
+    assert pick_display([(1920, 1080)], 2) == (0, (1920, 1080))
+    assert pick_display([(1920, 1080)], -1) == (0, (1920, 1080))

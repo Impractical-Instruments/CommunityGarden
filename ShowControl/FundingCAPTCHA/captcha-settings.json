@@ -47,8 +47,9 @@
   },
 
   "shader_app": {
-    "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at.",
+    "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at. display: which monitor to go fullscreen on (0 = first; --display N overrides).",
     "render_scale": 0.5,
+    "display": 0,
     "fps": 30,
     "blobs": {
       "_comment": "Blob records for Setups that read the \"blobs\" source (ADR-0022). Pixels are Body pixels; frames are camera frames.",

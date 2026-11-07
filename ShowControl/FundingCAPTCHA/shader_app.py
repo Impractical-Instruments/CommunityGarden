@@ -173,6 +173,14 @@ class Rotation:
         return True
 
 
+def pick_display(sizes: list[tuple[int, int]], index: int) -> tuple[int, tuple[int, int]]:
+    """(display index, its desktop size). An index with no display falls back to the first."""
+    if not 0 <= index < len(sizes):
+        log.warning("No display %d (%d connected) — using display 0", index, len(sizes))
+        index = 0
+    return index, tuple(sizes[index])
+
+
 def _setup_names() -> list[str]:
     try:
         return json.loads((SHADER_DIR / "setups.json").read_text())
@@ -190,6 +198,8 @@ def main() -> None:
                       help="Mouse paints the Body with shaders/body_painter.glsl, as in Shadertoy")
     ap.add_argument("--setup", metavar="NAME", help="Pin one Setup (no cycling)")
     ap.add_argument("--windowed", action="store_true", help="1280×720 window instead of fullscreen")
+    ap.add_argument("--display", type=int, metavar="N",
+                    help="Display to go fullscreen on (0 = first); overrides shader_app.display")
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO,
@@ -218,9 +228,11 @@ def main() -> None:
         win = (1280, 720)
         pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF)
     else:
-        info = pygame.display.Info()
-        win  = (info.current_w, info.current_h)
-        pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN)
+        want = args.display if args.display is not None else int(cfg.get("display", 0))
+        display, win = pick_display(pygame.display.get_desktop_sizes(), want)
+        pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN,
+                                display=display)
+        log.info("Fullscreen on display %d of %d", display, len(pygame.display.get_desktop_sizes()))
     pygame.display.set_caption("Shader player")
     pygame.mouse.set_visible(args.test_input)
 
