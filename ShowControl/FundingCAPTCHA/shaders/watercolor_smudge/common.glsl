@@ -16,6 +16,17 @@ const float STREAK_FREQ    = 45.0;   // streaks per screen height
 const float MIX_MOVE       = 0.35;   // pigment mixing where paint is moving
 const float MIX_WET        = 0.04;   // ... and where it's still wet
 
+// ── Motion (normal flow from the eased Body changing between frames) ─────────
+const float BODY_EASE_S    = 0.12;   // eases the 10 Hz Body so flow is smooth and 1-px flicker averages out
+const float FLOW_TAP       = 0.006;  // gradient half-step, screen heights
+const float FLOW_EPS       = 60.0;   // regularises v = −dB/dt · ∇B / (|∇B|² + eps)
+const float FLOW_MAX       = 2.5;    // screen heights per second
+const float MIN_FLOW       = 0.05;   // edge motion slower than this (screen heights/s) is ignored
+const float BALANCE_LO     = 0.35;   // movement gains Body ahead and loses it behind in equal measure;
+const float BALANCE_HI     = 0.7;    // appearing, vanishing and flicker only gain or only lose. |gain−loss|/(gain+loss)
+                                     // above BALANCE_LO starts suppressing the smear, fully by BALANCE_HI
+const float MIX_TAP        = 0.0045; // pigment-mixing neighbourhood, screen heights
+
 // ── Wet look ─────────────────────────────────────────────────────────────────
 const float WET_DECAY      = 0.35;   // per second; smears look wet for ~3 s
 const float WET_DARKEN     = 0.07;   // wet paint reads this much darker
@@ -24,6 +35,8 @@ const float WET_DARKEN     = 0.07;   // wet paint reads this much darker
 const float HEAL_DELAY_S   = 2.0;    // room empty this long before healing starts
 const float HEAL_TIME_S    = 10.0;   // then ~95 % healed after this long
 const float PRESENT_HEAL   = 0.004;  // per second while anyone is present (keeps drift bounded)
+const float HEAL_FLOOR     = 0.05;   // min heal speed (colour/s) while healing: 16-bit can't do the exp tail
+const float EMPTY_CLAMP_S  = 10.0;   // empty-room timer clamp; 16-bit can't count 1/30 s steps near 99
 
 // ── Display ──────────────────────────────────────────────────────────────────
 const float DISTURB_LO     = 0.01;   // |canvas − original| below this shows the image untouched
@@ -46,6 +59,23 @@ vec3  glaze(vec3 c, vec3 g, float k) { return c * mix(vec3(1.0), g, k); }
 float paperGrain(vec2 q) {
     float fib = vn(q * vec2(420.0, 140.0)) * 0.5 + vn(q * vec2(150.0, 520.0)) * 0.5;
     return 0.955 + 0.045 * fib;
+}
+
+// How thin the Body is around uv: 1 for limbs and head, 0 for the torso.
+// Coverage of two rings of Body samples; a thin part leaves most of each ring empty.
+// Measured on max(raw Body, eased Body): the flow uses the eased Body, which lags the raw one,
+// so a broad part's trailing edge must still read as broad.
+float bodyAt(sampler2D raw, sampler2D eased, vec2 uv) { return max(texture(raw, uv).r, texture(eased, uv).r); }
+
+float extremity(sampler2D raw, sampler2D eased, vec2 uv, float A) {
+    float s = 0.0;
+    for (int i = 0; i < 12; i++) {
+        float a = float(i) * 0.5235988;
+        vec2 d = vec2(cos(a), sin(a)) / vec2(A, 1.0);
+        s += bodyAt(raw, eased, uv + d * RING_R1) + bodyAt(raw, eased, uv + d * RING_R2);
+    }
+    float t = mix(0.18, 0.45, THIN);
+    return 1.0 - smoothstep(t - 0.08, t + 0.08, s / 24.0);
 }
 
 // Cover-fit: uv 0–1 on screen → image uv, aspect kept, overflow cropped, centred.
