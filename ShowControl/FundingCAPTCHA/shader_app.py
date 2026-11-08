@@ -152,90 +152,179 @@ def _setup_names() -> list[str]:
         return []
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Shadertoy Setups driven by the depth camera")
+# ── Pieces shared with playlist_app.py ────────────────────────────────────────
+
+def add_mode_args(ap: argparse.ArgumentParser) -> None:
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--camera",      action="store_true")
     mode.add_argument("--mock-camera", action="store_true")
     mode.add_argument("--test-input",  action="store_true",
                       help="Mouse paints the Body with shaders/body_painter.glsl, as in Shadertoy")
-    ap.add_argument("--setup", metavar="NAME", help="Pin one Setup (no cycling)")
     ap.add_argument("--windowed", action="store_true", help="1280×720 window instead of fullscreen")
-    args = ap.parse_args()
 
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-    settings  = load_settings()
-    cfg       = settings.get("shader_app", {})
-    cam_cfg   = settings.get("camera", {})
-    slabs     = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500}])
-    roi       = settings.get("camera_roi",
-                             {"x": 0, "y": 0, "w": cam_cfg.get("width", 640),
-                                               "h": cam_cfg.get("height", 400)})
-    fps       = int(cfg.get("fps", 30))
-    scale     = float(cfg.get("render_scale", 0.5))
-
-    if (args.camera or args.mock_camera) and not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
-
-    # ── Display ───────────────────────────────────────────────────────────────
+def open_display(windowed: bool, caption: str, mouse_visible: bool):
+    """pygame window with a GL 3.3 core context → (moderngl ctx, window size)."""
     pygame.init()
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 3)
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 3)
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_PROFILE_MASK,
                                     pygame.GL_CONTEXT_PROFILE_CORE)
-    if args.windowed:
+    if windowed:
         win = (1280, 720)
         pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF)
     else:
         info = pygame.display.Info()
         win  = (info.current_w, info.current_h)
         pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN)
-    pygame.display.set_caption("Shader player")
-    pygame.mouse.set_visible(args.test_input)
+    pygame.display.set_caption(caption)
+    pygame.mouse.set_visible(mouse_visible)
+    ctx = moderngl.create_context()        # also attaches to SDL's EGL context (kmsdrm)
+    return ctx, win
 
-    ctx  = moderngl.create_context()        # also attaches to SDL's EGL context (kmsdrm)
-    res  = (max(1, int(win[0] * scale)), max(1, int(win[1] * scale)))
-    log.info("OpenGL %s · window %dx%d · render %dx%d", ctx.version_code, *win, *res)
 
-    renderer = Renderer(ctx, res, body_mode="painter" if args.test_input else "camera")
-    blit     = ctx.program(vertex_shader=VERT, fragment_shader=_BLIT_FRAG)
-    blit_vao = ctx.vertex_array(blit, [(renderer.vbo, "2f", "in_vert")])
-    blit["size"].value = (float(win[0]), float(win[1]))
-    renderer.output_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
+    """Start the camera thread for --camera / --mock-camera (else an idle queue).
 
-    # ── Setups ────────────────────────────────────────────────────────────────
-    # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
-    # with them: Setups that remember people by id must not meet ids from before.
-    blobs    = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
-    rotation = Rotation(renderer, [args.setup] if args.setup else _setup_names(),
-                        on_load=blobs.reset)
+    The thread blocks once the queue is full: drain it every frame.
+    """
+    cam_q = queue.Queue(maxsize=32)
+    stop  = threading.Event()
+    if not (args.camera or args.mock_camera):
+        return cam_q, stop
+    if not _CV_AVAILABLE:
+        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+    cam_cfg  = settings.get("camera", {})
+    collect  = threading.Event()
+    cam_args = dict(width=cam_cfg.get("width", 640), height=cam_cfg.get("height", 400),
+                    fps=cam_cfg.get("fps", 10))
+    camera = (MockCamera(**cam_args) if args.mock_camera
+              else OrbbecCamera(serial=cam_cfg.get("serial") or None, **cam_args))
+    threading.Thread(target=_camera_thread,
+                     args=(camera, settings, cam_q, stop, collect), daemon=True).start()
+    # Hold off background collection so people can clear the ROI (ADR-0013).
+    standback = float(settings.get("calibration_standback_s", 5.0))
+    timer = threading.Timer(standback, collect.set)
+    timer.daemon = True
+    timer.start()
+    log.info("Camera started (%s) — calibrating in %.0fs, keep the floor clear",
+             "mock" if args.mock_camera else "Orbbec", standback)
+    return cam_q, stop
+
+
+def drain_camera(cam_q: queue.Queue):
+    """Empty the camera queue; return the newest foreground frame, or None."""
+    fg = None
+    while True:
+        try:
+            msg = cam_q.get_nowait()
+        except queue.Empty:
+            return fg
+        if msg["type"] == "foreground":
+            fg = msg["frame"]
+        elif msg["type"] == "cal_done":
+            log.info("Calibration done — Body live")
+        elif msg["type"] == "error":
+            log.error("Camera: %s", msg["msg"])
+
+
+class ShaderStage:
+    """Body in, current Setup rendered, upscaled to the screen."""
+
+    def __init__(self, ctx, win: tuple[int, int], settings: dict, test_input: bool) -> None:
+        cfg   = settings.get("shader_app", {})
+        cam_cfg = settings.get("camera", {})
+        scale = float(cfg.get("render_scale", 0.5))
+        self.ctx, self.win = ctx, win
+        self.res   = (max(1, int(win[0] * scale)), max(1, int(win[1] * scale)))
+        self.slabs = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500}])
+        self.roi   = settings.get("camera_roi",
+                                  {"x": 0, "y": 0, "w": cam_cfg.get("width", 640),
+                                                    "h": cam_cfg.get("height", 400)})
+        self.test_input = test_input
+        log.info("OpenGL %s · window %dx%d · render %dx%d", ctx.version_code, *win, *self.res)
+
+        self.renderer = Renderer(ctx, self.res, body_mode="painter" if test_input else "camera")
+        self._blit     = ctx.program(vertex_shader=VERT, fragment_shader=_BLIT_FRAG)
+        self._blit_vao = ctx.vertex_array(self._blit, [(self.renderer.vbo, "2f", "in_vert")])
+        self._blit["size"].value = (float(win[0]), float(win[1]))
+        self.renderer.output_tex.filter = (moderngl.LINEAR, moderngl.LINEAR)
+
+        # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
+        # with them: Setups that remember people by id must not meet ids from before.
+        self.blobs       = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
+        self._body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
+        self._test_mouse = _TestMouse()
+        self._painter_read_t = 0.0
+        self._mouse = (0.0, 0.0, 0.0, 0.0)
+
+    def handle_key(self, ev) -> None:
+        """Forward a KEYDOWN / KEYUP to the Setup's keyboard texture."""
+        code = js_keycode(ev.key)
+        if code is None:
+            return
+        if ev.type == pygame.KEYDOWN:
+            self.renderer.keyboard.key_down(code)
+        else:
+            self.renderer.keyboard.key_up(code)
+
+    def frame(self, dt: float, fg) -> Exception | None:
+        """Feed the newest foreground (or None), render, blit. Returns a render failure."""
+        uses_blobs = self.renderer.setup is not None and self.renderer.setup.uses_blobs
+        if fg is not None:
+            body = pack_body(fg, self.roi, self.slabs)
+            self.renderer.upload_body(body)
+            self._mouse = self._body_mouse.update(body, *self.res)
+            if uses_blobs:
+                self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0)
+        if self.test_input:
+            self._mouse = self._test_mouse.update(self.win, self.res)
+            if uses_blobs and time.monotonic() - self._painter_read_t >= PAINTER_TRACK_S:
+                self._painter_read_t = time.monotonic()
+                painted = self.renderer.read_body()
+                self.blobs.update(painted[..., 0] > 0.5, painted[..., 1])
+        if uses_blobs:
+            self.renderer.upload_blobs(self.blobs.records())
+
+        failure = None
+        try:
+            self.renderer.render(dt, self._mouse)
+        except Exception as exc:
+            failure = exc
+        self._mouse = (*self._mouse[:3], -abs(self._mouse[3]))   # click flag lasts one frame
+        self.ctx.screen.use()
+        self.ctx.viewport = (0, 0, *self.win)
+        self.renderer.output_tex.use(location=0)
+        self._blit["src"].value = 0
+        self._blit_vao.render(moderngl.TRIANGLE_STRIP)
+        return failure
+
+    def release(self) -> None:
+        self._blit_vao.release()
+        self._blit.release()
+        self.renderer.release()
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Shadertoy Setups driven by the depth camera")
+    add_mode_args(ap)
+    ap.add_argument("--setup", metavar="NAME", help="Pin one Setup (no cycling)")
+    args = ap.parse_args()
+
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    settings = load_settings()
+    fps      = int(settings.get("shader_app", {}).get("fps", 30))
+    if (args.camera or args.mock_camera) and not _CV_AVAILABLE:
+        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+
+    ctx, win = open_display(args.windowed, "Shader player", args.test_input)
+    stage    = ShaderStage(ctx, win, settings, args.test_input)
+    rotation = Rotation(stage.renderer, [args.setup] if args.setup else _setup_names(),
+                        on_load=stage.blobs.reset)
     rotation.next()
-
-    # ── Camera ────────────────────────────────────────────────────────────────
-    cam_q   = queue.Queue(maxsize=32)
-    stop    = threading.Event()
-    collect = threading.Event()
-    if args.camera or args.mock_camera:
-        cam_args = dict(width=cam_cfg.get("width", 640), height=cam_cfg.get("height", 400),
-                        fps=cam_cfg.get("fps", 10))
-        camera = (MockCamera(**cam_args) if args.mock_camera
-                  else OrbbecCamera(serial=cam_cfg.get("serial") or None, **cam_args))
-        threading.Thread(target=_camera_thread,
-                         args=(camera, settings, cam_q, stop, collect), daemon=True).start()
-        # Hold off background collection so people can clear the ROI (ADR-0013).
-        standback = float(settings.get("calibration_standback_s", 5.0))
-        timer = threading.Timer(standback, collect.set)
-        timer.daemon = True
-        timer.start()
-        log.info("Camera started (%s) — calibrating in %.0fs, keep the floor clear",
-                 "mock" if args.mock_camera else "Orbbec", standback)
-
-    body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
-    painter_read_t = 0.0
-    test_mouse = _TestMouse()
-    mouse      = (0.0, 0.0, 0.0, 0.0)
+    cam_q, stop = start_camera(args, settings)
 
     # ── Loop ──────────────────────────────────────────────────────────────────
     clock     = pygame.time.Clock()
@@ -256,67 +345,24 @@ def main() -> None:
                     rotation.next()
                 elif ev.key == pygame.K_r:
                     rotation.reload()
-                code = js_keycode(ev.key)
-                if code is not None:
-                    renderer.keyboard.key_down(code)
+                stage.handle_key(ev)
             elif ev.type == pygame.KEYUP:
-                code = js_keycode(ev.key)
-                if code is not None:
-                    renderer.keyboard.key_up(code)
+                stage.handle_key(ev)
 
         rotation.tick()
-
-        # Drain to the newest foreground frame.
-        fg = None
-        while True:
-            try:
-                msg = cam_q.get_nowait()
-            except queue.Empty:
-                break
-            if msg["type"] == "foreground":
-                fg = msg["frame"]
-            elif msg["type"] == "cal_done":
-                log.info("Calibration done — Body live")
-            elif msg["type"] == "error":
-                log.error("Camera: %s", msg["msg"])
-        uses_blobs = renderer.setup is not None and renderer.setup.uses_blobs
-        if fg is not None:
-            body = pack_body(fg, roi, slabs)
-            renderer.upload_body(body)
-            mouse = body_mouse.update(body, *res)
-            if uses_blobs:
-                blobs.update(body[..., 0] > 0, body[..., 1] / 255.0)
-        if args.test_input:
-            mouse = test_mouse.update(win, res)
-            if uses_blobs and time.monotonic() - painter_read_t >= PAINTER_TRACK_S:
-                painter_read_t = time.monotonic()
-                painted = renderer.read_body()
-                blobs.update(painted[..., 0] > 0.5, painted[..., 1])
-        if uses_blobs:
-            renderer.upload_blobs(blobs.records())
-
-        try:
-            renderer.render(dt, mouse)
-        except Exception as exc:
-            rotation.failed(exc)
-        mouse = (*mouse[:3], -abs(mouse[3]))          # click flag lasts one frame
-        ctx.screen.use()
-        ctx.viewport = (0, 0, *win)
-        renderer.output_tex.use(location=0)
-        blit["src"].value = 0
-        blit_vao.render(moderngl.TRIANGLE_STRIP)
+        failure = stage.frame(dt, drain_camera(cam_q))
+        if failure is not None:
+            rotation.failed(failure)
         pygame.display.flip()
 
         fps_n += 1
         if time.monotonic() - fps_t >= 10.0:
             log.info("%.1f fps · %s", fps_n / (time.monotonic() - fps_t),
-                     renderer.setup.name if renderer.setup else "-")
+                     stage.renderer.setup.name if stage.renderer.setup else "-")
             fps_t, fps_n = time.monotonic(), 0
 
     stop.set()
-    blit_vao.release()
-    blit.release()
-    renderer.release()
+    stage.release()
     pygame.quit()
 
 
