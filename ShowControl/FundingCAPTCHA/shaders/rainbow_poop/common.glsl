@@ -3,10 +3,11 @@
 //
 // State (Buffer B) layout, texel (x, y); k = person slot 0–7:
 //   (k, 0) SLOT    id, seconds until this person's next poop, presence 0–1 (fades splats on loss), 0
-//   (k, 1) ANCHOR  box top-centre x, y (Body UV) and box height (sh), low-passed over ANCHOR_EMA_S; 0
-//   (k, 2) POOP    the poop dropped on this person: sway centre x, y (UV), sway phase, 0
-//   (k, 3) DROP    falling 0/1, floor y (UV), 0, seconds falling
-//   (k·SPLATS + j, 4) SPLAT   centre in the person's frame x, y (box heights from the box top-centre),
+//   (k, 1) ANCHOR  the person's silhouette: centre of mass x, y (Body UV) and size (sh, ≈ their height;
+//                  see SIZE_K), measured from this frame's Body, low-passed over ANCHOR_EMA_S; 0
+//   (k, 2) POOP    the poop dropped on this person: sway centre x, y (UV), sway phase, aim offset (sizes)
+//   (k, 3) DROP    falling 0/1, floor y (UV), target id, seconds falling
+//   (k·SPLATS + j, 4) SPLAT   centre in the person's frame x, y (sizes from their centre of mass),
 //                             age s, seed 0–1 — j = 0 newest
 //   (j, 5) GROUND  x, y (UV), age s, seed 0–1 — j = 0 newest
 
@@ -31,8 +32,12 @@ const float SPAWN_Y     = 1.04;          // UV y the poop starts at (just off th
 const float FALL_SPEED  = 0.2;           // sh/s
 const float SWAY        = 0.02;          // sh, sideways sway amplitude
 const float SWAY_W      = 3.0;           // rad/s
-const float LEAD_MAX    = 0.5;           // sh: aim ahead of a moving person by at most this
-const float AIM_SPREAD  = 0.5;           // aim within ± this × half the box width of its centre
+const float LEAD_MAX    = 0.5;           // sh: drop ahead of a moving person by at most this
+const float AIM_SPREAD  = 0.05;          // aim within ± this × their size of their centre of mass
+// While it falls, the poop drifts toward its person's centre of mass: quick enough to find someone
+// standing or swaying, too slow to catch someone who walks or turns away (a walk is ~0.3 sh/s).
+const float HOMING_GAIN = 3.0;           // 1/s: sideways speed per sh off target …
+const float HOMING_MAX  = 0.18;          // … up to this, sh/s
 const int   FALL_STEPS  = 2;             // body hit tests per frame along the fall
 const float POOP_R      = 0.022;         // falling drop radius
 
@@ -40,10 +45,16 @@ const float POOP_R      = 0.022;         // falling drop radius
 const float SPLAT_LIFE_S  = 20.0;
 const float SPLAT_FADE_S  = 3.0;         // the last part of the life
 const float LEAVE_FADE_S  = 0.6;         // splats fade this fast when their person's track is lost
-const float ANCHOR_EMA_S  = 0.15;
-const float SPLAT_R       = 0.15;        // × box height
+// Splats ride on the silhouette's centre of mass, scaled by its size: SIZE_K × √(area), about an
+// upright adult's height. Both are measured from the Body each frame inside the tracker's box, so
+// raised arms, strides and box jitter barely move them, and they don't lag the silhouette.
+const float SIZE_K        = 2.1;
+const int   ANCHOR_NX = 16, ANCHOR_NY = 24;   // Body samples across and up the box
+const float ANCHOR_MARGIN = 0.03;        // UV: the box is widened by this (records ease behind the Body)
+const float ANCHOR_EMA_S  = 0.04;        // just enough to soften sampling noise
+const float SPLAT_R       = 0.15;        // × size
 const float SPLAT_R_MIN   = 0.04;        // sh
-const float SPLAT_SINK    = 0.06;        // × box height: the splat centre sits this far below the impact …
+const float SPLAT_SINK    = 0.06;        // × size: the splat centre sits this far below the impact …
 const float SINK_SPREAD   = 0.12;        // … plus up to this, so splats spread down over head and shoulders
 const float SPLAT_LUMP    = 0.22;        // edge lumpiness, × radius
 const float POP_S         = 0.18;        // splat-in time

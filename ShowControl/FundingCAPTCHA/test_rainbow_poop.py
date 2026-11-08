@@ -161,15 +161,21 @@ def test_standing_person_is_hit_soon_after_appearing(ctx):
     assert first[1] == 0 and not rig.misses
 
 
-def test_splat_lands_on_the_head_in_the_persons_frame(ctx):
+def splat_uv(rig, k, s):
+    """A splat's centre in Body UV, from its person's anchor (centre of mass, size)."""
+    an = rig.anchor(k)
+    aspect = rig.size[0] / rig.size[1]
+    return an[0] + s[0] * an[2] / aspect, an[1] + s[1] * an[2]
+
+
+def test_splat_lands_on_the_head(ctx):
     rig = Rig(ctx)
-    rig.run(flickering(60))
+    rig.run(flickering(60))                               # rect(27, 8, 37, 36): UV x 0.42–0.58, y 0.1–0.8
     s = rig.live_splats(0)
     assert len(s) >= 1
-    x, y = s[0, 0], s[0, 1]
-    half_w = 10 / 64 * (128 / 72) / 2 / (28 / 40)        # half the body width, in box heights
-    assert abs(x) < half_w * 1.2                          # over the body
-    assert -0.25 < y < 0.0                                # just below the box top
+    u, v = splat_uv(rig, 0, s[0])
+    assert 0.40 < u < 0.60                                # over the body
+    assert 0.55 < v < 0.80                                # on its upper part, below the top
 
 
 def test_cadence_is_about_every_five_seconds(ctx):
@@ -248,6 +254,54 @@ def test_splats_fade_after_their_life(ctx):
     live = rig.live_splats(0)
     assert seed not in live[:, 3]                         # the first splat has gone …
     assert 2 <= len(live) <= 4                            # … the later ones are still there
+
+
+def test_splats_stay_put_on_the_body(ctx):                 # raised arms, arms out, walking
+    rig = Rig(ctx)
+    rig.run(standing(45, x=10))
+    seed = rig.live_splats(0)[0, 3]
+    def where():                                          # the splat, relative to the torso's centre
+        s = next(s for s in rig.live_splats(0) if s[3] == seed)
+        u, v = splat_uv(rig, 0, s)
+        return u - (x + 5) / 64, v
+    x = 10
+    u0, v0 = where()
+    worst = 0.0
+    for k in range(40):
+        x = 10 + k // 2                                   # walking right at 0.5 px per camera frame
+        m = rect(x, 8, x + 10, 36)
+        if k % 4 == 1: m |= rect(x + 7, 1, x + 10, 8)     # an arm straight up
+        if k % 4 == 3: m |= rect(x + 10, 12, x + 18, 15)  # an arm out to the side
+        rig.run([m], watch=False)
+        u, v = where()
+        worst = max(worst, abs(u - u0), abs(v - v0))
+    assert worst < 0.035, worst                           # ~2 Body px; the box moves ~7 px
+
+
+def person(cx, arm, rng):
+    """A person, not a box: a head 3 px wide, a 7 px torso, two legs with a gap, an arm
+    sometimes out, and flickering edges. Most of the box is empty, so a loose aim misses."""
+    m = np.zeros(BODY[::-1], bool)
+    c = int(round(cx))
+    m[6:10, c - 1:c + 2] = True                           # head
+    m[10:22, c - 3:c + 4] = True                          # torso
+    m[22:36, c - 3:c - 1] = True                          # legs
+    m[22:36, c + 2:c + 4] = True
+    if arm:
+        m[11:13, c + 4:c + 4 + arm] = True
+    return m ^ ((rng.random(m.shape) < 0.08) & np.roll(m, 1, 1))
+
+
+@pytest.mark.parametrize("seed", [0, 3])                  # both missed 3 of 8 before homing
+def test_fidgeting_person_is_always_hit(ctx, seed):
+    rig = Rig(ctx)
+    rng = np.random.default_rng(seed)
+    x, v = 30.0, 0.0
+    for k in range(400):                                  # 40 s: a slow random walk, an arm in and out
+        v = 0.9 * v + rng.normal(0, 0.15)
+        x = float(np.clip(x + v, 10, 54))
+        rig.run([person(x, 5 if (k // 7) % 3 == 0 else 0, rng)])
+    assert len(rig.hits) >= 7 and not rig.misses
 
 
 def test_ages_keep_time_in_half_floats(ctx):               # f16 adds of 1/30 above 8 s drift ~6%

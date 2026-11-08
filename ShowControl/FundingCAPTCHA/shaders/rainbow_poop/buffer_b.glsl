@@ -37,15 +37,14 @@ bool drops(int k) {
         && sSlot(B, k).y <= 0.0 && sDrop(B, k).x < 0.5;
 }
 
-// Where to drop it (UV x): over their head, ahead of them by the time it takes to fall there.
-float dropX(int k) {
-    vec4  box = recBox(BLOBS, k);
+// Where to drop it (UV x): over their centre of mass, ahead of them by the time it takes to
+// fall to their head (homing does the rest).
+float dropX(int k, float aim) {
+    vec4  box = recBox(BLOBS, k), an = sAnchor(B, k);
     float fall = max(SPAWN_Y - box.w, 0.0) / FALL_SPEED;
-    float cx = toScreen(vec2((box.x + box.z) * 0.5, 0.0)).x;
-    float halfw = 0.5 * toScreen(vec2(box.z - box.x, 0.0)).x;
     float lead = clamp(toScreen(recMot(BLOBS, k).zw).x * fall, -LEAD_MAX, LEAD_MAX);
-    float aim = 2.0 * hash11(recIdn(BLOBS, k).x * 3.7 + iTime * 1.3) - 1.0;
-    return clamp(toUv(vec2(cx + aim * AIM_SPREAD * halfw + lead, 0.0)).x, 0.02, 0.98);   // always seen falling
+    float x = toScreen(an.xy).x + aim * an.z + lead;
+    return clamp(toUv(vec2(x, 0.0)).x, 0.02, 0.98);           // always seen falling
 }
 
 // The falling poop's position (sh): a steady fall with a sway about its sway centre.
@@ -75,15 +74,25 @@ Poop poopStep(int k, float dt) {
     Poop o;
     o.poop = sPoop(B, k); o.drop = sDrop(B, k); o.hitSlot = -1; o.ground = false; o.at = vec2(0.0);
     if (drops(k)) {
-        o.poop = vec4(dropX(k), SPAWN_Y, 6.2832 * hash11(iTime * 2.9 + float(k)), 0.0);
-        o.drop = vec4(1.0, recBox(BLOBS, k).y, 0.0, 0.0);
+        float aim = AIM_SPREAD * (2.0 * hash11(recIdn(BLOBS, k).x * 3.7 + iTime * 1.3) - 1.0);
+        o.poop = vec4(dropX(k, aim), SPAWN_Y, 6.2832 * hash11(iTime * 2.9 + float(k)), aim);
+        o.drop = vec4(1.0, recBox(BLOBS, k).y, recIdn(BLOBS, k).x, 0.0);
         return o;
     }
     if (o.drop.x < 0.5) return o;                           // nothing falling
 
+    // Homing: drift toward the person it was dropped on, while they're still in this slot.
+    vec4 idn = recIdn(BLOBS, k);
+    float vx = 0.0;
+    if (abs(idn.x - o.drop.z) < 0.5 && isHere(idn.y)) {
+        vec4 an = sAnchor(B, k);
+        float off = toScreen(an.xy).x + o.poop.w * an.z - toScreen(o.poop.xy).x;
+        vx = clamp(off * HOMING_GAIN, -HOMING_MAX, HOMING_MAX);
+    }
     float h = dt / float(FALL_STEPS), age = o.drop.w;
     for (int s = 0; s < FALL_STEPS; s++) {
         o.poop.y -= FALL_SPEED * h;                         // UV y is sh
+        o.poop.x += toUv(vec2(vx * h, 0.0)).x;
         age += h;
         vec2 uv = toUv(poopAt(o.poop, age));
         bool onScreen = uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0;
@@ -113,13 +122,28 @@ vec4 slotNext(int k, float dt) {
     return s;
 }
 
-// Box top-centre (UV) and height (sh), low-passed so splats ride smoothly.
-vec4 anchorNext(int k, float dt) {
+// The silhouette inside slot k's (widened) box, from this frame's Body: centre of mass (UV) and
+// size (sh). Falls back to the box when it holds too little body to measure.
+vec4 measure(int k) {
     vec4 box = recBox(BLOBS, k);
-    vec4 want = vec4((box.x + box.z) * 0.5, box.w, box.w - box.y, 0.0);
-    if (isFresh(k)) return want;
+    vec4 b = clamp(box + vec4(-ANCHOR_MARGIN, -ANCHOR_MARGIN, ANCHOR_MARGIN, ANCHOR_MARGIN), 0.0, 1.0);
+    vec2 span = b.zw - b.xy, sum = vec2(0.0);
+    float n = 0.0;
+    for (int j = 0; j < ANCHOR_NY; j++)
+        for (int i = 0; i < ANCHOR_NX; i++) {
+            vec2 uv = b.xy + span * (vec2(i, j) + 0.5) / vec2(ANCHOR_NX, ANCHOR_NY);
+            float on = step(0.5, texture(BODY, uv).r);
+            sum += on * uv; n += on;
+        }
+    if (n < 6.0) return vec4((box.x + box.z) * 0.5, (box.y + box.w) * 0.5, max(box.w - box.y, 0.05), 0.0);
+    vec2  cell = toScreen(span) / vec2(ANCHOR_NX, ANCHOR_NY);
+    return vec4(sum / n, SIZE_K * sqrt(n * cell.x * cell.y), 0.0);
+}
+
+vec4 anchorNext(int k, float dt) {
+    if (isFresh(k)) return measure(k);
     if (!isHere(recIdn(BLOBS, k).y)) return sAnchor(B, k);  // lost: hold where they were
-    return mix(sAnchor(B, k), want, 1.0 - exp(-dt / ANCHOR_EMA_S));
+    return mix(sAnchor(B, k), measure(k), 1.0 - exp(-dt / ANCHOR_EMA_S));
 }
 
 vec4 splatNext(int k, int j, float dt) {
