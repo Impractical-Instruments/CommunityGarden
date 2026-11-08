@@ -8,7 +8,10 @@
 #define BLOBS iChannel2
 
 float ASPECT;
-float DITHER;    // 0–1, per texel per frame: stochastic rounding for tick()
+// 0–1, per frame: the rounding offset for tick(). A golden-ratio (Weyl) sequence, not a random
+// hash: its running sum stays within about one AGE_Q of exact, where independent random
+// offsets wander (≈ ±0.17 s over 15 s at 30 fps).
+float DITHER;
 
 // x + dt, kept in multiples of AGE_Q (see common.glsl) and clamped at T_CLAMP.
 float tick(float x, float dt) { return min(x + floor(dt / AGE_Q + DITHER) * AGE_Q, T_CLAMP); }
@@ -262,9 +265,7 @@ void mainImage(out vec4 o, in vec2 fc) {
     ASPECT = iResolution.x / iResolution.y;
     if (iFrame == 0) { o = initial(c); return; }
     float dt = clamp(iTimeDelta, 1e-3, DT_MAX);
-    uint hx = uint(iFrame) * 747796405u + uint(c.x) * 2891336453u + uint(c.y) * 277803737u;   // PCG-style
-    hx = ((hx >> ((hx >> 28u) + 4u)) ^ hx) * 277803737u;
-    DITHER = float((hx >> 22u) ^ hx) / 4294967296.0;
+    DITHER = float((uint(iFrame) * 2654435769u) >> 8u) / 16777216.0;   // fract(iFrame · φ), exact in integers
 
     if      (c.y == 0 && c.x < SLOTS) o = slotNext(c.x, dt);
     else if (c.y == 1 && c.x < SLOTS) o = anchorNext(c.x, dt);
