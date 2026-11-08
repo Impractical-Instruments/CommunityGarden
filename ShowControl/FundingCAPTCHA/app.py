@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013, ADR-0016).
+FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013, ADR-0016, ADR-0023).
 
 Usage:
   python3 app.py [--camera | --mock-camera | --test-input [--test-depth N]] [--port 8080]
 
 States:
-  BG_CAL      → "stand back / calibrating" countdown; camera builds depth model
   SCREENSAVER → idle; detects player and counts down attract dwell
   GAME        → active Arc
 
+There is no calibration screen. The depth background is learned continuously
+from the first frame, with people in view (ADR-0023): the floor is live in
+under a second, and anyone standing there at launch shows up after one step.
+
 Keys:
-  R          → restart from BG_CAL
+  R          → reseed the depth background from the next camera frame
   Q / Escape → quit
   C          → clear paint canvas (--test-input only)
 """
@@ -48,7 +51,8 @@ from arc import Arc, Game, ShuffleBag
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
-    from IIVision import MockCamera, OrbbecCamera, Calibrator, DetectionConfig, BlobTracker
+    from IIVision import (MockCamera, OrbbecCamera, AdaptiveBackground,
+                          AdaptiveBackgroundConfig, DetectionConfig, BlobTracker)
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -94,7 +98,6 @@ def _save_local(data: dict) -> None:
 # ── App state ─────────────────────────────────────────────────────────────────
 
 class AppState(Enum):
-    BG_CAL      = auto()
     SCREENSAVER = auto()
     GAME        = auto()
 
@@ -215,11 +218,32 @@ def _run_monitoring(port: int) -> None:
 
 # ── Camera thread ─────────────────────────────────────────────────────────────
 
+def build_detection_config(settings: dict) -> "DetectionConfig":
+    det_cfg = settings.get("detection", {})
+    return DetectionConfig(
+        depth_delta_mm  = det_cfg.get("depth_delta_mm",  25),
+        min_blob_pixels = det_cfg.get("min_blob_pixels", 500),
+        min_depth_mm    = det_cfg.get("min_depth_mm",    500),
+        max_depth_mm    = det_cfg.get("max_depth_mm",    2500),
+    )
+
+
+def build_background(settings: dict, detection_config: "DetectionConfig") -> "AdaptiveBackground":
+    """The self-learning depth background (ADR-0023), from settings["background"].
+
+    detection.depth_delta_mm is the lower bound on its per-pixel threshold.
+    """
+    cfg = AdaptiveBackgroundConfig.from_dict(
+        settings.get("background", {}),
+        depth_delta_mm=detection_config.depth_delta_mm)
+    return AdaptiveBackground(cfg)
+
+
 def _camera_thread(camera: Any, settings: dict,
                    cam_q: queue.Queue, stop: threading.Event,
-                   collect: threading.Event) -> None:
+                   reseed: threading.Event | None = None) -> None:
     try:
-        _camera_inner(camera, settings, cam_q, stop, collect)
+        _camera_inner(camera, settings, cam_q, stop, reseed)
     except Exception as exc:
         log.error("Camera thread crashed: %s", exc, exc_info=True)
         cam_q.put({"type": "error", "msg": str(exc)})
@@ -227,52 +251,25 @@ def _camera_thread(camera: Any, settings: dict,
 
 def _camera_inner(camera: Any, settings: dict,
                   cam_q: queue.Queue, stop: threading.Event,
-                  collect: threading.Event) -> None:
-    det_cfg      = settings.get("detection", {})
-    calib_frames = settings.get("calibration_frames", 60)
+                  reseed: threading.Event | None = None) -> None:
+    """Every frame updates the background model and emits foreground — from frame 1.
 
-    calibrator    = Calibrator(calib_frames)
-    cam_transform = build_cam_transform(settings)
-    sil_dilation_px = int(settings.get("silhouette_dilation_px", 1))
-    frame_idx     = 0
+    Setting `reseed` makes the model relearn the background from the next frame.
+    """
+    detection_config = build_detection_config(settings)
+    background       = build_background(settings, detection_config)
+    tracker          = BlobTracker(background, detection_config)
+    cam_transform    = build_cam_transform(settings)
+    sil_dilation_px  = int(settings.get("silhouette_dilation_px", 1))
 
     with camera:
-        collecting = False
-        for frame in camera.frames():
-            if stop.is_set():
-                return
-            # Keep the stream warm but discard frames until the main loop's
-            # standback countdown clears, so the background model is only built
-            # from frames taken after people have had time to leave the ROI.
-            if not collecting:
-                if not collect.is_set():
-                    continue
-                collecting = True
-                log.info("BG_CAL: collecting %d frames", calib_frames)
-            frame_idx += 1
-            cam_q.put({"type": "cal_progress",
-                       "frame": frame_idx, "total": calib_frames})
-            if calibrator.push_frame(frame):
-                break
-
-        if stop.is_set():
-            return
-
-        calibration = calibrator.build()
-        log.info("BG_CAL complete")
-        cam_q.put({"type": "cal_done"})
-
-        detection_config = DetectionConfig(
-            depth_delta_mm  = det_cfg.get("depth_delta_mm",  25),
-            min_blob_pixels = det_cfg.get("min_blob_pixels", 500),
-            min_depth_mm    = det_cfg.get("min_depth_mm",    500),
-            max_depth_mm    = det_cfg.get("max_depth_mm",    2500),
-        )
-        tracker = BlobTracker(calibration, detection_config)
-
         for frame in camera.frames():
             if stop.is_set():
                 break
+            if reseed is not None and reseed.is_set():
+                reseed.clear()
+                background.reseed()
+            background.push(frame)
             foreground = tracker.detect_foreground(frame)
             corrected  = apply_cam_transform(
                 foreground, getattr(frame, "intrinsics", None), cam_transform,
@@ -444,16 +441,6 @@ def main() -> None:
     attract_dwell = float(settings.get("attract_dwell_s", 3.0))
     min_fg_px     = int(settings.get("min_foreground_pixels", 2000))
 
-    # Calibration countdown (ADR-0013): show a "stand back / calibrating" screen
-    # for calibration_countdown_s total, holding off frame collection for the
-    # first calibration_standback_s so people can clear the ROI.
-    cal_countdown_s = float(settings.get("calibration_countdown_s", 10.0))
-    cal_standback_s = float(settings.get("calibration_standback_s",  5.0))
-    if cal_standback_s >= cal_countdown_s:
-        log.warning("calibration_standback_s (%.1f) >= calibration_countdown_s (%.1f); "
-                    "clamping standback to countdown - 1", cal_standback_s, cal_countdown_s)
-        cal_standback_s = max(0.0, cal_countdown_s - 1.0)
-
     # ── Test input handler ────────────────────────────────────────────────────
     test_handler: TestInputHandler | None = None
     if use_test_input:
@@ -522,27 +509,26 @@ def main() -> None:
 
     # ── Camera thread state ───────────────────────────────────────────────────
     cam: dict[str, Any] = {
-        "q":       queue.Queue(maxsize=32),
-        "stop":    threading.Event(),
-        "collect": threading.Event(),
-        "thread":  None,
+        "q":      queue.Queue(maxsize=32),
+        "stop":   threading.Event(),
+        "reseed": threading.Event(),
+        "thread": None,
     }
 
     def _start_camera() -> None:
-        cam["q"]       = queue.Queue(maxsize=32)
-        cam["stop"]    = threading.Event()
-        cam["collect"] = threading.Event()
+        cam["q"]      = queue.Queue(maxsize=32)
+        cam["stop"]   = threading.Event()
+        cam["reseed"] = threading.Event()
         if args.camera or use_mock:
             t = threading.Thread(
                 target=_camera_thread,
-                args=(_make_camera(), settings, cam["q"], cam["stop"], cam["collect"]),
+                args=(_make_camera(), settings, cam["q"], cam["stop"], cam["reseed"]),
                 daemon=True,
             )
             t.start()
             cam["thread"] = t
-            log.info("Camera thread started (%s)", "mock" if use_mock else "Orbbec")
-        else:
-            cam["q"].put({"type": "cal_done"})
+            log.info("Camera thread started (%s) — background learns from the first frame",
+                     "mock" if use_mock else "Orbbec")
 
     def _do_restart() -> None:
         cam["stop"].set()
@@ -550,24 +536,20 @@ def main() -> None:
             cam["thread"].join(timeout=5.0)
         _save_local({})
         _start_camera()
-        log.info("Camera restarted — entering BG_CAL")
+        log.info("Camera restarted — background relearning from the first frame")
 
     # ── State ─────────────────────────────────────────────────────────────────
-    state:             AppState          = AppState.BG_CAL
+    state:             AppState          = AppState.SCREENSAVER
     current_foreground: np.ndarray | None = None
     sil_cache:         pygame.Surface | None = None   # scaled silhouette, rebuilt on new frames
     fg_pixel_count     = 0
     attract_elapsed    = 0.0
     saver_elapsed      = 0.0
     SAVER_DWELL        = 120.0
-    cal_frame          = 0
-    cal_total          = settings.get("calibration_frames", 60)
-    cal_elapsed        = 0.0
-    cal_started        = False    # have we signalled the camera to collect yet?
-    cal_done_seen      = False    # has the camera finished building the model?
     t_last_osc         = time.monotonic()
 
     _start_camera()
+    broadcast({"state": "screensaver"})
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     while True:
@@ -581,26 +563,22 @@ def main() -> None:
                 if event.key in (pygame.K_q, pygame.K_ESCAPE):
                     cam["stop"].set(); pygame.quit(); sys.exit(0)
                 elif event.key == pygame.K_r:
-                    state = AppState.BG_CAL
-                    current_foreground = None
-                    sil_cache          = None
-                    attract_elapsed    = 0.0
-                    cal_elapsed        = 0.0
-                    cal_started        = False
-                    cal_done_seen      = False
-                    threading.Thread(target=_do_restart, daemon=True).start()
+                    cam["reseed"].set()
+                    log.info("R: reseeding the depth background from the next frame")
                 elif event.key == pygame.K_c and test_handler:
                     test_handler.clear()
 
         # HTTP restart
         if _http_restart.is_set():
             _http_restart.clear()
-            state = AppState.BG_CAL
+            if state == AppState.GAME:
+                cur_saver     = saver_bag.next() or no_saver
+                saver_elapsed = 0.0
+            state = AppState.SCREENSAVER
             current_foreground = None
+            sil_cache          = None
+            fg_pixel_count     = 0
             attract_elapsed    = 0.0
-            cal_elapsed        = 0.0
-            cal_started        = False
-            cal_done_seen      = False
             threading.Thread(target=_do_restart, daemon=True).start()
 
         # Test-input: update paint canvas and push as foreground frame
@@ -615,21 +593,7 @@ def main() -> None:
                 msg   = cam["q"].get_nowait()
                 mtype = msg["type"]
 
-                if mtype == "cal_progress":
-                    cal_frame = msg["frame"]
-                    cal_total = msg["total"]
-                    broadcast({"state": "bg_cal",
-                               "progress": cal_frame / max(cal_total, 1)})
-
-                elif mtype == "cal_done":
-                    # Model built. Don't advance yet — the BG_CAL branch holds the
-                    # screen until the countdown also elapses (gates a fast camera),
-                    # and keeps holding past the countdown if this never arrives
-                    # (gates a slow camera).
-                    cal_done_seen = True
-                    log.info("BG_CAL frames collected")
-
-                elif mtype == "foreground":
+                if mtype == "foreground":
                     current_foreground = msg["frame"]
                     fg_new             = True
                     fg_pixel_count     = int(np.count_nonzero(current_foreground))
@@ -646,47 +610,7 @@ def main() -> None:
         # ── Draw ──────────────────────────────────────────────────────────────
         screen.fill(BLACK)
 
-        if state == AppState.BG_CAL:
-            cal_elapsed += dt
-
-            # Once the standback window passes, tell the camera to start
-            # collecting frames for the background model.
-            if not cal_started and cal_elapsed >= cal_standback_s:
-                cam["collect"].set()
-                cal_started = True
-                log.info("BG_CAL: standback elapsed — signalling camera to collect")
-
-            in_standback = cal_elapsed < cal_standback_s
-            if in_standback:
-                title     = "PLEASE STAND BACK"
-                remaining = cal_standback_s - cal_elapsed
-            else:
-                title     = "CALIBRATING…"
-                remaining = cal_countdown_s - cal_elapsed
-
-            t_title = font_big.render(title, True, WHITE)
-            screen.blit(t_title, t_title.get_rect(center=(game_w // 2, WH // 2 - 40)))
-
-            # Count 5→1, then drop the number. If the clock runs out before the
-            # camera reports cal_done, the screen freezes on "CALIBRATING…" with
-            # no number rather than advancing with a dirty model.
-            if remaining > 0.0:
-                t_num = font_big.render(f"{int(remaining) + 1}", True, WHITE)
-                screen.blit(t_num, t_num.get_rect(center=(game_w // 2, WH // 2 + 20)))
-
-            broadcast({"state":       "bg_cal",
-                       "phase":       "standback" if in_standback else "collect",
-                       "remaining_s": round(max(0.0, remaining), 1),
-                       "progress":    cal_frame / max(cal_total, 1)})
-
-            if cal_elapsed >= cal_countdown_s and cal_done_seen:
-                state         = AppState.SCREENSAVER
-                cur_saver     = saver_bag.next() or no_saver
-                saver_elapsed = 0.0
-                log.info("BG_CAL complete — entering SCREENSAVER")
-                broadcast({"state": "screensaver"})
-
-        elif state == AppState.SCREENSAVER:
+        if state == AppState.SCREENSAVER:
             saver_elapsed += dt
             if saver_elapsed >= SAVER_DWELL:
                 saver_elapsed = 0.0

@@ -8,14 +8,13 @@ The 7-foot CRT-styled kiosk Element. Players activate a projected grid using the
 
 ## Architecture summary
 
-`app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, BG calibration, **Game** rotation, and a lightweight HTTP/WebSocket monitoring server on port 8080.
+`app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, **Game** rotation, and a lightweight HTTP/WebSocket monitoring server on port 8080.
 
-State machine:
-- **BG_CAL** — solid black; depth camera builds a `calibration_frames` background model
+State machine (no calibration screen — the depth background is learned continuously from the first frame, with people in view; ADR-0023):
 - **SCREENSAVER** — idle animation; detects a Player and counts down `attract_dwell_s`
 - **GAME** — active Arc; ends with a Blow-Up, returns to SCREENSAVER
 
-Pipeline — Orbbec depth camera → IIVision background subtraction → despeckle → silhouette warp → **Body Grid** activator (ADR-0013). The Body Grid maps depth pixels inside configured **Depth Slabs** to a boolean grid of cells; cells go active when `≥ cell_activation_threshold` of their pixels are covered by foreground inside any slab.
+Pipeline — Orbbec depth camera → IIVision self-learning background (`AdaptiveBackground`, ADR-0023) → background subtraction → despeckle → silhouette warp → **Body Grid** activator (ADR-0013). The Body Grid maps depth pixels inside configured **Depth Slabs** to a boolean grid of cells; cells go active when `≥ cell_activation_threshold` of their pixels are covered by foreground inside any slab.
 
 Display: pygame `FULLSCREEN | NOFRAME`. Direct DRM (`SDL_VIDEODRIVER=kmsdrm`) — Pi OS Lite, no compositor (ADR-0011).
 
@@ -31,6 +30,7 @@ Key references:
 - ADR-0019 — game UI shell
 - ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
 - ADR-0022 — shader player blob records (`blobs` channel source)
+- ADR-0023 — self-learning depth background (no boot-time standback)
 - `app.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
@@ -48,7 +48,7 @@ Key references:
 The first three are mutually exclusive.
 
 Keys at runtime:
-- `R` — restart from BG_CAL
+- `R` — reseed the depth background from the next frame (e.g. after moving furniture)
 - `Q` / Escape — quit
 - `C` — clear paint canvas (`--test-input` only)
 
@@ -56,7 +56,7 @@ Keys at runtime:
 
 ## Shader player — `shader_app.py`
 
-Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, calibration, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
+Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, background model, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
 Setups in rotation: `ripples` (example), `endless_sunset` ([design](superpowers/specs/2026-10-30-endless-sunset-design.md); tunables at the top of its `common.glsl`), `hunter_bird` ([design](superpowers/specs/2026-11-04-hunter-bird-design.md); a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`), `watering_can` ([design](superpowers/specs/2026-11-06-watering-can-design.md); a visitor standing still grows vines, leaves and flowers over their silhouette in ~20 s, and stepping sideways rewinds them — tunables, including `WALK_DIST`, `GROW_S` and `REWIND_S`, at the top of its `common.glsl`), `rainbow_poop` ([design](superpowers/specs/2026-11-08-rainbow-poop-design.md); about every 5 s a rainbow poop drifts down from the sky on to each visitor, and the splats stick to their silhouette, drip and fade over 20 s — step back the other way after it appears and it lands on the floor; tunables, including `BOMB_EVERY_S`, `FALL_SPEED`, `SPLAT_R` and `SPLAT_LIFE_S`, at the top of its `common.glsl`).
 
@@ -82,7 +82,7 @@ Shader Setups and full-screen videos in one shuffle bag: every item plays once b
 - `setups`: Setup folder names from `shaders/`. Each plays for `setup_duration_s` (300 s), which overrides the Setup's own `duration_s`.
 - `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show PC. Decoding uses PyAV (`av` in `requirements.txt`).
 
-A missing or unreadable item is logged and skipped. The camera runs throughout, so calibration happens once at startup.
+A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
 
 Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` as `shader_app.py`, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
 
@@ -104,7 +104,7 @@ Top-level fields:
 - `min_foreground_pixels` — anti-noise threshold for Player presence
 - `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
 - `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
-- `calibration_frames` — default 60
+- `background` — self-learning depth background (ADR-0023): `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
 - Per-game blocks: `bodycaptcha`, `keepaway_body` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
 
 ---
@@ -162,7 +162,7 @@ FundingCAPTCHA sends to the TreeHouse Hub each frame:
 ## Monitoring server
 
 `http://<host>:8080/` — small HTML page with state + live log stream over WebSocket. Includes:
-- Current `AppState` (BG_CAL / SCREENSAVER / GAME)
+- Current `AppState` (SCREENSAVER / GAME)
 - Current Game + Level
 - Live `intensity` value
 - Last 100 log lines
@@ -246,7 +246,7 @@ If the install uses private show content, also re-run the sync — see
 
 ## Body Grid tester
 
-`body_grid_tester.py` — standalone tool to exercise the Body Grid in isolation (no Game). Useful for verifying camera calibration + slab config visually.
+`body_grid_tester.py` — standalone tool to exercise the Body Grid in isolation (no Game). Useful for verifying the background model + slab config visually (`C` cycles background views, `R` reseeds).
 
 ```bash
 cd ShowControl/FundingCAPTCHA
@@ -259,8 +259,9 @@ python3 body_grid_tester.py
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Black screen, stuck in BG_CAL | Camera not producing frames | Check Orbbec USB; check udev rule (`install.sh` writes it — re-run if missing); `journalctl -u captcha -f` |
+| No silhouette ever appears | Camera not producing frames | Check Orbbec USB; check udev rule (`install.sh` writes it — re-run if missing); `journalctl -u captcha -f` |
 | Players ignored, screensaver loops | `min_foreground_pixels` too high, or slab depths wrong | Body grid tester; tune `depth_slabs[]` near/far per Play Zone |
+| A ghost silhouette that won't go away, or a still Player fading out | Something moved into the scene (absorbed after `background.absorb_s`), or a Player stood still longer than that | Wait it out, or press `R` to reseed the background; tune `background.absorb_s` (keep > 120) |
 | Cells flicker on/off | `cell_activation_threshold` too low | Raise it (try 0.40) |
 | Game never escalates | Level set thin or shuffle bag favoring easy | Add Levels at higher `difficulty`; check `intensity_weights` |
 | Game refuses to end | Game lacks self-termination | Audit Game code against ADR-0003 |

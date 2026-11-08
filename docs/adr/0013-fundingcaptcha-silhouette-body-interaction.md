@@ -1,6 +1,7 @@
 # FundingCAPTCHA uses body silhouette interaction, not touch detection
 
 **Supersedes:** ADR-0004 (depth-primary touch detection), ADR-0011 (screen calibration and projection)
+**Partly superseded by:** [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) — BG_CAL is gone; the depth background is learned continuously from the first frame
 
 ## Context
 
@@ -14,9 +15,9 @@ Key consequences:
 
 **ScreenProjector is removed.** There is no screen plane to project onto. Camera pixels map to display pixels via a camera-mounting correction: the camera thread calls `apply_cam_transform()` (see `silhouette.py`) which reprojects the depth frame to appear as though the camera is centred on the screen — compensating for physical mounting position and orientation — then mirrors horizontally so players see a natural mirror view. ROI crop is applied downstream in `BodyGridActivator`. Games and screensavers receive a fully corrected, display-space frame and must not flip.
 
-**CORNER_CAL is removed.** The per-installation corner-touch calibration step (operator touching three screen corners) is eliminated. BG_CAL (background model collection at startup) remains.
+**CORNER_CAL is removed.** The per-installation corner-touch calibration step (operator touching three screen corners) is eliminated. BG_CAL (background model collection at startup) remains. *Superseded by ADR-0023: there is no BG_CAL; the background is learned continuously.*
 
-**Blob detection is not used by FundingCAPTCHA.** The camera thread calls IIVision's `Calibrator` and background subtraction, then emits raw foreground depth frames. The `run_pipeline()` call (blob detection + stabilisation) is skipped. Grid cell activation is computed directly from per-pixel depth values.
+**Blob detection is not used by FundingCAPTCHA.** The camera thread calls IIVision's background model (`AdaptiveBackground` since ADR-0023; `Calibrator` before) and background subtraction, then emits raw foreground depth frames. The `run_pipeline()` call (blob detection + stabilisation) is skipped. Grid cell activation is computed directly from per-pixel depth values.
 
 **Grid activation is per-pixel, not per-blob.** A cell activates when ≥ `cell_activation_threshold` (configurable, default 0.30) of its pixels are covered by a given Depth Slab. This produces smooth, intuitive silhouette-fills rather than point-contact events.
 

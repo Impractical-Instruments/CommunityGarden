@@ -6,7 +6,8 @@ Public API:
     run_pipeline(camera, camera_transform, calibration, stabilizer_config,
                  pre_stabilize_filter=<identity>) -> Iterator[list[TrackedBlob]]
 
-    Calibration classes: Calibration, Calibrator
+    Background models:   Calibration + Calibrator (fixed, FlowerBeds),
+                         AdaptiveBackground (self-learning, FundingCAPTCHA — ADR-0023)
     Camera classes:      MockCamera, OrbbecCamera
     Config types:        StabilizerConfig, Transform, Rotator
     Output type:         TrackedBlob
@@ -14,7 +15,8 @@ Public API:
 
 from .pipeline import PreStabilizeFilter, build_calibration, filter_positions_near_points, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob, TrackState
-from .blob_tracker import BlobTracker, Calibration, Calibrator, DetectionConfig, FramePacket
+from .blob_tracker import BackgroundModel, BlobTracker, Calibration, Calibrator, DetectionConfig, FramePacket
+from .adaptive_background import AdaptiveBackground, AdaptiveBackgroundConfig
 from .camera import MockCamera, OrbbecCamera, OrbbecRGBCamera, RGBFrame
 from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
 from .silhouette_warp import reproject_silhouette
@@ -28,6 +30,9 @@ __all__ = [
     "StabilizerConfig",
     "TrackedBlob",
     "TrackState",
+    "AdaptiveBackground",
+    "AdaptiveBackgroundConfig",
+    "BackgroundModel",
     "BlobTracker",
     "Calibration",
     "Calibrator",

@@ -87,7 +87,7 @@ Runs per frame once calibrated:
 3. **Connected components** — 8-connected blobs via `scipy.ndimage.label`
 4. **3D unproject** — pinhole model, median-Z windowing, camera → world coordinates
 
-Calibration collects `calibration_frames` frames (from `settings.json`) to build a per-pixel median background and validity mask.
+`BlobTracker` reads any background model with `background`, `valid_mask` and `threshold()`. FlowerBeds uses `Calibration`: `Calibrator` collects `calibration_frames` frames (from `settings.json`) to build a per-pixel median background and validity mask. FundingCAPTCHA uses `AdaptiveBackground` (`adaptive_background.py`, ADR-0023), learned continuously from the first frame — the farthest steady depth wins.
 
 ## Blob stabilisation (BlobStabilizer)
 

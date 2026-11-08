@@ -27,9 +27,18 @@
   "min_foreground_pixels": 2000,
   "silhouette_opacity": 0.55,
 
-  "calibration_frames": 60,
-  "calibration_countdown_s": 10.0,
-  "calibration_standback_s": 5.0,
+  "background": {
+    "_comment": "Self-learning depth background (ADR-0023): the farthest steady depth wins. detection.depth_delta_mm is the lower bound on the threshold. absorb_s must stay above the longest deliberate stand-still (Watering can: 120 s).",
+    "min_valid_frames": 10,
+    "reveal_frames": 5,
+    "noise_k": 4,
+    "bg_alpha": 0.01,
+    "noise_alpha": 0.05,
+    "absorb_s": 300,
+    "reseed_fg_fraction": 0.4,
+    "reseed_after_s": 30,
+    "stats_log_s": 30
+  },
 
   "bodycaptcha": {
     "timer_s": 35,

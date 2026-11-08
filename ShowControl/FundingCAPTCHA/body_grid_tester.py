@@ -5,14 +5,13 @@ FundingCAPTCHA body grid tester.
 Displays silhouettes detected in configurable depth slabs on a configurable grid.
 Used to tune camera ROI, slab depths, and grid size for Body Grid.
 
-States:
-  BG_CAL  → solid black; camera builds background depth model
-  LIVE    → grid + silhouette display
+Live from the first frame: the depth background is learned continuously,
+with people in view (ADR-0023). No calibration screen.
 
 Keys:
   D    → toggle debug overlay (mini thumbnails + stats)
-  C    → cycle calibration views: background depth / valid mask / noise floor / threshold / delta
-  R    → restart from BG_CAL
+  C    → cycle background views: background depth / valid mask / noise σ / threshold / delta
+  R    → reseed the depth background from the next frame
   Q    → quit
 
 Config keys (captcha-settings.json / captcha-settings.local.json):
@@ -22,7 +21,7 @@ Config keys (captcha-settings.json / captcha-settings.local.json):
   slab_styles               {"<slab_id>": {"color": [R,G,B]}}
   cell_activation_threshold float               default 0.30
   activation_rule           "additive"|"max"    default "additive"
-  calibration_frames        int                 default 60
+  background                {...}               self-learning background tunables (ADR-0023)
 """
 from __future__ import annotations
 
@@ -34,7 +33,6 @@ import queue
 import sys
 import threading
 import time
-from enum import Enum, auto
 from pathlib import Path
 
 import numpy as np
@@ -48,7 +46,8 @@ sys.path.insert(0, str(DIR.parent.parent))
 sys.path.insert(0, str(DIR))
 
 try:
-    from IIVision import (MockCamera, OrbbecCamera, Calibrator, BlobTracker, DetectionConfig)
+    from IIVision import (MockCamera, OrbbecCamera, AdaptiveBackground,
+                          AdaptiveBackgroundConfig, BlobTracker, DetectionConfig)
     _CV_AVAILABLE = True
 except ImportError:
     _CV_AVAILABLE = False
@@ -187,17 +186,21 @@ def _run_monitoring(port: int) -> None:
 
 # ── Camera thread ──────────────────────────────────────────────────────────────
 
+# Background-model views are re-sent this often: the model keeps learning.
+MODEL_VIEW_S = 0.5
+
+
 def _camera_thread(camera, settings: dict, cam_q: queue.Queue,
-                   stop: threading.Event) -> None:
+                   stop: threading.Event, reseed: threading.Event) -> None:
     try:
-        _camera_inner(camera, settings, cam_q, stop)
+        _camera_inner(camera, settings, cam_q, stop, reseed)
     except Exception as exc:
         log.error("Camera thread crashed: %s", exc, exc_info=True)
         cam_q.put({"type": "error", "msg": str(exc)})
 
 
 def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
-                  stop: threading.Event) -> None:
+                  stop: threading.Event, reseed: threading.Event) -> None:
     det_cfg = settings.get("detection", {})
     detection_config = DetectionConfig(
         depth_delta_mm  = det_cfg.get("depth_delta_mm",   25),
@@ -205,46 +208,40 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
         min_depth_mm    = det_cfg.get("min_depth_mm",     500),
         max_depth_mm    = det_cfg.get("max_depth_mm",     4000),
     )
+    background = AdaptiveBackground(AdaptiveBackgroundConfig.from_dict(
+        settings.get("background", {}), depth_delta_mm=detection_config.depth_delta_mm))
+    tracker = BlobTracker(background, detection_config)
 
-    calib_frames  = settings.get("calibration_frames", 60)
     cam_transform = build_cam_transform(settings)
     sil_dilation_px = int(settings.get("silhouette_dilation_px", 1))
-    log.info("BG_CAL: collecting %d frames", calib_frames)
-    calibrator = Calibrator(calib_frames)
-    frame_idx = 0
+    t_views = 0.0
 
     with camera:
         for frame in camera.frames():
             if stop.is_set():
-                return
-            frame_idx += 1
-            cam_q.put({"type": "cal_progress", "frame": frame_idx, "total": calib_frames})
-            if calibrator.push_frame(frame):
                 break
+            if reseed.is_set():
+                reseed.clear()
+                background.reseed()
+            background.push(frame)
+            H, W = background.height, background.width
+            bg_2d = background.background.reshape(H, W)
 
-        if stop.is_set():
-            return
+            now = time.monotonic()
+            if now - t_views >= MODEL_VIEW_S:
+                t_views = now
+                cam_q.put({
+                    "type":            "model",
+                    "cal_background":  bg_2d.copy(),
+                    "cal_valid_mask":  background.valid_mask.reshape(H, W).astype(np.uint8) * 255,
+                    "cal_noise_floor": background.noise.reshape(H, W).clip(0, 65535).astype(np.uint16),
+                    "cal_threshold":   tracker.threshold_map.copy(),
+                })
 
-        calibration = calibrator.build()
-        log.info("BG_CAL complete")
-        H, W = calibration.height, calibration.width
-        tracker = BlobTracker(calibration, detection_config)
-        cam_q.put({
-            "type":          "cal_done",
-            "cal_background":  calibration.background.reshape(H, W).copy(),
-            "cal_valid_mask":  (calibration.valid_mask.reshape(H, W).astype(np.uint8) * 255),
-            "cal_noise_floor": calibration.noise_floor.reshape(H, W).copy(),
-            "cal_threshold":   tracker.threshold_map.copy(),
-        })
-
-        bg_2d = calibration.background.reshape(H, W).astype(np.int32)
-
-        for frame in camera.frames():
-            if stop.is_set():
-                break
             fg        = tracker.detect_foreground(frame)
             raw_arr   = np.frombuffer(frame.data, dtype=np.uint16).reshape(H, W)
-            delta     = np.clip(bg_2d - raw_arr.astype(np.int32), 0, 32767).astype(np.uint16)
+            delta     = np.clip(bg_2d.astype(np.int32) - raw_arr.astype(np.int32),
+                                0, 32767).astype(np.uint16)
             corrected = apply_cam_transform(
                 fg, getattr(frame, "intrinsics", None), cam_transform,
                 dilation_px=sil_dilation_px,
@@ -261,18 +258,6 @@ def _letterbox(win_w: int, win_h: int, aspect: float) -> tuple[int, int, int, in
     else:
         gw = win_w; gh = int(gw / aspect)
     return (win_w - gw) // 2, (win_h - gh) // 2, gw, gh
-
-
-def _draw_cal(surf: pygame.Surface, fonts: dict,
-              WW: int, WH: int, frame: int, total: int) -> None:
-    pct = frame / max(total, 1)
-    msg = fonts["big"].render(f"BG_CAL  {frame}/{total}", True, YELLOW)
-    surf.blit(msg, (WW // 2 - msg.get_width() // 2, WH // 2 - 30))
-    bw, bh = 400, 20
-    bx, by = WW // 2 - bw // 2, WH // 2 + 20
-    pygame.draw.rect(surf, MID_GREY, (bx, by, bw, bh))
-    pygame.draw.rect(surf, GREEN, (bx, by, int(bw * pct), bh))
-    pygame.draw.rect(surf, WHITE, (bx, by, bw, bh), 1)
 
 
 def _draw_grid(surf: pygame.Surface, cfg: BodyGridConfig,
@@ -326,7 +311,7 @@ _CAL_VIEW_LABELS = [
     "",
     "background depth (mm)",
     "valid mask  [white=trusted]",
-    "noise floor IQR (mm)",
+    "noise σ (mm)",
     "effective threshold (mm)",
     "delta: bg − current (mm)",
 ]
@@ -391,7 +376,7 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
     _line(f"  delta:  {det_cfg.get('depth_delta_mm', 25)}mm")
     _line(f"  range:  {det_cfg.get('min_depth_mm', 500)}–{det_cfg.get('max_depth_mm', 4000)}mm")
     _line(f"  blobs:  ≥{det_cfg.get('min_blob_pixels', 500)}px")
-    _line("C: cycle cal view", LT_GREY)
+    _line("C: cycle bg view  R: reseed", LT_GREY)
 
     # Per-cell coverage in debug: draw on grid cells
     cell_w = gw / cfg.cols
@@ -419,9 +404,9 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
     for arr, label in [
         (foreground_roi,  "foreground ROI"),
         (raw_frame,       "raw depth"),
-        (cal_background,  "cal: background"),
-        (cal_valid_mask,  "cal: valid mask"),
-        (cal_noise_floor, "cal: noise floor"),
+        (cal_background,  "bg: background"),
+        (cal_valid_mask,  "bg: valid mask"),
+        (cal_noise_floor, "bg: noise σ"),
     ]:
         if arr is None or arr.size == 0:
             continue
@@ -433,13 +418,6 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
         lbl = fonts["tiny"].render(label, True, LT_GREY)
         surf.blit(lbl, (mini_x, bottom_y - lbl.get_height() - 1))
         bottom_y -= lbl.get_height() + 5
-
-
-# ── App state ──────────────────────────────────────────────────────────────────
-
-class AppState(Enum):
-    BG_CAL = auto()
-    LIVE   = auto()
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -496,23 +474,19 @@ def main() -> None:
                             height=cam_cfg.get("height", 400),
                             fps=cam_cfg.get("fps", 10))
 
-    cam: dict = {"q": queue.Queue(maxsize=32), "stop": threading.Event(), "thread": None}
+    cam: dict = {"q": queue.Queue(maxsize=32), "stop": threading.Event(),
+                 "reseed": threading.Event(), "thread": None}
 
     def _start_camera() -> None:
-        cam["q"]    = queue.Queue(maxsize=32)
-        cam["stop"] = threading.Event()
         if args.camera or use_mock:
             t = threading.Thread(
                 target=_camera_thread,
-                args=(_make_camera(), settings, cam["q"], cam["stop"]),
+                args=(_make_camera(), settings, cam["q"], cam["stop"], cam["reseed"]),
                 daemon=True,
             )
             t.start()
             cam["thread"] = t
-        else:
-            cam["q"].put({"type": "cal_done"})
 
-    state: AppState       = AppState.BG_CAL
     activations: CellActivations = {}
     foreground_roi: np.ndarray | None = None
     raw_frame: np.ndarray | None = None
@@ -521,8 +495,7 @@ def main() -> None:
     cal_valid_mask: np.ndarray | None  = None
     cal_noise_floor: np.ndarray | None = None
     cal_threshold: np.ndarray | None   = None
-    cal_view: int = 0  # 0=off, 1-5 cycle through cal views
-    cal_frame, cal_total  = 0, settings.get("calibration_frames", 60)
+    cal_view: int = 0  # 0=off, 1-5 cycle through background views
     fps_display           = 0.0
 
     _start_camera()
@@ -540,22 +513,12 @@ def main() -> None:
                 elif event.key == pygame.K_d:
                     debug = not debug
                     log.info("Debug overlay %s", "on" if debug else "off")
-                elif event.key == pygame.K_c and state == AppState.LIVE:
+                elif event.key == pygame.K_c:
                     cal_view = (cal_view + 1) % len(_CAL_VIEW_LABELS)
                     log.info("Cal view: %s", _CAL_VIEW_LABELS[cal_view] or "off")
                 elif event.key == pygame.K_r:
-                    state = AppState.BG_CAL
-                    activations = {}
-                    foreground_roi = None
-                    raw_frame = None
-                    raw_delta = None
-                    cal_background = None
-                    cal_valid_mask = None
-                    cal_noise_floor = None
-                    cal_threshold = None
-                    cal_view = 0
-                    cam["stop"].set()
-                    threading.Thread(target=_start_camera, daemon=True).start()
+                    cam["reseed"].set()
+                    log.info("R: reseeding the depth background from the next frame")
 
         if _debug_toggle_event.is_set():
             _debug_toggle_event.clear()
@@ -567,19 +530,11 @@ def main() -> None:
                 msg = cam["q"].get_nowait()
                 mtype = msg["type"]
 
-                if mtype == "cal_progress":
-                    cal_frame = msg["frame"]
-                    cal_total = msg["total"]
-                    broadcast({"state": "bg_cal", "progress": cal_frame / max(cal_total, 1)})
-
-                elif mtype == "cal_done":
-                    state = AppState.LIVE
-                    cal_background  = msg.get("cal_background")
-                    cal_valid_mask  = msg.get("cal_valid_mask")
-                    cal_noise_floor = msg.get("cal_noise_floor")
-                    cal_threshold   = msg.get("cal_threshold")
-                    log.info("BG_CAL complete — LIVE")
-                    broadcast({"state": "live"})
+                if mtype == "model":
+                    cal_background  = msg["cal_background"]
+                    cal_valid_mask  = msg["cal_valid_mask"]
+                    cal_noise_floor = msg["cal_noise_floor"]
+                    cal_threshold   = msg["cal_threshold"]
 
                 elif mtype == "foreground":
                     fg: np.ndarray = msg["frame"]  # already corrected + mirrored
@@ -598,26 +553,22 @@ def main() -> None:
 
         screen.fill(BLACK)
 
-        if state == AppState.BG_CAL:
-            _draw_cal(screen, fonts, WW, WH, cal_frame, cal_total)
-
-        elif state == AppState.LIVE:
-            if cal_view > 0:
-                _cal_arrs = [None, cal_background, cal_valid_mask,
-                             cal_noise_floor, cal_threshold, raw_delta]
-                arr = _cal_arrs[cal_view] if cal_view < len(_cal_arrs) else None
-                _draw_cal_view(screen, fonts, arr, _CAL_VIEW_LABELS[cal_view],
-                               gx, gy, gw, gh)
-            else:
-                _draw_grid(screen, bg_cfg, activations, slab_styles, gx, gy, gw, gh)
-                if foreground_roi is not None:
-                    _draw_silhouette(screen, foreground_roi, bg_cfg, slab_styles, gx, gy, gw, gh)
-            if debug:
-                _draw_debug(screen, fonts, foreground_roi, raw_frame, activations,
-                            bg_cfg, fps_display,
-                            cal_background, cal_valid_mask, cal_noise_floor,
-                            settings.get("detection", {}),
-                            gx, gy, gw, gh)
+        if cal_view > 0:
+            _cal_arrs = [None, cal_background, cal_valid_mask,
+                         cal_noise_floor, cal_threshold, raw_delta]
+            arr = _cal_arrs[cal_view] if cal_view < len(_cal_arrs) else None
+            _draw_cal_view(screen, fonts, arr, _CAL_VIEW_LABELS[cal_view],
+                           gx, gy, gw, gh)
+        else:
+            _draw_grid(screen, bg_cfg, activations, slab_styles, gx, gy, gw, gh)
+            if foreground_roi is not None:
+                _draw_silhouette(screen, foreground_roi, bg_cfg, slab_styles, gx, gy, gw, gh)
+        if debug:
+            _draw_debug(screen, fonts, foreground_roi, raw_frame, activations,
+                        bg_cfg, fps_display,
+                        cal_background, cal_valid_mask, cal_noise_floor,
+                        settings.get("detection", {}),
+                        gx, gy, gw, gh)
 
         pygame.display.flip()
 

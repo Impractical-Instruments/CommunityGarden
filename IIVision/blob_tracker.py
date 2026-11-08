@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
 import numpy as np
 from scipy.ndimage import label as nd_label
@@ -106,6 +107,14 @@ class Calibration:
     background: np.ndarray   # uint16, shape (H*W,)
     valid_mask: np.ndarray   # bool,   shape (H*W,)
     noise_floor: np.ndarray  # uint16, shape (H*W,) — per-pixel IQR from calibration frames
+
+    def threshold(self, depth_delta_mm: float) -> np.ndarray:
+        """int32 (H*W,): per-pixel foreground threshold, mm.
+
+        At least depth_delta_mm, raised to 3×IQR where sensor noise is high —
+        prevents noisy pixels from flickering as foreground.
+        """
+        return np.maximum(depth_delta_mm, self.noise_floor.astype(np.int32) * _NOISE_SIGMA)
 
     def save(self, path: Path | str) -> None:
         """Save to a .npz file."""
@@ -220,16 +229,35 @@ class Calibrator:
 # BlobTracker
 # ---------------------------------------------------------------------------
 
+class BackgroundModel(Protocol):
+    """What BlobTracker reads from a background model.
+
+    Implemented by Calibration (fixed, from Calibrator) and AdaptiveBackground
+    (continuously learned, ADR-0023).
+    """
+    width: int
+    height: int
+
+    @property
+    def background(self) -> np.ndarray: ...   # uint16 (H*W,), mm
+
+    @property
+    def valid_mask(self) -> np.ndarray: ...   # bool (H*W,)
+
+    def threshold(self, depth_delta_mm: float) -> np.ndarray: ...   # int32 (H*W,), mm
+
+
 class BlobTracker:
     """
-    Per-frame blob detector. Requires a ready Calibration — use Calibrator to build one.
+    Per-frame blob detector over a background model: a ready Calibration (use
+    Calibrator to build one) or an AdaptiveBackground that has had a frame pushed.
 
     Usage:
         tracker = BlobTracker(calibration)
         result = tracker.detect(live_frame)
     """
 
-    def __init__(self, calibration: Calibration, config: DetectionConfig | None = None) -> None:
+    def __init__(self, calibration: BackgroundModel, config: DetectionConfig | None = None) -> None:
         self._calibration = calibration
         self.detection_config = config or DetectionConfig()
 
@@ -238,21 +266,19 @@ class BlobTracker:
     # ------------------------------------------------------------------
 
     @property
-    def calibration(self) -> Calibration:
+    def calibration(self) -> BackgroundModel:
         return self._calibration
 
     @property
     def threshold_map(self) -> np.ndarray:
         """Per-pixel effective foreground threshold (mm), shape (H, W), dtype uint16.
 
-        max(depth_delta_mm, noise_floor * NOISE_SIGMA). Zero where calibration invalid.
+        The model's threshold(depth_delta_mm). Zero where the background is invalid.
         """
         cal = self._calibration
-        t = np.maximum(
-            self.detection_config.depth_delta_mm,
-            cal.noise_floor.astype(np.int32) * _NOISE_SIGMA,
-        )
-        return np.where(cal.valid_mask, t, 0).reshape(cal.height, cal.width).astype(np.uint16)
+        t = cal.threshold(self.detection_config.depth_delta_mm)
+        t = np.where(cal.valid_mask, t, 0).clip(0, 65535)
+        return t.reshape(cal.height, cal.width).astype(np.uint16)
 
     def detect_foreground(self, frame: FramePacket) -> np.ndarray:
         """uint16 (H, W): foreground pixels = depth_mm, background pixels = 0.
@@ -301,15 +327,13 @@ class BlobTracker:
             depth <= self.detection_config.max_depth_mm
         )
 
+        background = cal.background
         bg_valid = cal.valid_mask & in_range
-        bg_closer = cal.background > depth
-        delta = cal.background.astype(np.int32) - depth.astype(np.int32)
-        # Per-pixel threshold: at least depth_delta_mm, raised to 3×IQR where
-        # sensor noise is high — prevents noisy pixels from flickering as foreground.
-        threshold = np.maximum(
-            self.detection_config.depth_delta_mm,
-            cal.noise_floor.astype(np.int32) * _NOISE_SIGMA,
-        )
+        bg_closer = background > depth
+        delta = background.astype(np.int32) - depth.astype(np.int32)
+        # Per-pixel threshold: at least depth_delta_mm, raised where the model
+        # has measured high sensor noise — keeps noisy pixels from flickering.
+        threshold = cal.threshold(self.detection_config.depth_delta_mm)
         fg_from_valid = bg_valid & bg_closer & (delta > threshold)
 
         fg[fg_from_valid] = 255

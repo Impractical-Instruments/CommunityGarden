@@ -6,8 +6,8 @@ every item plays once before any repeats. A Setup plays for the playlist's
 setup_duration_s (overriding its own duration_s); a video plays to the end
 of its file, silent and letterboxed.
 
-The camera runs throughout, so calibration happens once and Setups find the
-Body live whenever they come round.
+The camera runs throughout, so the depth background keeps learning (ADR-0023)
+and Setups find the Body live whenever they come round.
 
   python3 playlist_app.py --camera                 # show
   python3 playlist_app.py --mock-camera --windowed # drifting fake bodies

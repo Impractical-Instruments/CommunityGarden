@@ -2,8 +2,9 @@
 
 Cycles through the Setups listed in shaders/setups.json, each for its
 duration_s, feeding the Orbbec silhouette in as Buffer A (the Body).
-Shares the camera, calibration, and settings of app.py; replaces its
-game loop with an OpenGL one.
+Shares the camera, self-learning background (ADR-0023), and settings of
+app.py; replaces its game loop with an OpenGL one. Bodies show from launch:
+there is no standback or calibration wait.
 
   python3 shader_app.py --camera                 # show
   python3 shader_app.py --mock-camera            # drifting fake bodies
@@ -195,20 +196,14 @@ def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
     if not _CV_AVAILABLE:
         sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
     cam_cfg  = settings.get("camera", {})
-    collect  = threading.Event()
     cam_args = dict(width=cam_cfg.get("width", 640), height=cam_cfg.get("height", 400),
                     fps=cam_cfg.get("fps", 10))
     camera = (MockCamera(**cam_args) if args.mock_camera
               else OrbbecCamera(serial=cam_cfg.get("serial") or None, **cam_args))
     threading.Thread(target=_camera_thread,
-                     args=(camera, settings, cam_q, stop, collect), daemon=True).start()
-    # Hold off background collection so people can clear the ROI (ADR-0013).
-    standback = float(settings.get("calibration_standback_s", 5.0))
-    timer = threading.Timer(standback, collect.set)
-    timer.daemon = True
-    timer.start()
-    log.info("Camera started (%s) — calibrating in %.0fs, keep the floor clear",
-             "mock" if args.mock_camera else "Orbbec", standback)
+                     args=(camera, settings, cam_q, stop), daemon=True).start()
+    log.info("Camera started (%s) — background learns from the first frame",
+             "mock" if args.mock_camera else "Orbbec")
     return cam_q, stop
 
 
@@ -222,8 +217,6 @@ def drain_camera(cam_q: queue.Queue):
             return fg
         if msg["type"] == "foreground":
             fg = msg["frame"]
-        elif msg["type"] == "cal_done":
-            log.info("Calibration done — Body live")
         elif msg["type"] == "error":
             log.error("Camera: %s", msg["msg"])
 

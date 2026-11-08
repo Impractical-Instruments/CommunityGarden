@@ -1,6 +1,6 @@
 # FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera
 
-**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle)
+**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle), [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) (no calibration wait at startup)
 
 ## Context
 
@@ -26,5 +26,5 @@ The existing app draws with pygame surfaces in software. Per-pixel procedural wo
 - Buffers are RGBA16F, not Shadertoy's 32-bit float: V3D can't linear-filter 32-bit float. `HW_PERFORMANCE` is defined as 0; GLSL ES packing built-ins come from `ARB_shading_language_packing`.
 - A Setup that throws while rendering is dropped from the rotation for the run, not fatal.
 - Unsupported Shadertoy features: cubemaps, sound, video/texture inputs, per-channel filter/wrap settings (always linear + clamp), Buffer A code.
-- Calibration has no on-screen countdown: shaders play with an empty Body for `calibration_standback_s` plus collection. Keep people out of frame at startup.
+- ~~Calibration has no on-screen countdown: shaders play with an empty Body for `calibration_standback_s` plus collection. Keep people out of frame at startup.~~ Superseded by ADR-0023: the background is learned from the first frame, so the Body is live in under a second and people in frame at startup appear after their first step.
 - Not yet measured on the Pi 5: frame rate per Setup. `shader_app.py` logs fps every 10 s.
