@@ -1,5 +1,5 @@
 // Image — rainbow poop. iChannel0 = Body (A), iChannel1 = state (B), iChannel2 = blobs.
-// Back to front: paper and clouds → ground puddles → people → splats on people → falling poops → birds.
+// Back to front: paper and clouds → ground puddles → people → splats on people → falling poops.
 // Positions: `p` is in screen heights (x 0…aspect, y 0…1); state and Body are in UV.
 
 #define BODY  iChannel0
@@ -93,7 +93,7 @@ void drawSplats(inout vec3 col, vec2 p, vec2 uv) {
 }
 
 void drawGround(inout vec3 col, vec2 p) {
-    const float R = 0.05;
+    const float R = GROUND_R;
     for (int j = GROUNDS - 1; j >= 0; j--) {
         vec4 g = sGround(B, j);
         if (g.z >= GROUND_LIFE_S) continue;
@@ -119,57 +119,23 @@ void drawPeople(inout vec3 col, vec2 p, vec2 uv) {
     over(col, INK, edge);
 }
 
-// ── Poops in flight ───────────────────────────────────────────────────────────
+// ── Falling poops ─────────────────────────────────────────────────────────────
 void drawPoops(inout vec3 col, vec2 p) {
-    for (int i = 0; i < BIRDS; i++) {
-        if (sDrop(B, i).x < 0.5) continue;
-        vec4 pp = sPoop(B, i);
-        vec2 q = p - uvToP(pp.xy);
-        if (dot(q, q) > 16.0 * POOP_R * POOP_R) continue;
-        vec2  fwd = normalize(pp.zw + vec2(0.0, -1e-3));     // the round end leads, the point trails
+    for (int k = 0; k < SLOTS; k++) {
+        vec4 dr = sDrop(B, k);
+        if (dr.x < 0.5) continue;
+        vec4  pp = sPoop(B, k);
+        float c = toScreen(pp.xy).x;
+        vec2  at = vec2(c + SWAY * sin(dr.w * SWAY_W + pp.z), pp.y);   // as Buffer B's poopAt()
+        vec2  q = p - at;
+        if (dot(q, q) > 9.0 * POOP_R * POOP_R) continue;
+        // A drop falling straight down, leaning into its sway: the round end leads, the point trails.
+        vec2  fwd = normalize(vec2(SWAY * SWAY_W * cos(dr.w * SWAY_W + pp.z), -FALL_SPEED));
         float y = dot(q, -fwd), x = dot(q, vec2(-fwd.y, fwd.x));
         float d = y > 0.0 ? length(vec2(x, y * 0.45)) - POOP_R : length(q) - POOP_R;
         over(col, rainbow(int(clamp((y / POOP_R + 1.0) * 1.5, 0.0, 5.0))), fill(d, PX));
-        over(col, INK, pen(abs(d), INK_W_LIGHT, PX));
+        over(col, INK, pen(abs(d), INK_W, PX));
     }
-}
-
-// ── Birds ─────────────────────────────────────────────────────────────────────
-const vec3 BIRD_COL[4] = vec3[4](SLATE, VIOLET, DEEP, RUST);
-
-void drawBird(inout vec3 col, vec2 p, int i) {
-    vec4 bd = sBird(B, i);
-    vec2 q = (p - uvToP(bd.xy)) / BIRD_S;
-    if (dot(q, q) > 9.0) return;
-    vec2 v = bd.zw;
-    if (v.x < 0.0) q.x = -q.x;                               // face the way it flies
-    q = rot(q, clamp(atan(v.y, abs(v.x) + 1e-3), -0.9, 0.9) * 0.7);
-    float px = PX / BIRD_S, ink = INK_W / BIRD_S;
-    vec3  c = BIRD_COL[i % 4];
-
-    float dK = sdTriangle(q, vec2(1.02, 0.50), vec2(1.55, 0.36), vec2(1.02, 0.20));     // beak
-    over(col, ORANGE, fill(dK, px));
-    over(col, INK, pen(abs(dK), ink, px));
-
-    float dB = (length(q / vec2(1.0, 0.62)) - 1.0) * 0.62;                               // body
-    float dH = length(q - vec2(0.72, 0.38)) - 0.42;                                     // head
-    float dT = sdTriangle(q, vec2(-0.75, 0.05), vec2(-1.45, 0.38), vec2(-1.38, -0.22)); // tail
-    float d = smin(smin(dB, dH, 0.15), dT, 0.08);
-    over(col, c, fill(d, px));
-    over(col, INK, pen(abs(d), ink, px));
-
-    float dE = length(q - vec2(0.84, 0.48)) - 0.13;                                     // eye
-    over(col, WARM_WHITE, fill(dE, px));
-    over(col, INK, fill(length(q - vec2(0.88, 0.48)) - 0.06, px));
-    over(col, INK, pen(abs(dE), ink * 0.7, px));
-
-    float mode = sPlan(B, i).x;                              // wing: lazy, tucked in the dive, fast climbing
-    float hz = mode > 1.5 ? FLAP_CLIMB_HZ : FLAP_HZ;
-    float flap = sin(iTime * 6.2832 * hz + float(i) * 1.7);
-    float ang = mode > 0.5 && mode < 1.5 ? 2.85 + 0.08 * flap : 2.2 + 0.75 * flap;
-    float dW = sdLeaf(rot(q - vec2(-0.05, 0.2), ang), 1.25);
-    over(col, mix(c, INK, 0.25), fill(dW, px));
-    over(col, INK, pen(abs(dW), ink, px));
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -184,6 +150,5 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     drawPeople(col, p, uv);
     drawSplats(col, p, uv);
     drawPoops(col, p);
-    for (int i = 0; i < BIRDS; i++) drawBird(col, p, i);
     fragColor = vec4(col, 1.0);
 }

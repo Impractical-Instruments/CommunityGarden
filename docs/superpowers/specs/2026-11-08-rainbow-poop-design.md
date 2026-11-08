@@ -1,6 +1,6 @@
 # Rainbow Poop — shader player Setup
 
-A new FundingCAPTCHA shader player Setup (ADR-0021), from issue #161. A flock of cartoon birds circles overhead. Every few seconds one of them picks a visitor, swoops down, and drops a rainbow poop that splats on their silhouette. The splats stick to the person, follow them as they move, drip, and fade. A visitor who dodges at the right moment makes the bird miss, and the poop splats on the ground instead.
+A new FundingCAPTCHA shader player Setup (ADR-0021), from issue #161. **The birds were cut after the first build; see [Revisions](#revisions-after-the-first-build).** A flock of cartoon birds circles overhead. Every few seconds one of them picks a visitor, swoops down, and drops a rainbow poop that splats on their silhouette. The splats stick to the person, follow them as they move, drip, and fade. A visitor who dodges at the right moment makes the bird miss, and the poop splats on the ground instead.
 
 ## Intent
 
@@ -67,3 +67,10 @@ Headless GL tests in the style of `test_hunter_bird.py`, with the real `BodyBlob
 - state stays bounded and finite through huge time steps
 
 Unverified until run with the real camera: how the cadence and dodge timing feel, and frame rate on the Pi 5.
+
+## Revisions after the first build
+
+- **No birds.** The flock, dives and climbs are gone. A poop appears just above the top of the screen and falls straight down at a steady `FALL_SPEED` (0.2 sh/s) with a gentle sideways sway, slow enough to watch the whole way. One poop per person is in the air at a time.
+- **Aim and dodging are unchanged in spirit.** The drop point is over the person's head, led by their velocity × the time to fall to their head, and clamped on screen. Turning round after it appears makes it miss; a miss falls on to the floor at their feet.
+- **Cadence** is the same per person (`FIRST_BOMB_S`, then `BOMB_EVERY_S` ± `BOMB_JITTER_S`), counted from each drop.
+- **Bigger splats.** Splats are twice the radius (`SPLAT_R` 0.15 × box height), sit a little deeper on the body (`SPLAT_SINK`, `SINK_SPREAD`), and floor puddles double to match (`GROUND_R`). The falling poop is larger (`POOP_R`) so it reads at that scale.

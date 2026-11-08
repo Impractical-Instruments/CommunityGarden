@@ -36,7 +36,9 @@ SPLAT_LIFE_S  = const("SPLAT_LIFE_S")
 GROUND_LIFE_S = const("GROUND_LIFE_S")
 FIRST_BOMB_S, FIRST_JITTER = const("FIRST_BOMB_S"), const("FIRST_JITTER")
 BOMB_EVERY_S, BOMB_JITTER_S = const("BOMB_EVERY_S"), const("BOMB_JITTER_S")
-DIVE_S = const("DIVE_S")
+SPAWN_Y, FALL_SPEED = const("SPAWN_Y"), const("FALL_SPEED")
+HEAD = 1 - 8 / 40                         # UV y of the test people's heads
+FALL_S = (SPAWN_Y - HEAD) / FALL_SPEED     # seconds a poop takes to reach them
 
 
 @pytest.fixture(scope="module")
@@ -84,9 +86,9 @@ class Rig:
     def _watch(self):
         b = self.b()
         for k in range(8):
-            if b[7, k * 8, 2] == 0:                       # age 0: landed this frame
+            if b[4, k * 8, 2] == 0:                       # age 0: landed this frame
                 self.hits.append((self.t, k))
-        if b[8, 0, 2] == 0:
+        if b[5, 0, 2] == 0:
             self.misses.append(self.t)
 
     def b(self) -> np.ndarray:
@@ -96,11 +98,11 @@ class Rig:
 
     def slot(self, k):    return self.b()[0, k]          # id, due s, presence
     def anchor(self, k):  return self.b()[1, k]           # top-centre x, y, height
-    def bird(self, i):    return self.b()[2, i]           # x, y, vx, vy
-    def plan(self, i):    return self.b()[3, i]           # mode, t, ±(slot+1), id
-    def drop(self, i):    return self.b()[6, i]           # slot+1, floor, -, age
-    def splats(self, k):  return self.b()[7, k * 8:(k + 1) * 8]   # x, y, age, seed
-    def grounds(self):    return self.b()[8, :8]
+    def poop(self, k):    return self.b()[2, k]           # sway centre x, y, phase
+    def drop(self, k):    return self.b()[3, k]           # falling, floor, -, age
+    def splats(self, k):  return self.b()[4, k * 8:(k + 1) * 8]   # x, y, age, seed
+    def grounds(self):    return self.b()[5, :8]
+    def falling(self):    return [k for k in range(8) if self.drop(k)[0] > 0.5]
 
     def live_splats(self, k):
         s = self.splats(k)
@@ -137,22 +139,14 @@ def flickering(n, x=27, seed=0):
     return out
 
 
-# ── The flock ─────────────────────────────────────────────────────────────────
+# ── The empty room ────────────────────────────────────────────────────────────
 
-def test_empty_room_birds_circle_in_the_sky(ctx):
+def test_empty_room_drops_nothing(ctx):
     rig = Rig(ctx)
-    ys = []
     for _ in range(40):                                   # 12 s
         rig.run([EMPTY] * 3)
-        ys += [rig.bird(i)[1] for i in range(4)]
-    assert min(ys) > 0.6                                  # never come down
-    assert all(rig.plan(i)[0] == 0 for i in range(4))
+        assert not rig.falling()
     assert not rig.hits and not rig.misses
-    xs = [rig.bird(i)[0] for i in range(4)]
-    assert max(xs) - min(xs) > 0.1                        # spread out, not one clump
-    a = [rig.bird(i)[:2].copy() for i in range(4)]
-    rig.run([EMPTY] * 5)
-    assert all(np.linalg.norm(rig.bird(i)[:2] - a[i]) > 0.01 for i in range(4))   # moving
 
 
 # ── Bombing a standing person ─────────────────────────────────────────────────
@@ -162,8 +156,8 @@ def test_standing_person_is_hit_soon_after_appearing(ctx):
     rig.run(flickering(60))                               # 6 s
     assert rig.hits, "never hit"
     first = rig.hits[0]
-    # confirmed after ~0.4 s, then the first countdown, the dive and the fall
-    assert first[0] < 0.4 + FIRST_BOMB_S + FIRST_JITTER + DIVE_S + 0.8
+    # confirmed after ~0.4 s, then the first countdown and the fall
+    assert first[0] < 0.4 + FIRST_BOMB_S + FIRST_JITTER + FALL_S + 0.5
     assert first[1] == 0 and not rig.misses
 
 
@@ -175,7 +169,7 @@ def test_splat_lands_on_the_head_in_the_persons_frame(ctx):
     x, y = s[0, 0], s[0, 1]
     half_w = 10 / 64 * (128 / 72) / 2 / (28 / 40)        # half the body width, in box heights
     assert abs(x) < half_w * 1.2                          # over the body
-    assert -0.2 < y < 0.0                                 # just below the box top
+    assert -0.25 < y < 0.0                                # just below the box top
 
 
 def test_cadence_is_about_every_five_seconds(ctx):
@@ -189,12 +183,32 @@ def test_cadence_is_about_every_five_seconds(ctx):
     assert not rig.misses
 
 
-def test_one_bird_per_person_at_a_time(ctx):
+def test_poop_falls_slowly_from_the_top(ctx):
     rig = Rig(ctx)
-    for _ in range(80):
+    seen, ys = 0.0, []
+    for _ in range(60):
         rig.run(flickering(1))
-        diving = [rig.plan(i) for i in range(4) if rig.plan(i)[0] == 1]
-        assert len(diving) <= 1
+        if rig.falling():
+            seen = max(seen, rig.drop(0)[3])
+            ys.append(rig.poop(0)[1])
+        if rig.hits:
+            break
+    assert rig.hits and ys
+    assert ys[0] > 0.98                                   # it starts at the top of the sky
+    assert seen > 1.0                                     # and takes over a second to arrive
+    assert abs(seen - FALL_S) < 0.3
+
+
+def test_one_poop_per_person_at_a_time(ctx):
+    rig = Rig(ctx)
+    drops = 0
+    was = False
+    for _ in range(150):
+        rig.run(flickering(1))
+        now = bool(rig.falling())
+        drops += now and not was
+        was = now
+    assert drops == len(rig.hits) or drops == len(rig.hits) + 1   # one in the air at a time
 
 
 def test_two_people_both_get_hit(ctx):
@@ -267,21 +281,20 @@ def test_new_person_in_a_reused_slot_starts_clean(ctx):
 # ── Dodging ───────────────────────────────────────────────────────────────────
 
 def dodge(rig):
-    """Pace at 2 px per camera frame until a poop is falling, then turn round for 1.5 s."""
-    x, v = 4, 2
-    for _ in range(200):
-        x += v
-        if x > 46: v = -2
-        if x < 4:  v = 2
+    """Walk right at 1 px per camera frame until a poop drops, then back left at 2 px until it lands."""
+    x = 4
+    for _ in range(45):
+        x += 1
         rig.run([rect(x, 8, x + 10, 36)])
-        if any(rig.drop(i)[0] for i in range(4)):
+        if rig.falling():
             break
     else:
-        pytest.fail("never released")
-    v = -v
-    for _ in range(15):
-        x = int(np.clip(x + v, 0, 54))
+        pytest.fail("nothing dropped")
+    for _ in range(int((SPAWN_Y - 0.1) / FALL_SPEED * 10) + 15):   # a miss falls to their feet
+        x = max(x - 2, 0)
         rig.run([rect(x, 8, x + 10, 36)])
+        if not rig.falling():
+            break
 
 
 def test_reversing_after_the_release_dodges(ctx):
@@ -319,28 +332,41 @@ def test_splats_drawn_only_on_the_silhouette(ctx):
     assert rig.live_splats(0).size
     img = rig.image()
     sat = colourful(img)
-    # The body rect(27, 8, 37, 36) in BIG pixels (row 0 = bottom); birds can be anywhere above it.
+    # The body rect(27, 8, 37, 36) in BIG pixels (row 0 = bottom).
     c0, c1 = int(27 / 64 * BIG[0]), int(37 / 64 * BIG[0])
     r0, r1 = int((1 - 36 / 40) * BIG[1]), int((1 - 8 / 40) * BIG[1])
     on = sat[r0:r1, c0:c1].sum()
     assert on > 20
     beside = sat[r0:r1 - 30, c1 + 3:c1 + 40].sum() + sat[r0:r1 - 30, c0 - 40:c0 - 3].sum()
-    assert beside == 0                                    # no splat colour off the body below the birds
+    assert beside == 0                                    # no splat colour off the body
 
 
-def test_empty_room_is_paper_birds_and_clouds(ctx):
+def test_empty_room_is_paper_and_clouds(ctx):
     rig = Rig(ctx, BIG)
     rig.run([EMPTY] * 10)
     img = rig.image()
-    low = img[:int(BIG[1] * 0.5)]                         # the lower half is empty paper
+    low = img[:int(BIG[1] * 0.6)]                         # below the clouds: plain paper
     assert (np.abs(low[..., :3].astype(int) - PAPER).max(axis=-1) < 6).all()
-    assert colourful(img[int(BIG[1] * 0.6):]).sum() > 20  # birds up there
+    assert colourful(img).sum() == 0                      # nothing in the sky
+
+
+def test_falling_poop_is_drawn(ctx):
+    rig = Rig(ctx, BIG)
+    for _ in range(60):
+        rig.run(flickering(1))
+        if rig.falling() and rig.drop(0)[3] > 0.4:
+            break
+    assert rig.falling()
+    u, v = rig.poop(0)[:2]
+    r, c = int(v * BIG[1]), int(u * BIG[0])
+    assert colourful(rig.image()[r - 10:r + 10, max(c - 12, 0):c + 12]).sum() > 10
 
 
 def test_ground_puddle_is_drawn_at_the_feet(ctx):
     rig = Rig(ctx, BIG)
     dodge(rig)
     assert rig.misses
+    rig.run([EMPTY] * 5)                                  # past the splat-in
     g = rig.grounds()[0]
     r, c = int(g[1] * BIG[1]), int(g[0] * BIG[0])
     assert colourful(rig.image()[max(r - 8, 0):r + 8, max(c - 20, 0):c + 20]).sum() > 10
