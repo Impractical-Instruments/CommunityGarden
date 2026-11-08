@@ -6,14 +6,14 @@
 // Retune on site and press R to reload.
 
 // ── Smear ────────────────────────────────────────────────────────────────────
-const float SMEAR_STRENGTH = 0.63;   // fraction of edge motion that moves paint (sketch slider 45 × 1.4)
+const float SMEAR_STRENGTH = 1.5;    // paint speed / edge speed (sketch was 0.63). Second to FLOW_EPS in effect
 const float THIN           = 0.5;    // what counts as an extremity: 0 only the thinnest … 1 almost all
 const float RING_R1        = 0.045;  // extremity rings: how much of these is Body decides thin vs. broad
 const float RING_R2        = 0.08;
 const float STREAK_BASE    = 0.7;    // finger streaks across a stroke: base + amp × noise
 const float STREAK_AMP     = 0.6;
 const float STREAK_FREQ    = 45.0;   // streaks per screen height
-const float MIX_MOVE       = 0.35;   // pigment mixing where paint is moving
+const float MIX_MOVE       = 0.5;    // pigment mixing where paint is moving
 const float MIX_WET        = 0.04;   // ... and where it's still wet
 
 // ── Motion (normal flow from the eased Body changing between frames) ─────────
@@ -22,7 +22,8 @@ const float BODY_SOFT      = 0.04;   // softens the Body edge (screen heights). 
                                      // between frames read as a sliding edge, which carries paint along
 const float BODY_EASE_S    = 0.12;   // eases the 10 Hz Body so flow is smooth and 1-px flicker averages out
 const float FLOW_TAP       = 0.006;  // gradient half-step, screen heights
-const float FLOW_EPS       = 4.0;    // regularises v = −dB/dt · ∇B / (|∇B|² + eps); small, as the soft Body's |∇B| is small
+const float FLOW_EPS       = 0.25;   // regularises v = −dB/dt · ∇B / (|∇B|² + eps). The biggest smear knob: 4.0 swamped
+                                     // |∇B|² and underestimated limb speed several-fold; lower = stronger smear
 const float FLOW_MAX       = 2.5;    // screen heights per second
 const float MIN_FLOW       = 0.1;    // edge motion slower than this (screen heights/s) is ignored: 1-camera-px jitter is ~0.05, limbs 0.5–1.5
 const float BALANCE_LO     = 0.35;   // movement gains Body ahead and loses it behind in equal measure;
@@ -33,8 +34,8 @@ const float BALANCE_HI     = 0.7;    // appearing, vanishing and flicker only ga
 const float MIX_TAP        = 0.0045; // pigment-mixing neighbourhood, screen heights
 
 // ── Wet look ─────────────────────────────────────────────────────────────────
-const float WET_DECAY      = 0.35;   // per second; smears look wet for ~3 s
-const float WET_DARKEN     = 0.07;   // wet paint reads this much darker
+const float WET_DECAY      = 0.2;    // per second; smears look wet for ~5 s
+const float WET_DARKEN     = 0.15;   // wet paint reads this much darker
 
 // ── Heal ─────────────────────────────────────────────────────────────────────
 const float HEAL_DELAY_S   = 2.0;    // room empty this long before healing starts
