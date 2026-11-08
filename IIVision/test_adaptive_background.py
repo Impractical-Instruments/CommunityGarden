@@ -49,6 +49,7 @@ class Rig:
     def __init__(self, **cfg) -> None:
         self.clock = Clock()
         cfg.setdefault("stats_log_s", 0)
+        cfg.setdefault("warmup_s", 0)
         self.model = AdaptiveBackground(
             AdaptiveBackgroundConfig(depth_delta_mm=DELTA, **cfg), clock=self.clock)
         self.tracker = BlobTracker(self.model, DET)
@@ -106,6 +107,45 @@ def test_unseen_pixels_are_never_foreground():
     fg = rig.step(depth)
     assert not fg[:, :10].any()
     assert fg[INSIDE].all()
+
+
+def test_startup_frames_reading_too_far_leave_no_ghosts():
+    # Measured on the Gemini 336: the first frames of a stream read up to ~400 mm
+    # too far (1 frame warm, ~5 cold), then step to the true depth. Seeding from
+    # them made the true floor "nearer" — little blobs that lasted absorb_s.
+    rig = Rig(warmup_s=1.0)
+    too_far = _scene(floor=FLOOR + 400)
+    fg = rig.step(too_far, 5)
+    assert not fg.any() and not rig.model.valid_mask.any(), "warm-up frames are ignored"
+    fg = rig.run_for(_scene(), 2.0)
+    assert not fg.any()
+    assert (rig.bg() == FLOOR).all()
+
+
+def test_far_outlier_first_sample_on_a_noisy_pixel_does_not_stick():
+    # Measured on the Gemini 336: a pixel at ~3.7 m with σ ≈ 80 mm whose first
+    # sample was a far outlier. Seeding bg from that one sample left every later
+    # reading "nearer" — foreground, never at bg, too jumpy to be absorbed.
+    rng = np.random.default_rng(1)
+    rig = Rig()
+    first = _scene()
+    first[INSIDE] = FLOOR + 400
+    rig.step(first)
+    fgs = []
+    for _ in range(int(20 * FPS)):
+        d = _scene()
+        d[INSIDE] = rng.normal(FLOOR, 80, d[INSIDE].shape).round()
+        fgs.append(rig.step(d)[INSIDE].mean())
+    assert np.mean(fgs[int(5 * FPS):]) < 0.001
+
+
+def test_seed_noise_comes_from_the_seeding_samples():
+    rng = np.random.default_rng(2)
+    rig = Rig()
+    for _ in range(AdaptiveBackgroundConfig().min_valid_frames):
+        rig.step(rng.normal(FLOOR, 50, (H, W)).round().astype(np.uint16))
+    assert 30 < float(np.median(rig.model.noise)) < 70
+    assert abs(float(np.median(rig.model.background.astype(float))) - FLOOR) < 20
 
 
 # ── Standing still ───────────────────────────────────────────────────────────
@@ -180,8 +220,8 @@ def test_gaussian_noise_on_empty_scene_has_under_0_1_percent_foreground():
     w, h, sigma = 160, 120, 20.0
     rng = np.random.default_rng(0)
     clock = Clock()
-    model = AdaptiveBackground(AdaptiveBackgroundConfig(depth_delta_mm=DELTA, stats_log_s=0),
-                               clock=clock)
+    model = AdaptiveBackground(AdaptiveBackgroundConfig(depth_delta_mm=DELTA, stats_log_s=0,
+                                                        warmup_s=0), clock=clock)
     tracker = BlobTracker(model, DET)
 
     def noisy() -> FramePacket:

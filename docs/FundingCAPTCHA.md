@@ -104,7 +104,7 @@ Top-level fields:
 - `min_foreground_pixels` — anti-noise threshold for Player presence
 - `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
 - `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
-- `background` — self-learning depth background (ADR-0023): `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
+- `background` — self-learning depth background (ADR-0023): `warmup_s` (ignore the camera's first, too-far frames), `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
 - Per-game blocks: `bodycaptcha`, `keepaway_body` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
 
 ---

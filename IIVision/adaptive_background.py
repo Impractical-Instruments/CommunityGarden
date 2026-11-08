@@ -6,10 +6,16 @@ background is the farthest depth it has held steadily, learned continuously
 from the first frame — with or without people in view. No standback, no
 calibration pass, nothing saved to disk.
 
+The first warmup_s of a stream are ignored: the Orbbec Gemini 336 reports
+depth up to ~400 mm too far for its first frames (1 frame warm, ~5 cold), and
+seeding from those leaves the true surface looking nearer — foreground until
+absorb_s.
+
 Per frame, for each pixel with a valid sample d (thr = max(depth_delta_mm,
 noise_k × noise)):
 
-  seed     first valid sample sets bg; valid after min_valid_frames samples
+  seed     bg and σ are the mean and spread of the first min_valid_frames
+           valid samples; the pixel is valid after them
   at bg    |d − bg| ≤ thr  → slow EMA of bg and of the noise σ estimate
   farther  d > bg + thr for reveal_frames in a row → bg = mean of those samples
   nearer   d < bg − thr held steady (within thr) for absorb_s → bg = d
@@ -41,6 +47,7 @@ _MAD_TO_SIGMA = 1.0 / 0.8
 class AdaptiveBackgroundConfig:
     depth_delta_mm: float = 80        # lower bound on thr (DetectionConfig.depth_delta_mm)
     min_depth_mm: int = 50            # samples below this are invalid (0 = no return)
+    warmup_s: float = 1.0             # ignore frames this soon after the first push
     min_valid_frames: int = 10        # valid samples before a pixel's bg is trusted
     reveal_frames: int = 5            # consecutive farther frames to move bg out
     noise_k: float = 4.0              # thr = max(depth_delta_mm, noise_k × σ)
@@ -82,6 +89,7 @@ class AdaptiveBackground:
         self.width = 0
         self.height = 0
         self._reseed_pending = False
+        self._t_first: float | None = None
         self._crowd_since: float | None = None
         self.reseed_count = 0
         # Timing stats (wall-clock, independent of the injected clock).
@@ -134,8 +142,14 @@ class AdaptiveBackground:
             raise ValueError(
                 f"Frame size {frame.width}x{frame.height} != model {self.width}x{self.height}")
 
+        now = self._clock()
+        if self._t_first is None:
+            self._t_first = now
+        if now - self._t_first < self.config.warmup_s:
+            return          # camera still settling; nothing valid, nothing foreground
+
         d = np.frombuffer(frame.data, dtype=np.uint16).astype(np.float32)
-        self._update(d, self._clock())
+        self._update(d, now)
 
         self.last_update_ms = (time.perf_counter() - t_start) * 1000.0
         self._record_stats()
@@ -145,6 +159,7 @@ class AdaptiveBackground:
         self.width, self.height = width, height
         self._bg = np.zeros(n, dtype=np.float32)
         self._noise = np.zeros(n, dtype=np.float32)
+        self._seed_m2 = np.zeros(n, dtype=np.float32)   # Welford sum of squares while seeding
         self._n_valid = np.zeros(n, dtype=np.uint16)
         self._reveal_n = np.zeros(n, dtype=np.uint16)
         self._reveal_sum = np.zeros(n, dtype=np.float32)
@@ -161,14 +176,26 @@ class AdaptiveBackground:
             self._reseed(d, ok, "requested")
             return
 
-        # 1. Seed: a pixel's first valid sample. Skip the other rules this frame.
-        seeded = self._n_valid > 0
-        new = ok & ~seeded
-        self._bg[new] = d[new]
-        self._noise[new] = cfg.depth_delta_mm
-        self._n_valid[ok & (self._n_valid < cfg.min_valid_frames)] += 1
+        # 1. Seed: bg and σ from the mean and spread of the first min_valid_frames
+        # valid samples (Welford). One sample alone is fragile: a far outlier on a
+        # noisy pixel would leave every later reading "nearer" — stuck foreground.
+        # The other rules start once the pixel is valid.
+        seeding = ok & (self._n_valid < cfg.min_valid_frames)
+        if seeding.any():
+            n = self._n_valid[seeding].astype(np.float32) + 1.0
+            ds = d[seeding]
+            mean = self._bg[seeding]
+            step = ds - mean
+            mean = mean + step / n
+            self._seed_m2[seeding] += step * (ds - mean)
+            self._bg[seeding] = mean
+            self._n_valid[seeding] += 1
+            done = seeding & (self._n_valid >= cfg.min_valid_frames)
+            k = cfg.min_valid_frames
+            self._noise[done] = np.sqrt(self._seed_m2[done] / max(1, k - 1))
+            self._seed_m2[done] = 0.0
 
-        live = ok & seeded
+        live = ok & ~seeding & (self._n_valid >= cfg.min_valid_frames)
         thr = np.maximum(cfg.depth_delta_mm, cfg.noise_k * self._noise)
         diff = d - self._bg
         at_bg = live & (np.abs(diff) <= thr)

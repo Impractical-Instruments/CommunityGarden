@@ -17,7 +17,8 @@ FundingCAPTCHA uses `IIVision.AdaptiveBackground`: **the farthest steady depth w
 
 Per pixel, all vectorised numpy, with `thr = max(depth_delta_mm, noise_k × σ)`. Samples below 50 mm, including 0 (no return), are ignored.
 
-1. **Seed.** The first valid sample sets `bg`, and σ starts at `depth_delta_mm`. The pixel is trusted (`valid`) after `min_valid_frames` valid samples.
+0. **Warm-up.** The first `warmup_s` of a stream are ignored. Measured on the Gemini 336: the first frames read up to ~400 mm too far (1 frame when warm, ~5 from cold). Seeding from them made the true surface look nearer, leaving little blobs that lasted until `absorb_s`.
+1. **Seed.** `bg` and σ are the mean and standard deviation of the first `min_valid_frames` valid samples, and the pixel is trusted (`valid`) after them. Seeding from a single sample is fragile: on a noisy far pixel (σ ≈ 80 mm at 3.7 m), one far outlier left every later reading "nearer", so the pixel was always foreground, never at background, and too jumpy to be absorbed.
 2. **At background** (`|d − bg| ≤ thr`). A slow EMA moves `bg` toward `d` (`bg_alpha`). An EMA of `|d − bg| / 0.8` tracks σ (`noise_alpha`). Mean absolute deviation is about 0.8σ.
 3. **Farther** (`d > bg + thr`) for `reveal_frames` frames in a row. `bg` becomes the mean of those samples. One frame that isn't farther resets the run, so flying pixels and multipath spikes can't push `bg` out.
 4. **Nearer** (`d < bg − thr`, which is foreground), holding steady within `thr`, for `absorb_s`. Then `bg = d`. This covers a dropped bag or a moved table. Any jump resets the timer.
@@ -29,6 +30,7 @@ Tunables live in `captcha-settings.json` → `background`. `detection.depth_delt
 
 | setting | default | note |
 |---|---|---|
+| `warmup_s` | 1.0 | covers the Gemini 336's cold-start frames plus settling |
 | `min_valid_frames` | 10 | about 0.7 s at 15 fps |
 | `reveal_frames` | 5 | |
 | `noise_k` | 4 | about the old 3×IQR threshold |
@@ -41,7 +43,7 @@ Tunables live in `captcha-settings.json` → `background`. `detection.depth_delt
 
 ## Behaviour
 
-- **Floor empty at boot.** Live as soon as pixels become valid, in under 1 s. There is no countdown or standback screen in any entry point.
+- **Floor empty at boot.** Live as soon as pixels become valid: `warmup_s` plus `min_valid_frames`, about 2 s. There is no countdown or standback screen in any entry point.
 - **Someone standing at boot.** They're invisible until they move. One step reveals the background behind them, and from then on they're tracked.
 - **A spot nobody ever uncovers.** It's never learned, and it's never falsely marked foreground either.
 - **Someone still for longer than `absorb_s`.** They're absorbed into the background, and they reappear when they move (rule 3).
@@ -51,7 +53,7 @@ Tunables live in `captcha-settings.json` → `background`. `detection.depth_delt
 
 - `calibration_frames`, `calibration_countdown_s` and `calibration_standback_s` are removed from `captcha-settings.json`. So are the BG_CAL state and the `cal_progress` / `cal_done` camera messages.
 - The model is never saved to disk. Each boot learns again from the first frame.
-- Per-frame update time is logged every `stats_log_s`: about 5 ms at 640×480 on a dev machine, against a 66 ms frame budget at 15 fps.
+- Per-frame update time is logged every `stats_log_s`: 12–14 ms mean (24 ms max) at 640×480 with the live Orbbec on the show PC, against a 66 ms frame budget at 15 fps.
 - Pixels with no valid background (open space beyond range) stay never-foreground, as before. Treating "no return" as infinitely far would be a separate change.
 - The model learns while the projector shows content. ADR-0004's black-frame-during-calibration rule came from the touch-screen setup that ADR-0013 removed; the camera now faces visitors, not the screen.
 - To check on hardware: the update time stays within the frame budget on the show machine; `absorb_s` suits real dwell times; and a dense crowd doesn't set off the bump guard. After a reseed the crowd becomes background, then heals as people leave. If that's not acceptable, require a scene-wide depth shift as well.

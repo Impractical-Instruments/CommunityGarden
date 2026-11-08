@@ -28,7 +28,8 @@
   "silhouette_opacity": 0.55,
 
   "background": {
-    "_comment": "Self-learning depth background (ADR-0023): the farthest steady depth wins. detection.depth_delta_mm is the lower bound on the threshold. absorb_s must stay above the longest deliberate stand-still (Watering can: 120 s).",
+    "_comment": "Self-learning depth background (ADR-0023): the farthest steady depth wins. detection.depth_delta_mm is the lower bound on the threshold. absorb_s must stay above the longest deliberate stand-still (Watering can: 120 s). warmup_s skips the camera's first frames, which read too far.",
+    "warmup_s": 1.0,
     "min_valid_frames": 10,
     "reveal_frames": 5,
     "noise_k": 4,

@@ -14,7 +14,7 @@ from shadertoy import pack_body
 SETTINGS = json.loads((Path(__file__).parent / "captcha-settings.json").read_text())
 
 
-def test_mock_camera_shows_bodies_within_about_a_second():
+def test_mock_camera_shows_bodies_within_about_two_seconds():
     # MockCamera has its bodies in view from frame 0. They must not wait for a
     # calibration pass, and must not be baked into the background for good.
     args = argparse.Namespace(camera=False, mock_camera=True, test_input=False)
@@ -22,7 +22,7 @@ def test_mock_camera_shows_bodies_within_about_a_second():
     t0 = time.monotonic()
     body_px = 0
     try:
-        while time.monotonic() - t0 < 3.0:
+        while time.monotonic() - t0 < 5.0:
             fg = drain_camera(cam_q)
             if fg is not None:
                 body = pack_body(fg, SETTINGS["camera_roi"], SETTINGS["depth_slabs"])
@@ -33,8 +33,10 @@ def test_mock_camera_shows_bodies_within_about_a_second():
         elapsed = time.monotonic() - t0
     finally:
         stop.set()
-    assert body_px > 200, "no body in the Body texture after 3 s"
-    assert elapsed < 1.5, f"bodies took {elapsed:.2f}s to appear"
+    assert body_px > 200, "no body in the Body texture after 5 s"
+    # background.warmup_s (1 s, the Orbbec's bad first frames) + min_valid_frames.
+    warmup = SETTINGS["background"]["warmup_s"]
+    assert elapsed < warmup + 1.5, f"bodies took {elapsed:.2f}s to appear"
 
 
 def test_no_calibration_settings_or_states_remain():
