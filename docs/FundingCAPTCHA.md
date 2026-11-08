@@ -75,6 +75,19 @@ To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_a
 
 ---
 
+## Playlist player — `playlist_app.py`
+
+Shader Setups and full-screen videos in one shuffle bag: every item plays once before any repeats. `playlist.json` defines the list:
+
+- `setups`: Setup folder names from `shaders/`. Each plays for `setup_duration_s` (300 s), which overrides the Setup's own `duration_s`.
+- `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show PC. Decoding uses PyAV (`av` in `requirements.txt`).
+
+A missing or unreadable item is logged and skipped. The camera runs throughout, so calibration happens once at startup.
+
+Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` as `shader_app.py`, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
+
+---
+
 ## Settings — `captcha-settings.json`
 
 Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — not gitignored, but per-host).
