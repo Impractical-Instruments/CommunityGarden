@@ -1,0 +1,8 @@
+{
+  "_comment": "Rainbow poop: a flock dive-bombs visitors with rainbow splats that stick. Spec: docs/superpowers/specs/2026-11-08-rainbow-poop-design.md",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["A", "B", "blobs"],
+    "image":    ["A", "B", "blobs"]
+  }
+}
