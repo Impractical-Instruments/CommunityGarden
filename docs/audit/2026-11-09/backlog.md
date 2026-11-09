@@ -1,6 +1,6 @@
 # Audit backlog — 2026-11-09
 
-Each item is sized to be one PR and one issue. Effort: **S** ≤ half day, **M** ≈ 1 day, **L** 2–3 days. "Gate" names a decision from [README §5](README.md#5-decisions-only-you-can-make) that must be made first. "Source" points at the section of the detail report with the evidence. Paths are repo-relative; `FC/` = `ShowControl/FundingCAPTCHA/`, `TH/` = `ShowControl/TreeHouse/`, `FB/` = `ShowControl/FlowerBeds/`.
+Each item is sized to be one PR and one issue. Effort: **S** ≤ half day, **M** ≈ 1 day, **L** 2–3 days. All six decisions in [README §5](README.md#5-decisions-made-2026-11-09) were made on 2026-11-09; the "Gate" column records which decision each item depended on. Nothing is gated now. "Source" points at the section of the detail report with the evidence. Paths are repo-relative; `FC/` = `ShowControl/FundingCAPTCHA/`, `TH/` = `ShowControl/TreeHouse/`, `FB/` = `ShowControl/FlowerBeds/`.
 
 Run `make test` before and after every item; it must stay at 303 passed. Items that delete tests say so.
 
@@ -12,22 +12,22 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 |---|---|---|---|---|
 | P0-01 | Tag and delete `Pipes Prototype 3/` | S | — | firmware §3b, §3c |
 | P0-02 | Collapse `MakeNoiseDay/` into `Lamplight2026/` | S | — | firmware §3b |
-| P0-03 | Prune `Lamplight2026/media/` | S | D4, D6 | firmware §3d |
+| P0-03 | Prune `Lamplight2026/media/` | S | D4 ✓, D6 ✓ | firmware §3d |
 | P0-04 | Delete `docs/superpowers/`, `docs/PRD.md`, `docs/games/`, two template docs | S | — | docs §1, §5, §6 |
 | P0-05 | Delete `Prototypes/`; move 2 fabrication READMEs | S | — | firmware §2 |
 | P0-06 | Delete `Club_Pico`, `HouseSwarming_Pico`, `Fungi_Pico` | S | — | firmware §1a |
 | P0-07 | Untrack `.vscode` cache; add PlatformIO ignores | S | — | firmware §1e, §5 |
 | P0-08 | Fix `_save_local({})` bug | S | — | fundingcaptcha §2 |
-| P0-09 | Delete unloaded Keepaway game and its data | S | D5 | fundingcaptcha §2 |
+| P0-09 | Delete unloaded Keepaway game and its data | S | D5 ✓ | fundingcaptcha §2 |
 | P0-10 | Delete FundingCAPTCHA dead members | S | — | fundingcaptcha §2 |
-| P0-11 | Delete `FC/distribution/` and the `sys.frozen` branch | S | D2 | fundingcaptcha §2 |
+| P0-11 | Delete `FC/distribution/` and the `sys.frozen` branch | S | D2 ✓ | fundingcaptcha §2 |
 | P0-12 | Delete dead IIVision RGB camera + unused exports | S | — | core §2 |
 | P0-13 | Delete core dead code (`looking_glass/deploy/`, `smoke_test.py`, setters, `ControllerConfig`…) | S | — | core §2 |
-| P0-14 | Retire TreeHouse Pico LED path per ADR-0020 | M | D1 | core §2 "Live-but-inert", firmware §1b |
+| P0-14 | Retire TreeHouse Pico LED path per ADR-0020 | M | D1 ✓ | core §2 "Live-but-inert", firmware §1b |
 | P0-15 | Fix Dashboard→TreeHouse controls | S | — | core §0.2 |
-| P0-16 | Resolve the 5 unimplemented OSC addresses | S–M | D3 | core §0.3, docs §2 ADR-0007 |
+| P0-16 | Remove the 5 unimplemented OSC addresses | S | D3 ✓ | core §0.3, docs §2 ADR-0007 |
 | P0-17 | Fix AGENTS.md: constraint #1 function name, constraint #3 claim, Node tests; drop `node --test` from Makefile | S | — | docs §2 AGENTS.md |
-| P0-18 | Fix TreeHouse `settings.json` unread keys | S | D1 | core §6 |
+| P0-18 | Fix TreeHouse `settings.json` unread keys | S | D1 ✓ | core §6 |
 | P0-19 | Delete 16 unreferenced LFS images | S | — | fundingcaptcha §1 |
 
 ### P0-01 Tag and delete `Pipes Prototype 3/`
@@ -40,10 +40,10 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **Do:** copy the two patchers into `Lamplight2026/patchers/`; remove the three `singleton.bootpath` entries from the `.maxproj`; delete `MakeNoiseDay/` (24 files, 16,178 lines). Open the project in Max once to confirm it resolves.
 - **Done when:** `Lamplight2026.maxproj` has no path outside its own folder; `MakeNoiseDay/` gone.
 
-### P0-03 Prune `Lamplight2026/media/` — gated D4, D6
+### P0-03 Prune `Lamplight2026/media/` — D4: keep all; D6: LFS stays
 - **Why:** 33 LFS files, 114 MB. 20 files (41 MB, incl. `tone.04.wav` 22 MB) are named by no patcher. Max can load buffers by message at runtime, so static grep is necessary but not sufficient.
-- **Do:** open the patch in Max, confirm the 20 are unused, `git rm` them. Decide D6 for the remaining ~73 MB. `grainflow.wav` is referenced but absent from `media/`; confirm it is a Grainflow package sample.
-- **Done when:** every file in `media/` is named by a patcher or a comment says why not.
+- **Decided:** keep all Lamplight2026 media in LFS. Only the Prototype 3 duplicates go (P0-01). `grainflow.wav` is referenced but absent from `media/`; confirm it is a Grainflow package sample.
+- **Done when:** P0-01 is done; nothing further.
 
 ### P0-04 Delete planning artefacts and template docs
 - **Why:** `docs/superpowers/` is 13 files / 4,328 lines (46% of all doc lines) of AI pair-programming transcripts; all five features are shipped and tested. `docs/PRD.md` is a May-2026 pre-festival snapshot. `docs/games/rhythm.md`, `upsidedown.md` describe code deleted in May; `bodycaptcha.md`/`bodygrid.md`/`keepaway.md` are stale (hold "resets" vs drains, progress bar vs ring, wrong module path, wrong `update()` signature). `docs/agents/domain.md` and `triage-labels.md` are unmodified third-party templates referencing files that do not exist here.
@@ -70,7 +70,7 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **Do:** delete `_save_local` and the call. Add a restart test (none exists) that asserts the file is untouched. Fix `docs/FundingCAPTCHA.md:93` ("not gitignored" — it is, `.gitignore:19`).
 - **Done when:** restart leaves the local file byte-identical; test proves it.
 
-### P0-09 Delete Keepaway — gated D5
+### P0-09 Delete Keepaway — D5: delete
 - **Why:** `FC/games/body_keepaway.py` (498 LOC), `keepaway-body-levels.json`, `keepaway-body-taunts.json`, `captcha-settings.json:44-49`. `app.py:349-351` hardcodes `("bodycaptcha",)`; `test_app_games.py:26-28` asserts Keepaway is not loaded. Unplugged in #142 (Sept), untouched since June. Git history is the retention mechanism.
 - **Do:** `git rm` the module and two JSON files; remove the settings block; drop the two assertions in `test_app_games.py`; delete `docs/games/keepaway.md` (P0-04 covers it). Also remove `BLUE` import and `hud_font`/`top_bar_height` imports left in `games/`.
 - **Done when:** `grep -ri keepaway` returns only ADR-0013's historical note.
@@ -79,7 +79,7 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **Why/what:** `ScreenSavers/waiting.py` (stub; `pipes_3d.py:382-402` draws the same overlay) + its `screensavers.json` entry; `games/grid.py:18-24` 7 colour aliases, `:26,90-91` `CELL_PAD`/`inner_rect`, `:67,93-115` `_flashes`/`flash`/`draw_flashes`, `:97-102` `draw_background`, `:117-120` `blit_cell`; `app.py:69-73` unused colours, `:284-285` empty section header; `app.py` `/ws` status channel + `broadcast()` (`:104,133-163,189-194`) — no client connects (Dashboard uses `/health` + `/logs`); `body_blobs.py:127-129` `BodyBlobs.active`; `captcha-settings.json:6` `detection.min_blob_pixels` (never consulted by `detect_foreground`); stale comments in `deploy/captcha.service:1,6-7`.
 - **Done when:** ~150 LOC gone; `make test` unchanged.
 
-### P0-11 Delete `FC/distribution/` — gated D2
+### P0-11 Delete `FC/distribution/` — D2: delete
 - **Why:** 297 LOC + READMEs. All three scripts from one commit (#94, 2026-05-23), never edited; the editor changed three times in Sept with no rebuild trail; `BodyCaptchaEditor.command` (#152) is the newer teammate path and the README itself tells Mac users to commit on a branch instead. `merge_levels.py` has no tests. `bodycaptcha_editor.py:16-19` `sys.frozen` branch exists only for this.
 - **Done when:** directory and frozen branch gone; `docs/FundingCAPTCHA.md:128` updated.
 
@@ -92,10 +92,9 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **What:** `TH/looking_glass/deploy/` (service self-declared OBSOLETE by ADR-0018; its `install.sh` is the only one adding the user to `_seat` — see P1-06); `scripts/hooks/smoke_test.py` (no-op stub, wired nowhere); `FB/flower_beds.py:128-135` `ControllerConfig` (unused, hardcodes `192.168.1.50`); `FB/visualizer.py:377-382` `_get_loop`; `FB/main.py:222-223,274` `calibration_state` (constant); unused setters `TH/displays/effect.py:51-62`, `video.py:57-61`, `led.py:49-53`, `base.py:58-62`, `coordinator.py:412-413` `Coordinator.get`; `FB/requirements.txt` `aiofiles`; `TH/requirements.txt` `numpy`; all pyflakes unused imports (list in core §2).
 - **Done when:** ~110 LOC gone; pyflakes clean on `IIVision ShowControl/FlowerBeds ShowControl/TreeHouse ShowControl/Dashboard ShowControl/OSCFabric`.
 
-### P0-14 Retire TreeHouse Pico LED path — gated D1
+### P0-14 Retire TreeHouse Pico LED path — D1: ESP32s installed, retire
 - **Why:** ADR-0020 promised removal once ESP32 hardware is installed. ADR-0021 made the ESP32s standalone. The Pi path cannot drive the documented hardware anyway: `coordinator.py:177` reads `pico`, settings has `pico_dioramas`/`pico_structure`; single `PicoDriver` at `main.py:149`; pin collisions (`dormer.pico_pin=0` vs `dioramas[0]`, `porch_lights=1` vs `dioramas[1]`); `LEDDisplay.update()` ignores GardenState (`led.py:60-63`).
-- **Do (if D1 = installed):** delete `pico_driver.py`, `displays/led.py`, `displays/effect.py`, `displays/porch_lights.py`, `LEDControllable`/`ChannelFrame`/`Color` in `base.py`, LED branches of `coordinator.py` (`DioramaConfig`, `DormerConfig`, F&F/porch config, `build_displays` LED cases, `get_all_frames`, `set_display_pattern`, `reset_porch_lights`), `test_forge_and_flora.py`, Dashboard LED/forge/porch controls (`treehouse.html` ~60 lines, `visualizer.py` endpoints `:92-127`), `Firmware/TreeHouse_PicoLEDs/`, `pico_*` + `attic` + `garage_windows` settings blocks, `--no-pico` flag, `docs/TreeHouse.md:15-17,164-171,234`. Finish the `*Display` → `*Controllable` rename at the same time (4 files). Mark ADR-0010 Superseded.
-- **Do (if D1 = not installed):** fix the key mismatch, add the second driver, fix pin collisions, say so in ADR-0020.
+- **Do:** delete `pico_driver.py`, `displays/led.py`, `displays/effect.py`, `displays/porch_lights.py`, `LEDControllable`/`ChannelFrame`/`Color` in `base.py`, LED branches of `coordinator.py` (`DioramaConfig`, `DormerConfig`, F&F/porch config, `build_displays` LED cases, `get_all_frames`, `set_display_pattern`, `reset_porch_lights`), `test_forge_and_flora.py`, Dashboard LED/forge/porch controls (`treehouse.html` ~60 lines, `visualizer.py` endpoints `:92-127`), `Firmware/TreeHouse_PicoLEDs/`, `pico_*` + `attic` + `garage_windows` settings blocks, `--no-pico` flag, `docs/TreeHouse.md:15-17,164-171,234`. Finish the `*Display` → `*Controllable` rename at the same time (4 files). Mark ADR-0010 Superseded.
 - **Done when:** `TH/` has one lighting path and the glossary's avoid-list matches the class names. ~800 LOC.
 
 ### P0-15 Fix Dashboard→TreeHouse controls
@@ -103,16 +102,16 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **Do:** change button values; delete `/control/forge-mode` + its button (the whole path is a no-op since `effect.py:79` overwrites mode every frame). Decide whether `serve.py /api/mode` stays (ties to P0-16). Add a FastAPI TestClient test for each `/control/*` route; there are none.
 - **Done when:** every Dashboard button does what its label says or does not exist.
 
-### P0-16 Resolve the 5 unimplemented OSC addresses — gated D3
+### P0-16 Remove the 5 unimplemented OSC addresses — D3: remove from schema
 - **Why:** ADR-0007 lists 11 addresses. `/flowerbeds/mode`, `/captcha/mode`, `/pipes/mode`, `/captcha/restart`, `/captcha/game_started` have no sender or receiver (only `OSCFabric/test_client.py:107` sends `game_started`). Only TreeHouse runs an OSC server. Dashboard relays mode into nothing for 3 of 4 Elements. Documented as live in `docs/FlowerBeds.md:103`, `docs/FundingCAPTCHA.md:158`, `docs/Dashboard.md:15,28`, ADR-0007:159-162.
-- **Do (implement):** add a listener to FlowerBeds `main.py` and FundingCAPTCHA `app.py` modelled on `TH/osc_server.py`; wire show mode to dim/stop behaviour. **Do (remove):** strike the five rows from ADR-0007 and the three docs; delete `serve.py /api/mode` and `send_event("game_started")` test.
-- **Done when:** every address in the schema has a grep-able sender and receiver.
+- **Do:** strike the five rows from ADR-0007 and the three docs; delete `serve.py /api/mode` and `send_event("game_started")` test.
+- **Done when:** every address in the schema has a grep-able sender and receiver; the Dashboard has no relay endpoint nobody calls.
 
 ### P0-17 Fix AGENTS.md and Makefile
 - **What:** `AGENTS.md:13` `Blob3D.world_pos_cm()` → `IIVision.transforms.orbbec_to_world()` (`world_pos_cm` is a *field* on `TrackedBlob`). `AGENTS.md:15` "firmware reads a generated `config.h`" → true only for `TreeHouse_Controllers/include/net_config.h`; either say so or close P1-04 first. `AGENTS.md:8` "Node tests (FundingCAPTCHA)" → none exist since 2026-05-11; drop `node --test` from `Makefile`, `.github/workflows/tests.yml` setup-node step, and `requirements`. Same fixes in `docs/agents/python-conventions.md:20,28`, `running-and-testing.md:6`, `firmware.md:9`, `configuration.md:113`.
 - **Done when:** every sentence in AGENTS.md is grep-verifiable.
 
-### P0-18 Fix TreeHouse `settings.json` unread keys — gated D1
+### P0-18 Fix TreeHouse `settings.json` unread keys — mostly subsumed by P0-14
 - **What:** `pico_dioramas`/`pico_structure` (code reads `pico`), `garage_windows.forge_and_flora.arc_led_count`/`bloom_led_count` (code reads `led_count`, default 48 on 20-px strips), `flicker_intensity` (code reads `base_`/`max_flicker_intensity`), whole `attic` block (nothing reads `attic`), `club_screen.interval_seconds` (club_screen reads six other keys), `looking_glass.mirror_depth` (read, never sent). ~25 lines.
 - **Do:** delete or rename each so every key has a reader; `club_screen.py` should also honour `--config` (it always loads `./settings.json`) and stop hardcoding 800×480.
 - **Done when:** a script that diffs settings keys vs `raw.get(...)` calls reports zero orphans.
@@ -201,7 +200,7 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 | P2-10 | `OSCFabric/gate.py` `SignalGate`; `FabricClient` and `LocationSender` wrap it | S | — | core §3d |
 | P2-11 | `FB/controllers.py` + `calibrate_motors.py` + `state.py`; `main.py` → ~180 LOC | M | — | core §3c, §4 |
 | P2-12 | `IIVision/blob_tracker.py` → `types/calibration/detector`; rename `BlobTracker`→`BlobDetector`; add detect/calibrate tests | M | — | core §4 |
-| P2-13 | `TH/coordinator.py` → `config.py` + `garden_state.py` + `branches.py`; `BranchController` as a `Controllable` | M | D1 first | core §4 |
+| P2-13 | `TH/coordinator.py` → `config.py` + `garden_state.py` + `branches.py`; `BranchController` as a `Controllable` | M | D1 ✓ first | core §4 |
 | P2-14 | `shadertoy.py` → package (`setup/body/keyboard/blobs_contract/renderer`) | S | — | fundingcaptcha §4 |
 | P2-15 | Settings `DEFAULTS` + startup validation for `captcha-settings.json` | S | after P2-01 | fundingcaptcha §5 |
 
@@ -262,7 +261,7 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 - **Do:** `types.py`, `calibration.py`, `detector.py` (`BlobDetector`, alias `BlobTracker`); `camera.py` → `orbbec.py` + `mock.py` after P0-12. Add tests for calibrate and detect on synthetic frames.
 - **Done when:** each file <220 LOC; CV path has tests.
 
-### P2-13 `TH/coordinator.py` split — after D1
+### P2-13 `TH/coordinator.py` split — after P0-14
 - **Why:** 9 config dataclasses `:33-125` + 110-line `load_config` `:132-275` + factory `:282-311` + `Coordinator` `:318-485` mixing Fabric intake/stale-sender policy, GardenState assembly, branch math, LED aggregation. `DioramaConfig`/`DormerConfig` mirror `LEDConfig` field-for-field. ADR-0006 wanted `BranchController(Controllable)`; it is a plain serial driver with the math in `Coordinator._update_branch_positions`.
 - **Do:** `config.py` (dataclasses with `from_dict`, `load_config`), `garden_state.py` (`SignalIntake`: setters, `_expire_stale_senders`, `snapshot()`; `test_dead_sender.py` targets this and stops asserting private attrs), `branches.py` (`branch_positions()` pure function + `BranchController(Controllable)`), `coordinator.py` ~80 LOC.
 

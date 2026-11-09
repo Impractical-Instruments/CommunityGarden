@@ -47,16 +47,18 @@ Also: AGENTS.md constraint #1 names `Blob3D.world_pos_cm()`, which does not exis
 
 **Phase 3 — Docs to one job each (1–2 days, after code settles).** 70 files → ~30, 9.3k lines → ~3k. New `docs/repo-map.md` and `docs/osc-fabric.md` as the single homes for layout and addresses; `docs/agents/` shrinks to `conventions`, `firmware`, `git-workflow`; ADRs get a status line, truncated superseded bodies, a README index, and the 0021 collision renumbered. `CONTEXT.md` becomes glossary-only and gains the five location names it currently omits.
 
-## 5. Decisions only you can make
+## 5. Decisions (made 2026-11-09)
 
-| # | Decision | Blocks |
-|---|---|---|
-| D1 | Are the ESP32-S3 controllers physically installed? If yes, execute ADR-0020's removal of the Pi Pico LED path (~800 LOC + firmware + Dashboard LED UI). | P0-14, P2-13 |
-| D2 | Is anyone still using the Windows PyInstaller build of the level editor (`distribution/`)? | P0-11 |
-| D3 | The 5 unimplemented OSC addresses: implement listeners, or delete from the schema and Dashboard? | P0-05, P3-04 |
-| D4 | 20 Lamplight2026 media files (41 MB LFS) are named by no patcher. Confirm in Max, then prune? | P0-03 |
-| D5 | Keep `body_keepaway.py` in git history only? The code says "retained for a future return"; the test asserts it is never loaded. | P0-09 |
-| D6 | Where do the remaining ~73 MB of referenced Pipes samples live: LFS here, or the private assets repo? | P0-03 |
+| # | Decision | Outcome | Effect |
+|---|---|---|---|
+| D1 | ESP32-S3 controllers installed? | **Yes** | Execute ADR-0020's removal of the Pi Pico LED path (P0-14, P0-18, P2-13 ungated). |
+| D2 | Windows PyInstaller editor build still used? | **No** | Delete `distribution/` (P0-11). |
+| D3 | Five unimplemented OSC addresses | **Remove from schema** | Strike from ADR-0007 and docs; delete Dashboard `/api/mode` relay (P0-16). |
+| D4 | 20 unreferenced Lamplight2026 media files | **Keep all** | P0-03 reduces to deleting the byte-identical Prototype 3 copies, which P0-01 already does. |
+| D5 | Keep `body_keepaway.py`? | **Delete** | P0-09 ungated. |
+| D6 | Where do Pipes samples live? | **Git LFS here** | No change. |
+
+Nothing in Phase 0 is gated any more.
 
 ## 6. Where to drill down
 
