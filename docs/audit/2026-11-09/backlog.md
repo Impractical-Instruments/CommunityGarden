@@ -10,25 +10,25 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 
 | ID | Task | Effort | Gate | Source |
 |---|---|---|---|---|
-| P0-01 | Tag and delete `Pipes Prototype 3/` | S | — | firmware §3b, §3c |
-| P0-02 | Collapse `MakeNoiseDay/` into `Lamplight2026/` | S | — | firmware §3b |
-| P0-03 | Prune `Lamplight2026/media/` | S | D4 ✓, D6 ✓ | firmware §3d |
-| P0-04 | Delete `docs/superpowers/`, `docs/PRD.md`, `docs/games/`, two template docs | S | — | docs §1, §5, §6 |
-| P0-05 | Delete `Prototypes/`; move 2 fabrication READMEs | S | — | firmware §2 |
-| P0-06 | Delete `Club_Pico`, `HouseSwarming_Pico`, `Fungi_Pico` | S | — | firmware §1a |
-| P0-07 | Untrack `.vscode` cache; add PlatformIO ignores | S | — | firmware §1e, §5 |
-| P0-08 | Fix `_save_local({})` bug | S | — | fundingcaptcha §2 |
-| P0-09 | Delete unloaded Keepaway game and its data | S | D5 ✓ | fundingcaptcha §2 |
-| P0-10 | Delete FundingCAPTCHA dead members | S | — | fundingcaptcha §2 |
-| P0-11 | Delete `FC/distribution/` and the `sys.frozen` branch | S | D2 ✓ | fundingcaptcha §2 |
-| P0-12 | Delete dead IIVision RGB camera + unused exports | S | — | core §2 |
-| P0-13 | Delete core dead code (`looking_glass/deploy/`, `smoke_test.py`, setters, `ControllerConfig`…) | S | — | core §2 |
-| P0-14 | Retire TreeHouse Pico LED path per ADR-0020 | M | D1 ✓ | core §2 "Live-but-inert", firmware §1b |
-| P0-15 | Fix Dashboard→TreeHouse controls | S | — | core §0.2 |
-| P0-16 | Remove the 5 unimplemented OSC addresses | S | D3 ✓ | core §0.3, docs §2 ADR-0007 |
-| P0-17 | Fix AGENTS.md: constraint #1 function name, constraint #3 claim, Node tests; drop `node --test` from Makefile | S | — | docs §2 AGENTS.md |
-| P0-18 | Fix TreeHouse `settings.json` unread keys | S | D1 ✓ | core §6 |
-| P0-19 | Delete 16 unreferenced LFS images | S | — | fundingcaptcha §1 |
+| P0-01 (#180) | Tag and delete `Pipes Prototype 3/` | S | — | firmware §3b, §3c |
+| P0-02 (#181) | Collapse `MakeNoiseDay/` into `Lamplight2026/` | S | — | firmware §3b |
+| P0-03 (no-op) | Prune `Lamplight2026/media/` | S | D4 ✓, D6 ✓ | firmware §3d |
+| P0-04 (#182) | Delete `docs/superpowers/`, `docs/PRD.md`, `docs/games/`, two template docs | S | — | docs §1, §5, §6 |
+| P0-05 (#183) | Delete `Prototypes/`; move 2 fabrication READMEs | S | — | firmware §2 |
+| P0-06 (#184) | Delete `Club_Pico`, `HouseSwarming_Pico`, `Fungi_Pico` | S | — | firmware §1a |
+| P0-07 (#185) | Untrack `.vscode` cache; add PlatformIO ignores | S | — | firmware §1e, §5 |
+| P0-08 (#186) | Fix `_save_local({})` bug | S | — | fundingcaptcha §2 |
+| P0-09 (#187) | Delete unloaded Keepaway game and its data | S | D5 ✓ | fundingcaptcha §2 |
+| P0-10 (#188) | Delete FundingCAPTCHA dead members | S | — | fundingcaptcha §2 |
+| P0-11 (#189) | Delete `FC/distribution/` and the `sys.frozen` branch | S | D2 ✓ | fundingcaptcha §2 |
+| P0-12 (#190) | Delete dead IIVision RGB camera + unused exports | S | — | core §2 |
+| P0-13 (#191) | Delete core dead code (`looking_glass/deploy/`, `smoke_test.py`, setters, `ControllerConfig`…) | S | — | core §2 |
+| P0-14 (#192) | Retire TreeHouse Pico LED path per ADR-0020 | M | D1 ✓ | core §2 "Live-but-inert", firmware §1b |
+| P0-15 (#193) | Fix Dashboard→TreeHouse controls | S | — | core §0.2 |
+| P0-16 (#194) | Remove the 5 unimplemented OSC addresses | S | D3 ✓ | core §0.3, docs §2 ADR-0007 |
+| P0-17 (#195) | Fix AGENTS.md: constraint #1 function name, constraint #3 claim, Node tests; drop `node --test` from Makefile | S | — | docs §2 AGENTS.md |
+| P0-18 (#196) | Fix TreeHouse `settings.json` unread keys | S | D1 ✓ | core §6 |
+| P0-19 (#197) | Delete 16 unreferenced LFS images | S | — | fundingcaptcha §1 |
 
 ### P0-01 Tag and delete `Pipes Prototype 3/`
 - **Why:** 110 files, 133,349 lines, 6.8 MB tracked (64% of repo bytes), 112 MB LFS. Transitive reachability from `Lamplight2026.maxpat` over bpatcher names and object text reaches nothing in it. Ten `.amxd`/`.maxpat` pairs are byte-identical apart from a 20-byte header. Its 24 media files are byte-identical to Lamplight2026's.
@@ -309,9 +309,11 @@ Run `make test` before and after every item; it must stay at 303 passed. Items t
 
 ---
 
-## Side items already filed
+## Issues filed (2026-11-09)
 
 - **#174** Delete 17 stale remote branches.
+- **#175** Phase 0 umbrella; sub-issues #180–#197 (P0-03 not filed, no-op after D4/D6).
+- **#176** Phase 1 umbrella. **#178** Phase 2 umbrella. **#179** Phase 3 umbrella. Break these out into items when picked up.
 
 ## Counting
 

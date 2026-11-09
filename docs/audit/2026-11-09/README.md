@@ -62,10 +62,10 @@ Nothing in Phase 0 is gated any more.
 
 ## 6. Where to drill down
 
-- [`backlog.md`](backlog.md) — 40 tasks with IDs, effort, gates, files, done-when, and source section.
+- [`backlog.md`](backlog.md) — 53 tasks with IDs, effort, files, done-when, and source section. Filed as GitHub issues #175–#197 (Phase 0 items individually, Phases 1–3 as umbrellas).
 - [`detail/fundingcaptcha.md`](detail/fundingcaptcha.md) — 487 lines: inventory, dead code, 13 duplication sites, module splits, config key→reader table, test critique.
 - [`detail/showcontrol-core.md`](detail/showcontrol-core.md) — 780 lines: IIVision/FlowerBeds/TreeHouse/Dashboard/OSCFabric/scripts, packaging plan, settings keys nothing reads, ADR-by-ADR drift.
 - [`detail/firmware-prototypes-pipes.md`](detail/firmware-prototypes-pipes.md) — 253 lines: live/dead per firmware dir, Max patch reachability analysis, media sizes, LFS.
 - [`detail/docs.md`](detail/docs.md) — 466 lines: every doc with verdict, every stale claim doc:line → code, redundancy map, target doc tree, README stub contents.
 
-This directory is itself temporary: once the backlog is in the issue tracker, delete `docs/audit/`.
+This directory is itself temporary. The backlog is now in the issue tracker (#175, #176, #178, #179); delete `docs/audit/` when Phase 3 closes (P3-09).
