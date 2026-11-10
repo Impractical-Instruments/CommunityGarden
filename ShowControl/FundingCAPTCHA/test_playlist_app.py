@@ -1,0 +1,203 @@
+"""playlist_app.py: playlist file, video decoding and pacing, letterbox, rotation."""
+import json
+import time
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+from playlist_app import Item, Playlist, VideoPlayer, fit_rect, load_playlist
+from shadertoy import Renderer
+from test_shadertoy import SOLID, ctx  # noqa: F401  (GL context fixture)
+
+
+# ── Playlist file ─────────────────────────────────────────────────────────────
+
+def test_load_playlist(tmp_path):
+    p = tmp_path / "playlist.json"
+    p.write_text(json.dumps({"setup_duration_s": 300, "setups": ["a"], "videos": ["v.mp4"]}))
+    cfg = load_playlist(p)
+    assert cfg.items == [Item("setup", "a"), Item("video", "v.mp4")]
+    assert cfg.setup_duration_s == 300
+
+
+def test_shipped_playlist_names_real_setups():
+    cfg = load_playlist(Path(__file__).parent / "playlist.json")
+    shaders = Path(__file__).parent / "shaders"
+    for item in cfg.items:
+        if item.kind == "setup":
+            assert (shaders / item.name / "image.glsl").exists(), item.name
+
+
+# ── Letterbox ─────────────────────────────────────────────────────────────────
+
+def test_fit_rect_letterboxes_wide_video():
+    assert fit_rect((1920, 800), (1920, 1080)) == (0, 140, 1920, 800)
+
+
+def test_fit_rect_pillarboxes_tall_video():
+    assert fit_rect((1080, 1080), (1920, 1080)) == (420, 0, 1080, 1080)
+
+
+def test_fit_rect_scales_up():
+    assert fit_rect((640, 360), (1920, 1080)) == (0, 0, 1920, 1080)
+
+
+# ── Video ─────────────────────────────────────────────────────────────────────
+
+def _write_video(path: Path, n: int = 6, rate: int = 10) -> Path:
+    av = pytest.importorskip("av")
+    with av.open(str(path), "w") as out:
+        s = out.add_stream("mpeg4", rate=rate)
+        s.width, s.height, s.pix_fmt = 32, 16, "yuv420p"
+        for i in range(n):
+            img = np.zeros((16, 32, 3), dtype=np.uint8)
+            img[..., 0] = i * 40                  # red encodes the frame number
+            for pkt in s.encode(av.VideoFrame.from_ndarray(img, format="rgb24")):
+                out.mux(pkt)
+        for pkt in s.encode():
+            out.mux(pkt)
+    return path
+
+
+def _wait(cond, timeout=5.0):
+    end = time.monotonic() + timeout
+    while not cond():
+        assert time.monotonic() < end, "timed out"
+        time.sleep(0.01)
+
+
+def test_video_paces_frames_and_ends(tmp_path):
+    now = [100.0]
+    v = VideoPlayer(_write_video(tmp_path / "v.mp4"), clock=lambda: now[0])
+    try:
+        assert v.rate == 10
+        _wait(lambda: not v._q.empty())
+        first = v.frame()
+        assert first is not None and first.shape == (16, 32, 3)
+        assert v.frame() is None                  # next frame not due yet
+        now[0] += 0.25
+        _wait(lambda: v._eof.is_set())
+        mid = v.frame()
+        assert mid is not None and mid[..., 0].mean() == pytest.approx(80, abs=12)   # frame 2
+        assert not v.done
+        now[0] += 0.3                             # last frame (t=0.5) due
+        assert v.frame() is not None
+        assert not v.done                         # it still gets its 1/rate on screen
+        now[0] += 0.1
+        assert v.done and v.error is None
+    finally:
+        v.close()
+
+
+def test_missing_video_raises(tmp_path):
+    pytest.importorskip("av")
+    with pytest.raises(Exception):
+        VideoPlayer(tmp_path / "nope.mp4")
+
+
+# ── Playlist rotation ─────────────────────────────────────────────────────────
+
+class _FakeVideo:
+    rate = 30.0
+
+    def __init__(self, path):
+        if not Path(path).name.startswith("ok"):
+            raise FileNotFoundError(path)
+        self.path, self.done, self.error, self.closed = Path(path), False, None, False
+
+    def close(self):
+        self.closed = True
+
+
+def _setups(root: Path, *names: str) -> Path:
+    for name in names:
+        (root / name).mkdir()
+        (root / name / "image.glsl").write_text(SOLID)
+        (root / name / "setup.json").write_text(json.dumps({"duration_s": 10}))
+    return root
+
+
+def _playlist(ctx, tmp_path, items, now):
+    r = Renderer(ctx, (4, 4))
+    pl = Playlist(r, items, 300, shader_dir=_setups(tmp_path, "a", "b"),
+                  video_dir=tmp_path, open_video=_FakeVideo, clock=lambda: now[0])
+    return r, pl
+
+
+def test_setup_plays_playlist_duration_not_its_own(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("setup", "a"), Item("setup", "b")], now)
+    pl.next()
+    first = pl.current
+    now[0] = 11.0                                 # past the Setup's own duration_s
+    pl.tick()
+    assert pl.current == first
+    now[0] = 300.0
+    pl.tick()
+    assert pl.current != first
+    r.release()
+
+
+def test_video_plays_until_done_then_closes(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("video", "ok.mp4"), Item("setup", "a")], now)
+    pl._bag.next = iter([Item("video", "ok.mp4"), Item("setup", "a")]).__next__
+    pl.next()
+    video = pl.video
+    assert pl.playing_video and r.setup is None
+    now[0] = 1000.0
+    pl.tick()
+    assert pl.video is video                      # no time limit on videos
+    video.done = True
+    pl.tick()
+    assert video.closed and pl.video is None and pl.current == Item("setup", "a")
+    assert r.setup is not None and r.setup.name == "a"
+    r.release()
+
+
+def test_missing_video_is_skipped(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("video", "gone.mp4"), Item("setup", "a")], now)
+    pl._bag.next = iter([Item("video", "gone.mp4"), Item("setup", "a")]).__next__
+    pl.next()
+    assert pl.current == Item("setup", "a") and not pl.playing_video
+    r.release()
+
+
+def test_nothing_playable_goes_black_then_retries(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("video", "gone.mp4")], now)
+    pl.next()
+    assert pl.current is None
+    calls = []
+    pl.next = lambda: calls.append(now[0])
+    now[0] = 1.0
+    pl.tick()
+    assert calls == []
+    now[0] = 5.0
+    pl.tick()
+    assert calls == [5.0]
+    r.release()
+
+
+def test_render_failure_drops_setup(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("setup", "a"), Item("video", "ok.mp4")], now)
+    pl._bag.next = iter([Item("setup", "a")]).__next__
+    pl.next()
+    pl.failed(RuntimeError("boom"))
+    assert pl.items == [Item("video", "ok.mp4")]
+    assert pl.playing_video
+    r.release()
+
+
+def test_single_setup_is_not_reloaded_on_expiry(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("setup", "a")], now)
+    pl.next()
+    first = r.setup
+    now[0] = 300.0
+    pl.tick()
+    assert r.setup is first and pl.started == 300.0
+    r.release()

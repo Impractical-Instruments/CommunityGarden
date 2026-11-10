@@ -53,7 +53,7 @@ When handing in, don't copy the blob painter tab. In `setup.json`, write `"blobs
 
 ## Images (optional)
 
-A Setup can paint over a picture instead of generating everything ([ADR-0023](../../../docs/adr/0023-shader-player-image-channel.md)). Put `.png` or `.jpg` files in `shaders/<your-setup>/images/` and bind `"image"` in `setup.json`. Each time the Setup plays, the player shuffles to the next one. No repeats until all have shown.
+A Setup can paint over a picture instead of generating everything ([ADR-0024](../../../docs/adr/0024-shader-player-image-channel.md)). Put `.png` or `.jpg` files in `shaders/<your-setup>/images/` and bind `"image"` in `setup.json`. Each time the Setup plays, the player shuffles to the next one. No repeats until all have shown.
 
 - In Shadertoy, use one of its built-in textures in that channel as a stand-in.
 - Sample it with `texture()` and its `iChannelResolution` for aspect. Row 0 is the bottom, as with every channel.

@@ -363,9 +363,15 @@ def test_person_has_white_fill_and_ink_outline(ctx):
     rig = Rig(ctx, BIG)
     rig.run(standing(10))                                 # rect(36, 8, 46, 36): UV x 0.5625–0.719, y 0.1–0.8
     img = rig.image()
-    assert near(img[to_px(0.64, 0.62)], "white")          # upper body: fill
-    row = to_px(0.64, 0.62)[0]
-    left = to_px(0.5625, 0.62)[1]
+    # Sample above the idle reticle: it rests near the centre, and its upper-right tick
+    # crosses this edge around v 0.62, where it covers the outline on some GPUs, not others.
+    v = 0.74
+    rx, ry, rr, _ = rig.reticle()
+    aspect = BIG[0] / BIG[1]
+    assert np.hypot((0.5625 - rx) * aspect, v - ry) > rr + 16 / 360   # beyond the reticle's reach
+    assert near(img[to_px(0.64, v)], "white")             # upper body: fill
+    row = to_px(0.64, v)[0]
+    left = to_px(0.5625, v)[1]
     assert any(near(img[row, c], "ink") for c in range(left - 3, left + 1))   # outline just outside
 
 

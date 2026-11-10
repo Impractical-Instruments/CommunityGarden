@@ -24,7 +24,7 @@ A slot keeps its track for the track's whole life. In Shadertoy the source is
 shaders/blob_painter.glsl in a spare buffer.
 
 Source "image" is one image from <setup>/images/, chosen per load by
-shader_app.Rotation (ADR-0023); unbound (reads 0, resolution 0) without one.
+shader_app.SetupImages (ADR-0024); unbound (reads 0, resolution 0) without one.
 
 Channel sources: "A" "B" "C" "D" "keyboard" "blobs" "image" or null. Buffers are linear-
 filtered and clamped like Shadertoy's, but RGBA16F where Shadertoy's are
@@ -341,7 +341,7 @@ class Renderer:
             self._painter = self._compile("", PAINTER_PATH.read_text(), "body_painter")
             self._painter_buf = _PingPong(ctx, size)
 
-        self._image_tex = None                     # this load's "image" source (ADR-0023)
+        self._image_tex = None                     # this load's "image" source (ADR-0024)
         self._passes:  dict[str, tuple] = {}       # pass → (prog, vao)
         self._buffers: dict[str, _PingPong] = {}
         self.setup: Setup | None = None

@@ -1,4 +1,4 @@
-# ADR 0023 — Shader player image channel: one shuffled image per load
+# ADR 0024 — Shader player image channel: one shuffled image per load
 
 **Status:** Accepted
 **Amends:** [ADR-0021](0021-fundingcaptcha-shader-player.md)
@@ -11,7 +11,7 @@ ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't 
 
 1. **A new channel source, `"image"`.** It's bound like any other source in `setup.json`. It binds one image from the Setup's own `images/` folder (`.png`, `.jpg`, `.jpeg`, any case; other files are ignored). The texture is RGBA8, linear-filtered and clamped like every channel, with no mipmaps. `iChannelResolution` reports its size in pixels.
 
-2. **One image per load, shuffled.** `shader_app.Rotation` keeps one `arc.ShuffleBag` of image paths per Setup for the whole run. It draws the next one on every real load, so no image repeats until all have shown.
+2. **One image per load, shuffled.** `shader_app.SetupImages` (used by both `shader_app.Rotation` and `playlist_app.Playlist`) keeps one `arc.ShuffleBag` of image paths per Setup for the whole run. It draws the next one on every real load, so no image repeats until all have shown.
    - **R** (hot reload) is a real load and advances the bag.
    - A Setup that's the only one playing (`--setup NAME`, or a one-entry `setups.json`) isn't reloaded when its `duration_s` runs out (ADR-0021), so it keeps its image.
    - If the folder's file list changes, the bag is rebuilt on the next load.
