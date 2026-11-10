@@ -527,7 +527,7 @@ def test_rotation_calls_on_load_for_every_load(ctx, tmp_path):
     r.release()
 
 
-# ── Image source (ADR-0023) ───────────────────────────────────────────────────
+# ── Image source (ADR-0024) ───────────────────────────────────────────────────
 
 SHOW_CH0 = ("void mainImage(out vec4 o, in vec2 f) {"
             " o = vec4(texture(iChannel0, f / iResolution.xy).rgb,"
@@ -637,3 +637,12 @@ def test_pick_display_out_of_range_falls_back_to_first():
     from shader_app import pick_display
     assert pick_display([(1920, 1080)], 2) == (0, (1920, 1080))
     assert pick_display([(1920, 1080)], -1) == (0, (1920, 1080))
+
+
+def test_display_index_flag_beats_settings():
+    from argparse import Namespace
+    from shader_app import display_index
+    settings = {"shader_app": {"display": 1}}
+    assert display_index(Namespace(display=None), settings) == 1
+    assert display_index(Namespace(display=2), settings) == 2
+    assert display_index(Namespace(display=None), {}) == 0

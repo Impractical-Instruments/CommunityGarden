@@ -8,7 +8,7 @@ import pytest
 
 from playlist_app import Item, Playlist, VideoPlayer, fit_rect, load_playlist
 from shadertoy import Renderer
-from test_shadertoy import SOLID, ctx  # noqa: F401  (GL context fixture)
+from test_shadertoy import SOLID, _image_setup, _rendered_colour, ctx  # noqa: F401  (GL context fixture)
 
 
 # ── Playlist file ─────────────────────────────────────────────────────────────
@@ -200,4 +200,17 @@ def test_single_setup_is_not_reloaded_on_expiry(ctx, tmp_path):
     now[0] = 300.0
     pl.tick()
     assert r.setup is first and pl.started == 300.0
+    r.release()
+
+
+def test_setup_gets_a_shuffled_image_per_load(ctx, tmp_path):
+    """The "image" source works under the playlist as under shader_app.Rotation (ADR-0024)."""
+    _image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255)})
+    r = Renderer(ctx, (4, 4))
+    pl = Playlist(r, [Item("setup", "s")], 300, shader_dir=tmp_path, video_dir=tmp_path)
+    pl.next()
+    seen = [_rendered_colour(r)]
+    pl.reload()
+    seen.append(_rendered_colour(r))
+    assert set(seen) == {(255, 0, 0, 255), (0, 255, 0, 255)}
     r.release()

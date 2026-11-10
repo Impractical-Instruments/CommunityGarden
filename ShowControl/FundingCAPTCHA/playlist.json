@@ -1,6 +1,6 @@
 {
   "_comment": "playlist_app.py: one shuffle bag of shader Setups (shaders/<name>/) and videos (files in videos/, which is gitignored — copy them onto the show PC). Each Setup plays setup_duration_s, overriding its own duration_s; each video plays to the end of its file, silent and letterboxed. A missing or unreadable item is skipped.",
   "setup_duration_s": 300,
-  "setups": ["ripples", "endless_sunset", "hunter_bird", "watering_can", "rainbow_poop"],
+  "setups": ["ripples", "endless_sunset", "hunter_bird", "watering_can", "rainbow_poop", "watercolor_smudge"],
   "videos": []
 }
