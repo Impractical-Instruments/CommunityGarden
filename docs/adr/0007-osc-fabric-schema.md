@@ -22,7 +22,7 @@ The TreeHouse OSC receive side had four addresses sketched in `osc_server.py`; t
 | `/treehouse/mode` | Dashboard → TreeHouse | string | `"active"` \| `"dim"` \| `"inactive"` |
 | `/flowerbeds/mode` | Dashboard → FlowerBeds | string | `"active"` \| `"dim"` \| `"inactive"` |
 | `/captcha/mode` | Dashboard → CAPTCHA | string | `"active"` \| `"dim"` \| `"inactive"` |
-| `/captcha/restart` | Any → CAPTCHA | (no args) | Hard-restart CV pipeline: close camera, reopen, redo background calibration |
+| `/captcha/restart` | Any → CAPTCHA | (no args) | Hard-restart CV pipeline: close camera, reopen, relearn the depth background (ADR-0023) |
 | `/pipes/mode` | Dashboard → Pipes | string | `"active"` \| `"dim"` \| `"inactive"` |
 | `/treehouse/brightness` | TouchOSC → TreeHouse | float 0.0–1.0 | Debug/operator override only; not part of the mode system |
 
