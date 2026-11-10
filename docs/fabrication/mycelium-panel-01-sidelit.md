@@ -107,7 +107,7 @@ DATA      →[300Ω]──→  GP0   (pin 1)
 
 ### 7. Load Firmware
 1. Flash Pico with MicroPython if not already done (download UF2 from micropython.org, drag to RPI-RP2 drive).
-2. Copy `../firmware/panel_gradient.py` to the Pico as `main.py` using Thonny or `mpremote`.
+2. Copy `panel_gradient.py` (the prototype test firmware, no longer in the tree: `git show 56de83c:Prototypes/GlowPanels/firmware/panel_gradient.py`) to the Pico as `main.py` using Thonny or `mpremote`.
 3. Set `NUM_LEDS = 18`, `MODE = "A"` for the first test.
 4. Power up — strands should glow, bright at the bottom edge, fading toward the top.
 5. Switch to `MODE = "B"` and re-run to compare the breathing effect.
