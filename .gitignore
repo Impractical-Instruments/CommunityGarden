@@ -14,14 +14,19 @@ Log/
 **/*.pyo
 .venv/
 *.calibration.npz
-layout_calibrated.json
 
-# Local calibration data (machine-specific, written by touch_test_pygame.py)
+# FundingCAPTCHA per-host settings override (machine-specific)
 captcha-settings.local.json
 
 # BodyCaptcha editor build artifacts (PyInstaller output)
 ShowControl/FundingCAPTCHA/distribution/dist/
 ShowControl/FundingCAPTCHA/distribution/build_work/
+
+# PlatformIO / VS Code generated files
+**/.pio/
+**/.vscode/c_cpp_properties.json
+**/.vscode/launch.json
+**/.vscode/ipch/
 
 # Backup settings
 *settings.json.bak
