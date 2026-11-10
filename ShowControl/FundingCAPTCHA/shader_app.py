@@ -33,12 +33,14 @@ os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
 
 import moderngl
+import numpy as np
 import pygame
 
 from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
 from body_blobs import BlobConfig, BodyBlobs
-from shadertoy import BodyMouse, Renderer, VERT, js_keycode, load_setup, pack_body
+from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, decode_image, js_keycode,
+                       load_setup, pack_body)
 
 try:
     from IIVision import MockCamera, OrbbecCamera
@@ -84,6 +86,40 @@ class _TestMouse:
         return self.state
 
 
+class SetupImages:
+    """The "image" source's pictures (ADR-0024): a shuffle bag per Setup, one image per load.
+
+    Shared by Rotation and playlist_app.Playlist. Images keep enough pixels to
+    cover `cover` (the window), with no side beyond `max_side` (the GPU's limit).
+    """
+
+    def __init__(self, cover: tuple[int, int] = (4096, 4096), max_side: int = 16384) -> None:
+        self._cover    = cover
+        self._max_side = max_side
+        self._bags: dict[str, tuple] = {}             # name → (files, ShuffleBag, undecodable)
+
+    def next(self, setup) -> np.ndarray | None:
+        """Decode the next image from this Setup's bag; None if none decode."""
+        files, bag, bad = self._bags.get(setup.name, (None, None, set()))
+        if files != setup.images:                     # first load, or images/ changed (R)
+            files, bag = list(setup.images), ShuffleBag([p for p in setup.images if p not in bad])
+        for _ in range(len(files)):
+            path = bag.next()
+            if path is None:
+                break
+            try:
+                image = decode_image(path, self._cover, self._max_side)
+            except ShaderError as exc:
+                log.error("%s: image dropped: %s", setup.name, exc)
+                bad.add(path)
+                bag = ShuffleBag([p for p in files if p not in bad])
+                continue
+            self._bags[setup.name] = (files, bag, bad)
+            return image
+        self._bags[setup.name] = (files, bag, bad)
+        return None
+
+
 class Rotation:
     """Which Setup plays: shuffle-bag order, each for its duration_s.
 
@@ -92,8 +128,10 @@ class Rotation:
     """
 
     def __init__(self, renderer: Renderer, names: list[str],
-                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None) -> None:
+                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None,
+                 image_max: tuple[int, int] = (4096, 4096), image_max_side: int = 16384) -> None:
         self.renderer = renderer
+        self._images  = SetupImages(image_max, image_max_side)
         self._on_load = on_load                       # called after every successful load
         self.names    = list(names)
         self._bag     = ShuffleBag(self.names)
@@ -135,7 +173,9 @@ class Rotation:
 
     def _load(self, name: str) -> bool:
         try:
-            self.renderer.load(load_setup(self._dir / name))
+            setup = load_setup(self._dir / name)
+            image = self._images.next(setup) if setup.uses_image else None
+            self.renderer.load(setup, image=image)
         except Exception as exc:                      # team-authored content: never fatal
             log.error("Setup %s skipped: %s", name, exc)
             return False
@@ -143,6 +183,14 @@ class Rotation:
         if self._on_load is not None:
             self._on_load()
         return True
+
+
+def pick_display(sizes: list[tuple[int, int]], index: int) -> tuple[int, tuple[int, int]]:
+    """(display index, its desktop size). An index with no display falls back to the first."""
+    if not 0 <= index < len(sizes):
+        log.warning("No display %d (%d connected) — using display 0", index, len(sizes))
+        index = 0
+    return index, tuple(sizes[index])
 
 
 def _setup_names() -> list[str]:
@@ -162,10 +210,22 @@ def add_mode_args(ap: argparse.ArgumentParser) -> None:
     mode.add_argument("--test-input",  action="store_true",
                       help="Mouse paints the Body with shaders/body_painter.glsl, as in Shadertoy")
     ap.add_argument("--windowed", action="store_true", help="1280×720 window instead of fullscreen")
+    ap.add_argument("--display", type=int, metavar="N",
+                    help="Display to go fullscreen on (0 = first); overrides shader_app.display")
 
 
-def open_display(windowed: bool, caption: str, mouse_visible: bool):
-    """pygame window with a GL 3.3 core context → (moderngl ctx, window size)."""
+def display_index(args, settings: dict) -> int:
+    """--display N, else shader_app.display, else the first display."""
+    if args.display is not None:
+        return args.display
+    return int(settings.get("shader_app", {}).get("display", 0))
+
+
+def open_display(windowed: bool, caption: str, mouse_visible: bool, display: int = 0):
+    """pygame window with a GL 3.3 core context → (moderngl ctx, window size).
+
+    Fullscreen goes on `display` (0 = first); a missing one falls back to the first.
+    """
     pygame.init()
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MAJOR_VERSION, 3)
     pygame.display.gl_set_attribute(pygame.GL_CONTEXT_MINOR_VERSION, 3)
@@ -175,9 +235,11 @@ def open_display(windowed: bool, caption: str, mouse_visible: bool):
         win = (1280, 720)
         pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF)
     else:
-        info = pygame.display.Info()
-        win  = (info.current_w, info.current_h)
-        pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN)
+        sizes = pygame.display.get_desktop_sizes()
+        display, win = pick_display(sizes, display)
+        pygame.display.set_mode(win, pygame.OPENGL | pygame.DOUBLEBUF | pygame.FULLSCREEN,
+                                display=display)
+        log.info("Fullscreen on display %d of %d", display, len(sizes))
     pygame.display.set_caption(caption)
     pygame.mouse.set_visible(mouse_visible)
     ctx = moderngl.create_context()        # also attaches to SDL's EGL context (kmsdrm)
@@ -229,6 +291,7 @@ class ShaderStage:
         cam_cfg = settings.get("camera", {})
         scale = float(cfg.get("render_scale", 0.5))
         self.ctx, self.win = ctx, win
+        self.max_texture_side = int(ctx.info["GL_MAX_TEXTURE_SIZE"])
         self.res   = (max(1, int(win[0] * scale)), max(1, int(win[1] * scale)))
         self.slabs = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500}])
         self.roi   = settings.get("camera_roi",
@@ -312,10 +375,12 @@ def main() -> None:
     if (args.camera or args.mock_camera) and not _CV_AVAILABLE:
         sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
 
-    ctx, win = open_display(args.windowed, "Shader player", args.test_input)
+    ctx, win = open_display(args.windowed, "Shader player", args.test_input,
+                            display_index(args, settings))
     stage    = ShaderStage(ctx, win, settings, args.test_input)
     rotation = Rotation(stage.renderer, [args.setup] if args.setup else _setup_names(),
-                        on_load=stage.blobs.reset)
+                        on_load=stage.blobs.reset,
+                        image_max=win, image_max_side=stage.max_texture_side)
     rotation.next()
     cam_q, stop = start_camera(args, settings)
 

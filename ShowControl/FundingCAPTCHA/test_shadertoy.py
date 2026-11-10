@@ -13,7 +13,7 @@ import pytest
 
 from shadertoy import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLOB_PAINTER_PATH,
                        BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, BodyMouse, Keyboard, Renderer,
-                       ShaderError, js_keycode, load_setup, pack_body)
+                       ShaderError, decode_image, js_keycode, load_setup, pack_body)
 
 SHADER_DIR = Path(__file__).parent / "shaders"
 
@@ -150,6 +150,68 @@ def test_js_keycode():
     assert js_keycode(pygame.K_1) == 49
     assert js_keycode(pygame.K_LSHIFT) == 16
     assert js_keycode(pygame.K_F12) is None
+
+
+def _png(path: Path, size: tuple[int, int], colour: tuple, rows: list | None = None) -> Path:
+    """Solid PNG, or one colour per row band (top first) when `rows` is given."""
+    from PIL import Image
+    im = Image.new("RGBA", size, colour)
+    if rows:
+        band = size[1] // len(rows)
+        for i, c in enumerate(rows):
+            for y in range(i * band, (i + 1) * band):
+                for x in range(size[0]):
+                    im.putpixel((x, y), c)
+    im.save(path)
+    return path
+
+
+def test_load_setup_lists_images_sorted_ignoring_others(tmp_path):
+    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}})
+    (d / "images").mkdir()
+    for n in ("b.JPG", "a.png", "c.jpeg", "notes.md", ".DS_Store"):
+        (d / "images" / n).write_bytes(b"x")
+    s = load_setup(d)
+    assert [p.name for p in s.images] == ["a.png", "b.JPG", "c.jpeg"]
+    assert s.uses_image
+
+
+def test_load_setup_without_images_folder_has_no_images(tmp_path):
+    s = load_setup(_write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}}))
+    assert s.images == [] and s.uses_image
+
+
+def test_setup_without_image_source_does_not_use_image(tmp_path):
+    assert not load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})).uses_image
+
+
+def test_decode_image_puts_bottom_row_first(tmp_path):
+    p = _png(tmp_path / "t.png", (1, 2), (0, 0, 0, 255), rows=[(255, 0, 0, 255), (0, 0, 255, 255)])
+    a = decode_image(p, (64, 64))
+    assert a.shape == (2, 1, 4) and a.dtype == np.uint8
+    assert tuple(a[0, 0]) == (0, 0, 255, 255) and tuple(a[1, 0]) == (255, 0, 0, 255)
+
+
+def test_decode_image_downscales_only_while_still_covering(tmp_path):
+    p = _png(tmp_path / "w.png", (400, 200), (10, 20, 30, 255))
+    assert decode_image(p, (100, 100)).shape == (100, 200, 4)     # covers 100×100, aspect kept
+    assert decode_image(p, (1000, 1000)).shape == (200, 400, 4)   # never upscaled
+    assert decode_image(p, (100, 100), max_side=150).shape == (75, 150, 4)
+
+
+def test_decode_image_applies_exif_orientation(tmp_path):
+    from PIL import Image
+    im = Image.new("RGB", (40, 20), (200, 10, 10))
+    exif = Image.Exif()
+    exif[0x0112] = 6                                      # "rotate 90° CW to display"
+    im.save(tmp_path / "phone.jpg", exif=exif)
+    assert decode_image(tmp_path / "phone.jpg", (1000, 1000)).shape == (40, 20, 4)
+
+
+def test_decode_image_corrupt_raises(tmp_path):
+    (tmp_path / "bad.png").write_bytes(b"not a png")
+    with pytest.raises(ShaderError):
+        decode_image(tmp_path / "bad.png", (64, 64))
 
 
 # ── GL ────────────────────────────────────────────────────────────────────────
@@ -463,3 +525,124 @@ def test_rotation_calls_on_load_for_every_load(ctx, tmp_path):
     rot.reload()                                          # broken edit: nothing reloaded
     assert len(loads) == 2
     r.release()
+
+
+# ── Image source (ADR-0024) ───────────────────────────────────────────────────
+
+SHOW_CH0 = ("void mainImage(out vec4 o, in vec2 f) {"
+            " o = vec4(texture(iChannel0, f / iResolution.xy).rgb,"
+            "          iChannelResolution[0].x > 0.0 ? 1.0 : 0.0); }")
+
+
+def _image_setup(tmp_path: Path, images: dict[str, tuple | bytes] | None = None) -> Path:
+    """Setup "s" under tmp_path showing its image; images: name → solid RGBA or raw bytes."""
+    d = _write_setup(tmp_path, {"image.glsl": SHOW_CH0}, {"channels": {"image": ["image"]}})
+    if images is not None:
+        (d / "images").mkdir()
+        for name, v in images.items():
+            if isinstance(v, bytes):
+                (d / "images" / name).write_bytes(v)
+            else:
+                _png(d / "images" / name, (4, 4), v)
+    return d
+
+
+def test_image_channel_reaches_shader(ctx, tmp_path):
+    img = np.zeros((2, 1, 4), dtype=np.uint8)
+    img[0, 0] = (0, 0, 255, 255)                          # row 0 = bottom
+    img[1, 0] = (255, 0, 0, 255)
+    r = Renderer(ctx, (4, 4))
+    r.load(load_setup(_image_setup(tmp_path)), image=img)
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert _pixel(r, 1, 3) == (255, 0, 0, 255)            # GL y=3 is the top
+    assert _pixel(r, 1, 0) == (0, 0, 255, 255)
+    r.release()
+
+
+def test_unbound_image_reads_zero_resolution(ctx, tmp_path):
+    r = Renderer(ctx, (4, 4))
+    r.load(load_setup(_image_setup(tmp_path)))
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert _pixel(r, 1, 1) == (0, 0, 0, 0)
+    r.release()
+
+
+def _rendered_colour(r: Renderer) -> tuple:
+    r.render(1 / 30, (0, 0, 0, 0))
+    return _pixel(r, 1, 1)
+
+
+def test_rotation_shuffles_images_per_load(ctx, tmp_path):
+    from shader_app import Rotation
+    _image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255),
+                            "b.png": (0, 0, 255, 255)})
+    r = Renderer(ctx, (4, 4))
+    rot = Rotation(r, ["s"], shader_dir=tmp_path)
+    rot.next()
+    seen = [_rendered_colour(r)]
+    for _ in range(3):
+        rot.reload()
+        seen.append(_rendered_colour(r))
+    assert len(set(seen[:3])) == 3                        # no repeat until all have shown
+    assert seen[3] in seen[:3]
+    r.release()
+
+
+def test_rotation_skips_corrupt_image(ctx, tmp_path):
+    from shader_app import Rotation
+    _image_setup(tmp_path, {"bad.png": b"not a png", "good.png": (0, 255, 0, 255)})
+    r = Renderer(ctx, (4, 4))
+    rot = Rotation(r, ["s"], shader_dir=tmp_path)
+    rot.next()
+    colours = [_rendered_colour(r)]
+    for _ in range(3):
+        rot.reload()
+        colours.append(_rendered_colour(r))
+    assert colours == [(0, 255, 0, 255)] * 4
+    r.release()
+
+
+def test_rotation_with_only_corrupt_images_binds_nothing(ctx, tmp_path):
+    from shader_app import Rotation
+    _image_setup(tmp_path, {"bad.png": b"not a png"})
+    r = Renderer(ctx, (4, 4))
+    rot = Rotation(r, ["s"], shader_dir=tmp_path)
+    rot.next()
+    assert r.setup is not None and r.setup.name == "s"
+    assert _rendered_colour(r)[3] == 0
+    r.release()
+
+
+def test_rotation_scales_images_to_cover_image_max(ctx, tmp_path):
+    from shader_app import Rotation
+    d = _image_setup(tmp_path, {})
+    _png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
+    r = Renderer(ctx, (4, 4))
+    rot = Rotation(r, ["s"], shader_dir=tmp_path, image_max=(10, 10))
+    rot.next()
+    assert r.image_size == (20, 10)                       # smallest size that still covers 10×10
+    r.release()
+
+
+# ── Display choice ────────────────────────────────────────────────────────────
+
+def test_pick_display_uses_that_displays_own_size():
+    from shader_app import pick_display
+    sizes = [(3072, 1920), (1600, 1200)]
+    assert pick_display(sizes, 1) == (1, (1600, 1200))
+    assert pick_display(sizes, 0) == (0, (3072, 1920))
+
+
+def test_pick_display_out_of_range_falls_back_to_first():
+    from shader_app import pick_display
+    assert pick_display([(1920, 1080)], 2) == (0, (1920, 1080))
+    assert pick_display([(1920, 1080)], -1) == (0, (1920, 1080))
+
+
+def test_display_index_flag_beats_settings():
+    from argparse import Namespace
+    from shader_app import display_index
+    settings = {"shader_app": {"display": 1}}
+    assert display_index(Namespace(display=None), settings) == 1
+    assert display_index(Namespace(display=2), settings) == 2
+    assert display_index(Namespace(display=None), {}) == 0

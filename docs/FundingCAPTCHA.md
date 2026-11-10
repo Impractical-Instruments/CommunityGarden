@@ -84,7 +84,7 @@ Shader Setups and full-screen videos in one shuffle bag: every item plays once b
 
 A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
 
-Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` as `shader_app.py`, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
+Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display N` as `shader_app.py`, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
 
 ---
 
@@ -93,7 +93,7 @@ Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` as `shader_a
 Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — not gitignored, but per-host).
 
 Top-level fields:
-- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
+- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
 - `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
 - `detection` — `depth_delta_mm`, `min_blob_pixels`, `min_depth_mm`, `max_depth_mm`
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`

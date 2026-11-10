@@ -32,8 +32,8 @@ import numpy as np
 
 from app import DIR, load_settings
 from arc import ShuffleBag
-from shader_app import (SHADER_DIR, ShaderStage, add_mode_args, drain_camera,
-                        open_display, start_camera)
+from shader_app import (SHADER_DIR, SetupImages, ShaderStage, add_mode_args, display_index,
+                        drain_camera, open_display, start_camera)
 from shadertoy import Renderer, load_setup
 
 log = logging.getLogger("playlist_app")
@@ -233,8 +233,10 @@ class Playlist:
                  shader_dir: Path = SHADER_DIR, video_dir: Path = VIDEO_DIR,
                  open_video: Callable[[Path], VideoPlayer] = VideoPlayer,
                  clock: Callable[[], float] = time.monotonic,
-                 on_load: Callable[[], None] | None = None) -> None:
+                 on_load: Callable[[], None] | None = None,
+                 image_max: tuple[int, int] = (4096, 4096), image_max_side: int = 16384) -> None:
         self.renderer   = renderer
+        self._images    = SetupImages(image_max, image_max_side)
         self.items      = list(items)
         self.setup_duration_s = setup_duration_s
         self._bag       = ShuffleBag(self.items)
@@ -320,7 +322,9 @@ class Playlist:
 
     def _load_setup(self, name: str) -> bool:
         try:
-            self.renderer.load(load_setup(self._shaders / name))
+            setup = load_setup(self._shaders / name)
+            image = self._images.next(setup) if setup.uses_image else None
+            self.renderer.load(setup, image=image)
         except Exception as exc:                  # team-authored content: never fatal
             log.error("Setup %s skipped: %s", name, exc)
             return False
@@ -353,11 +357,13 @@ def main() -> None:
         if item.kind == "video" and not (VIDEO_DIR / item.name).is_file():
             log.warning("Video %s not found in %s — it will be skipped", item.name, VIDEO_DIR)
 
-    ctx, win = open_display(args.windowed, "Playlist player", args.test_input)
+    ctx, win = open_display(args.windowed, "Playlist player", args.test_input,
+                            display_index(args, settings))
     stage    = ShaderStage(ctx, win, settings, args.test_input)
     screen   = VideoScreen(ctx, win, stage.renderer.vbo)
     playlist = Playlist(stage.renderer, playlist_cfg.items, playlist_cfg.setup_duration_s,
-                        on_load=stage.blobs.reset)
+                        on_load=stage.blobs.reset,
+                        image_max=win, image_max_side=stage.max_texture_side)
     playlist.next()
     cam_q, stop = start_camera(args, settings)
 
