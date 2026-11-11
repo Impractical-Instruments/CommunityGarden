@@ -95,5 +95,5 @@ Arc progression uses a shuffle-bag over eligible Levels: after beating a Level, 
 - `captcha-settings.json` gains `depth_slabs`, `slab_styles`, `cell_activation_threshold`, `attract_dwell_s`, and `camera_roi` (crop, display-space coordinates). `camera.pos_cm` and `camera.rotation` (pitch/yaw/roll) drive the reprojection. Screen corner fields are removed.
 - `silhouette.py` provides `build_cam_transform(settings)` and `apply_cam_transform(fg, intrinsics, transform)`. Both camera entry points (`app.py`, `body_grid_tester.py`) use these. Games must not flip or reproject — frames arrive display-ready.
 - `games/grid.py` `blob_to_cell()` is replaced by pixel-to-cell logic operating on the slab mask.
-- UpsideDown, Rhythm, and Keepaway must be ported to the silhouette interaction model. Code deleted pending port; the design docs that were in `docs/games/` have since been removed (git history).
+- ~~UpsideDown, Rhythm, and Keepaway must be ported to the silhouette interaction model.~~ The UpsideDown and Rhythm ports were dropped (2026-11-11): their code was deleted with this ADR and their design docs (`docs/games/`) have since been removed.
 - BodyGrid is the first Game built for this interaction model.
