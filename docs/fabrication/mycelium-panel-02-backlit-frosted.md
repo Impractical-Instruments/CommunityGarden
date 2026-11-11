@@ -137,7 +137,7 @@ Mount the painted acrylic panel (frosted face toward interior) to the open face 
 ### 7. Load Firmware
 
 1. Flash Pico with MicroPython if not already done.
-2. Copy `../firmware/panel_gradient.py` to the Pico as `main.py`.
+2. Copy `panel_gradient.py` (the prototype test firmware, no longer in the tree: `git show 56de83c:Prototypes/GlowPanels/firmware/panel_gradient.py`) to the Pico as `main.py`.
 3. Set `NUM_LEDS = 54`, `MODE = "A"` for first test.
 4. Power up — strands should glow with a gradient running top-to-bottom.
 5. Switch to `MODE = "B"` and re-run for the breathing effect.
