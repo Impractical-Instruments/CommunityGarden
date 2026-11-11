@@ -13,11 +13,11 @@ Public API:
     Output type:         TrackedBlob
 """
 
-from .pipeline import PreStabilizeFilter, build_calibration, filter_positions_near_points, run_pipeline
-from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob, TrackState
+from .pipeline import build_calibration, filter_positions_near_points, run_pipeline
+from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
 from .blob_tracker import BackgroundModel, BlobTracker, Calibration, Calibrator, DetectionConfig, FramePacket
 from .adaptive_background import AdaptiveBackground, AdaptiveBackgroundConfig
-from .camera import MockCamera, OrbbecCamera, OrbbecRGBCamera, RGBFrame
+from .camera import MockCamera, OrbbecCamera
 from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
 from .silhouette_warp import reproject_silhouette
 
@@ -25,11 +25,9 @@ __all__ = [
     "build_calibration",
     "filter_positions_near_points",
     "run_pipeline",
-    "PreStabilizeFilter",
     "BlobStabilizer",
     "StabilizerConfig",
     "TrackedBlob",
-    "TrackState",
     "AdaptiveBackground",
     "AdaptiveBackgroundConfig",
     "BackgroundModel",
@@ -40,8 +38,6 @@ __all__ = [
     "FramePacket",
     "MockCamera",
     "OrbbecCamera",
-    "OrbbecRGBCamera",
-    "RGBFrame",
     "Rotator",
     "Transform",
     "look_yaw_degrees",
