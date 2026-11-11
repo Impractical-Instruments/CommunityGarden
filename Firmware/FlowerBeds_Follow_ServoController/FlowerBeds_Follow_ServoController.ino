@@ -22,9 +22,21 @@ const int32_t baud[MAX_BAUD] = {57600, 115200, 1000000, 2000000, 3000000};
 bool activeServos[DXL_BROADCAST_ID];
 
 // --- Network config ---
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0x15, 0x01 };
-IPAddress ip(192, 168, 1, 51);     // set for your LAN
-const uint16_t localPort = 9000;   // the port you will SEND OSC TO
+// Which board is being flashed: board <N> is firmware.flowerbeds_controller_<N>
+// in ShowControl/network.json. This is the only line to change per board.
+// Left at 0 so a fresh checkout does not compile until it is chosen; two boards
+// flashed with the same number would share a MAC and IP.
+#ifndef FLOWERBEDS_BOARD
+#define FLOWERBEDS_BOARD 0
+#endif
+
+// MAC, IP and port for that board. Generated from network.json by
+// scripts/hooks/firmware_config_gen.py — never edit addresses here.
+#include "config.h"
+
+byte mac[] = CG_MAC;
+IPAddress ip(CG_IP);
+const uint16_t localPort = CG_OSC_PORT;   // the port you will SEND OSC TO
 
 EthernetUDP Udp;
 const int ETH_CS_PIN = 5;

@@ -110,4 +110,4 @@ The tool writes only `coordinator.modules[]` and backs up `settings.json.bak` be
 }
 ```
 
-`scripts/hooks/firmware_config_gen.py` generates `Firmware/TreeHouse_Controllers/include/net_config.h` from this file; run it before flashing a location controller. The FlowerBeds servo controller firmware does not read generated config yet: its IP and MAC are hardcoded in the `.ino` (P1-04, #176). The TreeHouse branch controller uses USB serial and has no IP/MAC (see ADR-0005).
+`scripts/hooks/firmware_config_gen.py` generates the firmware headers from this file: `Firmware/TreeHouse_Controllers/include/net_config.h` for the location controllers and `Firmware/FlowerBeds_Follow_ServoController/config.h` for the FlowerBeds servo controllers. Run it after editing this file and before flashing. The TreeHouse branch controller uses USB serial and has no IP/MAC (see ADR-0005).
