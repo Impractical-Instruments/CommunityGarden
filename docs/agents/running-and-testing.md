@@ -3,9 +3,13 @@
 ## Tests
 
 ```bash
-make test          # Node tests (FundingCAPTCHA) + Python pytest (IIVision, ShowControl)
-python -m pytest   # Python only
+make test                 # Node tests (FundingCAPTCHA) + Python pytest (IIVision, ShowControl)
+make test-fast            # everything except FundingCAPTCHA; seconds
+make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
+python -m pytest          # Python only
 ```
+
+CI runs `test-fast` and `test-fundingcaptcha` as separate jobs and skips either when the PR cannot affect it. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
 
 ## Run FlowerBeds show control
 
