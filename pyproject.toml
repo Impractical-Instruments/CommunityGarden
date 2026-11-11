@@ -57,14 +57,20 @@ pipes = [
 camera = [
     "pyorbbecsdk2",
 ]
-# Everything the test suite imports: every Element's extra, so no test skips for
-# a missing module, plus the test tools.
+
+# Development and CI: `make` and `uv run` install this group into .venv by default,
+# from uv.lock. Every Element's extra, so no test skips for a missing module and any
+# Element runs locally, plus the test tools. Show machines use the extras above instead.
+[dependency-groups]
 dev = [
     "communitygarden[flowerbeds,treehouse,dashboard,fundingcaptcha,pipes]",
     "pytest>=8.0",
     "httpx>=0.24",
     "pytest-testmon>=2.3,<3",  # CI selects shader tests with it; see docs/agents/running-and-testing.md
 ]
+
+[tool.uv]
+required-version = ">=0.11"
 
 [tool.setuptools]
 packages = ["IIVision", "OSCFabric"]

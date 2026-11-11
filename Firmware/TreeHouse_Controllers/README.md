@@ -33,7 +33,7 @@ Then:
 
 ```bash
 cp include/secrets.h.example include/secrets.h   # then fill in the WiFi credentials
-python3 ../../scripts/hooks/firmware_config_gen.py   # refresh include/net_config.h
+uv run python ../../scripts/hooks/firmware_config_gen.py   # refresh include/net_config.h
 ```
 
 To build and flash, click the alien-head PlatformIO icon in the sidebar →

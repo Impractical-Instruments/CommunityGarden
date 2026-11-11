@@ -5,6 +5,18 @@ Show systems for [Connect Beyond Festival](https://www.connectbeyondfestival.com
 
 ---
 
+## Developing
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then from the repo root:
+
+```bash
+make setup    # once per clone
+make test
+cd ShowControl/FlowerBeds && uv run python main.py --mock-camera --no-osc   # run any Python with uv run
+```
+
+uv brings the right Python and packages; there is nothing else to install. More in [Running & testing](docs/agents/running-and-testing.md).
+
 ## Docs
 
 - **[bootstrap.md](docs/bootstrap.md)** — one-time hardware provisioning (fresh Pis, Windows host, operator laptop)

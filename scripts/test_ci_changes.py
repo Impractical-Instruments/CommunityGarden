@@ -90,6 +90,8 @@ def test_other_elements_run_only_the_fast_job(path):
     "scripts/install-git-hooks.sh",
     "scripts/hooks/firmware_config_gen.py",
     "pyproject.toml",
+    "uv.lock",
+    ".python-version",
 ])
 def test_shared_python_runs_both_python_jobs(path):
     assert jobs(path) == BOTH
@@ -129,6 +131,8 @@ def test_no_changed_files_runs_nothing():
     "ShowControl/FundingCAPTCHA/playlist.json",
     "ShowControl/network.json",
     "pyproject.toml",
+    "uv.lock",
+    ".python-version",
     "Makefile",
     ".github/workflows/tests.yml",
     ".github/workflows/testmon-data.yml",

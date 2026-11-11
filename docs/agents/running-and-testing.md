@@ -1,14 +1,27 @@
 # Running & Testing
 
+## One way to run Python
+
+On a dev machine and in CI, every Python command runs through [uv](https://docs.astral.sh/uv/). It is the only thing to install: `curl -LsSf https://astral.sh/uv/install.sh | sh` (Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`). uv then sets up `.venv` with the Python in `.python-version` and the exact packages in `uv.lock`, the same on every machine. It installs the `dev` group from `pyproject.toml`: every Element's dependencies and the test tools.
+
+- **`make …`** runs through uv already.
+- **Any other Python command:** put `uv run` in front, from anywhere in the repo. Example: `uv run python main.py --mock-camera`. Where a doc says `python3 x.py`, run `uv run python x.py`.
+- **Never** `pip install`, activate a venv, or call `.venv/bin/python` directly.
+- **Changing dependencies:** edit `pyproject.toml`, then run `uv lock` and commit `uv.lock` with it. CI fails if the two disagree.
+
+Show machines (the Pis and the Pipes PC) don't use this. They install an Element's extra with their system pip; see `docs/bootstrap.md`.
+
+Python is 3.11 because that is what the show Pis run (Pi OS bookworm). A 3.12+ feature would pass on a laptop and fail at the show. Change `.python-version` when the Pis move to a newer Pi OS.
+
 ## Tests
 
 ```bash
-pip install -e ".[dev]"   # first time, from the repo root: IIVision, OSCFabric and every test dependency
+make setup                # first time in a clone: .venv, plus the pre-commit hook
 make test                 # all Python tests (pytest: IIVision, ShowControl, scripts)
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
-python -m pytest          # the same as make test
-make test-firmware        # TreeHouse controller host tests (needs `pip install platformio`)
+uv run pytest IIVision    # any pytest arguments
+make test-firmware        # TreeHouse controller host tests (PlatformIO, run by uv)
 make build-firmware       # compile the signs-of-life, location and self-test firmware
 ```
 
@@ -20,29 +33,23 @@ Shader tests run on software Mesa in CI, where fragment shading is the whole cos
 
 ## Run FlowerBeds show control
 
-Install dependencies (first time):
-
-```bash
-pip install -e ".[flowerbeds,camera]"   # from the repo root; drop `camera` on a machine with no Orbbec
-```
-
 Run without hardware (fastest way to test logic changes):
 
 ```bash
 cd ShowControl/FlowerBeds
-python main.py --config settings.json --mock-camera --no-osc
+uv run python main.py --config settings.json --mock-camera --no-osc
 ```
 
-Run with real camera and Arduino:
+Run with real camera and Arduino. The Orbbec SDK is the `camera` extra, outside the `dev` group:
 
 ```bash
-python main.py --config settings.json
+uv run --extra camera python main.py --config settings.json
 ```
 
 Run headless (no browser dashboard):
 
 ```bash
-python main.py --config settings.json --no-visualizer
+uv run python main.py --config settings.json --no-visualizer
 ```
 
 ## CLI flags
@@ -64,7 +71,7 @@ result to `settings.json` and deploy normally.
 
 ```bash
 cd ShowControl/FlowerBeds
-python layout_tool.py
+uv run python layout_tool.py
 # opens http://localhost:8764
 ```
 
@@ -77,4 +84,4 @@ There is no CI gate for hardware-in-the-loop behaviour. After any pipeline chang
 
 1. Run `--mock-camera --no-osc` and confirm the log output is clean.
 2. Open `http://localhost:8765` to verify blobs, clusters, and camera positions render correctly in the visualizer.
-3. If touching OSC or servo logic, connect real hardware and validate with the layout tool's Aim mode (one servo at a time) or `python main.py --calibrate-yaw-sweep` (every servo through its limits).
+3. If touching OSC or servo logic, connect real hardware and validate with the layout tool's Aim mode (one servo at a time) or `uv run python main.py --calibrate-yaw-sweep` (every servo through its limits).

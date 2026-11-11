@@ -17,4 +17,4 @@ Shared depth-camera computer-vision library. Installed as the `IIVision` package
 
 **Used by:** FlowerBeds (the full pipeline) and FundingCAPTCHA (background subtraction, silhouette warp, `BlobStabilizer`).
 
-**Tests:** `test_*.py` here; `python -m pytest IIVision`.
+**Tests:** `test_*.py` here; `uv run pytest IIVision`.

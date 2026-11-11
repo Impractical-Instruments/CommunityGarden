@@ -87,12 +87,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # Python and every package from uv.lock, in .venv, on PATH for later steps.
+      # --locked fails the job if uv.lock is out of date with pyproject.toml.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          python-version: '3.11'
+          version: '0.11.19'
+          activate-environment: true
+          enable-cache: true
 
-      - name: Install Python test deps
-        run: pip install -e ".[dev]"
+      - name: Install Python and test deps
+        run: uv sync --locked
 
       - name: Run tests
         run: make test-fast
@@ -109,13 +113,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - id: py
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # Python and every package from uv.lock, in .venv, on PATH for later steps.
+      # --locked fails the job if uv.lock is out of date with pyproject.toml.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          python-version: '3.11'
+          version: '0.11.19'
+          activate-environment: true
+          enable-cache: true
 
-      - name: Install Python test deps
-        run: pip install -e ".[dev]"
+      - name: Install Python and test deps
+        run: uv sync --locked
+
+      # testmon drops its data when the patch version changes, so the cache key names it.
+      - name: Python version
+        id: py
+        run: echo "python-version=$(python -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
 
       - name: Install headless OpenGL (shader player GL tests)
         run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
@@ -128,8 +140,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .testmondata
-          key: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
-          restore-keys: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}-
+          key: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.sha }}
+          restore-keys: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('uv.lock') }}-
 
       - name: Run tests
         env:
@@ -147,18 +159,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      # make runs PlatformIO through uvx, at the version the Makefile pins.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          python-version: '3.11'
+          version: '0.11.19'
 
       # The ESP32 toolchain and libraries: a few hundred MB, fixed by platformio.ini.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-${{ hashFiles('Firmware/TreeHouse_Controllers/platformio.ini') }}
-
-      - name: Install PlatformIO
-        run: pip install platformio==6.2.0
 
       - name: Run host tests
         run: make test-firmware
