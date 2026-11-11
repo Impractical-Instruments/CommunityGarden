@@ -45,9 +45,7 @@ class FramePacket:
     intrinsics: CameraIntrinsics = field(default_factory=CameraIntrinsics)
 
 
-@dataclass
-class CalibrationConfig:
-    min_depth_mm: int = 50
+_CAL_MIN_DEPTH_MM = 50      # calibration ignores readings nearer than this
 
 
 @dataclass
@@ -79,9 +77,6 @@ class Blob3D:
     id: int = -1
     valid: bool = False
     cam_pos_m: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    cam_half_extents_m: np.ndarray = field(default_factory=lambda: np.zeros(3))
-    median_z_m: float = 0.0
-    sample_count: int = 0
 
 
 @dataclass
@@ -144,11 +139,6 @@ class Calibration:
             noise_floor=noise_floor,
         )
 
-    @staticmethod
-    def delete(path: Path | str) -> None:
-        """Delete a saved calibration file to force recalibration on next start."""
-        Path(path).unlink(missing_ok=True)
-
 
 class Calibrator:
     """
@@ -162,9 +152,8 @@ class Calibrator:
         calibration = cal.build()
     """
 
-    def __init__(self, num_frames: int, config: CalibrationConfig | None = None) -> None:
+    def __init__(self, num_frames: int) -> None:
         self._num_frames = max(1, num_frames)
-        self._config = config or CalibrationConfig()
         self._frames: list[np.ndarray] = []
         self._width: int = 0
         self._height: int = 0
@@ -196,7 +185,7 @@ class Calibrator:
         # a real background — clipping it here makes those pixels invalid and
         # punches holes in the foreground when people stand in front. Flaky
         # pixels are handled downstream by the noise_floor (IQR) threshold.
-        valid = frames >= self._config.min_depth_mm
+        valid = frames >= _CAL_MIN_DEPTH_MM
         num_valid = valid.sum(axis=0)  # (H*W,)
         valid_mask = num_valid >= _MIN_FRAMES_VALID
 
@@ -443,16 +432,11 @@ class BlobTracker:
             points = np.stack([x3d, y3d, valid_z], axis=1)  # (N, 3)
 
             cam_pos = points.mean(axis=0)
-            cam_min = points.min(axis=0)
-            cam_max = points.max(axis=0)
 
             blobs_3d.append(Blob3D(
                 id=blob.id,
                 valid=True,
                 cam_pos_m=cam_pos,
-                cam_half_extents_m=(cam_max - cam_min) * 0.5,
-                median_z_m=median_depth_mm * 0.001,
-                sample_count=len(valid_z),
             ))
 
         return blobs_3d

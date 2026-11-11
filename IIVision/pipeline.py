@@ -13,7 +13,7 @@ Warm restart (people present, skip recalibration):
         ...
 
 Force recalibration:
-    Calibration.delete("calibration.npz")
+    Path("calibration.npz").unlink(missing_ok=True)
     calibration = build_calibration(camera, num_frames=60)
 """
 
