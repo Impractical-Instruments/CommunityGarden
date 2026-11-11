@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Show dashboard — FastAPI server with mode-relay OSC endpoint.
+Show dashboard — FastAPI server for the static dashboard pages.
+
+The pages talk to each Element's own monitoring port from the browser; this
+server relays nothing.
 
 Usage:
   python serve.py           # default port 9000
@@ -8,38 +11,20 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import socket
-import sys
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 DIR = Path(__file__).resolve().parent
-NETWORK_JSON = DIR.parent / "network.json"
-
-VALID_ELEMENTS = {"treehouse", "flowerbeds", "captcha", "pipes"}
-VALID_MODES = {"active", "dim", "inactive"}
 
 log = logging.getLogger("dashboard")
 
 app = FastAPI()
-
-
-def _load_network() -> dict:
-    if not NETWORK_JSON.exists():
-        raise FileNotFoundError(f"network.json not found at {NETWORK_JSON}")
-    return json.loads(NETWORK_JSON.read_text())
-
-
-def _send_osc(ip: str, port: int, address: str, value: str) -> None:
-    from pythonosc.udp_client import SimpleUDPClient
-    SimpleUDPClient(ip, port).send_message(address, value)
 
 
 # ---------------------------------------------------------------------------
@@ -49,38 +34,6 @@ def _send_osc(ip: str, port: int, address: str, value: str) -> None:
 @app.get("/health")
 async def health():
     return JSONResponse({"ok": True})
-
-
-class ModeRequest(BaseModel):
-    element: str
-    mode: str
-
-
-@app.post("/api/mode")
-async def post_mode(req: ModeRequest):
-    if req.element not in VALID_ELEMENTS:
-        raise HTTPException(400, f"Unknown element {req.element!r}; valid: {sorted(VALID_ELEMENTS)}")
-    if req.mode not in VALID_MODES:
-        raise HTTPException(400, f"Unknown mode {req.mode!r}; valid: {sorted(VALID_MODES)}")
-
-    try:
-        network = _load_network()
-    except FileNotFoundError as exc:
-        raise HTTPException(503, str(exc))
-
-    el = network.get("elements", {}).get(req.element, {})
-    ip = el.get("ip")
-    port = el.get("osc_port")
-    if not ip or not port:
-        raise HTTPException(503, f"No OSC address configured for {req.element!r} in network.json")
-
-    try:
-        _send_osc(ip, int(port), f"/{req.element}/mode", req.mode)
-        log.info("mode relay → /%s/mode %r to %s:%d", req.element, req.mode, ip, port)
-    except Exception as exc:
-        raise HTTPException(502, f"OSC send failed: {exc}")
-
-    return {"ok": True, "element": req.element, "mode": req.mode}
 
 
 # Static files — registered last so API routes take priority

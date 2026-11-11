@@ -15,12 +15,12 @@ CommunityGarden/
 ├── Firmware/
 │   ├── FlowerBeds_Follow_ServoController/  # OpenRB-150 Arduino — drives Dynamixel servos
 │   ├── TreeHouse_BranchController/         # Branch motor Arduino sketch
-│   └── TreeHouse_PicoLEDs/                 # Pico MicroPython LED driver
+│   └── TreeHouse_Controllers/              # ESP32-S3 location controllers — every TreeHouse LED
 ├── TouchOSC/                               # Layout for manual motor testing
 ├── docs/
 │   ├── adr/                                # Architecture Decision Records
 │   └── agents/                             # Agent guidance (this directory)
-├── scripts/hooks/                          # smoke_test.py, firmware_config_gen.py
+├── scripts/hooks/                          # firmware_config_gen.py
 ├── Makefile                                # `make test` — runs all tests
 ├── pytest.ini                              # testpaths = ShowControl IIVision
 └── CONTEXT.md                              # Domain glossary — read before naming anything

@@ -4,6 +4,8 @@ Club diorama rave screen — standalone pygame app (ADR-0017).
 Rotates text messages from club_messages.txt on a 5" 800×480 HDMI LCD.
 No OSC / GardenState integration; fully standalone.
 
+  python3 club_screen.py [--config settings.json]
+
 Config keys (settings.json → club_screen):
   font_size_max         int   default 96
   font_size_min         int   default 36
@@ -13,6 +15,7 @@ Config keys (settings.json → club_screen):
   fade_duration_seconds float default 0.5
   messages_file         str   default club_messages.txt
 """
+import argparse
 import json
 import logging
 import os
@@ -27,6 +30,9 @@ import pygame
 
 log = logging.getLogger("club_screen")
 
+# Fixed, not a setting: this is the Club LCD's native mode, and it is how the
+# screen is told apart from the Looking Glass — each renderer claims the output
+# whose resolution matches (ADR-0018; deploy/weston.ini sets mode=800x480).
 WIDTH, HEIGHT = 800, 480
 FPS = 60
 ACCENT = (0, 255, 200)
@@ -44,8 +50,8 @@ _HOLD_BOTTOM = "hold_bottom"
 _FADE_OUT = "fade_out"
 
 
-def _load_config() -> dict:
-    path = _DIR / "settings.json"
+def _load_config(path: Path) -> dict:
+    """The club_screen block of a settings file; {} if the file is missing."""
     if path.exists():
         with open(path) as f:
             return json.load(f).get("club_screen", {})
@@ -238,7 +244,12 @@ class _MessageDisplay:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    cfg = _load_config()
+    ap = argparse.ArgumentParser(description="Club diorama rave screen")
+    ap.add_argument("--config", type=Path, default=_DIR / "settings.json",
+                    help="Settings file (default: settings.json beside this script)")
+    args = ap.parse_args()
+
+    cfg = _load_config(args.config)
     _default_msgs = str(_DIR / "club_messages.txt")
     messages_file = Path(cfg.get("messages_file", _default_msgs))
     if not messages_file.is_absolute():

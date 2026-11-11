@@ -117,7 +117,7 @@ The bonus score applied to the Visitor a FlowerCluster targeted last frame. Prev
 ### TreeHouse Domain
 
 **Diorama**:
-A self-contained miniature room visible through a TreeHouse window. Four dioramas exist: House Swarming (ground floor), Club (second floor), Mycelium (second floor), and Forge & Flora (arc-to-bloom crossfade — see ADR-0010). Each is its own LEDControllable with distinct Garden-State-reactive animation.
+A self-contained miniature room visible through a TreeHouse window. Four dioramas exist: House Swarming (ground floor), Club (second floor), Mycelium (second floor), and Forge & Flora. Each is lit by an ESP32-S3 location controller with its own Garden-State-reactive animation (ADR-0020).
 
 **House Swarming**:
 Ground floor diorama. Lit with SK6812 RGBW strips using an incandescent-style pattern.
@@ -132,15 +132,11 @@ Second floor diorama. Contains clay mushrooms and edge-lit acrylic panels masked
 The interior space at the top of the TreeHouse, behind the dormer. Functionally houses branch motors, wiring, and rigging. Visually dressed as an upside-down TV den — furniture and lamps mounted to the ceiling, a TV mounted so it faces the floor (ceiling from the visitor's perspective). Visitors see only ambient glow from the TV and lamps. The TV is not directly visible from the front.
 
 **Attic TV**:
-A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. Driven as a standard Pico LED channel; "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker). Shares an SK6812 channel with the Attic Lamps (8 LEDs total).
+A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker). Shares an SK6812 channel with the Attic Lamps (8 LEDs total).
 
 **Controllable**:
-The base abstraction for everything the TreeHouse controls. Two methods: `update(dt, state)` advances internal state by `dt` seconds given the current `GardenState`; `get_state()` returns a serialisable snapshot for monitoring. Every display, motor controller, and video output in the TreeHouse is a Controllable.
-_Avoid_: "Display" (the old name — being replaced)
-
-**LEDControllable**:
-A Controllable subclass for anything that drives SK6812 RGBW LED strips via a Pico. Adds `get_pixels()` returning a list of `ChannelFrame` objects (one per Pico GPIO pin). Two `PicoDriver` instances (one per Pico) collect pixels from their assigned LEDControllables each frame and send them. Each room/space is its own LEDControllable subclass with its own Garden-State-reactive animation logic.
-_Avoid_: "LEDDisplay" (the old name — being replaced), conflating with `Controllable`
+The base abstraction for everything the TreeHouse controls. Two methods: `update(dt, state)` advances internal state by `dt` seconds given the current `GardenState`; `get_state()` returns a serialisable snapshot for monitoring. Today the Looking Glass is the only one; the LEDs belong to the location controllers, which receive `GardenState` over OSC instead.
+_Avoid_: "Display"
 
 **GardenState**:
 A dataclass passed to every `Controllable.update()` each frame. Fields: `flowerbeds_activity` (float 0–1), `captcha_intensity` (float 0–1), `captcha_blowup` (bool, one-shot), `pipes_activity` (float 0–1), `show_mode` (enum active/dim/inactive), `brightness` (float 0–1). Each Controllable reads only the fields relevant to it and decides how to aggregate them (see ADR-0008).

@@ -2,7 +2,7 @@
 import pytest
 
 from coordinator import _load_locations
-from displays import GardenState, ShowMode
+from controllables import GardenState, ShowMode
 from location_sender import LocationSender, LocationTarget
 
 

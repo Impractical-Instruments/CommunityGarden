@@ -1,6 +1,6 @@
 # ADR 0007 — OSC Fabric message schema
 
-**Status:** Accepted
+**Status:** Accepted. Amended 2026-11-11: five addresses that were never implemented are removed, and mode control is TreeHouse-only (see Amendment below).
 
 ## Context
 
@@ -15,15 +15,10 @@ The TreeHouse OSC receive side had four addresses sketched in `osc_server.py`; t
 | Address | Direction | Type | Semantics |
 |---|---|---|---|
 | `/flowerbeds/activity` | FlowerBeds → TreeHouse | float 0.0–1.0 | EMA(blob\_count / configured\_max), clamped 0–1 |
-| `/captcha/game_started` | CAPTCHA → TreeHouse | (no args) | One-shot when a player sits down |
 | `/captcha/intensity` | CAPTCHA → TreeHouse | float 0.0–1.0 | `level / total_levels`; 0.0 when idle; resets to 0.0 immediately after blowup |
 | `/captcha/blowup` | CAPTCHA → TreeHouse | (no args) | One-shot when player loses at max intensity (reward event, not failure) |
 | `/pipes/activity` | Pipes → TreeHouse | float 0.0–1.0 | Input activity normalised (expected to shift to smoothed output activity once music system is ready) |
-| `/treehouse/mode` | Dashboard → TreeHouse | string | `"active"` \| `"dim"` \| `"inactive"` |
-| `/flowerbeds/mode` | Dashboard → FlowerBeds | string | `"active"` \| `"dim"` \| `"inactive"` |
-| `/captcha/mode` | Dashboard → CAPTCHA | string | `"active"` \| `"dim"` \| `"inactive"` |
-| `/captcha/restart` | Any → CAPTCHA | (no args) | Hard-restart CV pipeline: close camera, reopen, relearn the depth background (ADR-0023) |
-| `/pipes/mode` | Dashboard → Pipes | string | `"active"` \| `"dim"` \| `"inactive"` |
+| `/treehouse/mode` | Operator → TreeHouse | string | `"active"` \| `"dim"` \| `"inactive"` |
 | `/treehouse/brightness` | TouchOSC → TreeHouse | float 0.0–1.0 | Debug/operator override only; not part of the mode system |
 
 ### Fire semantics for continuous signals
@@ -34,7 +29,7 @@ Continuous float signals (`*/activity`, `/captcha/intensity`) are sent:
 
 The heartbeat serves as a liveness signal. The global heartbeat interval lives in `network.json` (default: 5s).
 
-One-shot events (`/captcha/game_started`, `/captcha/blowup`) are sent exactly once per occurrence with no heartbeat.
+One-shot events (`/captcha/blowup`) are sent exactly once per occurrence with no heartbeat.
 
 ### Dead-sender policy
 
@@ -73,7 +68,7 @@ All network addressing (element IPs, OSC listen ports, HTTP ports, firmware IPs/
 }
 ```
 
-Firmware targets read their config via a generated `config.h` produced by `scripts/hooks/firmware_config_gen.py` before flashing. The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
+Firmware targets read their config via a generated header produced by `scripts/hooks/firmware_config_gen.py` before flashing. (As of 2026-11-11 only `Firmware/TreeHouse_Controllers/include/net_config.h` is generated; the FlowerBeds servo controller still hardcodes its IP and MAC.) The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
 
 ## Reasons
 
@@ -90,3 +85,17 @@ Firmware targets read their config via a generated `config.h` produced by `scrip
 - The dashboard `serve.py` must be upgraded from a static file server to a FastAPI app with a mode-relay endpoint that reads `network.json` and sends OSC.
 - TreeHouse `ShowMode` enum values change: `"full"` → `"active"`, `"off"` → `"inactive"`. Any TouchOSC layouts sending `/treehouse/mode` need updating.
 - `/captcha/intensity` is a discrete signal stepping in increments of `1/total_levels`; on-change sends will fire at level transitions, not continuously.
+
+## Amendment (2026-11-11): unimplemented addresses removed
+
+Five addresses in the original table never had both a sender and a receiver, and are removed from the schema rather than implemented:
+
+- `/flowerbeds/mode`, `/captcha/mode`, `/pipes/mode`: only the TreeHouse runs an OSC server. FlowerBeds, FundingCAPTCHA and Playing the Pipes have no listener.
+- `/captcha/restart`: FundingCAPTCHA restarts its camera over HTTP (`POST /api/restart` on its monitoring port), not OSC.
+- `/captcha/game_started`: nothing sent it and the TreeHouse did not handle it.
+
+Mode control is therefore TreeHouse-only. What this changes in the text above:
+
+- "Mode vocabulary": the three mode strings are the TreeHouse's `ShowMode`. No other Element has a mode, and the Dashboard composes no per-element presets.
+- "Consequences": FlowerBeds, FundingCAPTCHA and Pipes need no OSC listener. The Dashboard's mode-relay endpoint (`POST /api/mode`) is deleted; nothing called it. The Dashboard TreeHouse page sets the mode over HTTP, straight to the TreeHouse visualizer (`POST /control/show/mode`). `/treehouse/mode` stays as the OSC route to the same setting, for an operator's OSC tool.
+

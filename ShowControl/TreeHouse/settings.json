@@ -1,19 +1,8 @@
 {
-  "pico_dioramas": {
-    "port": "/dev/treehouse-pico-a",
-    "baud": 115200
-  },
-
-  "pico_structure": {
-    "port": "/dev/treehouse-pico-b",
-    "baud": 115200
-  },
-
   "show": {
     "fps": 30,
     "dim_level": 0.25
   },
-
   "_locations_comment": "ESP32-S3 location controllers (ADR-0020). Names resolve to addresses in network.json.",
   "locations": {
     "send_hz": 15,
@@ -25,87 +14,21 @@
       "treehouse_garage"
     ]
   },
-
-  "dioramas": [
-    {
-      "name": "House Swarming",
-      "pico_pin": 0,
-      "led_count": 20,
-      "brightness": 1.0,
-      "color": [255, 180, 80, 255],
-      "pattern": "incandescent"
-    },
-    {
-      "name": "Club",
-      "pico_pin": 1,
-      "led_count": 20,
-      "brightness": 1.0,
-      "color": [180, 0, 255, 0],
-      "pattern": "chase"
-    },
-    {
-      "name": "Mycelium",
-      "pico_pin": 2,
-      "led_count": 224,
-      "brightness": 1.0,
-      "color": [80, 255, 120, 50],
-      "pattern": "mycelium",
-      "pulse_period": 20.0,
-      "pulse_min": 0.5
-    }
-  ],
-
-  "garage_windows": {
-    "looking_glass": {
-      "name": "Looking Glass",
-      "scene": "bloom",
-      "speed": 1.0,
-      "mirror_depth": 6,
-      "renderer_port": 9002
-    },
-    "forge_and_flora": {
-      "name": "Forge & Flora",
-      "arc_pin": 3,
-      "arc_led_count": 20,
-      "bloom_pin": 4,
-      "bloom_led_count": 20,
-      "blend": 0.0,
-      "transition_speed": 0.1,
-      "flicker_intensity": 0.3
-    }
+  "looking_glass": {
+    "name": "Looking Glass",
+    "scene": "bloom",
+    "speed": 1.0,
+    "renderer_port": 9002
   },
-
-  "dormer": {
-    "name": "Dormer",
-    "pico_pin": 0,
-    "led_count": 4,
-    "brightness": 0.8,
-    "color": [0, 0, 0, 255],
-    "pattern": "solid"
-  },
-
-  "porch_lights": {
-    "name": "Porch Lights",
-    "pico_pin": 1,
-    "led_count": 2,
-    "blowup_duration": 3.0,
-    "aftermath_duration": 10.0
-  },
-
-  "attic": {
-    "name": "Attic TV & Lamps",
-    "pico_pin": 2,
-    "led_count": 8,
-    "brightness": 1.0,
-    "color": [180, 210, 255, 0],
-    "pattern": "incandescent"
-  },
-
   "club_screen": {
-    "interval_seconds": 10,
+    "font_size_max": 96,
+    "font_size_min": 36,
+    "hold_top_seconds": 3,
+    "scroll_speed_px_per_sec": 60,
+    "hold_bottom_seconds": 2,
+    "fade_duration_seconds": 0.5,
     "messages_file": "club_messages.txt"
   },
-
   "branch_controller": {
     "port": "/dev/treehouse-branches",
     "baud": 115200,

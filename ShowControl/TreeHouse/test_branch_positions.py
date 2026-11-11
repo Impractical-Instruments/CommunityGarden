@@ -1,8 +1,7 @@
 """Tests for Coordinator._update_branch_positions — position math only, no hardware."""
-import pytest
 
 from coordinator import BranchConfig, BranchMotorConfig, Coordinator
-from displays import GardenState
+from controllables import GardenState
 
 
 def _coord(*motors: BranchMotorConfig) -> Coordinator:

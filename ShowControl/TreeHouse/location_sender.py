@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
-from displays.base import GardenState
+from controllables.base import GardenState
 
 log = logging.getLogger("treehouse")
 
