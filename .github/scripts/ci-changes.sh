@@ -29,7 +29,7 @@ while IFS= read -r path; do
             code=true
             ;;
         # No test reads these.
-        docs/*|*.md|LICENSE|TouchOSC/*|.gitignore|.gitattributes)
+        docs/*|*.md|LICENSE|.gitignore|.gitattributes)
             ;;
         # The TreeHouse controllers: host tests and builds.
         Firmware/TreeHouse_Controllers/*)

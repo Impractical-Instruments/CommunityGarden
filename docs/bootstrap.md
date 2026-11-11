@@ -13,7 +13,7 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 | `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
-| `pipes` | 192.168.1.13 | Windows 11 | Playing the Pipes | 2× Pi Pico (USB COM), Max/RNBO audio I/O |
+| `pipes` | 192.168.1.13 | Windows 11 | Playing the Pipes | 2× Pi Pico (USB COM), Max audio I/O |
 
 OpenRB-150 servo controllers (FlowerBeds firmware) sit on the show LAN at 192.168.1.50 / .51 — separate from the show computers.
 
@@ -166,7 +166,7 @@ Both Picos enumerate as COM ports. Numbers are not stable by default — pin the
 
 1. Plug each Pico in alone. Note which COM appears.
 2. Device Manager → Ports (COM & LPT) → right-click → Properties → Port Settings → Advanced → COM Port Number → assign fixed.
-3. Record COM numbers in `PlayingThePipes.maxpat` `serial` objects (see [PlayingThePipes.md](PlayingThePipes.md)).
+3. Match the patch to them: the `encoderin` object in `Lamplight2026.maxpat` takes two Max serial port letters (see [PlayingThePipes.md → COM port assignment](PlayingThePipes.md#com-port-assignment)).
 
 ```powershell
 # List COMs:
@@ -189,9 +189,9 @@ nssm start pipes-health
 
 Health endpoint is `http://192.168.1.13:8767/health` — Dashboard pings this to show Pipes online.
 
-### 6. Max/RNBO
+### 6. Max
 
-Install Max 9. Open `ShowControl\PlayingThePipes\PlayingThePipes.maxpat` once, confirm encoder events arrive, save. Configure Max to auto-launch on login if you want hands-off boot.
+Install Max 9, then the Grainflow package from Max's Package Manager. Open `ShowControl\PlayingThePipes\Lamplight2026\patchers\Lamplight2026.maxpat` once, check the Max console for "no such object" errors, confirm encoder events arrive, save. Configure Max to auto-launch on login if you want hands-off boot.
 
 ---
 
