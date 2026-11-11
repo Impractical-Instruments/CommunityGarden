@@ -9,3 +9,4 @@ pygame>=2.1
 moderngl>=5.13
 Pillow>=9.0
 pytest-testmon>=2.3,<3
+# demo for #211, never merged
