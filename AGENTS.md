@@ -8,6 +8,7 @@ Python show-control monorepo for *The Community Garden* — a touring interactiv
 make test                 # all Python tests (pytest: IIVision, ShowControl, scripts)
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes, needs a headless OpenGL context
+make test-firmware        # TreeHouse controller host tests; needs PlatformIO, not part of `make test`
 ```
 
 ## Critical constraints

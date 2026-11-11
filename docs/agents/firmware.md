@@ -20,13 +20,14 @@ Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT
 
 `Firmware/TreeHouse_Controllers/` — PlatformIO / Arduino C++ on ESP32-S3, one controller per location (see [ADR-0020](../adr/0020-treehouse-esp32s3-location-controllers.md)).
 
-- One project, five environments: `swannatopia`, `julia`, `jess`, `dormer`, `garage`. Everything specific to a location is in `src/targets/<location>.h`.
+- One project, five location environments: `swannatopia`, `julia`, `jess`, `dormer`, `garage`. Everything specific to a location is in `src/targets/<location>.h`.
 - **Controllers currently ignore Garden State** ([ADR-0021](../adr/0021-treehouse-controllers-standalone-and-garage-welder.md)): they animate from `cg::fullyActive()`, so every channel holds its `max_level`. `kFollowGardenState` in `src/main.cpp` switches the Pi back on.
 - The Garage arc is a `ChannelKind::Trigger` (cap-discharge flash, pulsed not dimmed) driven by `lib/Weld`'s `Welder`; every tap `strike()`s the `Weld` glow strip.
 - The Pi sends **Garden State**, not pixels — the Fabric addresses (`/flowerbeds/activity`, `/captcha/intensity`, `/captcha/blowup`, `/pipes/activity`, `/treehouse/mode`, `/treehouse/brightness`) over UDP. Each controller animates locally, so a dropped packet costs nothing.
 - IPs come from `ShowControl/network.json` via a generated `include/net_config.h` — do not hardcode them. Run `scripts/hooks/firmware_config_gen.py` after editing network.json.
 - WiFi credentials live in a gitignored `include/secrets.h`; copy `include/secrets.h.example`.
-- Host tests: `pio test -e native`. Everything in `lib/` is Arduino-free so it can be tested without hardware; `src/` is the hardware binding.
+- Host tests: `pio test -e native` (or `make test-firmware` from the repo root). Everything in `lib/` is Arduino-free so it can be tested without hardware; `src/` is the hardware binding. CI runs them, and compiles one environment of each kind (`make build-firmware`), on any PR that touches this directory.
+- Board misbehaving? Flash `signsoflife-uart` or `signsoflife-usb` first: one file (`src/signsoflife/main.cpp`), no networking, no config headers. See "Bring-up" in the README.
 - Sender side on the Pi: `ShowControl/TreeHouse/location_sender.py`, configured by the `locations` block in `settings.json`.
 
 Full details in `Firmware/TreeHouse_Controllers/README.md`.
