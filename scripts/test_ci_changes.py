@@ -34,6 +34,15 @@ def test_paths_no_test_reads_run_nothing(path):
 
 
 @pytest.mark.parametrize("path", [
+    "Firmware/TreeHouse_Controllers/include/net_config.h",
+    "Firmware/FlowerBeds_Follow_ServoController/config.h",
+    "Firmware/FlowerBeds_Follow_ServoController/FlowerBeds_Follow_ServoController.ino",
+])
+def test_firmware_a_test_reads_runs_the_fast_job(path):
+    assert jobs(path) == FAST
+
+
+@pytest.mark.parametrize("path", [
     "ShowControl/FlowerBeds/main.py",
     "ShowControl/TreeHouse/settings.json",
     "ShowControl/Dashboard/serve.py",

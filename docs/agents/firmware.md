@@ -6,8 +6,9 @@
 
 - Listens on OSC address `/cg/ff/rot` with args `[int motor_id, float rotation_deg]`
 - Calls `setRotDeg()` on the target Dynamixel servo
-- IP and MAC are still hardcoded near the top of the `.ino`; set them per board to match `ShowControl/network.json`. Generating them from `network.json` is pending (P1-04, #176)
-- Each board needs a unique IP and MAC when running multiple controllers
+- MAC, IP and port come from `config.h` beside the sketch, generated from `ShowControl/network.json` by `scripts/hooks/firmware_config_gen.py` — do not hardcode them. Re-run the script after editing `network.json`.
+- **Before flashing, set `FLOWERBEDS_BOARD` near the top of the `.ino`** to the board's number: board `<N>` is `firmware.flowerbeds_controller_<N>` in `network.json`. It is committed as `0`, which does not compile, so a board cannot be flashed with another board's MAC and IP by leaving a default in place. Do not commit the number you set. With `arduino-cli`, pass it instead: `--build-property "compiler.cpp.extra_flags=-DFLOWERBEDS_BOARD=1"`.
+- A new board is a new `flowerbeds_controller_<N>` entry in `network.json`; the generator picks it up.
 
 Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT).
 

@@ -15,6 +15,11 @@ gl=false
 while IFS= read -r path; do
     [ -n "$path" ] || continue
     case "$path" in
+        # Firmware that scripts/test_firmware_config_gen.py reads: the two generated
+        # headers and the FlowerBeds sketch. That test is in the fast job.
+        Firmware/TreeHouse_Controllers/include/net_config.h|Firmware/FlowerBeds_Follow_ServoController/*)
+            code=true
+            ;;
         # No test reads these.
         docs/*|*.md|LICENSE|TouchOSC/*|Firmware/*|.gitignore|.gitattributes)
             ;;
