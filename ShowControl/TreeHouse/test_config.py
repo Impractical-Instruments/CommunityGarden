@@ -1,0 +1,23 @@
+"""The shipped settings.json loads, and names only what the Pi itself drives."""
+from pathlib import Path
+
+from coordinator import build_controllables, load_config
+
+SETTINGS = Path(__file__).parent / "settings.json"
+
+
+def test_shipped_settings_load():
+    config = load_config(str(SETTINGS))
+    assert config.looking_glass.scene == "bloom"
+    assert config.branch.motors, "the Branch controller needs at least one motor"
+    assert [t.name for t in config.locations.targets] == [
+        "treehouse_swannatopia", "treehouse_julia", "treehouse_jess",
+        "treehouse_dormer", "treehouse_garage",
+    ]
+
+
+def test_looking_glass_is_the_only_controllable():
+    # The LED locations are ESP32-S3 controllers (ADR-0020), reached through
+    # LocationSender; the Pi has no LED Controllables of its own.
+    names = [c.name for c in build_controllables(load_config(str(SETTINGS)))]
+    assert names == ["Looking Glass"]

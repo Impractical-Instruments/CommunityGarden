@@ -89,14 +89,6 @@ async def ctrl_show_brightness(req: Request):
     return {"ok": True}
 
 
-@app.post("/control/led-pattern")
-async def ctrl_led_pattern(req: Request):
-    body = await req.json()
-    if _coordinator:
-        _coordinator.set_display_pattern(body["display"], body["pattern"])
-    return {"ok": True}
-
-
 @app.post("/control/looking-glass")
 async def ctrl_looking_glass(req: Request):
     body = await req.json()
@@ -105,25 +97,11 @@ async def ctrl_looking_glass(req: Request):
     return {"ok": True}
 
 
-@app.post("/control/forge-mode")
-async def ctrl_forge_mode(req: Request):
-    body = await req.json()
-    if _coordinator:
-        _coordinator.set_forge_mode(body["mode"])
-    return {"ok": True}
-
-
-@app.post("/control/porch-blowup")
-async def ctrl_porch_blowup():
+@app.post("/control/blowup")
+async def ctrl_blowup():
+    """Fire the Blow-Up one-shot, as /captcha/blowup does."""
     if _coordinator:
         _coordinator.trigger_captcha_blowup()
-    return {"ok": True}
-
-
-@app.post("/control/porch-reset")
-async def ctrl_porch_reset():
-    if _coordinator:
-        _coordinator.reset_porch_lights()
     return {"ok": True}
 
 
@@ -166,7 +144,7 @@ async def broadcast_state(coordinator: Coordinator) -> None:
     state = {
         "mode": coordinator.mode.value,
         "brightness": coordinator.brightness,
-        "displays": [
+        "controllables": [
             {"name": s.name, "enabled": s.enabled, "params": s.params}
             for s in coordinator.get_all_states()
         ],

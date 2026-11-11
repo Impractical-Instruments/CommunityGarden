@@ -3,7 +3,7 @@ Description=TreeHouse Show Control
 After=network-online.target seatd.service systemd-logind.service
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/TreeHouse.md
-# Add --no-pico if the Pi Pico is not connected on this install.
+# Add --no-branch if the Branch controller is not connected on this install.
 # Add --no-osc to disable the OSC listener.
 
 [Service]
@@ -19,7 +19,7 @@ Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
 RestartSec=5
 User=ii
-# Pi Pico appears as /dev/ttyACM0 (USB CDC); dialout gives unprivileged access.
+# The Branch controller is USB serial (ADR-0005); dialout gives unprivileged access.
 SupplementaryGroups=dialout
 StandardOutput=journal
 StandardError=journal

@@ -104,7 +104,8 @@ generates `include/net_config.h` from it. WiFi credentials live in a gitignored
 
 - `Firmware/TreeHouse_PicoLEDs/` is superseded. It stays in the tree until the ESP32-S3
   hardware is physically installed, then is removed along with `pico_driver.py` and the
-  `pico_*` blocks in `settings.json`.
+  `pico_*` blocks in `settings.json`. **Removal executed 2026-11-11** (#192), with the Pi's
+  LED classes and the stalled Display → Controllable rename.
 - The Pi gains `location_sender.py`, which broadcasts Garden State to the four controllers at
   `locations.send_hz`. It is additive: the existing Pico pixel path is untouched, so both can
   run during the hardware transition.
