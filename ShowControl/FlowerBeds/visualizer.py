@@ -15,7 +15,7 @@ import json
 import logging
 import threading
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import uvicorn  # type: ignore[import]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
@@ -56,7 +56,6 @@ class VisualizerState(TypedDict):
     blobs: list[BlobState]
     clusters: list[ClusterState]
     cameras: list[CameraState]
-    calibration_state: str
     missing_motor_ids: list[int]
 
 # ---------------------------------------------------------------------------
@@ -253,10 +252,6 @@ function draw(state) {
     ctx.fillText('#' + blob.id, cx, cy + 3);
   });
 
-  // ---- calibration badge ----
-  ctx.fillStyle = state.calibration_state === 'calibrated' ? '#51cf66' : '#ffd43b';
-  ctx.font = '11px monospace'; ctx.textAlign = 'left';
-  ctx.fillText('CAL: ' + (state.calibration_state || '?'), 8, 18);
 
   // ---- frame counter ----
   ctx.fillStyle = '#666'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
@@ -280,8 +275,7 @@ function connect() {
     const nb = (lastState.blobs || []).length;
     const nc = (lastState.clusters || []).length;
     status.textContent =
-      (lastState.calibration_state || '?') +
-      ' | ' + nb + ' blob' + (nb!==1?'s':'') +
+      nb + ' blob' + (nb!==1?'s':'') +
       ' | ' + nc + ' cluster' + (nc!==1?'s':'');
     const banner = document.getElementById('banner');
     const missing = lastState.missing_motor_ids || [];
@@ -374,13 +368,6 @@ async def logs_endpoint(websocket: WebSocket):
             _log_queues.remove(q)
 
 
-def _get_loop() -> asyncio.AbstractEventLoop:
-    global _loop
-    if _loop is None:
-        raise RuntimeError("Visualizer not started")
-    return _loop
-
-
 def broadcast(state: VisualizerState) -> None:
     """
     Thread-safe: push a state snapshot to all connected browsers.
@@ -412,8 +399,6 @@ def start_server(host: str = "0.0.0.0", port: int = 8765) -> None:
     Launch the FastAPI server in a background daemon thread.
     Returns immediately; the server keeps running until the process exits.
     """
-    global _loop
-
     ready = threading.Event()
 
     def _run():

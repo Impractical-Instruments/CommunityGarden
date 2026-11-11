@@ -35,12 +35,6 @@ class Controllable(ABC):
         self.name = name
         self.enabled = True
 
-    def enable(self) -> None:
-        self.enabled = True
-
-    def disable(self) -> None:
-        self.enabled = False
-
     @abstractmethod
     def update(self, dt: float, state: GardenState) -> None:
         """Advance internal state by *dt* seconds given the current GardenState."""

@@ -74,11 +74,11 @@ async def _start_weston() -> asyncio.subprocess.Process:
     return proc
 
 
-async def _renderer_subprocess(renderer_path: Path) -> None:
+async def _renderer_subprocess(renderer_path: Path, *renderer_args: str) -> None:
     backoff = 1.0
     while True:
         log.info("Starting renderer subprocess: %s", renderer_path.name)
-        proc = await asyncio.create_subprocess_exec(sys.executable, str(renderer_path))
+        proc = await asyncio.create_subprocess_exec(sys.executable, str(renderer_path), *renderer_args)
         try:
             exit_code = await proc.wait()
         except asyncio.CancelledError:
@@ -178,7 +178,9 @@ async def _run(args: argparse.Namespace) -> None:
     if not args.no_renderer:
         tasks.append(asyncio.create_task(_renderer_subprocess(_RENDERER_PATH)))
     if not args.no_club_screen:
-        tasks.append(asyncio.create_task(_renderer_subprocess(_CLUB_SCREEN_PATH)))
+        # The club screen reads its block from the same settings file as the show.
+        tasks.append(asyncio.create_task(_renderer_subprocess(
+            _CLUB_SCREEN_PATH, "--config", str(Path(args.config).resolve()))))
 
     try:
         await asyncio.gather(*tasks)

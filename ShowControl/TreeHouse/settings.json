@@ -18,11 +18,15 @@
     "name": "Looking Glass",
     "scene": "bloom",
     "speed": 1.0,
-    "mirror_depth": 6,
     "renderer_port": 9002
   },
   "club_screen": {
-    "interval_seconds": 10,
+    "font_size_max": 96,
+    "font_size_min": 36,
+    "hold_top_seconds": 3,
+    "scroll_speed_px_per_sec": 60,
+    "hold_bottom_seconds": 2,
+    "fade_duration_seconds": 0.5,
     "messages_file": "club_messages.txt"
   },
   "branch_controller": {

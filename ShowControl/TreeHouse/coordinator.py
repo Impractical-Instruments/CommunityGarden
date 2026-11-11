@@ -133,7 +133,6 @@ def load_config(path: str) -> TreehouseConfig:
         name=lg.get("name", "Looking Glass"),
         scene=lg.get("scene", "bloom"),
         speed=lg.get("speed", 1.0),
-        mirror_depth=lg.get("mirror_depth", 6),
         renderer_port=lg.get("renderer_port", 9002),
     )
 
@@ -263,9 +262,6 @@ class Coordinator:
     def _touch(self, sender: str) -> None:
         self._last_received[sender] = self._clock()
         self._stale_warned.discard(sender)
-
-    def get(self, name: str) -> Controllable:
-        return self._controllables[name]
 
     def _expire_stale_senders(self) -> None:
         now = self._clock()

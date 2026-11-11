@@ -128,4 +128,4 @@ If a motor ID is in the "not found" line, that flower will not move — even tho
 | Flowers jittery | `inertia_weight` too low | Raise it; watch the visualizer |
 | Flowers slow to commit to a Visitor | `dwell_halflife_frames` too high | Lower it |
 | Flower aims past max travel | Cluster `yaw_limit_deg` larger than physical cone | Tighten in layout tool, run `--calibrate-yaw-sweep` to verify |
-| Visualizer empty | Camera background not yet built | Wait ~60 frames; check `calibration_state` field in WebSocket payload |
+| Visualizer empty | Camera background not yet built | The visualizer gets no state until calibration finishes; wait ~60 frames for `Calibration saved` (or `Loaded calibration`) in the log |

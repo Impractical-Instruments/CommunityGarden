@@ -22,7 +22,7 @@ Standalone pygame app (`treehouse/club_screen.py`):
 
 - Reads messages from `treehouse/club_messages.txt` (versioned in GitHub)
 - One message per line-break-delimited block; blank line = message separator
-- Rotates through messages on a configurable timer (default 10s, `settings.json` key `club_screen.interval_seconds`)
+- Each message fades in, holds, scrolls if it is taller than the screen, holds and fades out; the timings are `settings.json` keys under `club_screen` (`hold_top_seconds`, `scroll_speed_px_per_sec`, `hold_bottom_seconds`, `fade_duration_seconds`), with `font_size_max` / `font_size_min` bounding the fitted font. (Originally a fixed `interval_seconds` timer; that key was never read by the shipped code and was removed 2026-11-11.)
 - Reloads message file on each rotation — no restart needed to update messages
 - Renders full-screen (800×480), black background
 - Visual style: 90s rave aesthetic — bright accent color, bold font, scanline overlay pass
@@ -60,6 +60,6 @@ Launched as a subprocess by `main.py` alongside the LookingGlass renderer subpro
 
 - `treehouse/club_screen.py` — new pygame app
 - `treehouse/club_messages.txt` — initial message set, versioned
-- `settings.json` gains `club_screen.interval_seconds` and `club_screen.messages_file`
+- `settings.json` gains a `club_screen` block: the six keys above and `messages_file`
 - `main.py` launches club screen subprocess (mirrors LookingGlass pattern)
 - If 2GB Pi can't run both subprocesses, assign club screen to a spare 8GB Pi and update `docs/TreeHouse.md`
