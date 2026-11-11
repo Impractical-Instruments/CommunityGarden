@@ -14,13 +14,13 @@ CommunityGarden/
 │   └── network.json                        # Single source of truth: all IPs, MACs, ports
 ├── Firmware/
 │   ├── FlowerBeds_Follow_ServoController/  # OpenRB-150 Arduino — drives Dynamixel servos
+│   ├── PlayingThePipes_EncoderPico/        # Pi Pico MicroPython — reads the rotary encoders
 │   ├── TreeHouse_BranchController/         # Branch motor Arduino sketch
 │   └── TreeHouse_Controllers/              # ESP32-S3 location controllers — every TreeHouse LED
-├── TouchOSC/                               # Layout for manual motor testing
 ├── docs/
 │   ├── adr/                                # Architecture Decision Records
 │   └── agents/                             # Agent guidance (this directory)
-├── scripts/hooks/                          # firmware_config_gen.py
+├── scripts/                                # Deploy, install and repo tooling — see scripts/README.md
 ├── Makefile                                # `make test` — runs all tests
 ├── pyproject.toml                          # IIVision + OSCFabric packages, one extra per Element, pytest config
 └── CONTEXT.md                              # Domain glossary — read before naming anything

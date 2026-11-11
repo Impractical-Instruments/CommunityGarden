@@ -8,7 +8,7 @@ Playing the Pipes has 12 rotary encoders distributed across the physical pipe st
 
 ## Decision
 
-Two Pi Pico microcontrollers (one per section, 6 encoders each) read quadrature rotary encoders and send encoder delta events over USB serial to the Windows mini PC. Max reads the two serial ports directly (as Windows COM ports, e.g. `COM3` / `COM4`) and routes events into the RNBO patch.
+Two Pi Pico microcontrollers (one per section, 6 encoders each) read quadrature rotary encoders and send encoder delta events over USB serial to the Windows mini PC. Max reads the two serial ports directly (as Windows COM ports, e.g. `COM3` / `COM4`) and routes events into the Max patch.
 
 ## Protocol
 

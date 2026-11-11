@@ -73,4 +73,4 @@ There is no CI gate for hardware-in-the-loop behaviour. After any pipeline chang
 
 1. Run `--mock-camera --no-osc` and confirm the log output is clean.
 2. Open `http://localhost:8765` to verify blobs, clusters, and camera positions render correctly in the visualizer.
-3. If touching OSC or servo logic, connect real hardware and validate with `TouchOSC/FlowerBedTester.tosc`.
+3. If touching OSC or servo logic, connect real hardware and validate with the layout tool's Aim mode (one servo at a time) or `python main.py --calibrate-yaw-sweep` (every servo through its limits).

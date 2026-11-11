@@ -26,7 +26,6 @@ ALL      = {"code": True,  "gl": True,  "firmware": True}
     "README.md",
     "ShowControl/FundingCAPTCHA/README.md",
     "LICENSE",
-    "TouchOSC/FlowerBedTester.tosc",
     "Firmware/TreeHouse_BranchController/TreeHouse_BranchController.ino",
     "Firmware/PlayingThePipes_EncoderPico/main.py",
     "Firmware/TreeHouse_Controllers/README.md",
