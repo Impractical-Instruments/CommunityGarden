@@ -28,9 +28,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 
-# IIVision lives at the repo root — two levels above ShowControl/FlowerBeds/
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
 from IIVision import (
     MockCamera, OrbbecCamera, StabilizerConfig, Transform, Rotator,
     Calibration, build_calibration, run_pipeline,
@@ -45,8 +42,6 @@ from flower_beds import (
 from diag import osc_ping, parse_found_ids
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
-# OSCFabric lives one level above FlowerBeds, inside ShowControl/
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from OSCFabric import FabricClient, load_network_config
 
 _OSC_ADDRESS = "/cg/ff/rot"

@@ -17,7 +17,7 @@ echo ""
 
 # ── Install dependencies ───────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
-pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+pip3 install --break-system-packages -e "$REPO_ROOT[dashboard]"
 
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."

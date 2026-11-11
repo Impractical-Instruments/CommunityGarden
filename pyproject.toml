@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "communitygarden"
+version = "0"
+description = "Show control for The Community Garden: the IIVision and OSCFabric packages, plus one extra per Element."
+requires-python = ">=3.11"
+# What the two packages import: IIVision needs numpy and scipy, OSCFabric needs python-osc.
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "python-osc>=1.8",
+]
+
+# One extra per Element: everything its entry points import beyond the base.
+# Install with: pip install -e ".[<element>]" from the repo root.
+[project.optional-dependencies]
+flowerbeds = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "websockets>=11",
+]
+treehouse = [
+    "fastapi>=0.100",
+    "uvicorn>=0.23",
+    "pyserial",
+    "pygame>=2.1",
+    "moderngl>=5.13",
+]
+dashboard = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+]
+fundingcaptcha = [
+    "pygame>=2.1",
+    "websockets>=11",
+    "Pillow>=9.0",    # JPEG fallback for SDL_image builds without JPEG (Pi)
+    "moderngl>=5.13", # shader_app.py (ADR-0021)
+    "av>=12",         # playlist_app.py video decoding (FFmpeg)
+]
+pipes = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+]
+# Orbbec camera SDK. Only for a host with a real camera (FlowerBeds, FundingCAPTCHA);
+# --mock-camera runs without it, and CI cannot install it.
+camera = [
+    "pyorbbecsdk2",
+]
+# Everything the test suite imports: every Element's extra, so no test skips for
+# a missing module, plus the test tools.
+dev = [
+    "communitygarden[flowerbeds,treehouse,dashboard,fundingcaptcha,pipes]",
+    "pytest>=8.0",
+    "httpx>=0.24",
+]
+
+[tool.setuptools]
+packages = ["IIVision", "OSCFabric"]
+
+[tool.setuptools.package-dir]
+OSCFabric = "ShowControl/OSCFabric"
+
+[tool.pytest.ini_options]
+testpaths = ["ShowControl", "IIVision", "scripts"]
+pythonpath = ["."]

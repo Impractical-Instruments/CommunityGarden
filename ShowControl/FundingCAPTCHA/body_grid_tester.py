@@ -42,9 +42,6 @@ DIR = Path(__file__).parent
 SETTINGS = DIR / "captcha-settings.json"
 SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 
-sys.path.insert(0, str(DIR.parent.parent))
-sys.path.insert(0, str(DIR))
-
 try:
     from IIVision import (MockCamera, OrbbecCamera, AdaptiveBackground,
                           AdaptiveBackgroundConfig, BlobTracker, DetectionConfig)
@@ -442,7 +439,7 @@ def main() -> None:
     debug      = args.debug
 
     if (args.camera or use_mock) and not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
 
     threading.Thread(target=_run_monitoring, args=(args.port,), daemon=True).start()
 

@@ -256,7 +256,7 @@ def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
     if not (args.camera or args.mock_camera):
         return cam_q, stop
     if not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
     cam_cfg  = settings.get("camera", {})
     cam_args = dict(width=cam_cfg.get("width", 640), height=cam_cfg.get("height", 400),
                     fps=cam_cfg.get("fps", 10))
@@ -373,7 +373,7 @@ def main() -> None:
     settings = load_settings()
     fps      = int(settings.get("shader_app", {}).get("fps", 30))
     if (args.camera or args.mock_camera) and not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
 
     ctx, win = open_display(args.windowed, "Shader player", args.test_input,
                             display_index(args, settings))

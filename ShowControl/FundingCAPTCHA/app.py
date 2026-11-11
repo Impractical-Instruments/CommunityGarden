@@ -42,10 +42,6 @@ DIR            = Path(__file__).parent
 SETTINGS       = DIR / "captcha-settings.json"
 SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 
-sys.path.insert(0, str(DIR.parent.parent))  # IIVision
-sys.path.insert(0, str(DIR.parent))         # OSCFabric
-sys.path.insert(0, str(DIR))                # body_grid, games
-
 from silhouette import build_cam_transform, apply_cam_transform, render_silhouette
 from arc import Arc, Game, ShuffleBag
 
@@ -400,7 +396,7 @@ def main() -> None:
     use_test_input = args.test_input
 
     if (args.camera or use_mock) and not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — pip install -r requirements.txt")
+        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
 
     # Silhouette / attract config
     slabs_cfg     = settings.get("depth_slabs",

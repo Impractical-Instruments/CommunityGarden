@@ -40,7 +40,7 @@ ldconfig
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
-pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+pip3 install --break-system-packages -e "$REPO_ROOT[fundingcaptcha,camera]"
 
 # ── Patch service file with actual app path ────────────────────────────────────
 echo "→ Installing systemd unit..."

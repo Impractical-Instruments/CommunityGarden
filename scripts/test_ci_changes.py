@@ -49,8 +49,6 @@ def test_other_elements_run_only_the_fast_job(path):
     "IIVision/blob_stabilizer.py",
     "ShowControl/OSCFabric/client.py",
     "ShowControl/network.json",
-    "requirements-dev.txt",
-    "pytest.ini",
     "Makefile",
     ".github/workflows/tests.yml",
     ".github/scripts/ci-changes.sh",
