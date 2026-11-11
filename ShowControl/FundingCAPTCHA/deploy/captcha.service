@@ -3,19 +3,20 @@ Description=FundingCAPTCHA kiosk
 After=network-online.target graphical.target
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/FundingCAPTCHA.md
+# Placeholders (@...@) are filled in by deploy/install.sh.
 # Remove --camera if the Orbbec camera is not present on this install.
 # Use --mock-camera for drifting fake bodies when testing without hardware.
 
 [Service]
-WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FundingCAPTCHA
+WorkingDirectory=@REPO_ROOT@/ShowControl/FundingCAPTCHA
 ExecStart=/usr/bin/python3 app.py --camera --port 8080
 Restart=always
 RestartSec=5
 TimeoutStopSec=10
-User=ii
+User=@SERVICE_USER@
 # SDL2/kmsdrm direct DRM access (Pi OS Lite, no compositor).
 Environment=SDL_VIDEODRIVER=kmsdrm
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/@SERVICE_UID@
 # Orbbec camera: video + plugdev; kmsdrm rendering: render
 SupplementaryGroups=video plugdev render
 StandardOutput=journal

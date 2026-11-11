@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
 # install.sh — set up TreeHouse as an auto-starting systemd service.
 # Run once after cloning the repo:
-#   cd ShowControl/TreeHouse/deploy
-#   sudo bash install.sh
+#   sudo bash ShowControl/TreeHouse/deploy/install.sh
 set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-APP_DIR="$REPO_ROOT/ShowControl/TreeHouse"
-SERVICE_USER="${SUDO_USER:-ii}"
-
-echo "=== TreeHouse install ==="
-echo "App dir: $APP_DIR"
-echo "User:    $SERVICE_USER"
-echo ""
+. "$(dirname "$0")/../../../scripts/lib/install-element.sh"
 
 # ── System dependencies ───────────────────────────────────────────────────────
 echo "→ Installing system dependencies..."
@@ -30,24 +20,5 @@ ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
 ln -sf /lib/aarch64-linux-gnu/libGL.so.1  /lib/aarch64-linux-gnu/libGL.so
 ldconfig
 
-# ── Python dependencies ────────────────────────────────────────────────────────
-echo "→ Installing Python dependencies..."
-pip3 install --break-system-packages -e "$REPO_ROOT[treehouse]"
-
-# ── Install service file ───────────────────────────────────────────────────────
-echo "→ Installing systemd unit..."
-DEST="/etc/systemd/system/treehouse.service"
-sed "s|User=ii|User=$SERVICE_USER|g" \
-    "$SCRIPT_DIR/treehouse.service" > "$DEST"
-echo "   written: $DEST"
-
-# ── Enable + start ─────────────────────────────────────────────────────────────
-systemctl daemon-reload
-systemctl enable treehouse.service
-systemctl restart treehouse.service
-
-echo ""
-echo "=== Done ==="
-echo "Status:  sudo systemctl status treehouse"
-echo "Logs:    journalctl -u treehouse -f"
-echo "Viz:     http://$(hostname -I | awk '{print $1}'):8766/"
+install_element treehouse treehouse
+install_done Viz 8766

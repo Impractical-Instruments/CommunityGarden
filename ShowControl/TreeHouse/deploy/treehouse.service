@@ -3,22 +3,23 @@ Description=TreeHouse Show Control
 After=network-online.target seatd.service systemd-logind.service
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/TreeHouse.md
+# Placeholders (@...@) are filled in by deploy/install.sh.
 # Add --no-branch if the Branch controller is not connected on this install.
 # Add --no-osc to disable the OSC listener.
 
 [Service]
-WorkingDirectory=/home/ii/CommunityGarden/ShowControl/TreeHouse
-ExecStartPre=/bin/mkdir -p /run/user/1000
-ExecStartPre=/bin/chown ii:ii /run/user/1000
-ExecStartPre=/bin/chmod 700 /run/user/1000
+WorkingDirectory=@REPO_ROOT@/ShowControl/TreeHouse
+ExecStartPre=/bin/mkdir -p /run/user/@SERVICE_UID@
+ExecStartPre=/bin/chown @SERVICE_USER@: /run/user/@SERVICE_UID@
+ExecStartPre=/bin/chmod 700 /run/user/@SERVICE_UID@
 ExecStart=/usr/bin/python3 main.py --config settings.json
-Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_RUNTIME_DIR=/run/user/@SERVICE_UID@
 Environment=LIBSEAT_BACKEND=seatd
 Environment=MESA_GL_VERSION_OVERRIDE=3.3
 Environment=MESA_GLSL_VERSION_OVERRIDE=330
 Restart=always
 RestartSec=5
-User=ii
+User=@SERVICE_USER@
 # The Branch controller is USB serial (ADR-0005); dialout gives unprivileged access.
 SupplementaryGroups=dialout
 StandardOutput=journal

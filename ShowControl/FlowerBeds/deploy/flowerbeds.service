@@ -3,15 +3,14 @@ Description=FlowerBeds Show Control
 After=network-online.target
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/FlowerBeds.md
-# Remove --no-osc if OSC controllers are present on the network.
-# Remove --no-visualizer to enable the live WebSocket debug view.
+# Placeholders (@...@) are filled in by deploy/install.sh.
 
 [Service]
-WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FlowerBeds
+WorkingDirectory=@REPO_ROOT@/ShowControl/FlowerBeds
 ExecStart=/usr/bin/python3 main.py --config settings.json
 Restart=always
 RestartSec=5
-User=ii
+User=@SERVICE_USER@
 # Orbbec camera appears as a USB device; video + plugdev give unprivileged access.
 SupplementaryGroups=video plugdev
 StandardOutput=journal
