@@ -33,7 +33,8 @@ def _frame(width: int, height: int, depth: np.ndarray) -> FramePacket:
     )
 
 
-_CFG = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50)
+# min_blob_pixels is far below the default: these frames are tiny, a body is 400 pixels.
+_CFG = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50, min_blob_pixels=20)
 
 
 def test_matching_background_all_zero():
@@ -121,3 +122,36 @@ def test_speckle_removed_without_touching_a_nearby_body():
 
     assert result[50, 50] == 0, "speckle should be filtered"
     assert (result[12:28, 12:28] == FG).all(), "body must be untouched"
+
+
+# ── Small blobs ─────────────────────────────────────────────────────────────────
+# Camera noise that clumps is solid enough to survive the despeckle. It is dropped by
+# size instead: min_blob_pixels, the same cut-off detect() applies to its blob list.
+
+
+def test_blob_smaller_than_min_blob_pixels_is_removed():
+    W, H = 60, 60
+    BG, FG = 3000, 1000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[10:30, 10:30] = FG   # body: 400 pixels
+    depth[45:51, 45:51] = FG   # noise clump: 36 pixels, solid, so the despeckle keeps it
+    cfg = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50, min_blob_pixels=100)
+
+    result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
+
+    assert (result[40:, 40:] == 0).all(), "the clump is below min_blob_pixels"
+    assert (result[12:28, 12:28] == FG).all(), "body must be untouched"
+
+
+def test_blob_at_least_min_blob_pixels_is_kept():
+    W, H = 60, 60
+    BG, FG = 3000, 1000
+    cal = _calibration(W, H, BG)
+    depth = np.full((H, W), BG, dtype=np.uint16)
+    depth[45:51, 45:51] = FG   # 36 pixels
+    cfg = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50, min_blob_pixels=20)
+
+    result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
+
+    assert (result[46:50, 46:50] == FG).all()

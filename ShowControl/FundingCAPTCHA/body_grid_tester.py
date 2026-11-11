@@ -203,6 +203,7 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
         depth_delta_mm  = det_cfg.get("depth_delta_mm",   25),
         min_depth_mm    = det_cfg.get("min_depth_mm",     500),
         max_depth_mm    = det_cfg.get("max_depth_mm",     4000),
+        min_blob_pixels = det_cfg.get("min_blob_pixels",  500),
     )
     background = AdaptiveBackground(AdaptiveBackgroundConfig.from_dict(
         settings.get("background", {}), depth_delta_mm=detection_config.depth_delta_mm))

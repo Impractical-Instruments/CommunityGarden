@@ -276,12 +276,22 @@ class BlobTracker:
         this frame and dilates to close the resulting scatter holes, which would
         inflate any surviving stray pixel by the square of the dilation radius —
         so specks have to go before they get there, not after.
+
+        Connected regions smaller than min_blob_pixels are dropped too, as detect()
+        drops them from its blob list: camera noise that clumps survives the
+        despeckle, and would otherwise show up as small blobs in the silhouette.
         """
         cal = self._calibration
         depth = np.frombuffer(frame.data, dtype=np.uint16).reshape(cal.height, cal.width)
         fg = self._subtract_background(frame)
         fg = self._majority_filter(self._majority_filter(fg))
         fg_mask = fg.reshape(cal.height, cal.width) > 0
+        min_pixels = self.detection_config.min_blob_pixels
+        if min_pixels > 1 and fg_mask.any():
+            labeled, n = nd_label(fg_mask, structure=np.ones((3, 3), dtype=np.int32))
+            keep = np.bincount(labeled.ravel(), minlength=n + 1) >= min_pixels
+            keep[0] = False
+            fg_mask = keep[labeled]
         result = np.zeros((cal.height, cal.width), dtype=np.uint16)
         result[fg_mask] = depth[fg_mask]
         return result

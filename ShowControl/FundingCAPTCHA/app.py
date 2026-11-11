@@ -198,6 +198,7 @@ def build_detection_config(settings: dict) -> "DetectionConfig":
         depth_delta_mm  = det_cfg.get("depth_delta_mm",  25),
         min_depth_mm    = det_cfg.get("min_depth_mm",    500),
         max_depth_mm    = det_cfg.get("max_depth_mm",    2500),
+        min_blob_pixels = det_cfg.get("min_blob_pixels", 500),
     )
 
 
