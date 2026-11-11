@@ -17,7 +17,7 @@ Blob detection, stabilisation, camera abstraction, and coordinate transforms all
 
 **Camera space** (Orbbec native): **X=right, Y=down, Z=forward, metres**.
 
-`Blob3D.world_pos_cm()` converts camera → world:
+`IIVision.transforms.orbbec_to_world()` converts camera → world (`world_pos_cm` is the resulting field on `TrackedBlob`):
 - World X ← Camera X
 - World Y ← Camera Z
 - World Z ← −Camera Y

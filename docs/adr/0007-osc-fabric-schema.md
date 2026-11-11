@@ -68,7 +68,7 @@ All network addressing (element IPs, OSC listen ports, HTTP ports, firmware IPs/
 }
 ```
 
-Firmware targets read their config via a generated `config.h` produced by `scripts/hooks/firmware_config_gen.py` before flashing. The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
+Firmware targets read their config via a generated header produced by `scripts/hooks/firmware_config_gen.py` before flashing. (As of 2026-11-11 only `Firmware/TreeHouse_Controllers/include/net_config.h` is generated; the FlowerBeds servo controller still hardcodes its IP and MAC.) The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
 
 ## Reasons
 
