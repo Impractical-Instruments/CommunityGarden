@@ -13,7 +13,6 @@ class LookingGlassConfig:
     name: str = "Looking Glass"
     scene: str = "bloom"
     speed: float = 1.0
-    mirror_depth: int = 6
     renderer_port: int = 9002
 
 
@@ -39,7 +38,6 @@ class LookingGlassControllable(Controllable):
         super().__init__(config.name)
         self.scene = config.scene
         self.speed = config.speed
-        self.mirror_depth = config.mirror_depth
         self._time = 0.0
         self._osc = SimpleUDPClient("127.0.0.1", config.renderer_port)
         log.info("Looking Glass OSC → localhost:%d", config.renderer_port)
@@ -75,7 +73,6 @@ class LookingGlassControllable(Controllable):
             params={
                 "scene": self.scene,
                 "speed": self.speed,
-                "mirror_depth": self.mirror_depth,
                 "time": round(self._time, 2),
             },
         )

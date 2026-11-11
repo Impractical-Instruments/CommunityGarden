@@ -133,7 +133,6 @@ def load_config(path: str) -> TreehouseConfig:
         name=lg.get("name", "Looking Glass"),
         scene=lg.get("scene", "bloom"),
         speed=lg.get("speed", 1.0),
-        mirror_depth=lg.get("mirror_depth", 6),
         renderer_port=lg.get("renderer_port", 9002),
     )
 
