@@ -49,13 +49,6 @@
     "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
   },
 
-  "keepaway_body": {
-    "grid": [8, 6],
-    "grace_s": 3.0,
-    "abandon_s": 5.0,
-    "intensity_weights": {"difficulty": 0.4, "time_pressure": 0.6}
-  },
-
   "shader_app": {
     "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at. display: which monitor to go fullscreen on (0 = first; --display N overrides).",
     "render_scale": 0.5,

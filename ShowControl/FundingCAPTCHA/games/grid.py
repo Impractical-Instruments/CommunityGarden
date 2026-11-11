@@ -13,7 +13,6 @@ YELLOW   = (240, 200,   0)
 CYAN     = (  0, 200, 220)
 ORANGE   = (240, 130,   0)
 RED      = (220,  50,  50)
-BLUE     = ( 60, 130, 220)
 
 SUCCESS_COLOR   = GREEN
 WRONG_COLOR     = RED

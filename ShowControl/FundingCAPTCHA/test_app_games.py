@@ -1,9 +1,4 @@
-"""Tests for Game loading — which Games the kiosk actually plays.
-
-FundingCAPTCHA ships as BodyCaptcha only. `games/body_keepaway.py` and its
-Level/taunt data stay in the tree for a future return, so nothing but this
-test stops them drifting back into the Arc's rotation.
-"""
+"""Tests for Game loading — which Games the kiosk actually plays."""
 from __future__ import annotations
 
 import json

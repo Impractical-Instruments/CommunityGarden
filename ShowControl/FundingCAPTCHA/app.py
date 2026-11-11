@@ -351,8 +351,6 @@ class TestInputHandler:
 
 def _load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
     games: list[Game] = []
-    # BodyCaptcha only. `games/body_keepaway.py` and its Level/taunt data stay
-    # in the tree for a future return, but the kiosk does not play it.
     for name in ("bodycaptcha",):
         path = DIR / "games" / f"{name}.py"
         if not path.exists():

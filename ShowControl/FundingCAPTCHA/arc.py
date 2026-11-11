@@ -28,7 +28,7 @@ def blend_intensity(progress_5: float, elapsed: float, duration: float,
 
     `progress_5` is a 1–5 difficulty/level measure; `elapsed`/`duration` are the
     Game's own clock. Single source of truth for the Intensity formula shared by
-    every Game (BodyCaptcha, BodyKeepaway) — the value the Arc reports to the
+    every Game — the value the Arc reports to the
     TreeHouse over OSC.
     """
     return max(0.0, min(1.0,
