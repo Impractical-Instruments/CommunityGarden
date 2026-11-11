@@ -175,18 +175,19 @@ const float SUN_RAY_W_RATE = 6.0;
 const float SUN_RAY_GRAIN = 0.7, SUN_RAY_FADE = 0.25, SUN_RAY_BIAS = 0.3;   // ray grain weight; extra fill near the root; base fill
 const float SUN_RAY_SOFT = 0.1;          // softness of the ray grain threshold
 
-// Backdrop: a horizon line with two far hills standing on it, a nearer row of hills below (the ground the plants
-// stand on: without it they sprout from the air) and a few tufts of grass. Thin ink, static.
-const float HORIZON_Y = 0.3;             // the horizon's height
+// Backdrop: a horizon line with two far hills standing on it, a nearer row of hills halfway down and a few tufts
+// of grass. Thin ink, static. Plants root anywhere in the bottom two thirds of the screen, so the ground must
+// reach that high: below the horizon they stand on it, above it they would sprout from the air.
+const float HORIZON_Y = 0.62;            // the horizon's height
 const float HORIZON_WOBBLE = 0.005, HORIZON_FREQ = 2.5;   // it wanders ± this, about this many times per screen height
 const vec3  HILL_A = vec3(0.24, 0.20, 0.07), HILL_B = vec3(0.60, 0.30, 0.10);   // centre x and half-width (fractions of
                                          // the screen's width), height (screen heights). A stands in front of B
-const float NEAR_Y = 0.1;                // the nearer row's foot. Its hills must stay below the horizon: nothing hides lines
+const float NEAR_Y = 0.3;                // the nearer row's foot. Its hills must stay below the horizon: nothing hides lines
 const vec3  NEAR_A = vec3(0.74, 0.40, 0.09), NEAR_B = vec3(0.22, 0.42, 0.07);   // as HILL_A and _B; wide enough to
                                          // overlap and run off both sides, so the row is one rolling ridge
 const int   GRASS_TUFTS = 7;             // spread across the width, each of three blades
 const float GRASS_H = 0.028;             // a blade's length
-const float GRASS_Y0 = 0.05, GRASS_Y1 = 0.24;             // tufts stand between these heights
+const float GRASS_Y0 = 0.05, GRASS_Y1 = 0.55;             // tufts stand between these heights
 const float BACKDROP_INK = 0.5;          // how dark its lines are (1 = the plants' ink): the plants must read over them
 
 // ── Palette ───────────────────────────────────────────────────────────────────
