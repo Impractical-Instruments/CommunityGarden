@@ -1,6 +1,6 @@
 // Watercolor smudge — shared tunables and helpers.
-// Spec: docs/superpowers/specs/2026-11-07-watercolor-smudge-design.md
-// Approved sketch: docs/superpowers/specs/2026-11-07-watercolor-smudge-mockup.html
+// Must not: smear a still person from camera flicker; let the torso drag a body-wide band of paint;
+// mix to grey mud; pop when healing; draw hard outlines round strokes.
 //
 // Sizes are in screen heights: q = uv * vec2(aspect, 1). Times are seconds.
 // Retune on site and press R to reload.

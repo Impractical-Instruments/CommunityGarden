@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't take uploaded media." The Watercolor Smudge Setup ([spec](../superpowers/specs/2026-11-07-watercolor-smudge-design.md), issue #164) smears and heals a watercolor painting. Painted watercolors look far better than procedural watercolor-ification. They get wet edges, blooms and granulation for free, while a filter reads as a photo-app effect. The artist will supply a set of paintings, and each time the Setup plays it should show a different one.
+ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't take uploaded media." The Watercolor Smudge Setup (issue #164) smears and heals a watercolor painting. Painted watercolors look far better than procedural watercolor-ification. They get wet edges, blooms and granulation for free, while a filter reads as a photo-app effect. The artist will supply a set of paintings, and each time the Setup plays it should show a different one.
 
 ## Decision
 

@@ -73,7 +73,7 @@ _Avoid_: "attract screen", "idle animation", "lobby"
 ### FundingCAPTCHA Domain
 
 **Game** (FundingCAPTCHA):
-A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyCaptcha, UpsideDown, Rhythm, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
+A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyCaptcha, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
 _Avoid_: "game type", "mode"
 
 **Level**:

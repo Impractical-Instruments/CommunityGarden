@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-0021 gives Setups the Body (Buffer A: `.r` presence, `.g` nearness) and nothing else about the people in it. Some Setups want to draw *the tracker itself*: a box per person, a stable number that follows them, and whether the tracker is unsure, sure, guessing, or has given up on them. The first is a debug view of the tracker, styled as a bird hunting visitors ([mockup](../superpowers/specs/2026-11-04-hunter-bird-mockup.html)). A shader can't recover identity across frames from a mask. Faking it in a buffer would show tracking bugs the real tracker doesn't have, and would hide the ones it does.
+ADR-0021 gives Setups the Body (Buffer A: `.r` presence, `.g` nearness) and nothing else about the people in it. Some Setups want to draw *the tracker itself*: a box per person, a stable number that follows them, and whether the tracker is unsure, sure, guessing, or has given up on them. The first is a debug view of the tracker, styled as a bird hunting visitors (the `hunter_bird` Setup). A shader can't recover identity across frames from a mask. Faking it in a buffer would show tracking bugs the real tracker doesn't have, and would hide the ones it does.
 
 ## Decision
 

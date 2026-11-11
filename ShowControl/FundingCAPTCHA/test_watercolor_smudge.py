@@ -1,6 +1,5 @@
 """Behaviour tests for the watercolor_smudge Setup (shaders/watercolor_smudge/).
 
-Spec: docs/superpowers/specs/2026-11-07-watercolor-smudge-design.md.
 Buffers: B original painting, C motion (eased Body, extremity, empty timer),
 D canvas (paint + wetness). The Body is uploaded directly at render size.
 GL tests need a headless context (EGL / llvmpipe) and skip without one.
