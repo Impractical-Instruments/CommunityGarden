@@ -6,7 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from playlist_app import Item, Playlist, VideoPlayer, fit_rect, load_playlist
+from playlist_app import (Item, Playlist, VideoPlayer, fit_rect, load_playlist,
+                          quarter_turns)
 from shadertoy import Renderer
 from test_shadertoy import SOLID, _image_setup, _rendered_colour
 
@@ -88,6 +89,22 @@ def test_video_paces_frames_and_ends(tmp_path):
         assert v.done and v.error is None
     finally:
         v.close()
+
+
+class _Tagged:
+    def __init__(self, **attrs):
+        self.__dict__.update(attrs)
+
+
+@pytest.mark.parametrize("stream, frame, turns", [
+    (_Tagged(side_data={"DISPLAYMATRIX": 90.0}), _Tagged(), 1),      # older PyAV: on the stream
+    (_Tagged(), _Tagged(rotation=90), 1),                            # newer PyAV: on the frame
+    (_Tagged(), _Tagged(rotation=-90), 3),
+    (_Tagged(side_data={}), _Tagged(), 0),
+    (_Tagged(), _Tagged(rotation=0), 0),
+])
+def test_quarter_turns_reads_the_display_matrix(stream, frame, turns):
+    assert quarter_turns(stream, frame) == turns
 
 
 def test_missing_video_raises(tmp_path):

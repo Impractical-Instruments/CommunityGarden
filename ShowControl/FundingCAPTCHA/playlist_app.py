@@ -75,7 +75,8 @@ class VideoPlayer:
 
     Time starts at the first decoded frame, so opening the file doesn't eat
     into the picture. If decoding falls behind, every frame is still shown —
-    the video runs long rather than skipping.
+    the video runs long rather than skipping. A file tagged as rotated (a
+    phone held upright) is turned to match, as any player shows it.
     """
 
     def __init__(self, path: Path, clock: Callable[[], float] = time.monotonic) -> None:
@@ -107,7 +108,11 @@ class VideoPlayer:
                 if self._stop.is_set():
                     return
                 t = frame.time if frame.time is not None else n / self.rate
-                item = (t, frame.to_ndarray(format="rgb24"))
+                rgb = frame.to_ndarray(format="rgb24")
+                turns = quarter_turns(self._stream, frame)
+                if turns:
+                    rgb = np.rot90(rgb, turns)
+                item = (t, rgb)
                 while not self._stop.is_set():
                     try:
                         self._q.put(item, timeout=0.1)
@@ -149,6 +154,17 @@ class VideoPlayer:
             log.warning("%s: decoder didn't stop; leaving the file open", self.path.name)
             return
         self._container.close()
+
+
+def quarter_turns(stream, frame) -> int:
+    """Counter-clockwise quarter turns the file's display matrix asks for.
+
+    Older PyAV reports the angle on the stream, newer on each frame.
+    """
+    angle = getattr(frame, "rotation", None)
+    if angle is None:
+        angle = (getattr(stream, "side_data", None) or {}).get("DISPLAYMATRIX", 0)
+    return round(float(angle or 0) / 90) % 4
 
 
 def fit_rect(src: tuple[int, int], dst: tuple[int, int]) -> tuple[int, int, int, int]:
