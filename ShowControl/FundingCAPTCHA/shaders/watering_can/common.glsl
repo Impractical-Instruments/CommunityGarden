@@ -1,6 +1,7 @@
 // Common — every tunable for the watering can lives here (edit, save, press R).
 // Lengths are in screen heights unless noted; mockup px / 360 = screen heights.
-// Spec: docs/superpowers/specs/2026-11-06-watering-can-design.md
+// Standing still grows one tree per person, rooted between the feet; a sideways step (WALK_DIST)
+// rewinds it, waving does not. Walkers leave short-lived footprint plants (FOOT_*).
 //
 // Body memory (Buffer B, per pixel):
 //   .r presence 0–1 (soft, hole-filled, eased)   .g run bottom y (UV)   .b run top y (UV)

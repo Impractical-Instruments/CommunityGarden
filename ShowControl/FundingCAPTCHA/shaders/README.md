@@ -90,6 +90,8 @@ Sources: `"A"` (Body), `"B"`, `"C"`, `"D"`, `"keyboard"`, `"blobs"` (blob record
 
 Add the folder name to [`setups.json`](setups.json) to put it in the rotation. `make test` compiles every listed Setup.
 
+For behaviour tests, add a `test_<your-setup>.py` beside the others in `ShowControl/FundingCAPTCHA/`, modelled on `test_watering_can.py`.
+
 ## Run it locally
 
 From `ShowControl/FundingCAPTCHA/` (`pip install -r requirements.txt`):

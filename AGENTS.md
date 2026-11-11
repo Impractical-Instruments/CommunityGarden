@@ -28,5 +28,3 @@ These apply to every task in this repo:
 - [Firmware](docs/agents/firmware.md)
 - [Git workflow](docs/agents/git-workflow.md)
 - [Issue tracker](docs/agents/issue-tracker.md)
-- [Triage labels](docs/agents/triage-labels.md)
-- [Domain glossary & vocabulary](docs/agents/domain.md)

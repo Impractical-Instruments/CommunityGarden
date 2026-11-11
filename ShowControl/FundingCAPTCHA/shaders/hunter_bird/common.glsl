@@ -1,6 +1,7 @@
 // Common — every tunable for the hunter bird lives here (edit, save, press R).
 // Lengths are in screen heights unless noted; mockup px / 360 = screen heights.
-// Spec: docs/superpowers/specs/2026-11-04-hunter-bird-design.md
+// The bird locks on one person at a time and strikes each person once: after the stamp it
+// ignores them for the rest of their track.
 //
 // Bird state (Buffer B) layout, texel (x, y), k = slot 0–7:
 //   (k, 0) SLOT     id, motion 0–1, interest 0–1, stamped 0/1
@@ -59,7 +60,7 @@ const float STAMP_SLAM_S = 0.12, STAMP_FADE_START_S = 2.6, STAMP_END_S = 3.2;
 const float PRINT_EVERY_S = 0.33, PRINT_MIN_SPEED = 25.0/360.0, PRINT_LIFE_S = 4.0;
 // eye
 // Two eyes, each an ellipse EYE_LENS wide per unit tall, side by side: the view is the two
-// openings merged, like wraparound sunglasses. Mockup: docs/superpowers/specs/2026-11-05-hunter-bird-two-eyes-mockup.html
+// openings merged, like wraparound sunglasses.
 const float EYE_R = 150.0/360.0;         // opening radius (tall) with no lock
 const float EYE_SEP = 150.0/360.0;       // half the distance between the eye centres, with no lock
 const float EYE_LENS = 1.25;             // width / height of each eye

@@ -1,5 +1,8 @@
 // Common — every tunable for rainbow poop lives here (edit, save, press R).
-// Lengths are in screen heights ("sh") unless noted. Spec: docs/superpowers/specs/2026-11-08-rainbow-poop-design.md
+// Lengths are in screen heights ("sh") unless noted.
+// Revised after the first build: no birds (a poop falls straight down from above the screen); it homes
+// on its person's centre of mass (HOMING_*); splats are anchored to the silhouette (SIZE_K, ANCHOR_*),
+// not the tracker's box, so they don't slide as people move.
 //
 // State (Buffer B) layout, texel (x, y); k = person slot 0–7:
 //   (k, 0) SLOT    id, seconds until this person's next poop, presence 0–1 (fades splats on loss), 0

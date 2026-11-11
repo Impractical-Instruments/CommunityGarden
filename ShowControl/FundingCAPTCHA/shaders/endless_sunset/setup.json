@@ -1,5 +1,5 @@
 {
-  "_comment": "Endless sunset: storybook sunset that zooms forever; visitors wake it, flailing squiggles them. Spec: docs/superpowers/specs/2026-10-30-endless-sunset-design.md",
+  "_comment": "Endless sunset: storybook sunset that zooms forever; visitors wake it, flailing squiggles them.",
   "duration_s": 120,
   "channels": {
     "buffer_b": ["A", "B"],

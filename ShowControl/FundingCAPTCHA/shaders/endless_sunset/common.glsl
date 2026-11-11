@@ -1,5 +1,7 @@
 // Common — every tunable for the endless sunset lives here (edit, save, press R).
 // Lengths are in screen heights unless noted; mockup px / 360 = screen heights.
+// Must not: look realistic (no smooth gradients, glow or lens effects: flat, line-drawn, cartoonish);
+// show a reset or pulse where the loop wraps; answer a standing visitor like a flailing one.
 
 // ── Endless motion ────────────────────────────────────────────────────────────
 const float LOOP_S           = 360.0;   // clock wraps here: every clock-driven motion must do a whole number of cycles per LOOP_S
