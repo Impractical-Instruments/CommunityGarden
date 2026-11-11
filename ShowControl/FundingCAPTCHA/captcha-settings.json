@@ -2,9 +2,11 @@
   "_comment": "FundingCAPTCHA runtime config. ADR-0012, ADR-0013.",
 
   "detection": {
+    "_comment": "min_blob_pixels: connected foreground regions smaller than this (camera pixels) are dropped as camera noise before anything sees them. Raise if noise blobs still show; lower if small or far visitors vanish.",
     "depth_delta_mm":  30,
     "min_depth_mm":    1000,
-    "max_depth_mm":    4000
+    "max_depth_mm":    4000,
+    "min_blob_pixels": 500
   },
 
   "depth_slabs": [

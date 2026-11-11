@@ -17,7 +17,8 @@ FPS = 15.0
 FLOOR = 3000          # empty-scene depth, mm
 PERSON = 1800         # a visitor, mm
 DELTA = 30            # detection.depth_delta_mm
-DET = DetectionConfig(min_depth_mm=500, max_depth_mm=6000, depth_delta_mm=DELTA)
+# min_blob_pixels is far below the default: these frames are tiny, a visitor is ~200 pixels.
+DET = DetectionConfig(min_depth_mm=500, max_depth_mm=6000, depth_delta_mm=DELTA, min_blob_pixels=20)
 BODY = (slice(8, 22), slice(12, 26))     # a visitor-sized patch
 INSIDE = (slice(10, 20), slice(14, 24))  # its interior, clear of despeckle edges
 
