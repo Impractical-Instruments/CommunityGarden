@@ -12,6 +12,7 @@ make test                 # all Python tests (pytest: IIVision, ShowControl, scr
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes, needs a headless OpenGL context
 make test-firmware        # TreeHouse controller host tests; not part of `make test`
+make validate-instruments # build reuben (vendor/reuben, needs Rust) and check the PtP instruments
 ```
 
 ## Critical constraints

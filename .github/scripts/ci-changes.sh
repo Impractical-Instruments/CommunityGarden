@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Decide which test jobs a PR needs. Reads changed paths on stdin, one per line;
-# prints `code=<bool>`, `gl=<bool>`, `firmware=<bool>` and `force=<path>` in
-# $GITHUB_OUTPUT format.
+# prints `code=<bool>`, `gl=<bool>`, `firmware=<bool>`, `reuben=<bool>` and
+# `force=<path>` in $GITHUB_OUTPUT format.
 #
 #   code      run the fast job (everything except FundingCAPTCHA)
 #   gl        run the fundingcaptcha job (headless-OpenGL shader tests, minutes)
 #   firmware  run the firmware job (TreeHouse controller host tests and builds)
+#   reuben    run the reuben job (build vendor/reuben, validate the PtP instruments)
 #   force     the first changed path on shader-force-run.txt, or empty. When set,
 #             the fundingcaptcha job runs every test with testmon selection off.
 #
@@ -23,6 +24,7 @@ done < "$FORCE_LIST"
 code=false
 gl=false
 firmware=false
+reuben=false
 force=
 
 while IFS= read -r path; do
@@ -49,6 +51,11 @@ while IFS= read -r path; do
         # Other firmware has no tests.
         Firmware/*)
             ;;
+        # The reuben submodule (a gitlink: the one path vendor/reuben) and the
+        # Playing the Pipes instruments. No Python test reads either.
+        vendor/*|ShowControl/PlayingThePipes/reuben/*)
+            reuben=true
+            ;;
         # Elements FundingCAPTCHA does not import. Their own tests are in the fast job.
         ShowControl/FlowerBeds/*|ShowControl/TreeHouse/*|ShowControl/Dashboard/*|ShowControl/PlayingThePipes/*)
             code=true
@@ -65,6 +72,7 @@ while IFS= read -r path; do
             code=true
             gl=true
             firmware=true
+            reuben=true
             ;;
     esac
     if [ -z "$force" ]; then
@@ -82,4 +90,5 @@ done
 echo "code=$code"
 echo "gl=$gl"
 echo "firmware=$firmware"
+echo "reuben=$reuben"
 echo "force=$force"

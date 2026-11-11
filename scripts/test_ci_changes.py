@@ -23,11 +23,12 @@ def force(*paths: str) -> str:
     return outputs(*paths)["force"]
 
 
-NEITHER  = {"code": False, "gl": False, "firmware": False}
-FAST     = {"code": True,  "gl": False, "firmware": False}
-BOTH     = {"code": True,  "gl": True,  "firmware": False}   # both Python jobs
-FIRMWARE = {"code": False, "gl": False, "firmware": True}
-ALL      = {"code": True,  "gl": True,  "firmware": True}
+NEITHER  = {"code": False, "gl": False, "firmware": False, "reuben": False}
+FAST     = {"code": True,  "gl": False, "firmware": False, "reuben": False}
+BOTH     = {"code": True,  "gl": True,  "firmware": False, "reuben": False}   # both Python jobs
+FIRMWARE = {"code": False, "gl": False, "firmware": True,  "reuben": False}
+REUBEN   = {"code": False, "gl": False, "firmware": False, "reuben": True}
+ALL      = {"code": True,  "gl": True,  "firmware": True,  "reuben": True}
 
 
 @pytest.mark.parametrize("path", [
@@ -58,7 +59,7 @@ def test_treehouse_controllers_run_only_the_firmware_job(path):
 
 def test_generated_treehouse_header_runs_its_python_test_and_the_firmware_job():
     assert jobs("Firmware/TreeHouse_Controllers/include/net_config.h") == {
-        "code": True, "gl": False, "firmware": True,
+        "code": True, "gl": False, "firmware": True, "reuben": False,
     }
 
 
@@ -75,9 +76,19 @@ def test_firmware_a_test_reads_runs_the_fast_job(path):
     "ShowControl/TreeHouse/settings.json",
     "ShowControl/Dashboard/serve.py",
     "ShowControl/PlayingThePipes/main.py",
+    "ShowControl/PlayingThePipes/Lamplight2026/patchers/Lamplight2026.maxpat",
 ])
 def test_other_elements_run_only_the_fast_job(path):
     assert jobs(path) == FAST
+
+
+@pytest.mark.parametrize("path", [
+    "vendor/reuben",                                      # the submodule's gitlink
+    "ShowControl/PlayingThePipes/reuben/pipes.json",
+    "ShowControl/PlayingThePipes/reuben/pipes.profile.json",
+])
+def test_reuben_and_the_instruments_run_only_the_reuben_job(path):
+    assert jobs(path) == REUBEN
 
 
 @pytest.mark.parametrize("path", [
@@ -101,6 +112,8 @@ def test_shared_python_runs_both_python_jobs(path):
     "Makefile",
     ".github/workflows/tests.yml",
     ".github/scripts/ci-changes.sh",
+    ".github/scripts/check-reuben-pin.sh",
+    ".gitmodules",
     "SomethingNew/thing.py",
 ])
 def test_ci_config_and_unrecognised_paths_run_everything(path):
@@ -110,7 +123,7 @@ def test_ci_config_and_unrecognised_paths_run_everything(path):
 def test_one_relevant_path_among_many_is_enough():
     assert jobs("docs/a.md", "Firmware/x/y.cpp", "ShowControl/TreeHouse/led.py") == FAST
     assert jobs("docs/a.md", "Firmware/TreeHouse_Controllers/lib/Rng/Rng.h", "ShowControl/TreeHouse/led.py") == {
-        "code": True, "gl": False, "firmware": True,
+        "code": True, "gl": False, "firmware": True, "reuben": False,
     }
     assert jobs("docs/a.md", "ShowControl/TreeHouse/led.py", "IIVision/pipeline.py") == BOTH
 

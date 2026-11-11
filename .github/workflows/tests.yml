@@ -15,6 +15,7 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
       gl: ${{ steps.filter.outputs.gl }}
       firmware: ${{ steps.filter.outputs.firmware }}
+      reuben: ${{ steps.filter.outputs.reuben }}
       force: ${{ steps.filter.outputs.force }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -176,10 +177,59 @@ jobs:
       - name: Build the firmware
         run: make build-firmware
 
+  # Every PR: vendor/reuben must point at a commit already on reuben's dev branch.
+  # While iterating it can point anywhere; this gates merging only (#236).
+  reuben-pin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: vendor/reuben is on reuben dev
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/check-reuben-pin.sh
+
+  # reuben, the Playing the Pipes audio engine: build the CLI from the submodule,
+  # then load-check every instrument. A missing sample fails it too.
+  reuben:
+    needs: changes
+    if: needs.changes.outputs.reuben == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      # cpal (reuben's audio I/O) links ALSA on Linux.
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
+      - name: Submodule commit
+        id: pin
+        run: echo "sha=$(git rev-parse HEAD:vendor/reuben)" >> "$GITHUB_OUTPUT"
+
+      # The toolchain rust-toolchain.toml pins, the crates, and the build. The
+      # newest cache for any earlier pin is a warm start for a new one.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.rustup/toolchains
+            ~/.cargo/registry
+            ~/.cargo/git
+            vendor/reuben/target
+          key: reuben-${{ runner.os }}-${{ steps.pin.outputs.sha }}
+          restore-keys: reuben-${{ runner.os }}-
+
+      - name: Build reuben
+        run: make reuben
+
+      - name: Validate instruments
+        run: make validate-instruments
+
   # The one check to require in branch protection. It keeps the name the single
   # job had before the split. A skipped job passes; a failed or cancelled one does not.
   test:
-    needs: [changes, guard, fast, fundingcaptcha, firmware]
+    needs: [changes, guard, fast, fundingcaptcha, firmware, reuben-pin, reuben]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -187,7 +237,7 @@ jobs:
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          echo "changes guard fast fundingcaptcha firmware: $RESULTS"
+          echo "changes guard fast fundingcaptcha firmware reuben-pin reuben: $RESULTS"
           for r in $RESULTS; do
               case "$r" in
                   success|skipped) ;;

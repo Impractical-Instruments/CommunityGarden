@@ -10,7 +10,8 @@ Deploy, install and repo tooling. Nothing here is imported by show code.
 | `lib/install-element.sh` | sourced by the installers | The shared install steps: pip, systemd unit, enable, restart |
 | `install-git-hooks.sh` | each clone, once | Installs `git-hooks/pre-commit`, which blocks private show content |
 | `hooks/firmware_config_gen.py` | after editing `network.json` | Regenerates the firmware network headers |
+| `validate-instruments.sh` | via `make validate-instruments`, and CI | `reuben validate` on the Playing the Pipes instruments; fails on warnings too |
 
-`test_*.py` cover these scripts and the CI path filter (`.github/scripts/ci-changes.sh`); they run under `make test`.
+`test_*.py` cover these scripts, the CI path filter (`.github/scripts/ci-changes.sh`) and the reuben submodule pin check (`.github/scripts/check-reuben-pin.sh`); they run under `make test`.
 
 Operator instructions: `docs/bootstrap.md` (first install) and `docs/showtime.md` (deploying at a venue).
