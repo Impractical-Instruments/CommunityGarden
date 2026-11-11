@@ -25,6 +25,7 @@ Key references:
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | `{"ok": true}` |
+| `GET` | `/api/network` | `{"elements": {...}}` — the `elements` block of `network.json`. The pages read each Element's `http_port` from it (via `network.js`); none holds a port of its own |
 | `GET` | `/` | Static HTML — see `index.html` |
 | `GET` | `/<element>.html` | Per-element status page |
 
@@ -44,7 +45,7 @@ Service unit runs `python3 serve.py 9000`.
 
 ## `network.json`
 
-Single source of truth for show addressing. Same file consumed by every Element via `OSCFabric/load_network_config()`.
+Single source of truth for show addressing. Same file consumed by every Element via `OSCFabric.load_network_config()`, and by the Dashboard pages via `/api/network`.
 
 ```json
 {

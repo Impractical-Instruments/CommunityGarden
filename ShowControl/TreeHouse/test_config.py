@@ -16,6 +16,14 @@ def test_shipped_settings_load():
     ]
 
 
+def test_controllers_resolve_wherever_settings_json_lives(tmp_path):
+    # network.json is found from the OSCFabric package, not from the --config path.
+    elsewhere = tmp_path / "settings.json"
+    elsewhere.write_text(SETTINGS.read_text())
+    config = load_config(str(elsewhere))
+    assert len(config.locations.targets) == 5
+
+
 def test_looking_glass_is_the_only_controllable():
     # The LED locations are ESP32-S3 controllers (ADR-0020), reached through
     # LocationSender; the Pi has no LED Controllables of its own.

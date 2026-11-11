@@ -49,14 +49,16 @@
   </div>
 
 </main>
+<script src="network.js"></script>
 <script>
 const HOST = window.location.hostname || 'localhost';
 
+// Keys of `elements` in network.json; each gets its http_port below.
 const ELEMENTS = [
-  { id: 'flowerbeds', port: 8765 },
-  { id: 'treehouse',  port: 8766 },
-  { id: 'captcha',    port: 8080 },
-  { id: 'pipes',      port: 8767 },
+  { id: 'flowerbeds' },
+  { id: 'treehouse' },
+  { id: 'captcha' },
+  { id: 'pipes' },
 ];
 
 const state = {};
@@ -105,8 +107,11 @@ function tick() {
   ELEMENTS.forEach(el => checkElement(el));
 }
 
-tick();
-setInterval(tick, 2000);
+elementPorts().then(ports => {
+  ELEMENTS.forEach(el => { el.port = ports[el.id]; });
+  tick();
+  setInterval(tick, 2000);
+}).catch(e => console.error(e));
 setInterval(updateUptimes, 1000);
 </script>
 </body>

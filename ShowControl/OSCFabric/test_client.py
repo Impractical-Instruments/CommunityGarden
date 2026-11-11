@@ -10,7 +10,7 @@ import json
 import pytest
 
 from OSCFabric.client import FabricClient
-from OSCFabric.config import load_network_config
+from OSCFabric.config import load_network_config, load_network_config_or_empty
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +190,18 @@ def test_load_network_config_loads_file(tmp_path):
 def test_load_network_config_raises_if_missing(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_network_config(tmp_path / "nonexistent.json")
+
+
+def test_or_empty_warns_and_returns_empty_if_missing(tmp_path, caplog):
+    import logging
+    log = logging.getLogger("some-element")
+    with caplog.at_level(logging.WARNING, logger="some-element"):
+        assert load_network_config_or_empty(log, tmp_path / "nonexistent.json") == {}
+    assert "nonexistent.json" in caplog.text
+
+
+def test_or_empty_returns_the_config_when_present():
+    assert load_network_config_or_empty(None) == load_network_config()
 
 
 def test_load_network_config_finds_canonical_path():

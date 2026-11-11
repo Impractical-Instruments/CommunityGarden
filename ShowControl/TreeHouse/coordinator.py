@@ -2,7 +2,8 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from pathlib import Path
+
+from OSCFabric import load_network_config_or_empty
 
 from location_sender import LocationTarget
 from controllables import (
@@ -118,13 +119,7 @@ def load_config(path: str) -> TreehouseConfig:
     with open(path) as f:
         raw = json.load(f)
 
-    network_path = Path(path).resolve().parent.parent / "network.json"
-    network: dict = {}
-    if network_path.exists():
-        with open(network_path) as f:
-            network = json.load(f)
-    else:
-        log.warning("network.json not found at %s", network_path)
+    network = load_network_config_or_empty(log)
 
     show_raw = raw.get("show", {})
 

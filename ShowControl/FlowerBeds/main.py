@@ -42,7 +42,7 @@ from flower_beds import (
 from diag import osc_ping, parse_found_ids
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
-from OSCFabric import FabricClient, load_network_config
+from OSCFabric import FabricClient, load_network_config_or_empty
 
 _OSC_ADDRESS = "/cg/ff/rot"
 
@@ -112,11 +112,7 @@ def _diagnose_controllers(network: dict, expected_motor_ids: set[int]) -> list[i
 
 def run(args: argparse.Namespace) -> None:
     settings = load_settings(args.config)
-    try:
-        network = load_network_config()
-    except FileNotFoundError as exc:
-        log.warning("%s — OSC fabric disabled", exc)
-        network = {}
+    network = load_network_config_or_empty(log)
 
     # --- camera config (shared across restarts) ---
     raw_cameras = settings.get("cameras", [])
@@ -285,11 +281,7 @@ def run_calibrate(args: argparse.Namespace) -> None:
     0° = forward (+Y world axis), 90° = right (+X), -90° = left.
     """
     settings = load_settings(args.config)
-    try:
-        network = load_network_config()
-    except FileNotFoundError as exc:
-        log.warning("%s — OSC fabric disabled", exc)
-        network = {}
+    network = load_network_config_or_empty(log)
     yaw = args.calibrate_yaw
 
     # Collect every motor_id from config.
@@ -342,11 +334,7 @@ def run_calibrate_sweep(args: argparse.Namespace) -> None:
     tighter cone, not the global default.
     """
     settings = load_settings(args.config)
-    try:
-        network = load_network_config()
-    except FileNotFoundError as exc:
-        log.warning("%s — OSC fabric disabled", exc)
-        network = {}
+    network = load_network_config_or_empty(log)
 
     coordinator_cfg = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
     # (motor_id, yaw_limit_deg) for every cluster.

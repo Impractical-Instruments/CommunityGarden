@@ -23,11 +23,10 @@
     </div>
   </div>
 </div>
+<script src="network.js"></script>
 <script>
 const HOST = window.location.hostname || 'localhost';
-const PORT = 8765;
-
-document.getElementById('frame').src = `http://${HOST}:${PORT}/`;
+let PORT;   // from network.json; set below before anything connects
 
 const logPanel = document.getElementById('log-panel');
 const logLines = document.getElementById('log-lines');
@@ -53,7 +52,11 @@ function connectLogs() {
   ws.onmessage = ev => { try { appendLog(JSON.parse(ev.data)); } catch (_) {} };
 }
 
-connectLogs();
+elementPort('flowerbeds').then(port => {
+  PORT = port;
+  document.getElementById('frame').src = `http://${HOST}:${PORT}/`;
+  connectLogs();
+}).catch(e => console.error(e));
 </script>
 </body>
 </html>
