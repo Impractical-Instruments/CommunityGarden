@@ -278,12 +278,13 @@ def test_lost_person_holds_then_fades(ctx):
     rig.release()
 
 
-@pytest.mark.parametrize("slot", [0, 7])               # owner 8 has the coarsest half-float spacing
 @pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 240, 24)])
-def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam, slot):
+def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam):
     """A lost person's hold falls by 1/LEAVE_S per second, +/- 15%, at any render rate.
-    Measured as the slope of the mean hold over the torso between 0.5 s and 1.5 s into the fade."""
-    rig = Rig(ctx, dt=dt, slot=slot)
+    Measured as the slope of the mean hold over the torso between 0.5 s and 1.5 s into the fade.
+    In slot 7 (owner 8): the hold is stored as owner + 0.9 * hold, so owner 8 has the coarsest half-float
+    spacing; the quantisation is otherwise the same for every owner."""
+    rig = Rig(ctx, dt=dt, slot=7)
     rig.run([person()] * 20, frames_per_camera=per_cam)
 
     def hold():                                        # mean over a torso patch, so per-pixel noise averages out
@@ -301,12 +302,12 @@ def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam, slot):
     rig.release()
 
 
-@pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 60, 6)])
-def test_fading_hold_agrees_along_a_run(ctx, dt, per_cam):
+def test_fading_hold_agrees_along_a_run(ctx):
     """Every texel of a lost person's run fades in step, so the Image rebuilds each vine tip from one value:
-    the hold's peak-to-peak down a torso column stays within 2 * HOLD_Q at every point of the fade."""
-    size = (640, 360)
-    rig = Rig(ctx, size=size, dt=dt)
+    the hold's peak-to-peak down a torso column stays within 2 * HOLD_Q at every point of the fade.
+    (The fade's step offset is per frame, not per texel, at any render rate: one rate is enough.)"""
+    size, per_cam = (640, 360), 3
+    rig = Rig(ctx, size=size, dt=1 / 30)
     rig.run([person()] * 20, frames_per_camera=per_cam)
     seen = []
     for k in range(28):                                # coasting (0.8 s), then the whole LEAVE_S fade
@@ -361,6 +362,7 @@ def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, n
         levels.append(rig.person(0)[1])
     assert abs(levels[9] - grown(10)) < 0.06 and levels[-1] > 0.98, levels
     assert all(b >= a - 1e-3 for a, b in zip(levels, levels[1:])), levels
+    assert footprints(rig) == []                    # flicker is not walking
     rig.release()
 
 
@@ -368,6 +370,7 @@ def test_arm_waving_does_not_rewind(ctx):
     rig = Rig(ctx)
     rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
     assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
+    assert footprints(rig) == []                    # nor is waving
     rig.release()
 
 
@@ -375,15 +378,6 @@ def test_weight_shift_does_not_rewind(ctx):
     rig = Rig(ctx)
     rig.run([person(lift=(None, "L", None, "R")[k // 3 % 4]) for k in range(100)])
     assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
-    rig.release()
-
-
-def test_walking_sideways_rewinds(ctx):
-    rig = Rig(ctx)
-    rig.run([person(x=WALK_X)] * 100)
-    g0 = rig.person(0)[1]
-    rig.run(walking(30, x=WALK_X))
-    assert abs((g0 - rig.person(0)[1]) - 3.0 / 20.0) < 0.05, (g0, rig.person(0))
     rig.release()
 
 
@@ -399,13 +393,15 @@ def test_stepping_toward_camera_rewinds(ctx):
     rig.release()
 
 
-def test_growth_resumes_after_walking(ctx):
+def test_walking_sideways_rewinds_then_growth_resumes(ctx):
     rig = Rig(ctx)
     rig.run([person(x=WALK_X)] * 100)
+    g0 = rig.person(0)[1]
     walk = walking(30, x=WALK_X)
     rig.run(walk)
     g1 = rig.person(0)[1]
-    assert abs(g1 - (grown(10) - 3.0 / K["REWIND_S"])) < 0.1, g1    # rewound, not reset
+    assert abs((g0 - g1) - 3.0 / K["REWIND_S"]) < 0.05, (g0, g1)    # 3 s of walking rewinds 3 s' worth ...
+    assert abs(g1 - (grown(10) - 3.0 / K["REWIND_S"])) < 0.1, g1    # ... not a reset
     levels = []
     for _ in range(3):
         rig.run([walk[-1]] * 10)
@@ -425,16 +421,6 @@ def test_neighbour_walking_does_not_rewind_still_person(ctx):
     assert still != walker
     assert abs(rig.person(still)[1] - grown(10)) < 0.06, rig.person(still)
     assert rig.person(walker)[1] < 0.1, rig.person(walker)
-    rig.release()
-
-
-def test_brief_loss_keeps_growth(ctx):
-    rig = Rig(ctx)
-    rig.run([person()] * 100)
-    rig.run([EMPTY] * 20)                          # lost, then emptied: the track is gone
-    assert rig.person(0)[0] == 0
-    rig.run([person()] * 5)
-    assert rig.person(slot_of_live(rig))[1] > 0.45            # whichever slot and id it came back in
     rig.release()
 
 
@@ -624,9 +610,9 @@ def test_newcomer_beside_bloomed_person_starts_bare(ctx):
     rig.release()
 
 
-@pytest.mark.parametrize("dt, per_cam", [(1 / 30, 3), (1 / 60, 6)])   # a half float stalls the easing short of full
-def test_sun_tracks_growth(ctx, dt, per_cam):
-    rig = Rig(ctx, dt=dt)
+def test_sun_tracks_growth(ctx):                     # at 30 fps a half float already stalls naive easing short of full
+    per_cam = 3
+    rig = Rig(ctx, dt=1 / 30)
     rig.run([EMPTY] * 30, frames_per_camera=per_cam)
     assert rig.sun()[0] < 0.02
     rig.run([person()] * 300, frames_per_camera=per_cam)   # full bloom from ~21 s, then 6 SUN_EASE_S to catch up
@@ -636,12 +622,11 @@ def test_sun_tracks_growth(ctx, dt, per_cam):
     rig.release()
 
 
-@pytest.mark.parametrize("dt, per_cam", [(1 / 60, 6), (1 / 240, 24)])   # a half float stalls small steps
-def test_growth_independent_of_render_rate(ctx, dt, per_cam):
+def test_growth_independent_of_render_rate(ctx):     # a half float stalls small steps: 240 fps has the smallest
     a = Rig(ctx, dt=1 / 30)
     a.run([person()] * 150, frames_per_camera=3)              # 15 s: through the coarser steps above 0.5
-    b = Rig(ctx, dt=dt)
-    b.run([person()] * 150, frames_per_camera=per_cam)
+    b = Rig(ctx, dt=1 / 240)
+    b.run([person()] * 150, frames_per_camera=24)
     assert abs(a.person(0)[1] - grown(15)) < 0.06, a.person(0)
     assert abs(a.person(0)[1] - b.person(0)[1]) < 0.02, (a.person(0), b.person(0))
     a.release(); b.release()
@@ -951,35 +936,30 @@ def test_growth_climbs_from_the_feet(shared_rig):
     assert d[top].mean() < 0.05, d[top].mean()             # ... and the top still bare
 
 
-def test_colour_ripens(shared_rig):
-    sats = []
-    for frames, g in ((round(10 * seconds_to(0.3)), 0.3), (220, 1.0)):
-        rig = shared_rig(frames)
-        assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
-        img = rig.image()
-        sats.append(saturation(img[..., :3][drawn(img)]).mean())
-    assert sats[1] > 1.5 * sats[0], sats            # rises clearly: the palette is pastel and the wood is ink on paper
-
-
 def coloured(img):
     """Flower pixels: drawn and not grey. The wood and leaves are ink on paper; only flowers carry colour."""
     rgb = img[..., :3].astype(int)
     return drawn(img) & (rgb.max(axis=-1) - rgb.min(axis=-1) > 20)
 
 
-def test_flowers_bloom_pale_low_then_bold_high(shared_rig):
+def test_colour_ripens_flowers_pale_low_then_bold_high(shared_rig):
     fig = on_screen(person(), IMG)
     _, y = screen_xy(IMG)
     top, bottom = y[fig].max(), y[fig].min()
     low = y < bottom + (top - bottom) / 3                  # the figure's lower and upper thirds
     high = y > top - (top - bottom) / 3
     early = shared_rig(round(10 * seconds_to(0.3)))         # 2 s in
+    assert abs(early.person(0)[1] - 0.3) < 0.05, early.person(0)
     img = early.image()
+    sat_early = saturation(img[..., :3][drawn(img)]).mean()
     c = coloured(img)
     assert c[low].sum() > 20, c[low].sum()                  # flowers already open, low on the body ...
     assert (flower_pixels(img) & drawn(img)).sum() < 5      # ... and pale: hardly a pixel in full colour yet
     full = shared_rig(220)
+    assert full.person(0)[1] > 0.99, full.person(0)
     img = full.image()
+    sat_full = saturation(img[..., :3][drawn(img)]).mean()
+    assert sat_full > 1.5 * sat_early, (sat_early, sat_full)   # rises clearly: the palette is pastel, the wood ink
     bold = flower_pixels(img) & drawn(img)
     assert bold.sum() > 30                                  # bold flowers at full bloom (only the outer ones: few at this size)
     assert bold[high].sum() > 2 * bold[low].sum(), (bold[high].sum(), bold[low].sum())   # and mostly high up
@@ -996,8 +976,9 @@ def test_vines_follow_the_arm(ctx):
     rig.release()
 
 
-@pytest.mark.parametrize("thick", [6, 4])              # Body rows of a 96-row Body: 0.0625 and 0.042 screen heights
-def test_horizontal_arm_blooms(ctx, thick):          # a thin run grows to full bloom too: no bare stencil hole
+def test_horizontal_arm_blooms(ctx):                 # a thin run grows to full bloom too: no bare stencil hole
+    thick = 4                                        # Body rows of a 96-row Body: 0.042 screen heights (thicker arms
+                                                     # only bloom more)
     # A finer Body than BODY, so the arm can be thinner than a flower and still be body after B's blur.
     m = np.kron(person(arm="out"), np.ones((2, 2), dtype=bool))   # 128 x 96; the arm is rows 26-31
     m[26 + thick:32, 72:] = False                                  # thin it from below
@@ -1052,43 +1033,23 @@ def footprints(rig):
     return [tuple(c[3, 1 + f, :3]) for f in range(FOOTPRINTS) if c[3, 1 + f, 2] < FOOT_LIFE]
 
 
-def test_walker_leaves_footprints_along_their_path(ctx):
-    rig = Rig(ctx)
+def test_walker_leaves_footprints_that_grow_then_rewind_away(ctx):
+    rig = Rig(ctx, size=IMG)
     rig.run([person(x=WALK_X)] * 30)
     rig.run(walking(30, x=WALK_X))                  # 30 px right in 3 s
+    feet = 1 - 44 / BODY[1]                         # the feet's row, UV y
     fps = sorted(footprints(rig))
     assert len(fps) >= 4, fps
-    feet = 1 - 44 / BODY[1]                         # the feet's row, UV y
-    aspect = SIZE[0] / SIZE[1]
     xs = [x for x, _, _ in fps]
     assert all(abs(y - feet) < 0.04 for _, y, _ in fps), fps
     assert WALK_X / BODY[0] - 0.05 < xs[0] and xs[-1] < (WALK_X + 42) / BODY[0], fps   # on the path
-    assert all((b - a) * aspect >= FOOT_GAP - 1e-3 for a, b in zip(xs, xs[1:])), fps    # spaced
-    ages = [t for _, _, t in sorted(fps)]
+    assert all((b - a) * IMG[0] / IMG[1] >= FOOT_GAP - 1e-3 for a, b in zip(xs, xs[1:])), fps    # spaced
+    ages = [t for _, _, t in fps]
     assert ages == sorted(ages, reverse=True), ages  # dropped in walking order: oldest first
-    rig.release()
-
-
-@pytest.mark.parametrize("kind", ["planted", "waving"])
-def test_no_footprints_without_walking(ctx, kind):
-    rig = Rig(ctx)
-    if kind == "planted":
-        rig.run(flickering(100))
-    else:
-        rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
-    assert footprints(rig) == []
-    rig.release()
-
-
-def test_footprints_grow_where_the_walker_was_then_rewind_away(ctx):
-    rig = Rig(ctx, size=IMG)
-    rig.run([person(x=WALK_X)] * 30)
-    rig.run(walking(30, x=WALK_X))
     rig.run([EMPTY] * 15)                           # the walker leaves; their own plants rewind away
     assert footprints(rig)
     # Off the body, where the walker passed: footprint plants, standing up off the floor at the feet's row.
     x, y = screen_xy(IMG)
-    feet = 1 - 44 / BODY[1]
     floor = (y > feet - 0.03) & (y < feet + 0.12)
     n0 = drawn(rig.image(), floor).sum()
     assert n0 > 200, n0

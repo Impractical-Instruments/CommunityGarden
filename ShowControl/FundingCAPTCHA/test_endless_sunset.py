@@ -198,23 +198,6 @@ def test_empty_room_is_dimmer(ctx):
     assert mean([EMPTY] * 40) < 0.8 * mean([CORNER] * 40)
 
 
-def test_no_pop_across_clock_wrap(ctx):
-    r = make(ctx)
-    r.upload_body(body(CORNER))
-    prev, at_wrap, elsewhere = None, [], []
-    for k in range(3700):                           # 370 s at rate ~1, crosses LOOP_S
-        r.render(0.1, (0, 0, 0, 0))
-        if k > 3300:
-            img = image(r)[..., :3].astype(float)
-            clock = state(r)[2] + state(r)[3]
-            if prev is not None:
-                d = np.abs(img - prev).mean()
-                (at_wrap if clock < 1.0 or clock > 359.0 else elsewhere).append(d)
-            prev = img
-    assert at_wrap, "never crossed the wrap"
-    assert max(at_wrap) < 1.5 * np.median(elsewhere)   # a wrap frame looks like any other frame
-
-
 # ── Image: the person ─────────────────────────────────────────────────────────
 
 def to_render(mask, size):
@@ -404,16 +387,25 @@ def test_clock_wrap_is_seamless_everywhere(ctx, tmp_path):
     assert np.abs(now - later).max() <= 2
 
 
-def test_all_water_lines_are_on_screen(ctx, tmp_path):
+def test_water_lines_are_all_on_screen_and_clear_the_horizon(ctx, tmp_path):
     # Line spacing fits the water under a 20% horizon: the deepest (8th) line sits at ~90% of
     # the water depth (~2% up the screen) and the 7th at ~6%. Before, both fell off-screen.
     size = (960, 540)
     r = make_with(ctx, tmp_path, size, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
     run(r, [CORNER] * 40)
-    col = image(r)[:, int(0.15 * size[0]), :3].astype(int)            # row 0 = bottom
-    line = (col.sum(axis=1) < 450) | (np.abs(col - [32, 118, 163]).max(axis=1) < 40)
+    img = image(r)[..., :3].astype(int)                               # row 0 = bottom
+    dark = (img.sum(axis=2) < 450) | (np.abs(img - [32, 118, 163]).max(axis=2) < 40)
+    line = dark[:, int(0.15 * size[0])]
     assert line[5:15].any()                         # 8th line
     assert line[26:36].any()                        # 7th line
+    # Line 1's wiggle is scaled with the line spacing, so it never touches the horizon.
+    horizon = int(round(0.20 * size[1]))
+    for x in range(20, size[0], 7):
+        if abs(x - size[0] // 2) < 120:             # skip the sun's reflection
+            continue
+        down = dark[horizon - 12: horizon + 2, x][::-1]  # from inside the horizon line, walking down
+        run_ = int(np.argmin(down))                   # contiguous dark rows from the horizon down
+        assert run_ <= 5, f"line 1 merges into the horizon at x={x} ({run_} dark rows)"
 
 
 def test_skipping_work_away_from_people_changes_nothing(ctx, tmp_path):
@@ -459,22 +451,6 @@ def test_field_spreads_at_the_same_speed_at_any_resolution(ctx):
         edge = int(340 * size[0] / cam[1]) + 2          # just right of the body
         return np.argmax(row[edge:] < 0.05) / size[1]   # how far the front got, in screen heights
     assert front((480, 270)) == pytest.approx(front((960, 540)), abs=0.02)
-
-
-def test_top_water_lines_clear_the_horizon(ctx, tmp_path):
-    # Line 1's wiggle is scaled with the line spacing, so it never touches the horizon.
-    size = (960, 540)
-    r = make_with(ctx, tmp_path, size, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
-    run(r, [CORNER] * 40)
-    img = image(r)[..., :3].astype(int)
-    dark = (img.sum(axis=2) < 450) | (np.abs(img - [32, 118, 163]).max(axis=2) < 40)
-    horizon = int(round(0.20 * size[1]))
-    for x in range(20, size[0], 7):
-        if abs(x - size[0] // 2) < 120:             # skip the sun's reflection
-            continue
-        down = dark[horizon - 12: horizon + 2, x][::-1]  # from inside the horizon line, walking down
-        run_ = int(np.argmin(down))                   # contiguous dark rows from the horizon down
-        assert run_ <= 5, f"line 1 merges into the horizon at x={x} ({run_} dark rows)"
 
 
 # ── Image: concentric sine squiggles fill the person ─────────────────────────
@@ -526,7 +502,7 @@ def calm(ctx, tmp_path):
     return make_with(ctx, tmp_path, PI_SIZE, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
 
 
-def test_person_is_filled_with_concentric_lines(ctx, tmp_path):
+def test_person_is_filled_with_concentric_lines_that_crawl(ctx, tmp_path):
     # Replaces the old flat 80% warm-white fill: the sun now shows between the lines.
     r = calm(ctx, tmp_path)
     pi_run(r, pi_frames(40))
@@ -538,34 +514,22 @@ def test_person_is_filled_with_concentric_lines(ctx, tmp_path):
     assert (red[row < 60] > 200).all()              # … (yellow, not ink)
     gap = np.median(np.diff(starts)) / PI_SIZE[1]
     assert 7 / 360 < gap < 14 / 360                 # about 10/360 screen heights apart
-
-
-def test_concentric_lines_crawl_while_standing_still(ctx, tmp_path):
-    r = calm(ctx, tmp_path)
-    pi_run(r, pi_frames(40))
-    a = sun_row(image(r))
-    pi_run(r, pi_frames(5))                         # half a second later, body unchanged
-    b = sun_row(image(r))
-    assert np.abs(a - b).mean() > 20
+    pi_run(r, pi_frames(5))                         # half a second later, body unchanged:
+    assert np.abs(row - sun_row(image(r))).mean() > 20   # the lines have crawled
 
 
 def test_concentric_lines_ignore_depth_dropouts(ctx, tmp_path):
     # 8% flickering holes must not ring the holes with lines or make the lines pop:
     # the holey person's lines match the solid person's.
-    def render(holes):
-        r = calm(ctx, tmp_path)
-        pi_run(r, pi_frames(40, holes=holes))
-        return sun_row(image(r))
-    solid, holey = render(0.0), render(0.08)
-    assert (np.abs(solid - holey) > 90).mean() < 0.08
-    assert abs(len(runs(solid)) - len(runs(holey))) <= 1
-
-
-def test_concentric_lines_do_not_tear_between_camera_frames(ctx, tmp_path):
-    # Rendering at 30 fps from a 10 fps camera: from one render frame to the next the lines
-    # only crawl a little, even with flickering holes.
+    solid = calm(ctx, tmp_path)
+    pi_run(solid, pi_frames(40))
     r = calm(ctx, tmp_path)
     pi_run(r, pi_frames(40, holes=0.08))
+    a, b = sun_row(image(solid)), sun_row(image(r))
+    assert (np.abs(a - b) > 90).mean() < 0.08
+    assert abs(len(runs(a)) - len(runs(b))) <= 1
+    # Nor do they tear between camera frames: rendering at 30 fps from a 10 fps camera, from one
+    # render frame to the next the lines only crawl a little, even with flickering holes.
     rows = []
     pi_run(r, pi_frames(4, holes=0.08, seed=9), after=lambda r: rows.append(sun_row(image(r))))
     steps = [(np.abs(a - b) > 120).mean() for a, b in zip(rows, rows[1:])]
