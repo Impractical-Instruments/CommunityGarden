@@ -8,9 +8,11 @@ make test                 # all Python tests (pytest: IIVision, ShowControl, scr
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
 python -m pytest          # the same as make test
+make test-firmware        # TreeHouse controller host tests (needs `pip install platformio`)
+make build-firmware       # compile the signs-of-life, location and self-test firmware
 ```
 
-CI runs `test-fast` and `test-fundingcaptcha` as separate jobs and skips either when the PR cannot affect it. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
+CI runs `test-fast`, `test-fundingcaptcha` and the two firmware targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
 
 ## Run FlowerBeds show control
 

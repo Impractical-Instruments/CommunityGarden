@@ -14,6 +14,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       gl: ${{ steps.filter.outputs.gl }}
+      firmware: ${{ steps.filter.outputs.firmware }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -116,10 +117,38 @@ jobs:
       - name: Run tests
         run: make test-fundingcaptcha
 
+  # TreeHouse controller firmware: host tests, then a build of each kind of
+  # environment so a change to platformio.ini or src/ cannot break one unseen.
+  firmware:
+    needs: changes
+    if: needs.changes.outputs.firmware == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      # The ESP32 toolchain and libraries: a few hundred MB, fixed by platformio.ini.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.platformio
+          key: platformio-${{ hashFiles('Firmware/TreeHouse_Controllers/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio==6.2.0
+
+      - name: Run host tests
+        run: make test-firmware
+
+      - name: Build the firmware
+        run: make build-firmware
+
   # The one check to require in branch protection. It keeps the name the single
   # job had before the split. A skipped job passes; a failed or cancelled one does not.
   test:
-    needs: [changes, guard, fast, fundingcaptcha]
+    needs: [changes, guard, fast, fundingcaptcha, firmware]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -127,7 +156,7 @@ jobs:
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          echo "changes guard fast fundingcaptcha: $RESULTS"
+          echo "changes guard fast fundingcaptcha firmware: $RESULTS"
           for r in $RESULTS; do
               case "$r" in
                   success|skipped) ;;
