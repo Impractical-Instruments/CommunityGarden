@@ -54,7 +54,7 @@ except ImportError:
     _CV_AVAILABLE = False
 
 try:
-    from OSCFabric import FabricClient, load_network_config
+    from OSCFabric import FabricClient, load_network_config_or_empty
     _FABRIC_AVAILABLE = True
 except ImportError:
     _FABRIC_AVAILABLE = False
@@ -427,16 +427,13 @@ def main() -> None:
     # ── OSC fabric ────────────────────────────────────────────────────────────
     fabric: Any = None
     if _FABRIC_AVAILABLE:
-        try:
-            network = load_network_config()
-            th = network.get("elements", {}).get("treehouse", {})
-            if th.get("ip") and th.get("osc_port"):
-                fabric = FabricClient("captcha", network)
-                log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
-            else:
-                log.warning("network.json: treehouse not configured — OSC disabled")
-        except FileNotFoundError as exc:
-            log.warning("%s — OSC disabled", exc)
+        network = load_network_config_or_empty(log)
+        th = network.get("elements", {}).get("treehouse", {})
+        if th.get("ip") and th.get("osc_port"):
+            fabric = FabricClient("captcha", network)
+            log.info("OSC fabric → TreeHouse %s:%d", th["ip"], th["osc_port"])
+        else:
+            log.warning("network.json: treehouse not configured — OSC disabled")
 
     # ── Camera factory ────────────────────────────────────────────────────────
     def _make_camera() -> Any:

@@ -80,9 +80,10 @@
   </div>
 
 </div>
+<script src="network.js"></script>
 <script>
 const HOST = window.location.hostname || 'localhost';
-const PORT = 8766;
+let PORT;   // from network.json; set at the bottom before anything connects
 
 // ── Control helpers ──────────────────────────────────────────────────────────
 
@@ -156,8 +157,6 @@ function connectState() {
   };
 }
 
-connectState();
-
 // ── Log WebSocket ────────────────────────────────────────────────────────────
 
 const logPanel = document.getElementById('log-panel');
@@ -184,7 +183,11 @@ function connectLogs() {
   ws.onmessage = ev => { try { appendLog(JSON.parse(ev.data)); } catch (_) {} };
 }
 
-connectLogs();
+elementPort('treehouse').then(port => {
+  PORT = port;
+  connectState();
+  connectLogs();
+}).catch(e => console.error(e));
 </script>
 </body>
 </html>

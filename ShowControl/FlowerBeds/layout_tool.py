@@ -26,6 +26,8 @@ from fastapi.staticfiles import StaticFiles  # type: ignore[import]
 from pydantic import BaseModel  # type: ignore[import]
 from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
+from OSCFabric import load_network_config
+
 from diag import osc_ping
 
 _OSC_ADDRESS = "/cg/ff/rot"
@@ -40,7 +42,7 @@ _DEFAULT_CLUSTER_OFFSETS = [
 
 # Paths set by main() before the server starts
 _config_path: Path  = Path("settings.json")
-_network_path: Path = Path(__file__).resolve().parents[1] / "network.json"
+_network_path: Path | None = None   # None: the canonical ShowControl/network.json
 
 
 # ---------------------------------------------------------------------------
@@ -160,11 +162,11 @@ async def post_layout(body: LayoutBody):
 @app.get("/api/network")
 async def get_network():
     try:
-        network     = _load_json(_network_path)
+        network     = load_network_config(_network_path)
         controllers = _flowerbeds_controllers(network)
         return JSONResponse({"controllers": controllers})
-    except FileNotFoundError:
-        return JSONResponse({"controllers": [], "error": f"{_network_path} not found"})
+    except FileNotFoundError as exc:
+        return JSONResponse({"controllers": [], "error": str(exc)})
     except Exception as exc:
         return JSONResponse({"controllers": [], "error": str(exc)})
 
@@ -172,7 +174,7 @@ async def get_network():
 @app.get("/api/controller-status")
 async def controller_status():
     try:
-        network     = _load_json(_network_path)
+        network     = load_network_config(_network_path)
         controllers = _flowerbeds_controllers(network)
     except Exception:
         controllers = []
@@ -197,7 +199,7 @@ async def controller_status():
 @app.post("/api/aim")
 async def aim(body: AimBody):
     try:
-        network = _load_json(_network_path)
+        network = load_network_config(_network_path)
     except Exception:
         network = {}
     try:
@@ -219,22 +221,18 @@ def main() -> None:
     ap.add_argument("--config",  default="settings.json",
                     help="Path to settings.json (default: settings.json)")
     ap.add_argument("--network", default=None,
-                    help="Path to network.json (default: ../../network.json relative to this script)")
+                    help="Path to network.json (default: ShowControl/network.json)")
     ap.add_argument("--port",    type=int, default=8764, help="HTTP port (default: 8764)")
     ap.add_argument("--no-browser", action="store_true", help="Don't open browser automatically")
     args = ap.parse_args()
 
     _config_path  = Path(args.config).resolve()
-    _network_path = (
-        Path(args.network).resolve()
-        if args.network
-        else Path(__file__).resolve().parents[1] / "network.json"
-    )
+    _network_path = Path(args.network).resolve() if args.network else None
 
     url = f"http://localhost:{args.port}"
     print(f"Layout tool: {url}")
     print(f"Config:      {_config_path}")
-    print(f"Network:     {_network_path}")
+    print(f"Network:     {_network_path or 'ShowControl/network.json'}")
 
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()

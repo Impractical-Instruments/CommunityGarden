@@ -3,7 +3,8 @@
 Show dashboard — FastAPI server for the static dashboard pages.
 
 The pages talk to each Element's own monitoring port from the browser; this
-server relays nothing.
+server relays nothing. It serves the ports from network.json at /api/network,
+so the pages hold no addresses of their own.
 
 Usage:
   python serve.py           # default port 9000
@@ -20,6 +21,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from OSCFabric import load_network_config_or_empty
+
 DIR = Path(__file__).resolve().parent
 
 log = logging.getLogger("dashboard")
@@ -34,6 +37,12 @@ app = FastAPI()
 @app.get("/health")
 async def health():
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/network")
+async def network():
+    """The `elements` block of network.json: {name: {ip, osc_port, http_port}}."""
+    return JSONResponse({"elements": load_network_config_or_empty(log).get("elements", {})})
 
 
 # Static files — registered last so API routes take priority
