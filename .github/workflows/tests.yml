@@ -4,30 +4,37 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+permissions:
+  contents: read
 
+jobs:
+  # Which test jobs does this PR need? See .github/scripts/ci-changes.sh.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      gl: ${{ steps.filter.outputs.gl }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # need base-branch history to diff the PR against below
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          # --no-renames: a file moved out of a tested directory must count as a change there.
+          git diff --name-only --no-renames "$BASE_SHA"...HEAD > /tmp/changed
+          echo "Changed paths:"; sed 's/^/  /' /tmp/changed
+          .github/scripts/ci-changes.sh < /tmp/changed | tee -a "$GITHUB_OUTPUT"
+
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: '20'
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: '3.11'
-
-      - name: Install Python test deps
-        run: pip install -r requirements-dev.txt
-
-      - name: Install headless OpenGL (shader player GL tests)
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
+          fetch-depth: 0 # need base-branch history to diff the PR against below
 
       - name: Guard against private show content
         env:
@@ -70,5 +77,64 @@ jobs:
 
           echo "No private-content leaks detected."
 
+  # Everything except FundingCAPTCHA: seconds.
+  fast:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Python test deps
+        run: pip install -r requirements-dev.txt
+
       - name: Run tests
-        run: make test
+        run: make test-fast
+
+  # FundingCAPTCHA, including the shader tests on software OpenGL: minutes.
+  fundingcaptcha:
+    needs: changes
+    if: needs.changes.outputs.gl == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Python test deps
+        run: pip install -r requirements-dev.txt
+
+      - name: Install headless OpenGL (shader player GL tests)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
+
+      - name: Run tests
+        run: make test-fundingcaptcha
+
+  # The one check to require in branch protection. It keeps the name the single
+  # job had before the split. A skipped job passes; a failed or cancelled one does not.
+  test:
+    needs: [changes, guard, fast, fundingcaptcha]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every needed job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "changes guard fast fundingcaptcha: $RESULTS"
+          for r in $RESULTS; do
+              case "$r" in
+                  success|skipped) ;;
+                  *) echo "::error::a needed job ended with: $r"; exit 1 ;;
+              esac
+          done
