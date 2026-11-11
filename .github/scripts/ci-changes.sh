@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 # Decide which test jobs a PR needs. Reads changed paths on stdin, one per line;
-# prints `code=<bool>`, `gl=<bool>` and `firmware=<bool>` in $GITHUB_OUTPUT format.
+# prints `code=<bool>`, `gl=<bool>`, `firmware=<bool>` and `force=<path>` in
+# $GITHUB_OUTPUT format.
 #
 #   code      run the fast job (everything except FundingCAPTCHA)
-#   gl        run the fundingcaptcha job (headless-OpenGL shader tests, ~9 min)
+#   gl        run the fundingcaptcha job (headless-OpenGL shader tests, minutes)
 #   firmware  run the firmware job (TreeHouse controller host tests and builds)
+#   force     the first changed path on shader-force-run.txt, or empty. When set,
+#             the fundingcaptcha job runs every test with testmon selection off.
 #
-# These are deny-lists: a path this script does not recognise runs
+# The job lists are deny-lists: a path this script does not recognise runs
 # everything. Add a pattern here only for paths a job's tests cannot depend on.
 set -euo pipefail
+
+FORCE_LIST="$(dirname "${BASH_SOURCE[0]}")/shader-force-run.txt"
+force_globs=()
+while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue ;; esac
+    force_globs+=("$line")
+done < "$FORCE_LIST"
 
 code=false
 gl=false
 firmware=false
+force=
 
 while IFS= read -r path; do
     [ -n "$path" ] || continue
@@ -56,8 +67,19 @@ while IFS= read -r path; do
             firmware=true
             ;;
     esac
+    if [ -z "$force" ]; then
+        for glob in "${force_globs[@]}"; do
+            # Unquoted on the right: a pattern, in which * also matches /.
+            # shellcheck disable=SC2053
+            if [[ $path == $glob ]]; then
+                force=$path
+                break
+            fi
+        done
+    fi
 done
 
 echo "code=$code"
 echo "gl=$gl"
 echo "firmware=$firmware"
+echo "force=$force"
