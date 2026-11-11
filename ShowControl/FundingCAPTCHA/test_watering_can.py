@@ -6,8 +6,8 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
+import copy
 import math
-import os
 import re
 from pathlib import Path
 
@@ -56,23 +56,6 @@ LEAVE_S = K["LEAVE_S"]
 BLOBS = BlobConfig(min_blob_pixels=20)    # the shipped defaults, but for the small test Body
 
 
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
-
-
 class Rig:
     """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at `dt`."""
 
@@ -110,6 +93,28 @@ class Rig:
 
     def release(self):
         self.r.release()
+
+    def _state_textures(self):
+        """Every texture a frame reads or writes: the feedback buffers (both halves), the Image, the inputs."""
+        r = self.r
+        return [*(t for b in r._buffers.values() for t in b.tex), r.output_tex, r._body_tex, r._blobs_tex]
+
+    def snapshot(self):
+        """All state the next run() or read depends on, for restore()."""
+        r = self.r
+        return {"tex":   [t.read() for t in self._state_textures()],
+                "reads": {n: b.read for n, b in r._buffers.items()},
+                "clock": (r.time, r.frame, self.t),
+                "blobs": copy.deepcopy(self.blobs)}
+
+    def restore(self, snap):
+        r = self.r
+        for t, data in zip(self._state_textures(), snap["tex"], strict=True):
+            t.write(data)
+        for n, read in snap["reads"].items():
+            r._buffers[n].read = read
+        r.time, r.frame, self.t = snap["clock"]
+        self.blobs = copy.deepcopy(snap["blobs"])
 
 
 def rect(x0, y0, x1, y1):
@@ -698,6 +703,50 @@ def grown_rig(ctx, frames, size=IMG, **kw):
     return rig
 
 
+@pytest.fixture(scope="module")
+def _shared_rigs(ctx):
+    rigs = {}                                      # (frames, size, kw) -> (rig, snapshot right after growing)
+    yield rigs
+    for rig, _ in rigs.values():
+        rig.release()
+
+
+@pytest.fixture
+def shared_rig(ctx, _shared_rigs):
+    """grown_rig(), but each distinct growth is simulated once per module and restored for every test that asks.
+
+    Growing to full bloom is ~660 frames; on software GL that dominates this file. The rig is restored before it is
+    handed out, so a test may run() it further: the next test still gets it as freshly grown. Don't release() it.
+    """
+    def get(frames, size=IMG, **kw):
+        key = (frames, size, tuple(sorted(kw.items())))
+        if key not in _shared_rigs:
+            rig = grown_rig(ctx, frames, size, **kw)
+            _shared_rigs[key] = rig, rig.snapshot()
+        rig, snap = _shared_rigs[key]
+        rig.restore(snap)
+        return rig
+    return get
+
+
+def _all_state(rig):
+    return [*(t.read() for t in rig._state_textures()), rig.r.time, rig.r.frame, rig.t]
+
+
+def test_shared_grown_rig_is_as_fresh_after_another_test_ran_it(ctx, shared_rig):
+    # A test that runs a shared rig further must not leak into the next one: restore() has to undo it all.
+    frames = round(10 * seconds_to(0.3))
+    shared_rig(frames).run([EMPTY] * 10 + [person(arm="up")] * 5)    # the "previous test" dirties it
+    shared = shared_rig(frames)
+    fresh = grown_rig(ctx, frames)
+    try:
+        for rig in (shared, fresh):                # and both carry on identically, tracker included
+            rig.run([person(arm="out")] * 3 + [EMPTY] * 3)
+        assert all(a == b for a, b in zip(_all_state(shared), _all_state(fresh), strict=True))
+    finally:
+        fresh.release()
+
+
 def column_runs(b):
     """Each vertical run of body texels in B (h, w, 4) as its texels' (bottom, top) arrays."""
     member = (b[..., 1] > 0) | (b[..., 2] > 0)
@@ -855,8 +904,8 @@ def test_nothing_drawn_before_growth(ctx):         # anti-goal: never draw the s
     rig.release()
 
 
-def test_bloom_fills_the_silhouette(ctx):
-    rig = grown_rig(ctx, 220)
+def test_bloom_fills_the_silhouette(shared_rig):
+    rig = shared_rig(220)
     assert rig.person(0)[1] > 0.99
     d, fig = drawn(rig.image()), on_screen(person(), IMG)
     assert d[fig].mean() >= 0.7, d[fig].mean()
@@ -867,27 +916,24 @@ def test_bloom_fills_the_silhouette(ctx):
     out = d & ~fig
     far = [np.hypot(fx - x[r, c], fy - y[r, c]).min() for r, c in np.argwhere(out)]
     assert out.sum() > 0 and max(far) <= max(TWIG_REACH, REACH) + K["SWAY_AMP"] + 1.5 / IMG[1], max(far)
-    rig.release()
 
 
-def test_growth_climbs_from_the_feet(ctx):
-    rig = grown_rig(ctx, round(10 * seconds_to(0.3)))
+def test_growth_climbs_from_the_feet(shared_rig):
+    rig = shared_rig(round(10 * seconds_to(0.3)))
     assert abs(rig.person(0)[1] - 0.3) < 0.05, rig.person(0)
     d, fig = drawn(rig.image()), person()
     top, bottom = on_screen(fig & rows(6, 19), IMG), on_screen(fig & rows(31, 44), IMG)   # thirds of rows 6..44
     assert d[bottom].mean() > 0.25, d[bottom].mean()       # a sparse tree, but clearly there ...
     assert d[top].mean() < 0.05, d[top].mean()             # ... and the top still bare
-    rig.release()
 
 
-def test_colour_ripens(ctx):
+def test_colour_ripens(shared_rig):
     sats = []
     for frames, g in ((round(10 * seconds_to(0.3)), 0.3), (220, 1.0)):
-        rig = grown_rig(ctx, frames)
+        rig = shared_rig(frames)
         assert abs(rig.person(0)[1] - g) < 0.05, rig.person(0)
         img = rig.image()
         sats.append(saturation(img[..., :3][drawn(img)]).mean())
-        rig.release()
     assert sats[1] > 1.5 * sats[0], sats            # rises clearly: the palette is pastel and the wood is ink on paper
 
 
@@ -897,24 +943,22 @@ def coloured(img):
     return drawn(img) & (rgb.max(axis=-1) - rgb.min(axis=-1) > 20)
 
 
-def test_flowers_bloom_pale_low_then_bold_high(ctx):
+def test_flowers_bloom_pale_low_then_bold_high(shared_rig):
     fig = on_screen(person(), IMG)
     _, y = screen_xy(IMG)
     top, bottom = y[fig].max(), y[fig].min()
     low = y < bottom + (top - bottom) / 3                  # the figure's lower and upper thirds
     high = y > top - (top - bottom) / 3
-    early = grown_rig(ctx, round(10 * seconds_to(0.3)))     # 2 s in
+    early = shared_rig(round(10 * seconds_to(0.3)))         # 2 s in
     img = early.image()
     c = coloured(img)
     assert c[low].sum() > 20, c[low].sum()                  # flowers already open, low on the body ...
     assert (flower_pixels(img) & drawn(img)).sum() < 5      # ... and pale: hardly a pixel in full colour yet
-    early.release()
-    full = grown_rig(ctx, 220)
+    full = shared_rig(220)
     img = full.image()
     bold = flower_pixels(img) & drawn(img)
     assert bold.sum() > 30                                  # bold flowers at full bloom (only the outer ones: few at this size)
     assert bold[high].sum() > 2 * bold[low].sum(), (bold[high].sum(), bold[low].sum())   # and mostly high up
-    full.release()
 
 
 def test_vines_follow_the_arm(ctx):
@@ -957,8 +1001,8 @@ def test_bloom_is_stable_under_flicker(ctx):        # Review Focus 3
     rig.release()
 
 
-def test_lost_person_plants_rewind_without_popping(ctx):
-    rig = grown_rig(ctx, 220)
+def test_lost_person_plants_rewind_without_popping(shared_rig):
+    rig = shared_rig(220)
     n0, counts = drawn(rig.image()).sum(), []
     for _ in range(40):
         rig.run([EMPTY])
@@ -971,7 +1015,6 @@ def test_lost_person_plants_rewind_without_popping(ctx):
     prev = [n0] + counts[:-1]
     assert all(p - c <= max(0.3 * p, 0.1 * n0) for p, c in zip(prev, counts)), (n0, counts)
     assert counts[4] > 0.5 * n0, (n0, counts)       # it rewinds: still mostly there half a second in
-    rig.release()
 
 
 # ── Footprints: a walker leaves plants on the floor where they step ──────────
@@ -1057,14 +1100,13 @@ def test_sun_is_muted_when_empty(ctx):
     rig.release()
 
 
-def test_sun_brightens_and_grows_rays_with_bloom(ctx):
-    rig = grown_rig(ctx, 220)
+def test_sun_brightens_and_grows_rays_with_bloom(shared_rig):
+    rig = shared_rig(220)
     img = rig.image()
     disc, ring = sun_patch(img)
     d = drawn(img, disc)
     assert saturation(img[..., :3][d]).mean() > 0.7
     assert drawn(img, ring).sum() > 0.15 * ring.sum(), (drawn(img, ring).sum(), ring.sum())
-    rig.release()
 
 
 def seam_extents(img):

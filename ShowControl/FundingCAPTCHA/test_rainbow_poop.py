@@ -6,7 +6,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import os
 import re
 from pathlib import Path
 
@@ -39,23 +38,6 @@ BOMB_EVERY_S, BOMB_JITTER_S = const("BOMB_EVERY_S"), const("BOMB_JITTER_S")
 SPAWN_Y, FALL_SPEED = const("SPAWN_Y"), const("FALL_SPEED")
 HEAD = 1 - 8 / 40                         # UV y of the test people's heads
 FALL_S = (SPAWN_Y - HEAD) / FALL_SPEED     # seconds a poop takes to reach them
-
-
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
 
 
 class Rig:

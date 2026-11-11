@@ -4,7 +4,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -17,23 +16,6 @@ SIZE  = (96, 54)                         # render size
 BODY  = (64, 40)                         # camera ROI size (w, h)
 SLABS = [{"near_mm": 1000, "far_mm": 4000}]
 DT    = 1 / 30
-
-
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
 
 
 def make(ctx, size=SIZE) -> Renderer:
