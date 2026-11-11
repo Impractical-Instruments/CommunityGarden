@@ -13,6 +13,6 @@ The show-control software: one directory per Element, plus what they share.
 | `network.json` | Every IP, MAC and port on the Show Network | | `docs/agents/configuration.md` |
 
 - Each Element is a flat directory of scripts run from inside it (its systemd unit sets the working directory). `OSCFabric` here and `IIVision` at the repo root are the only installed packages.
-- Each Element's Python dependencies are an extra in the root `pyproject.toml`: `pip install -e ".[flowerbeds]"`.
+- Each Element's Python dependencies are an extra in the root `pyproject.toml`. A show machine installs its own with pip (`pip install -e ".[flowerbeds]"`, done by its installer). On a dev machine, `uv run` has them all; see `docs/agents/running-and-testing.md`.
 - Each Element with a `deploy/` directory installs with `sudo bash ShowControl/<Element>/deploy/install.sh`.
 - Tests sit beside the code as `test_*.py`; `make test` runs them all.

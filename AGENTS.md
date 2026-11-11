@@ -4,11 +4,14 @@ Python show-control monorepo for *The Community Garden* — a touring interactiv
 
 ## Test command
 
+Every Python command runs through uv: `make` targets do it for you; otherwise run `uv run python …` or `uv run pytest …`. Never `pip install` or activate a venv. See [Running & testing](docs/agents/running-and-testing.md#one-way-to-run-python).
+
 ```
+make setup                # first time in a clone: .venv from uv.lock, plus the pre-commit hook
 make test                 # all Python tests (pytest: IIVision, ShowControl, scripts)
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes, needs a headless OpenGL context
-make test-firmware        # TreeHouse controller host tests; needs PlatformIO, not part of `make test`
+make test-firmware        # TreeHouse controller host tests; not part of `make test`
 ```
 
 ## Critical constraints
@@ -19,8 +22,8 @@ These apply to every task in this repo:
 2. **OSC address `/cg/ff/rot` is a cross-layer contract.** `ShowControl/FlowerBeds/main.py` and `layout_tool.py` send it and `Firmware/FlowerBeds_Follow_ServoController/` receives it; all must be changed together if the address changes.
 3. **All network addresses (IPs, MACs, ports) live in `ShowControl/network.json`.** Never hardcode them in source or firmware. `scripts/hooks/firmware_config_gen.py` generates the firmware headers from it: `Firmware/TreeHouse_Controllers/include/net_config.h` and `Firmware/FlowerBeds_Follow_ServoController/config.h`. Re-run it after editing `network.json`; a test fails if a committed header is stale.
 4. **All motor IDs, positions, and tuning parameters belong in each Element's `settings.json`.** Do not hardcode them.
-5. **Test logic changes without hardware:** `python main.py --config settings.json --mock-camera --no-osc` from `ShowControl/FlowerBeds/`.
-6. **Never commit anything under `ShowControl/FundingCAPTCHA/images/private/`, and never write a show/artist/album name into any file.** That directory is a clone of a private, unpublishable assets repo; `.gitignore` and a pre-commit hook (`bash scripts/install-git-hooks.sh`, per clone) both guard it, but neither is a substitute for not doing it.
+5. **Test logic changes without hardware:** `uv run python main.py --config settings.json --mock-camera --no-osc` from `ShowControl/FlowerBeds/`.
+6. **Never commit anything under `ShowControl/FundingCAPTCHA/images/private/`, and never write a show/artist/album name into any file.** That directory is a clone of a private, unpublishable assets repo; `.gitignore` and a pre-commit hook (installed per clone by `make setup`) both guard it, but neither is a substitute for not doing it.
 
 ## Docs
 

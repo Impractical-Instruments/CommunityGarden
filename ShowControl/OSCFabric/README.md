@@ -13,4 +13,4 @@ Every network address comes from `network.json` through these functions; nothing
 
 Only the TreeHouse receives Fabric messages; its listener is `ShowControl/TreeHouse/osc_server.py`.
 
-**Tests:** `test_client.py`; `python -m pytest ShowControl/OSCFabric`.
+**Tests:** `test_client.py`; `uv run pytest ShowControl/OSCFabric`.

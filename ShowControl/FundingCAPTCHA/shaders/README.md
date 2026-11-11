@@ -94,11 +94,11 @@ For behaviour tests, add a `test_<your-setup>.py` beside the others in `ShowCont
 
 ## Run it locally
 
-From `ShowControl/FundingCAPTCHA/` (after `pip install -e ".[fundingcaptcha]"` at the repo root):
+From `ShowControl/FundingCAPTCHA/`:
 
 ```
-python3 shader_app.py --test-input --windowed --setup <your-setup>   # mouse paints the Body, same as Shadertoy
-python3 shader_app.py --mock-camera --windowed                       # fake drifting visitors
+uv run python shader_app.py --test-input --windowed --setup <your-setup>   # mouse paints the Body, same as Shadertoy
+uv run python shader_app.py --mock-camera --windowed                       # fake drifting visitors
 ```
 
 Keys: **N** / **→** next Setup · **R** reload from disk (edit, save, press R) · **Esc** quit. Compile errors are logged with your tab's line numbers (`0:LINE` = the tab, `1:LINE` = common).

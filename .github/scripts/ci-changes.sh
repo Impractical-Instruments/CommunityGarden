@@ -56,7 +56,7 @@ while IFS= read -r path; do
         # The rest of the Python: FundingCAPTCHA itself, the packages it imports
         # (IIVision, OSCFabric), network.json, scripts and packaging. The firmware
         # job compiles nothing from here.
-        ShowControl/*|IIVision/*|scripts/*|pyproject.toml)
+        ShowControl/*|IIVision/*|scripts/*|pyproject.toml|uv.lock|.python-version)
             code=true
             gl=true
             ;;

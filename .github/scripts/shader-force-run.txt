@@ -24,6 +24,8 @@ ShowControl/network.json
 
 # The test environment.
 pyproject.toml
+uv.lock
+.python-version
 Makefile
 .github/workflows/tests.yml
 .github/workflows/testmon-data.yml
