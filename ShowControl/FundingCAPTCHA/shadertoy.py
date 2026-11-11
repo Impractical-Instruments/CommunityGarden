@@ -320,6 +320,11 @@ class Renderer:
         self.ctx   = ctx
         self.size  = size
         self.body_mode = body_mode
+        # True: render() leaves `output` stale and draw_deferred_image() draws the last frame's Image on demand.
+        # For tests that run many frames but read few Images; the Image pass feeds nothing back, so this is exact.
+        self.defer_image = False
+        self._deferred: tuple | None = None        # (chans, uniforms) of the last frame whose Image was skipped
+        self._deferred_lost = False                # an input changed since then: that Image can't be drawn now
         self.vbo  = ctx.buffer(struct.pack("8f", -1, -1, 1, -1, -1, 1, 1, 1))
         self.keyboard = Keyboard()
         self._kb_tex  = ctx.texture((256, 3), 1, dtype="f1")   # normalised; "u1" is integer and samples as 0
@@ -396,6 +401,7 @@ class Renderer:
         for b in self._buffers.values():
             b.release()
         self._passes, self._buffers = {}, {}
+        self._deferred, self._deferred_lost = None, False
         if self._image_tex is not None:
             self._image_tex.release()
             self._image_tex = None
@@ -414,7 +420,12 @@ class Renderer:
 
     # ── Inputs ────────────────────────────────────────────────────────────────
 
+    def _inputs_changing(self) -> None:
+        if self._deferred is not None:
+            self._deferred, self._deferred_lost = None, True
+
     def upload_body(self, rgba: np.ndarray) -> None:
+        self._inputs_changing()
         h, w = rgba.shape[:2]
         if self._body_tex is None or self._body_tex.size != (w, h):
             if self._body_tex is not None:
@@ -427,6 +438,7 @@ class Renderer:
         """(BLOB_ROWS, BLOB_SLOTS, 4) float records; row 0 of the array is texel row 0."""
         if records.shape != (BLOB_ROWS, BLOB_SLOTS, 4):
             raise ValueError(f"blob records must be {(BLOB_ROWS, BLOB_SLOTS, 4)}, got {records.shape}")
+        self._inputs_changing()
         self._blobs_tex.write(np.ascontiguousarray(records, dtype=np.float32).tobytes())
 
     def read_body(self) -> np.ndarray | None:
@@ -453,6 +465,7 @@ class Renderer:
     # ── Frame ─────────────────────────────────────────────────────────────────
 
     def render(self, dt: float, mouse: tuple[float, float, float, float]) -> None:
+        self._deferred, self._deferred_lost = None, False
         if self.setup is None:
             self.output.clear()
             return
@@ -472,7 +485,9 @@ class Renderer:
             self._painter_buf.swap()
         for p, (prog, vao) in self._passes.items():
             chans = self.setup.channels.get(p, [None] * 4)
-            if p == "image":
+            if p == "image" and self.defer_image:
+                self._deferred = chans, uniforms
+            elif p == "image":
                 self._draw((prog, vao), chans, uniforms, self.output)
             else:
                 self._draw((prog, vao), chans, uniforms, self._buffers[p].write_fbo)
@@ -480,6 +495,19 @@ class Renderer:
         self.keyboard.end_frame()
         self.time  += dt
         self.frame += 1
+
+    def draw_deferred_image(self) -> None:
+        """With defer_image: draw the Image the last render() skipped, from that frame's inputs. Else a no-op.
+
+        Exact: the Image is the last pass and feeds nothing back, and the buffers it reads were written by that frame.
+        Raises if a Body or blob upload came in between, since that frame's inputs are gone.
+        """
+        if self._deferred_lost:
+            raise RuntimeError("an input was uploaded after the last render(); render again before reading the Image")
+        if self._deferred is not None:
+            chans, uniforms = self._deferred
+            self._draw(self._passes["image"], chans, uniforms, self.output)
+            self._deferred = None
 
     def _draw(self, pv: tuple, chans: list, uniforms: dict, fbo) -> None:
         prog, vao = pv
