@@ -37,16 +37,16 @@ const float FLAIL_FALL_S     = 1.0;
 // ── Ripples and squiggles ─────────────────────────────────────────────────────
 const float RIPPLE_FALLOFF   = 70.0 / 360.0;
 const float RIPPLE_SPEED     = 0.3;     // ripple field spreads this many screen heights per second
-const float RIPPLE_AMP       = 9.0 / 360.0;
+const float RIPPLE_AMP       = 11.0 / 360.0;
 const float RIPPLE_WAVES     = 30.0;    // radians per screen height; keep RIPPLE_AMP * RIPPLE_WAVES < 1 or the picture folds over
-const float RIPPLE_STANDING  = 0.12;    // ripple strength when present but still
+const float RIPPLE_STANDING  = 0.04;    // ripple strength when present but still
 // Liquid: people stir the whole background (rings, rays, sun, water) in a swirl around them.
 // Keep LIQUID_AMP * LIQUID_WAVES + LIQUID_AMP / RIPPLE_FALLOFF under 1 or the picture folds over.
-const float LIQUID_AMP       = 24.0 / 360.0;   // peak push, screen heights
+const float LIQUID_AMP       = 28.0 / 360.0;   // peak push, screen heights
 const float LIQUID_WAVES     = 7.0;            // radians per screen height outward from a person
 const float LIQUID_SPEED     = 3.0;            // how fast the swirl turns (rad/s)
 const float LIQUID_SMOOTH    = 0.14;           // how wide a patch sets the swirl direction (wider than an arm)
-const float LIQUID_STANDING  = 0.6;            // stir strength when present but still (flailing = 1)
+const float LIQUID_STANDING  = 0.15;           // stir strength when present but still (flailing = 1)
 const float WIGGLE_MIN       = 1.2 / 360.0;
 const float WIGGLE_MAX       = 7.0 / 360.0;
 // ── Blob size → fill colour and transparency (makes camera noise look intentional) ──
