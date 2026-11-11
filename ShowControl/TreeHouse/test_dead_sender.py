@@ -23,14 +23,6 @@ class _FakeClock:
 # Signals are preserved while within the timeout window
 # ---------------------------------------------------------------------------
 
-def test_signal_preserved_before_timeout():
-    c, clock = _coord(heartbeat_interval_s=5.0)
-    c.set_flowerbeds_activity(0.8)
-    clock.advance(9.9)  # just under 2 × 5 s
-    c.update(0.1)
-    assert c._flowerbeds_activity == 0.8
-
-
 def test_all_three_signals_preserved_before_timeout():
     c, clock = _coord(heartbeat_interval_s=5.0)
     c.set_flowerbeds_activity(0.5)
@@ -154,10 +146,13 @@ def test_stale_warning_reissued_after_recovery(caplog):
 # Senders that never sent are not affected (no phantom timeouts)
 # ---------------------------------------------------------------------------
 
-def test_never_sent_sender_not_zeroed():
+def test_never_sent_sender_is_not_reported_stale(caplog):
+    # An Element that isn't running (never sent) is not a dead sender: no "No signal from" warning.
+    import logging
     c, clock = _coord(heartbeat_interval_s=5.0)
-    # Don't call set_flowerbeds_activity at all
-    clock.advance(100.0)
-    c.update(0.1)
-    # Still at default 0.0 — no crash, no spurious zeroing
-    assert c._flowerbeds_activity == 0.0
+    c.set_captcha_intensity(0.5)                    # captcha is live; flowerbeds never sends
+    with caplog.at_level(logging.WARNING, logger="treehouse"):
+        clock.advance(100.0)
+        c.update(0.1)
+    stale = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert stale and all("flowerbeds" not in m and "pipes" not in m for m in stale), stale

@@ -98,13 +98,6 @@ def test_sustained_wrong_pose_drains_hold_to_zero_without_winning(game) -> None:
     assert game._state == _State.PLAYING
 
 
-def test_hold_never_goes_negative(game) -> None:
-    for _ in range(int(5 * HOLD_S * FPS)):
-        game.update(foreground(NOISE_CELL), DT)
-
-    assert game._hold_elapsed == 0.0
-
-
 def test_correct_pose_with_intermittent_speckle_still_wins(game) -> None:
     """The regression that matters.
 

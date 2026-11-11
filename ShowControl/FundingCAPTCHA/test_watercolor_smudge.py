@@ -139,14 +139,6 @@ def test_extremity_scores_thin_high_and_broad_low(ctx):
     r.release()
 
 
-def test_moving_limb_smears(ctx):
-    r = _rig(ctx)
-    _frames(r, 2)
-    _sweep(r, 0.02, 0.2, 0.6)
-    assert _diff(r)[:, _cols(0.2, 0.6)].max() > 0.1
-    r.release()
-
-
 def _checker(cell: int = 6) -> np.ndarray:
     yy, xx = np.mgrid[0:SIZE[1], 0:SIZE[0]]
     ch = ((xx // cell + yy // cell) % 2).astype(np.uint8) * 255

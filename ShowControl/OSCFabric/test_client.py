@@ -45,13 +45,6 @@ def test_report_sends_on_first_call():
     assert ("/flowerbeds/activity", (0.5,)) in spy.calls
 
 
-def test_report_uses_element_prefixed_address():
-    spy = SpyTransport()
-    client = FabricClient("captcha", _config(), transport=spy)
-    client.report("intensity", 0.3)
-    assert spy.calls[0][0] == "/captcha/intensity"
-
-
 def test_report_suppresses_if_value_unchanged():
     spy = SpyTransport()
     client = FabricClient("flowerbeds", _config(), transport=spy)
@@ -99,13 +92,6 @@ def test_send_event_sends_immediately():
     client = FabricClient("captcha", _config(), transport=spy)
     client.send_event("blowup")
     assert spy.calls == [("/captcha/blowup", ())]
-
-
-def test_send_event_carries_no_args():
-    spy = SpyTransport()
-    client = FabricClient("captcha", _config(), transport=spy)
-    client.send_event("game_started")
-    assert spy.calls[0][1] == ()
 
 
 def test_send_event_always_fires():

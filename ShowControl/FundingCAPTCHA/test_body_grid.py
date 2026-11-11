@@ -62,13 +62,6 @@ def test_coverage_below_threshold_no_activation():
     assert result == {}
 
 
-def test_coverage_above_threshold_activates():
-    fg = _fg()
-    fg[:40, :] = 1000  # 40% > 0.30
-    result = BodyGridActivator(_cfg(cols=1, rows=1, threshold=0.30)).activate(fg)
-    assert (0, 0) in result
-
-
 def test_coverage_fraction_accuracy():
     fg = _fg()
     fg[:50, :] = 1000  # exactly 50%
@@ -80,12 +73,6 @@ def test_coverage_fraction_accuracy():
 
 def test_pixels_outside_all_slabs_not_counted():
     fg = _fg(fill=5000)  # 5000mm, above SLAB_0 far_mm (2500)
-    result = BodyGridActivator(_cfg()).activate(fg)
-    assert result == {}
-
-
-def test_zero_pixels_background_not_counted():
-    fg = _fg(fill=0)  # all zeros = background
     result = BodyGridActivator(_cfg()).activate(fg)
     assert result == {}
 

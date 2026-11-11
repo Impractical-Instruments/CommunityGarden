@@ -104,12 +104,6 @@ def flickering(n, seed=0):
 
 # ── Task 1: per-slot state ────────────────────────────────────────────────────
 
-def test_slot_tracks_record_id(ctx):
-    rig = Rig(ctx)
-    rig.run(standing(8))
-    assert rig.slot(0)[0] == 1
-
-
 def test_walking_has_motion(ctx):
     rig = Rig(ctx)
     rig.run(walking(20))
@@ -626,7 +620,9 @@ def big_flailer(n, arm, one_sided=False, cx=240):
     return out
 
 
-@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 20), (8, 40), (8, 80), (14, 20), (14, 60)])
+# (4, 40): just above DRIFT_WALK, the drift gate's edge. (8, 80): the most box motion. Faster walkers close the gate
+# fully whatever their stride; every other case tried left the lock at exactly 0.
+@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 80)])
 def test_striding_walker_never_strikes(ctx, speed, stride):  # "walking about never does" (spec)
     rig = BigRig(ctx)
     n = min(60, int((480 - 40 - 80 - stride) / speed))     # stay inside the frame

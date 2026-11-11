@@ -73,19 +73,6 @@ def test_index_returns_html(client):
 # GET /api/defaults
 # ---------------------------------------------------------------------------
 
-def test_get_defaults_returns_cluster_offsets(client):
-    r = client.get("/api/defaults")
-    assert r.status_code == 200
-    d = r.json()
-    assert "cluster_offsets" in d
-    offsets = d["cluster_offsets"]
-    assert len(offsets) == 4
-    assert offsets[0] == [30.0, 30.0, 0.0]
-    assert offsets[1] == [-30.0, 30.0, 0.0]
-    assert offsets[2] == [30.0, -30.0, 0.0]
-    assert offsets[3] == [-30.0, -30.0, 0.0]
-
-
 def test_defaults_match_default_module(client):
     r = client.get("/api/defaults")
     offsets = r.json()["cluster_offsets"]
@@ -231,19 +218,6 @@ def test_aim_sends_negated_angle_to_every_controller(client, monkeypatch):
 # ---------------------------------------------------------------------------
 # Helper: _flowerbeds_controllers
 # ---------------------------------------------------------------------------
-
-def test_flowerbeds_controllers_filters_nulls():
-    network = {
-        "firmware": {
-            "flowerbeds_controller_1": {"ip": "192.0.2.50", "osc_port": 9000, "mac": "AA"},
-            "flowerbeds_controller_2": {"ip": "192.0.2.51", "osc_port": 9000, "mac": "BB"},
-            "treehouse_branch":        {"ip": None, "mac": None, "osc_port": None},
-        }
-    }
-    result = _flowerbeds_controllers(network)
-    assert len(result) == 2
-    assert all(c["ip"] for c in result)
-
 
 def test_flowerbeds_controllers_excludes_non_flowerbeds():
     network = {

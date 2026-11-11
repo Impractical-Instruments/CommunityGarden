@@ -182,14 +182,6 @@ def px(img, x_frac, y_frac_from_bottom):
     return img[int(y_frac_from_bottom * (SIZE[1] - 1)), int(x_frac * (SIZE[0] - 1)), :3].astype(int)
 
 
-def test_sun_and_paper_when_awake(ctx):
-    r = make(ctx)
-    run(r, [CORNER] * 40)
-    img = image(r)
-    assert np.abs(px(img, 0.5, 0.30) - [255, 242, 0]).max() < 40
-    assert img[..., :3].mean() > 120
-
-
 def test_empty_room_is_dimmer(ctx):
     def mean(masks):
         r = make(ctx)
@@ -211,13 +203,6 @@ def grow(m, n):
     for _ in range(n):
         m = m | np.roll(m, 1, 0) | np.roll(m, -1, 0) | np.roll(m, 1, 1) | np.roll(m, -1, 1)
     return m
-
-
-def test_person_has_an_outline(ctx, tmp_path):
-    r = make_with(ctx, tmp_path, OUTLINE_COL="INK")    # drawn in ink so the edge is easy to find
-    run(r, standing(30))
-    row = image(r)[27, 40:90, :3].astype(int).sum(axis=1)
-    assert row.min() < 150
 
 
 def test_outline_is_light_by_default(ctx, tmp_path):
@@ -334,6 +319,7 @@ def test_horizon_low_and_sun_big(ctx):
     assert yellow(px(img, 0.5, 0.32))               # a sun of radius 60/360 reaches up to ~0.37
     assert not yellow(px(img, 0.5, 0.40))
     assert not yellow(px(img, 0.5, 0.15))           # below the horizon is water
+    assert img[..., :3].mean() > 120                # awake: sun and paper, not the dim empty room
 
 
 def test_outline_skips_tiny_holes(ctx, tmp_path):

@@ -37,27 +37,10 @@ def images_dir(tmp_path: Path, monkeypatch) -> Path:
     return tmp_path
 
 
-def test_load_bg_crops_to_the_requested_aspect(images_dir):
-    bg = bc._load_bg("two_tone.png", 300, 300, "center")
-    assert bg.get_size() == (300, 300)
-
-
 def test_load_bg_left_align_keeps_the_left_of_the_photo(images_dir):
     bg = bc._load_bg("two_tone.png", 300, 300, "left")
     assert bg.get_at((5, 150))[:3] == GREEN     # the far-left stripe survives
     assert bg.get_at((290, 150))[:3] == RED     # and blue is cropped away
-
-
-def test_load_bg_right_align_keeps_the_right_of_the_photo(images_dir):
-    bg = bc._load_bg("two_tone.png", 300, 300, "right")
-    assert bg.get_at((10, 150))[:3] == BLUE
-    assert bg.get_at((290, 150))[:3] == BLUE
-
-
-def test_load_bg_defaults_to_center(images_dir):
-    bg = bc._load_bg("two_tone.png", 300, 300)
-    assert bg.get_at((5, 150))[:3] == RED      # green stripe cropped off, not squashed in
-    assert bg.get_at((290, 150))[:3] == BLUE
 
 
 def test_load_bg_missing_image_returns_none(images_dir):

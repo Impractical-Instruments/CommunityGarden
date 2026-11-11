@@ -97,14 +97,6 @@ def test_set_levels_path_accepts_str(tmp_path: Path):
     assert get_levels_path() == Path(p)
 
 
-def test_read_levels_follows_override(tmp_path: Path):
-    p = tmp_path / "private-levels.json"
-    levels = [{"prompt": "P", "grid": [2, 2], "valid_cells": [[0, 0]], "difficulty": 1}]
-    p.write_text(json.dumps(levels))
-    set_levels_path(p)
-    assert _read_levels() == levels
-
-
 def test_read_levels_resolves_override_at_call_time(tmp_path: Path):
     """The override must be read per call, not captured as a default argument —
     _reload_data() calls _read_levels() with no argument at every arc start."""

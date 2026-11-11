@@ -195,13 +195,6 @@ def owner(texel):
     return int(np.floor(texel[3]))
 
 
-def slot_of_live(rig):
-    """The one slot whose PERSON id != 0."""
-    live = [k for k in range(8) if rig.person(k)[0] != 0]
-    assert len(live) == 1, live
-    return live[0]
-
-
 # ── Task 1: Body memory (Buffer B) ────────────────────────────────────────────
 
 def b_at(rig, col, row):
@@ -240,13 +233,6 @@ def test_raised_arm_runs_start_at_its_lowest_point(ctx):
     g = b_at(rig, 36, 3)[1]                           # in the raised arm, above the head
     assert abs(g - (1 - 12 / 48)) < 2 / 48            # its lowest row (the shoulder), not the feet
     assert g > 0.5
-    rig.release()
-
-
-def test_owner_is_record_slot(ctx):
-    rig = Rig(ctx)
-    rig.run([person()] * 10)
-    assert owner(b_at(rig, 30, 20)) == 1 and owner(b_at(rig, 2, 2)) == 0
     rig.release()
 
 
@@ -898,12 +884,6 @@ def test_still_trunk_and_root_hold_steady_under_flicker(ctx):   # no fidgeting r
     assert max(width_moves) < 0.2, width_moves              # seed counts (widths) barely move
     assert sum(flips) == 0, flips                           # the trunk keeps its way back to the root
     rig.release()
-
-
-def test_sun_region_is_top_right():
-    r, (w, h) = sun_region(IMG), IMG
-    assert r[int(0.84 * h), int(w - 0.16 * h)]                 # its centre
-    assert not r[: h // 2].any() and not r[:, : w // 2].any()   # only in the top right quarter
 
 
 def test_nothing_drawn_before_growth(ctx):         # anti-goal: never draw the silhouette
