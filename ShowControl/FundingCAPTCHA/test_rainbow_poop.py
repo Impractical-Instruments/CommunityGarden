@@ -46,6 +46,7 @@ class Rig:
     def __init__(self, ctx, size=SIZE):
         self.size = size
         self.r = Renderer(ctx, size, body_mode="camera")
+        self.r.defer_image = True                         # image() draws the Image on demand
         self.r.load(load_setup(SETUP))
         self.blobs = BodyBlobs(BLOBS)
         self.t = 0.0
@@ -92,6 +93,7 @@ class Rig:
 
     def image(self) -> np.ndarray:
         """The Image as uint8 (h, w, 4), row 0 = bottom."""
+        self.r.draw_deferred_image()
         return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(self.size[1], self.size[0], 4)
 
 
