@@ -8,7 +8,7 @@ import pytest
 
 from playlist_app import Item, Playlist, VideoPlayer, fit_rect, load_playlist
 from shadertoy import Renderer
-from test_shadertoy import SOLID, _image_setup, _rendered_colour, ctx  # noqa: F401  (GL context fixture)
+from test_shadertoy import SOLID, _image_setup, _rendered_colour
 
 
 # ── Playlist file ─────────────────────────────────────────────────────────────

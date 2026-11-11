@@ -5,7 +5,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import numpy as np
@@ -215,23 +214,6 @@ def test_decode_image_corrupt_raises(tmp_path):
 
 
 # ── GL ────────────────────────────────────────────────────────────────────────
-
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
-
 
 def _pixel(r: Renderer, x: int, y: int) -> tuple:
     data = np.frombuffer(r.output.read(components=4), dtype=np.uint8)

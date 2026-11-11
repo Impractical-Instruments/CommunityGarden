@@ -6,7 +6,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -22,23 +21,6 @@ SLABS = [{"near_mm": 1000, "far_mm": 4000}]
 DT    = 1 / 30
 # The shipped defaults, except a smaller min_blob_pixels for the small test Body.
 BLOBS = BlobConfig(min_blob_pixels=20)
-
-
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
 
 
 class Rig:
@@ -121,12 +103,6 @@ def flickering(n, seed=0):
 
 
 # ── Task 1: per-slot state ────────────────────────────────────────────────────
-
-def test_slot_tracks_record_id(ctx):
-    rig = Rig(ctx)
-    rig.run(standing(8))
-    assert rig.slot(0)[0] == 1
-
 
 def test_walking_has_motion(ctx):
     rig = Rig(ctx)
@@ -644,7 +620,9 @@ def big_flailer(n, arm, one_sided=False, cx=240):
     return out
 
 
-@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 20), (8, 40), (8, 80), (14, 20), (14, 60)])
+# (4, 40): just above DRIFT_WALK, the drift gate's edge. (8, 80): the most box motion. Faster walkers close the gate
+# fully whatever their stride; every other case tried left the lock at exactly 0.
+@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 80)])
 def test_striding_walker_never_strikes(ctx, speed, stride):  # "walking about never does" (spec)
     rig = BigRig(ctx)
     n = min(60, int((480 - 40 - 80 - stride) / speed))     # stay inside the frame

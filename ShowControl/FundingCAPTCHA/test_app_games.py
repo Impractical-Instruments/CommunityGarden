@@ -18,11 +18,6 @@ pygame.display.set_mode((640, 480))
 SETTINGS = json.loads((Path(app.__file__).parent / "captcha-settings.json").read_text())
 
 
-def test_loads_bodycaptcha_only() -> None:
-    games = app._load_games(SETTINGS)
-    assert [type(g).__name__ for g in games] == ["BodyCaptchaGame"]
-
-
 def test_load_games_applies_levels_override(tmp_path: Path) -> None:
     """_load_games must set the override on the module it actually loaded —
     importlib gives each load a distinct module object."""
@@ -40,7 +35,7 @@ def test_load_games_applies_levels_override(tmp_path: Path) -> None:
 def test_load_games_without_override_uses_default() -> None:
     games = app._load_games(SETTINGS)
 
-    assert games, "expected bodycaptcha to load"
+    assert [type(g).__name__ for g in games] == ["BodyCaptchaGame"]
     prompts = [lv.get("prompt") for lv in games[0]._all_levels]
     assert prompts != ["PRIVATE"], "override leaked from a previous test"
     assert prompts, "expected the default level set"

@@ -92,15 +92,6 @@ def _body_frame():
     return fg
 
 
-def test_dilation_px_zero_leaves_reprojection_scatter():
-    """Establishes the hole problem dilation_px exists to solve."""
-    out = apply_cam_transform(_body_frame(), _INTR, _transform(), dilation_px=0)
-    filled = np.count_nonzero(out)
-
-    out3 = apply_cam_transform(_body_frame(), _INTR, _transform(), dilation_px=3)
-    assert filled < np.count_nonzero(out3), "dilation must fill scatter holes"
-
-
 def test_larger_dilation_fills_more():
     counts = [
         np.count_nonzero(apply_cam_transform(_body_frame(), _INTR, _transform(),

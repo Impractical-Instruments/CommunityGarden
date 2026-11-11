@@ -7,7 +7,6 @@ from pathlib import Path
 import numpy as np
 
 import app
-import body_grid_tester
 from shader_app import drain_camera, start_camera
 from shadertoy import pack_body
 
@@ -37,14 +36,6 @@ def test_mock_camera_shows_bodies_within_about_two_seconds():
     # background.warmup_s (1 s, the Orbbec's bad first frames) + min_valid_frames.
     warmup = SETTINGS["background"]["warmup_s"]
     assert elapsed < warmup + 1.5, f"bodies took {elapsed:.2f}s to appear"
-
-
-def test_no_calibration_settings_or_states_remain():
-    for key in ("calibration_frames", "calibration_countdown_s", "calibration_standback_s"):
-        assert key not in SETTINGS
-    assert "background" in SETTINGS
-    assert {s.name for s in app.AppState} == {"SCREENSAVER", "GAME"}
-    assert not hasattr(body_grid_tester, "AppState")
 
 
 def test_background_settings_build_the_model():

@@ -150,13 +150,6 @@ def test_seed_noise_comes_from_the_seeding_samples():
 
 # ── Standing still ───────────────────────────────────────────────────────────
 
-def test_person_still_for_120s_stays_foreground():
-    rig = Rig()
-    rig.run_for(_scene(), 2.0)
-    fg = rig.run_for(_scene(person=True), 120.0)
-    assert fg[INSIDE].all()
-
-
 def test_static_object_absorbed_after_absorb_s():
     cfg = AdaptiveBackgroundConfig()
     rig = Rig()

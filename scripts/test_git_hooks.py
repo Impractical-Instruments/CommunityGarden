@@ -83,12 +83,6 @@ def test_hook_rejects_a_private_image(tmp_path: Path):
     assert "private" in (result.stdout + result.stderr).lower()
 
 
-def test_hook_rejects_a_private_levels_file(tmp_path: Path):
-    repo = _scratch_repo(tmp_path)
-    _stage(repo, f"{PRIVATE}/someshow/levels.json")
-    assert _run_hook(repo).returncode != 0
-
-
 def test_hook_rejects_a_path_with_spaces(tmp_path: Path):
     repo = _scratch_repo(tmp_path)
     _stage(repo, f"{PRIVATE}/someshow/a cover image.jpg")

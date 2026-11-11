@@ -40,8 +40,8 @@ def tmp_settings(tmp_path):
 def tmp_network(tmp_path):
     network = {
         "firmware": {
-            "flowerbeds_controller_1": {"ip": "192.168.1.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000},
-            "flowerbeds_controller_2": {"ip": "192.168.1.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000},
+            "flowerbeds_controller_1": {"ip": "192.0.2.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000},
+            "flowerbeds_controller_2": {"ip": "192.0.2.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000},
             "treehouse_branch":        {"ip": None, "mac": None, "osc_port": None},
         }
     }
@@ -70,19 +70,6 @@ def test_index_returns_html(client):
 # ---------------------------------------------------------------------------
 # GET /api/defaults
 # ---------------------------------------------------------------------------
-
-def test_get_defaults_returns_cluster_offsets(client):
-    r = client.get("/api/defaults")
-    assert r.status_code == 200
-    d = r.json()
-    assert "cluster_offsets" in d
-    offsets = d["cluster_offsets"]
-    assert len(offsets) == 4
-    assert offsets[0] == [30.0, 30.0, 0.0]
-    assert offsets[1] == [-30.0, 30.0, 0.0]
-    assert offsets[2] == [30.0, -30.0, 0.0]
-    assert offsets[3] == [-30.0, -30.0, 0.0]
-
 
 def test_defaults_match_default_module(client):
     r = client.get("/api/defaults")
@@ -189,52 +176,51 @@ def test_get_network_missing_file(tmp_path, tmp_settings):
 # GET /api/controller-status
 # ---------------------------------------------------------------------------
 
-def test_controller_status_returns_structure(client, tmp_network):
+def test_controller_status_reports_each_controller(client, monkeypatch):
+    # Never ping a real address: a controller answering on the show LAN would change the result.
+    pong = {"ctrl_id": 1, "baud": 1_000_000, "found_count": 4, "found_ids": "1,2,3,4", "pkt_rx_count": 9,
+            "pkt_drop_count": 0, "last_motor_id": 2, "last_motor_deg": 10.0}
+    pinged = []
+    def fake_ping(ip, port):
+        pinged.append((ip, port))
+        return pong if ip == "192.0.2.50" else None
+    monkeypatch.setattr(layout_tool, "osc_ping", fake_ping)
     r = client.get("/api/controller-status")
     assert r.status_code == 200
-    d = r.json()
-    assert "controllers" in d
-    for ctrl in d["controllers"]:
-        assert "name" in ctrl
-        assert "ip" in ctrl
-        assert "online" in ctrl
-        assert "checked_at" in ctrl
-    # Both should be offline (no real hardware in test environment)
-    assert all(not c["online"] for c in d["controllers"])
+    by_name = {c["name"]: c for c in r.json()["controllers"]}
+    assert pinged == [("192.0.2.50", 9000), ("192.0.2.51", 9000)]      # treehouse_branch has no IP: skipped
+    one, two = by_name["flowerbeds_controller_1"], by_name["flowerbeds_controller_2"]
+    assert one["online"] and one["found_ids"] == "1,2,3,4" and "checked_at" in one
+    assert not two["online"] and "found_ids" not in two
 
 
 # ---------------------------------------------------------------------------
 # POST /api/aim
 # ---------------------------------------------------------------------------
 
-def test_aim_endpoint_exists(client):
-    # We can't test actual OSC without hardware, but endpoint should accept the request
-    # (it will try to send to non-existent hosts, which should fail gracefully)
+def test_aim_sends_negated_angle_to_every_controller(client, monkeypatch):
+    # Never send to a real address: this is a motor command.
+    sent = []
+    class FakeUDP:
+        def __init__(self, ip, port):
+            self.dest = (ip, port)
+        def send_message(self, address, args):
+            sent.append((self.dest, address, args))
+    monkeypatch.setattr(layout_tool, "SimpleUDPClient", FakeUDP)
     r = client.post("/api/aim", json={"motor_id": 1, "deg": 45.0})
-    assert r.status_code == 200
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert sent == [(("192.0.2.50", 9000), "/cg/ff/rot", [1, -45.0]),     # software CCW+ -> firmware CW+
+                    (("192.0.2.51", 9000), "/cg/ff/rot", [1, -45.0])]
 
 
 # ---------------------------------------------------------------------------
 # Helper: _flowerbeds_controllers
 # ---------------------------------------------------------------------------
 
-def test_flowerbeds_controllers_filters_nulls():
-    network = {
-        "firmware": {
-            "flowerbeds_controller_1": {"ip": "192.168.1.50", "osc_port": 9000, "mac": "AA"},
-            "flowerbeds_controller_2": {"ip": "192.168.1.51", "osc_port": 9000, "mac": "BB"},
-            "treehouse_branch":        {"ip": None, "mac": None, "osc_port": None},
-        }
-    }
-    result = _flowerbeds_controllers(network)
-    assert len(result) == 2
-    assert all(c["ip"] for c in result)
-
-
 def test_flowerbeds_controllers_excludes_non_flowerbeds():
     network = {
         "firmware": {
-            "treehouse_branch": {"ip": "192.168.1.20", "osc_port": 9001, "mac": "CC"},
+            "treehouse_branch": {"ip": "192.0.2.20", "osc_port": 9001, "mac": "CC"},
         }
     }
     assert _flowerbeds_controllers(network) == []

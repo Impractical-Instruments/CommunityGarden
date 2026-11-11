@@ -6,7 +6,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -18,23 +17,6 @@ SETUP = Path(__file__).parent / "shaders" / "watercolor_smudge"
 SIZE  = (96, 54)
 DT    = 1 / 30
 ABSENT, PRESENT = (0.0, 0.0, -1.0, -1.0), (48.0, 27.0, 48.0, 27.0)
-
-
-@pytest.fixture(scope="module")
-def ctx():
-    moderngl = pytest.importorskip("moderngl")
-    for kw in ({"backend": "egl"}, {}):
-        try:
-            c = moderngl.create_standalone_context(**kw)
-            break
-        except Exception:
-            continue
-    else:
-        if os.environ.get("CI"):
-            pytest.fail("no headless OpenGL context in CI — GL tests would silently skip")
-        pytest.skip("no headless OpenGL context")
-    yield c
-    c.release()
 
 
 def _rig(ctx, image: np.ndarray | None = None) -> Renderer:
@@ -157,14 +139,6 @@ def test_extremity_scores_thin_high_and_broad_low(ctx):
     r.release()
 
 
-def test_moving_limb_smears(ctx):
-    r = _rig(ctx)
-    _frames(r, 2)
-    _sweep(r, 0.02, 0.2, 0.6)
-    assert _diff(r)[:, _cols(0.2, 0.6)].max() > 0.1
-    r.release()
-
-
 def _checker(cell: int = 6) -> np.ndarray:
     yy, xx = np.mgrid[0:SIZE[1], 0:SIZE[0]]
     ch = ((xx // cell + yy // cell) % 2).astype(np.uint8) * 255
@@ -199,10 +173,11 @@ def _arm(x0: float, x1: float, y: float = 0.5, h: float = 0.07) -> np.ndarray:
     return body
 
 
-def test_reaching_arm_along_its_axis_does_not_smear_yet(ctx):
-    """Known limitation (final-review ruling): an arm extending along its own axis only gains
-    Body at the tip, so the balance gate reads it as appearing and suppresses the smear.
-    Pinned so a gate change that fixes it is noticed; flip the assertion when it does."""
+@pytest.mark.xfail(strict=True, reason="known limitation (final-review ruling): an arm extending along its own "
+                   "axis only gains Body at the tip, so the balance gate reads it as appearing and suppresses "
+                   "the smear. strict: a gate change that fixes it fails here, so remove this mark then")
+def test_reaching_arm_along_its_axis_smears(ctx):
+    """An arm reaching out along its own axis smears its path, as a sideways sweep does."""
     r = _rig(ctx, image=_checker())
     r.upload_body(_arm(0.25, 0.3))
     _frames(r, 15, PRESENT)
@@ -211,8 +186,8 @@ def test_reaching_arm_along_its_axis_does_not_smear_yet(ctx):
         if i % 3 == 0:
             r.upload_body(_arm(0.25, 0.3 + 0.5 * i / n))
         r.render(DT, PRESENT)
-    rows = slice(int(0.4 * SIZE[1]), int(0.6 * SIZE[1]))
-    assert (_diff(r)[rows, _cols(0.35, 0.75)] > 0.1).mean() < 0.02
+    rows = slice(int(0.465 * SIZE[1]), int(0.535 * SIZE[1]))   # the arm's own rows
+    assert (_diff(r)[rows, _cols(0.35, 0.75)] > 0.1).mean() > 0.3   # as test_moving_limb_smears_most_of_its_path
     r.release()
 
 

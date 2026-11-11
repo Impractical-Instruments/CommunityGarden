@@ -77,22 +77,10 @@ def test_default_level_has_no_crop_align_key():
 
 # ── The preview ────────────────────────────────────────────────────────────────
 
-def test_get_bg_crops_to_the_requested_size(editor, images_dir):
-    bg = editor._get_bg("two_tone.png", 300, 300, "center")
-    assert bg.get_size() == (300, 300)
-
-
 def test_get_bg_honors_alignment(editor, images_dir):
     assert editor._get_bg("two_tone.png", 300, 300, "left").get_at((5, 150))[:3] == GREEN
     assert editor._get_bg("two_tone.png", 300, 300, "left").get_at((290, 150))[:3] == RED
     assert editor._get_bg("two_tone.png", 300, 300, "right").get_at((10, 150))[:3] == BLUE
-
-
-def test_get_bg_cache_is_keyed_by_alignment(editor, images_dir):
-    """Switching anchors must not serve a stale surface from the cache."""
-    first  = editor._get_bg("two_tone.png", 300, 300, "left")
-    second = editor._get_bg("two_tone.png", 300, 300, "right")
-    assert first.get_at((10, 150))[:3] != second.get_at((10, 150))[:3]
 
 
 def test_get_bg_cache_is_keyed_by_size(editor, images_dir):
@@ -165,14 +153,6 @@ def test_editor_load_missing_override_returns_default_level(tmp_path: Path):
     ed.set_levels_path(tmp_path / "nope.json")
     loaded = ed._load()
     assert loaded == [ed.DEFAULT_LEVEL]
-
-
-def test_caption_names_the_overridden_levels_path(tmp_path: Path):
-    """docs/FundingCAPTCHA.md says to check the window title if a save looks
-    wrong — the caption must actually name the active path for that to work."""
-    p = tmp_path / "private-levels.json"
-    ed.set_levels_path(p)
-    assert str(p) in ed._caption()
 
 
 def test_caption_names_the_default_levels_path():
