@@ -1,7 +1,6 @@
 python-osc
 pyserial
 moderngl
-numpy
 uvicorn
 fastapi
 pygame

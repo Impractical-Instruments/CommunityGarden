@@ -22,6 +22,7 @@ apt-get install -y libx11-dev weston seatd libgl1-mesa-dri libegl1 libegl-mesa0 
 # ── Seat management (weston drm-backend requires seatd or logind) ─────────────
 echo "→ Enabling seatd..."
 systemctl enable --now seatd
+usermod -aG _seat "$SERVICE_USER"
 
 # ── EGL symlinks (moderngl dlopen("libEGL.so") — Pi OS ships only versioned .so.1) ──
 echo "→ Creating EGL/GL symlinks..."

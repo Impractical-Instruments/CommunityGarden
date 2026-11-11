@@ -264,9 +264,6 @@ class Coordinator:
         self._last_received[sender] = self._clock()
         self._stale_warned.discard(sender)
 
-    def get(self, name: str) -> Controllable:
-        return self._controllables[name]
-
     def _expire_stale_senders(self) -> None:
         now = self._clock()
         timeout = 2.0 * self._heartbeat_interval

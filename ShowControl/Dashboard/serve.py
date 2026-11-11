@@ -11,7 +11,6 @@ import argparse
 import json
 import logging
 import socket
-import sys
 from pathlib import Path
 
 import uvicorn

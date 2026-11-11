@@ -54,12 +54,6 @@ class LookingGlassControllable(Controllable):
         log.info("Looking Glass scene → %s", scene)
         self.scene = scene
 
-    def set_speed(self, speed: float) -> None:
-        self.speed = max(0.0, speed)
-
-    def set_mirror_depth(self, depth: int) -> None:
-        self.mirror_depth = max(1, depth)
-
     # ------------------------------------------------------------------
     # Controllable lifecycle
     # ------------------------------------------------------------------

@@ -126,16 +126,6 @@ class CoordinatorConfig:
 
 
 @dataclass
-class ControllerConfig:
-    ip: str = "192.168.1.50"
-    port: int = 9000
-
-    @classmethod
-    def from_dict(cls, raw: dict) -> "ControllerConfig":
-        return cls(**_kwargs_from_dict(cls, raw))
-
-
-@dataclass
 class CameraConfig:
     name: str = ""
     pos_cm: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])

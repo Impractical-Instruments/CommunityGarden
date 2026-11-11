@@ -20,7 +20,7 @@ CommunityGarden/
 ├── docs/
 │   ├── adr/                                # Architecture Decision Records
 │   └── agents/                             # Agent guidance (this directory)
-├── scripts/hooks/                          # smoke_test.py, firmware_config_gen.py
+├── scripts/hooks/                          # firmware_config_gen.py
 ├── Makefile                                # `make test` — runs all tests
 ├── pytest.ini                              # testpaths = ShowControl IIVision
 └── CONTEXT.md                              # Domain glossary — read before naming anything

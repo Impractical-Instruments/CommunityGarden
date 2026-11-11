@@ -37,13 +37,9 @@ from IIVision import (
 )
 
 from flower_beds import (
-    Attraction,
     CameraConfig,
-    ClusterConfig,
     Coordinator,
     CoordinatorConfig,
-    ControllerConfig,
-    ModuleConfig,
     MotorCommand,
 )
 from diag import osc_ping, parse_found_ids
@@ -219,9 +215,6 @@ def run(args: argparse.Namespace) -> None:
         calibration.save(calib_path)
         log.info("Calibration saved to %s", calib_path)
 
-    calibration_state = "calibrated"
-    log.info("calibration_state=%s", calibration_state)
-
     # --- outer restart loop (re-enters if pipeline exits unexpectedly) ---
     while _running:
         coordinator = Coordinator.from_config(
@@ -271,7 +264,6 @@ def run(args: argparse.Namespace) -> None:
                         "yaw_deg": float(cam_cfg.rotation.get("yaw", 0)),
                     }
                 ],
-                "calibration_state": calibration_state,
                 "missing_motor_ids": missing_motor_ids,
             }
             broadcast(state)
