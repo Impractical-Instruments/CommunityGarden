@@ -95,7 +95,7 @@ Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallo
 Top-level fields:
 - `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
 - `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
-- `detection` — `depth_delta_mm`, `min_blob_pixels`, `min_depth_mm`, `max_depth_mm`
+- `detection` — `depth_delta_mm`, `min_depth_mm`, `max_depth_mm`
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`
 - `slab_styles[<slab_id>]` — `{color}` for silhouette render
 - `cell_activation_threshold` — fraction of cell coverage required (default 0.30)
@@ -105,7 +105,7 @@ Top-level fields:
 - `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
 - `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
 - `background` — self-learning depth background (ADR-0023): `warmup_s` (ignore the camera's first, too-far frames), `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
-- Per-game blocks: `bodycaptcha`, `keepaway_body` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
+- Per-game block: `bodycaptcha` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
 
 ---
 
@@ -113,8 +113,7 @@ Top-level fields:
 
 Files live alongside `app.py`:
 - `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hold_decay_rate`/`hint_opacity`/`crop_align`)
-- `keepaway-body-levels.json` — Keepaway Levels
-- `taunts.json`, `keepaway-body-taunts.json` — per-Arc taunt strings
+- `taunts.json` — per-Arc taunt strings
 - `screensavers.json` — list of screensaver modules to load
 - `images/` — Level background photos
 
@@ -125,7 +124,7 @@ picks which part survives the crop — one of `top-left`, `top`, `top-right`,
 `center`. The level editor's CROP ALIGN pad sets it, previewing the exact framing
 the show will render.
 
-A standalone Windows level editor for non-git teammates lives in `distribution/` (build with `distribution/build.py`; see `distribution/README.md`). Edited level packs come back in zip form; `distribution/merge_levels.py` merges them into the canonical JSON.
+Run the level editor with `python3 bodycaptcha_editor.py`, or on macOS double-click `BodyCaptchaEditor.command`. Level edits come back as commits on a branch.
 
 ---
 
@@ -134,7 +133,6 @@ A standalone Windows level editor for non-git teammates lives in `distribution/`
 | Module | Game | Notes |
 |---|---|---|
 | `bodycaptcha.py` | **BodyCaptcha** | Match the prompt by activating the right grid cells |
-| `body_keepaway.py` | **Keepaway** | **Not loaded** — the kiosk plays BodyCaptcha only. Module and its Level/taunt data retained for a future return |
 | `grid.py` | shared overlay | Cell boundary drawing, used by all Games |
 
 Every Game must guarantee a loss after sustained inactivity (ADR-0003) — either via the Level timer, or via mechanics that ensure failure without Player input.
@@ -143,7 +141,7 @@ Every Game must guarantee a loss after sustained inactivity (ADR-0003) — eithe
 
 ## Screensavers (`ScreenSavers/`)
 
-Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D pipes screensaver), `waiting.py` (idle waiting). Add new ones by dropping a module exposing `create(settings) -> Screensaver` and listing it in `screensavers.json`.
+Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D pipes screensaver). Add new ones by dropping a module exposing `create(settings) -> Screensaver` and listing it in `screensavers.json`.
 
 ---
 

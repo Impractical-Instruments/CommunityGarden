@@ -15,9 +15,9 @@ log = logging.getLogger(__name__)
 
 from games.grid import (
     Grid,
-    BLACK, WHITE, DK_GREY, MID_GREY, LT_GREY, GREEN, YELLOW, RED, CYAN, ORANGE,
+    BLACK, WHITE, DK_GREY, MID_GREY, GREEN, YELLOW, RED, CYAN, ORANGE,
     HOLD_RING_COLOR,
-    top_bar_height, draw_top_bar, draw_hold_ring, draw_center_text,
+    draw_top_bar, draw_hold_ring, draw_center_text,
 )
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 from silhouette import render_silhouette

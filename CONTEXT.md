@@ -56,7 +56,7 @@ _Avoid_: "touch screen" (implies contact input), "canvas", "display"
 A Visitor standing in the Play Zone in front of the FundingCAPTCHA kiosk. FundingCAPTCHA is the only Element where "Player" is appropriate; elsewhere use Visitor. Play is drop-in/drop-out — there is no formal join or leave event.
 
 **Arc**:
-The lifecycle of a single game in FundingCAPTCHA. Difficulty ramps from easy to unmanageable as Players succeed; the Arc always ends in a spectacular inevitable failure (the Blow-Up) rather than a clean win. Winning a round only advances the difficulty — there is no overall victory condition. Every game type must guarantee a loss after sustained inactivity — either through a literal countdown timer, or through mechanics that ensure failure without Player input (e.g. defenders eventually catching the ball carrier in Keepaway).
+The lifecycle of a single game in FundingCAPTCHA. Difficulty ramps from easy to unmanageable as Players succeed; the Arc always ends in a spectacular inevitable failure (the Blow-Up) rather than a clean win. Winning a round only advances the difficulty — there is no overall victory condition. Every game type must guarantee a loss after sustained inactivity — either through a literal countdown timer, or through mechanics that ensure failure without Player input.
 _Avoid_: "session", "run", "level" (a level is one stage within an Arc, not the Arc itself)
 
 **Blow-Up**:
@@ -73,7 +73,7 @@ _Avoid_: "attract screen", "idle animation", "lobby"
 ### FundingCAPTCHA Domain
 
 **Game** (FundingCAPTCHA):
-A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Examples: BodyCaptcha, Keepaway. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
+A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Today the only Game is BodyCaptcha. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
 _Avoid_: "game type", "mode"
 
 **Level**:

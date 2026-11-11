@@ -69,12 +69,7 @@ log = logging.getLogger("captcha")
 BLACK    = (  0,   0,   0)
 WHITE    = (255, 255, 255)
 DK_GREY  = ( 28,  28,  28)
-MID_GREY = ( 75,  75,  75)
-LT_GREY  = (140, 140, 140)
-GREEN    = (  0, 200,  75)
-YELLOW   = (240, 200,   0)
 CYAN     = (  0, 200, 220)
-RED      = (220,  50,  50)
 
 FPS = 30
 
@@ -112,7 +107,6 @@ class AppState(Enum):
 
 # ── Monitoring server ─────────────────────────────────────────────────────────
 
-_ws_clients:  set  = set()
 _log_clients: set  = set()
 _mon_loop:    asyncio.AbstractEventLoop | None = None
 _app_status:  dict[str, Any] = {"state": "starting"}
@@ -141,38 +135,14 @@ async def _send_log(msg: str) -> None:
     _log_clients.difference_update(dead)
 
 
-def broadcast(payload: dict) -> None:
+def set_status(payload: dict) -> None:
+    """Record the status GET /health reports."""
     global _app_status
     _app_status = payload
-    if _mon_loop is None or not _ws_clients:
-        return
-    text = json.dumps(payload)
-    asyncio.run_coroutine_threadsafe(_send_ws(text), _mon_loop)
-
-
-async def _send_ws(text: str) -> None:
-    dead = set()
-    for ws in list(_ws_clients):
-        try:
-            await ws.send(text)
-        except Exception:
-            dead.add(ws)
-    _ws_clients.difference_update(dead)
 
 
 async def _ws_handler(ws: Any) -> None:
-    path = ws.request.path
-    if path == "/ws":
-        _ws_clients.add(ws)
-        try:
-            await ws.send(json.dumps(_app_status))
-        except Exception:
-            pass
-        try:
-            await ws.wait_closed()
-        finally:
-            _ws_clients.discard(ws)
-    elif path == "/logs":
+    if ws.request.path == "/logs":
         _log_clients.add(ws)
         try:
             await ws.wait_closed()
@@ -186,7 +156,7 @@ async def _process_request(connection: Any, request: Any) -> Any:
 
     path = request.path
 
-    if path in ("/ws", "/logs"):
+    if path == "/logs":
         return None
 
     if path == "/api/restart":
@@ -218,7 +188,7 @@ def _run_monitoring(port: int) -> None:
     async def _serve() -> None:
         async with ws_serve(_ws_handler, "0.0.0.0", port,
                             process_request=_process_request):
-            log.info("Monitoring on 0.0.0.0:%d  (WS /ws /logs  GET /  POST /api/restart)", port)
+            log.info("Monitoring on 0.0.0.0:%d  (WS /logs  GET /health  POST /api/restart)", port)
             await asyncio.Future()
 
     loop.run_until_complete(_serve())
@@ -230,7 +200,6 @@ def build_detection_config(settings: dict) -> "DetectionConfig":
     det_cfg = settings.get("detection", {})
     return DetectionConfig(
         depth_delta_mm  = det_cfg.get("depth_delta_mm",  25),
-        min_blob_pixels = det_cfg.get("min_blob_pixels", 500),
         min_depth_mm    = det_cfg.get("min_depth_mm",    500),
         max_depth_mm    = det_cfg.get("max_depth_mm",    2500),
     )
@@ -285,8 +254,6 @@ def _camera_inner(camera: Any, settings: dict,
             )
             cam_q.put({"type": "foreground", "frame": corrected})
 
-
-# ── Silhouette rendering ──────────────────────────────────────────────────────
 
 # ── Test input handler ────────────────────────────────────────────────────────
 
@@ -351,8 +318,6 @@ class TestInputHandler:
 
 def _load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
     games: list[Game] = []
-    # BodyCaptcha only. `games/body_keepaway.py` and its Level/taunt data stay
-    # in the tree for a future return, but the kiosk does not play it.
     for name in ("bodycaptcha",):
         path = DIR / "games" / f"{name}.py"
         if not path.exists():
@@ -549,7 +514,7 @@ def main() -> None:
     t_last_osc         = time.monotonic()
 
     _start_camera()
-    broadcast({"state": "screensaver"})
+    set_status({"state": "screensaver"})
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     while True:
@@ -597,12 +562,12 @@ def main() -> None:
                     current_foreground = msg["frame"]
                     fg_new             = True
                     fg_pixel_count     = int(np.count_nonzero(current_foreground))
-                    broadcast({"state": state.name.lower(),
+                    set_status({"state": state.name.lower(),
                                "fg_pixels": fg_pixel_count})
 
                 elif mtype == "error":
                     log.error("Camera: %s", msg["msg"])
-                    broadcast({"state": "error", "error": msg["msg"]})
+                    set_status({"state": "error", "error": msg["msg"]})
 
         except queue.Empty:
             pass
@@ -644,7 +609,7 @@ def main() -> None:
                     attract_elapsed = 0.0
                     game_name       = arc.start()
                     log.info("Player detected — starting Arc (%s)", game_name)
-                    broadcast({"state": "game"})
+                    set_status({"state": "game"})
             else:
                 attract_elapsed = 0.0
 
@@ -659,7 +624,7 @@ def main() -> None:
                 state         = AppState.SCREENSAVER
                 cur_saver     = saver_bag.next() or no_saver
                 saver_elapsed = 0.0
-                broadcast({"state": "screensaver"})
+                set_status({"state": "screensaver"})
 
             now = time.monotonic()
             if now - t_last_osc >= 0.1 and fabric:

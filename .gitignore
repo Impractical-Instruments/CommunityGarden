@@ -18,10 +18,6 @@ Log/
 # FundingCAPTCHA per-host settings override (machine-specific)
 captcha-settings.local.json
 
-# BodyCaptcha editor build artifacts (PyInstaller output)
-ShowControl/FundingCAPTCHA/distribution/dist/
-ShowControl/FundingCAPTCHA/distribution/build_work/
-
 # PlatformIO / VS Code generated files
 **/.pio/
 **/.vscode/c_cpp_properties.json

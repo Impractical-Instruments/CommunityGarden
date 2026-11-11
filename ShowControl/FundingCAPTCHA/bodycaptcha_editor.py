@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -11,12 +10,7 @@ import pygame
 
 from crop import ANCHORS, DEFAULT_ALIGN, crop_scale
 
-# When frozen by PyInstaller, data lives next to the .exe, not inside the
-# unpacked bundle (which is a temp dir and read-only across launches).
-if getattr(sys, "frozen", False):
-    _DIR = Path(sys.executable).parent
-else:
-    _DIR = Path(__file__).parent
+_DIR = Path(__file__).parent
 _LEVELS_DEFAULT = _DIR / "bodycaptcha-levels.json"
 _levels_path: Path = _LEVELS_DEFAULT
 _IMAGES = _DIR / "images"
