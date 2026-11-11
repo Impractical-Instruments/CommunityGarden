@@ -124,7 +124,7 @@ picks which part survives the crop — one of `top-left`, `top`, `top-right`,
 `center`. The level editor's CROP ALIGN pad sets it, previewing the exact framing
 the show will render.
 
-A standalone Windows level editor for non-git teammates lives in `distribution/` (build with `distribution/build.py`; see `distribution/README.md`). Edited level packs come back in zip form; `distribution/merge_levels.py` merges them into the canonical JSON.
+Run the level editor with `python3 bodycaptcha_editor.py`, or on macOS double-click `BodyCaptchaEditor.command`. Level edits come back as commits on a branch.
 
 ---
 
