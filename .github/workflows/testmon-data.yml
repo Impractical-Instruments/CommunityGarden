@@ -5,7 +5,7 @@ name: Testmon data
 # can only read caches saved on the default branch.
 on:
   push:
-    branches: [main]
+    branches: [main, claude/ci-testmon-211]  # TEMP for #211 demo; drop before merge
   workflow_dispatch:
 
 permissions:
