@@ -90,7 +90,7 @@ Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display
 
 ## Settings — `captcha-settings.json`
 
-Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — not gitignored, but per-host).
+Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — gitignored, per-host).
 
 Top-level fields:
 - `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
