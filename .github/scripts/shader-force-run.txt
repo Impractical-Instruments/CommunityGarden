@@ -1,0 +1,36 @@
+# Paths that always run the FundingCAPTCHA (shader) tests in full, with
+# pytest-testmon selection off. Read by ci-changes.sh; tested by
+# scripts/test_ci_changes.py.
+#
+# testmon selects shader tests by the Python code each test executed. It cannot
+# see anything else, so list here what a shader test depends on that is not
+# Python code it runs:
+#   - data files the tests read at run time (GLSL, Setup JSON, images, settings)
+#   - what decides the test environment: dependencies, pytest config, the CI
+#     workflow and the selection scripts themselves
+# A Python package testmon already tracks may be listed too, to run the shader
+# tests whenever it changes regardless of what testmon recorded.
+#
+# One glob per line, matched against the whole repo-relative path with bash
+# pattern matching: `*` also matches `/`, so `dir/*` covers everything under
+# dir. Blank lines and lines starting with # are ignored.
+
+# Data the shader tests read.
+ShowControl/FundingCAPTCHA/shaders/*
+ShowControl/FundingCAPTCHA/images/*
+ShowControl/FundingCAPTCHA/videos/*
+ShowControl/FundingCAPTCHA/*.json
+ShowControl/network.json
+
+# The test environment.
+requirements-dev.txt
+pyproject.toml
+pytest.ini
+Makefile
+.github/workflows/tests.yml
+.github/workflows/testmon-data.yml
+.github/scripts/*
+
+# Example: run the shader tests on any change to IIVision, not only on the
+# code testmon saw them execute.
+# IIVision/*

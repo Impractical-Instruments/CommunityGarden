@@ -14,6 +14,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       gl: ${{ steps.filter.outputs.gl }}
+      force: ${{ steps.filter.outputs.force }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -96,6 +97,10 @@ jobs:
         run: make test-fast
 
   # FundingCAPTCHA, including the shader tests on software OpenGL: minutes.
+  # The job starts on the path filter above; inside it, pytest-testmon runs only
+  # the tests whose Python dependencies changed since the data testmon-data.yml
+  # recorded on main. A path on .github/scripts/shader-force-run.txt, or no data,
+  # runs every test. See .github/scripts/run-shader-tests.sh.
   fundingcaptcha:
     needs: changes
     if: needs.changes.outputs.gl == 'true'
@@ -103,7 +108,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - id: py
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
 
@@ -113,8 +119,23 @@ jobs:
       - name: Install headless OpenGL (shader player GL tests)
         run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
 
+      # Keep this key in step with testmon-data.yml. Only caches saved on main are
+      # visible here; a new Python or dependency set finds none and runs everything.
+      - name: Restore testmon data from main
+        id: testmon
+        if: needs.changes.outputs.force == ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .testmondata
+          key: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements-dev.txt', 'pyproject.toml') }}-${{ github.sha }}
+          restore-keys: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('requirements-dev.txt', 'pyproject.toml') }}-
+
       - name: Run tests
-        run: make test-fundingcaptcha
+        env:
+          FORCE_PATH: ${{ needs.changes.outputs.force }}
+          CACHE_KEY: ${{ steps.testmon.outputs.cache-matched-key }}
+          TESTMON_DATAFILE: .testmondata
+        run: .github/scripts/run-shader-tests.sh
 
   # The one check to require in branch protection. It keeps the name the single
   # job had before the split. A skipped job passes; a failed or cancelled one does not.

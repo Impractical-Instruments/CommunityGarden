@@ -8,10 +8,19 @@ import pytest
 SCRIPT = Path(__file__).resolve().parents[1] / ".github" / "scripts" / "ci-changes.sh"
 
 
-def jobs(*paths: str) -> dict[str, bool]:
+def outputs(*paths: str) -> dict[str, str]:
     out = subprocess.run(["bash", str(SCRIPT)], input="\n".join(paths) + "\n",
                          capture_output=True, text=True, check=True).stdout
-    return {k: v == "true" for k, v in (line.split("=") for line in out.splitlines())}
+    return dict(line.split("=", 1) for line in out.splitlines())
+
+
+def jobs(*paths: str) -> dict[str, bool]:
+    return {k: v == "true" for k, v in outputs(*paths).items() if k in ("code", "gl")}
+
+
+def force(*paths: str) -> str:
+    """The changed path that turns testmon selection off, or ''."""
+    return outputs(*paths)["force"]
 
 
 NEITHER = {"code": False, "gl": False}
@@ -69,3 +78,64 @@ def test_one_relevant_path_among_many_is_enough():
 
 def test_no_changed_files_runs_nothing():
     assert jobs() == NEITHER
+
+
+# The force-run list (.github/scripts/shader-force-run.txt): paths testmon cannot
+# see, which must run every shader test.
+
+@pytest.mark.parametrize("path", [
+    "ShowControl/FundingCAPTCHA/shaders/watering_can/image.glsl",
+    "ShowControl/FundingCAPTCHA/shaders/watering_can/setup.json",
+    "ShowControl/FundingCAPTCHA/shaders/setups.json",
+    "ShowControl/FundingCAPTCHA/images/bg.png",
+    "ShowControl/FundingCAPTCHA/captcha-settings.json",
+    "ShowControl/FundingCAPTCHA/playlist.json",
+    "ShowControl/network.json",
+    "requirements-dev.txt",
+    "pyproject.toml",
+    "pytest.ini",
+    "Makefile",
+    ".github/workflows/tests.yml",
+    ".github/workflows/testmon-data.yml",
+    ".github/scripts/ci-changes.sh",
+    ".github/scripts/shader-force-run.txt",
+])
+def test_paths_testmon_cannot_see_force_every_shader_test(path):
+    assert jobs(path) == BOTH
+    assert force(path) == path
+
+
+@pytest.mark.parametrize("path", [
+    "ShowControl/OSCFabric/test_client.py",
+    "ShowControl/OSCFabric/client.py",
+    "IIVision/blob_stabilizer.py",
+    "ShowControl/FundingCAPTCHA/shadertoy.py",
+    "ShowControl/FundingCAPTCHA/games/grid.py",
+    "SomethingNew/thing.py",
+])
+def test_python_code_is_left_to_testmon(path):
+    assert jobs(path) == BOTH
+    assert force(path) == ""
+
+
+@pytest.mark.parametrize("path", [
+    "docs/a.md",
+    "ShowControl/TreeHouse/settings.json",
+    "Firmware/x/y.cpp",
+])
+def test_paths_outside_the_shader_tests_force_nothing(path):
+    assert force(path) == ""
+
+
+def test_first_forcing_path_is_reported():
+    assert force("IIVision/pipeline.py", "pytest.ini", "requirements-dev.txt") == "pytest.ini"
+
+
+def test_no_changed_files_forces_nothing():
+    assert force() == ""
+
+
+def test_force_list_comments_and_blank_lines_are_not_globs():
+    lines = (SCRIPT.parent / "shader-force-run.txt").read_text().splitlines()
+    assert "" in lines and any(l.startswith("#") for l in lines)
+    assert force("#", "# Data the shader tests read.") == ""

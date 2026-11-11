@@ -9,7 +9,9 @@ make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL 
 python -m pytest          # the same as make test
 ```
 
-CI runs `test-fast` and `test-fundingcaptcha` as separate jobs and skips either when the PR cannot affect it. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
+CI runs `test-fast` and the FundingCAPTCHA tests as separate jobs and skips either when the PR cannot affect it. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
+
+Inside the FundingCAPTCHA job, [pytest-testmon](https://testmon.org/) runs only the tests whose Python dependencies changed, using data recorded by `.github/workflows/testmon-data.yml` on each push to `main`. testmon sees only the Python code a test executes, so it is blind to shaders, JSON and other data files. Any changed path listed in `.github/scripts/shader-force-run.txt` runs every test, and so does a run that finds no recorded data. When a test reads a new kind of non-Python file, add its path to that list. Locally, `make test` and `make test-fundingcaptcha` always run everything.
 
 ## Run FlowerBeds show control
 
