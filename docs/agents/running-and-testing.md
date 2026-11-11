@@ -23,13 +23,24 @@ make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL 
 uv run pytest IIVision    # any pytest arguments
 make test-firmware        # TreeHouse controller host tests (PlatformIO, run by uv)
 make build-firmware       # compile the signs-of-life, location and self-test firmware
+make reuben               # build the reuben CLI from vendor/reuben (needs Rust)
+make validate-instruments # load-check the Playing the Pipes instruments with that build
 ```
 
-CI runs `test-fast`, the FundingCAPTCHA tests and the two firmware targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs them all.
+CI runs `test-fast`, the FundingCAPTCHA tests, the two firmware targets and the two reuben targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs them all.
 
 Inside the FundingCAPTCHA job, [pytest-testmon](https://testmon.org/) runs only the tests whose Python dependencies changed, using data recorded by `.github/workflows/testmon-data.yml` on each push to `main`. testmon sees only the Python code a test executes, so it is blind to shaders, JSON and other data files. Any changed path listed in `.github/scripts/shader-force-run.txt` runs every test, and so does a run that finds no recorded data. When a test reads a new kind of non-Python file, add its path to that list. Locally, `make test` and `make test-fundingcaptcha` always run everything.
 
 Shader tests run on software Mesa in CI, where fragment shading is the whole cost. The test rigs set `Renderer.defer_image = True`: frames skip the Image pass, and the file's image helper calls `draw_deferred_image()` to draw the last frame's Image only when a test reads it. A new rig should do the same and read `output` only through such a helper. To time the tests locally as CI does, force llvmpipe with `LIBGL_ALWAYS_SOFTWARE=1 __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`; without these, EGL may pick a hardware GPU.
+
+## reuben (Playing the Pipes audio engine)
+
+[reuben](https://github.com/Impractical-Instruments/reuben) is a git submodule at `vendor/reuben`, built from source so it can be changed in place while working here (#177). `make setup` checks it out; after a pull that moves it, run `git submodule update --init --recursive`.
+
+- **Prerequisites:** Rust via [rustup](https://rustup.rs), and on Linux the ALSA headers (`sudo apt-get install libasound2-dev`). `vendor/reuben/rust-toolchain.toml` pins the Rust version; rustup installs it on the first build.
+- **`make reuben`** builds `vendor/reuben/target/release/reuben`.
+- **`make validate-instruments`** runs `reuben validate` on every `ShowControl/PlayingThePipes/reuben/*.json` except device profiles (`*.profile.json`). A warning fails it as well as an error, because reuben only warns about a missing sample or voice file.
+- **Changing reuben:** work in `vendor/reuben` on a branch there (its own `AGENTS.md` applies), push it to the reuben repo, and commit the new submodule commit here. You can deploy and test from any reuben commit, but CI's `reuben-pin` check blocks merging until that commit is on reuben's `dev` branch (its integration branch; `main` there is the release branch). `.github/scripts/check-reuben-pin.sh` runs the same check locally.
 
 ## Run FlowerBeds show control
 
