@@ -205,18 +205,20 @@ def grow(m, n):
     return m
 
 
-def test_outline_is_light_by_default(ctx, tmp_path):
-    # Toned down: the outline is light grey. The outline's pixels are the ones that change when
-    # it's drawn in ink instead; by default they must be light.
+def test_outline_contrasts_with_the_scene_by_default(ctx, tmp_path):
+    # The scene is pale and warm, so the outline is dark and cool (#173). The outline's pixels
+    # are the ones that change when it's drawn in yellow instead; by default they must be navy.
     size = (384, 216)
     def render(r):
         run(r, [CORNER | standing(1)[0]] * 30)
         return image(r)[..., :3].astype(int)
-    light = render(make(ctx, size))
-    inked = render(make_with(ctx, tmp_path, size, OUTLINE_COL="INK"))
-    outline = np.abs(light - inked).max(axis=2) > 100
+    default = render(make(ctx, size))
+    yellow  = render(make_with(ctx, tmp_path, size, OUTLINE_COL="YELLOW"))
+    outline = np.abs(default - yellow).max(axis=2) > 100
     assert outline.sum() > 50
-    assert light[outline].sum(axis=1).mean() > 550
+    px = default[outline]
+    assert px.sum(axis=1).mean() < 300                      # dark: PAPER is 715, the old grey was 631
+    assert (px[:, 2] - px[:, 0]).mean() > 25                # cool: bluer than it is red
 
 
 def test_flailing_squiggles_the_outline(ctx, tmp_path):
