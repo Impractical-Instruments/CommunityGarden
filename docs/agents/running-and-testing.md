@@ -12,7 +12,9 @@ make test-firmware        # TreeHouse controller host tests (needs `pip install 
 make build-firmware       # compile the signs-of-life, location and self-test firmware
 ```
 
-CI runs `test-fast`, `test-fundingcaptcha` and the two firmware targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs both.
+CI runs `test-fast`, the FundingCAPTCHA tests and the two firmware targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs them all.
+
+Inside the FundingCAPTCHA job, [pytest-testmon](https://testmon.org/) runs only the tests whose Python dependencies changed, using data recorded by `.github/workflows/testmon-data.yml` on each push to `main`. testmon sees only the Python code a test executes, so it is blind to shaders, JSON and other data files. Any changed path listed in `.github/scripts/shader-force-run.txt` runs every test, and so does a run that finds no recorded data. When a test reads a new kind of non-Python file, add its path to that list. Locally, `make test` and `make test-fundingcaptcha` always run everything.
 
 ## Run FlowerBeds show control
 

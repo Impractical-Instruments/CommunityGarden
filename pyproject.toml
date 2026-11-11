@@ -63,6 +63,7 @@ dev = [
     "communitygarden[flowerbeds,treehouse,dashboard,fundingcaptcha,pipes]",
     "pytest>=8.0",
     "httpx>=0.24",
+    "pytest-testmon>=2.3,<3",  # CI selects shader tests with it; see docs/agents/running-and-testing.md
 ]
 
 [tool.setuptools]

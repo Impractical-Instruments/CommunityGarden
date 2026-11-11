@@ -1,0 +1,48 @@
+name: Testmon data
+
+# Record which Python code each FundingCAPTCHA test executes, for the
+# fundingcaptcha job in tests.yml to select from. Runs on main because PR runs
+# can only read caches saved on the default branch.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testmon-data
+  cancel-in-progress: true
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    # A full run takes about 7 minutes; stop a hung one rather than hold the runner.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: py
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Install Python test deps
+        run: pip install -e ".[dev]"
+
+      - name: Install headless OpenGL (shader player GL tests)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
+
+      # No data is restored first: every test runs and is recorded from scratch.
+      - name: Run every FundingCAPTCHA test and record its dependencies
+        env:
+          TESTMON_DATAFILE: .testmondata
+        run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon -v --durations=20
+
+      # Keep this key in step with tests.yml. Saved only when every test passed.
+      - name: Save testmon data
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .testmondata
+          key: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('pyproject.toml') }}-${{ github.sha }}
