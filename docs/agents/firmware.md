@@ -6,7 +6,7 @@
 
 - Listens on OSC address `/cg/ff/rot` with args `[int motor_id, float rotation_deg]`
 - Calls `setRotDeg()` on the target Dynamixel servo
-- IP and MAC come from a generated `config.h` — do not hardcode them; edit `ShowControl/network.json` and run `scripts/hooks/firmware_config_gen.py` before flashing
+- IP and MAC are still hardcoded near the top of the `.ino`; set them per board to match `ShowControl/network.json`. Generating them from `network.json` is pending (P1-04, #176)
 - Each board needs a unique IP and MAC when running multiple controllers
 
 Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT).
