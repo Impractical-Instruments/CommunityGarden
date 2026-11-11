@@ -8,14 +8,14 @@ Browser-based monitoring + mode control for The Community Garden. Runs on the Tr
 
 ## Architecture summary
 
-FastAPI + Uvicorn (`serve.py`). Static HTML pages per Element plus a single mode-relay endpoint. No login, no auth — closed show LAN only.
+FastAPI + Uvicorn (`serve.py`). Static HTML pages per Element and a health endpoint. No login, no auth — closed show LAN only.
 
 Per-Element pages (`flowerbeds.html`, `treehouse.html`, `fundingcaptcha.html`, `playingthepipes.html`) ping each Element's own monitoring port (visualizer or health endpoint) and reflect status.
 
-`POST /api/mode` relays show mode (`active` / `dim` / `inactive`) to a specific Element over OSC, using the IP + OSC port from `ShowControl/network.json` (ADR-0007). The Dashboard never talks to Elements outside of this endpoint — everything else is browser → Element directly.
+The Dashboard server never talks to Elements: everything is browser → Element directly. The only Element with controls is the TreeHouse, whose page posts to the TreeHouse visualizer's `/control/*` routes (show mode, Looking Glass scene, Blow-Up trigger). The other pages are status and logs only.
 
 Key references:
-- ADR-0007 — OSC Fabric schema (defines `network.json` schema + mode addresses)
+- ADR-0007 — OSC Fabric schema (defines the `network.json` schema; mode control is TreeHouse-only)
 - `serve.py`, `index.html`, per-element HTML pages
 
 ---
@@ -25,11 +25,8 @@ Key references:
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/health` | `{"ok": true}` |
-| `POST` | `/api/mode` | Relays show mode over OSC. Body: `{"element": "<name>", "mode": "active|dim|inactive"}`. Sends `/<element>/mode <mode>` to the IP + OSC port from `network.json`. |
 | `GET` | `/` | Static HTML — see `index.html` |
 | `GET` | `/<element>.html` | Per-element status page |
-
-Valid elements: `treehouse`, `flowerbeds`, `captcha`, `pipes`. Valid modes: `active`, `dim`, `inactive`.
 
 ---
 
@@ -74,5 +71,4 @@ If venue addressing changes — edit this file (on whichever host you're deployi
 |---|---|---|
 | Dashboard unreachable | `cg-dashboard` down or host network down | `sudo systemctl status cg-dashboard` on the treehouse host |
 | Element shows offline though running | Element's HTTP port unreachable from the browser, or wrong IP in `network.json` | Curl the element's monitoring URL directly; fix `network.json` if needed |
-| `POST /api/mode` returns 503 | `network.json` missing or element entry incomplete | Check the file; ensure `ip` + `osc_port` are set for that element |
-| Mode flip has no effect | Element doesn't listen for `/<element>/mode` | Check that element's OSC server; relay arrives but element ignores it |
+| TreeHouse mode buttons do nothing | TreeHouse visualizer unreachable from the browser | The page posts to `http://<dashboard host>:8766/control/show/mode`; check the `treehouse` service is up |

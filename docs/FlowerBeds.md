@@ -100,7 +100,6 @@ ssh flowerbeds "sudo systemctl restart flowerbeds"
 | `/cg/ff/ping` | out | — | Boot-time diagnostic (`diag.py`) |
 | `/cg/ff/pong` | in | (controller status) | Reports scanned servo IDs + rx/drop counters |
 | `/flowerbeds/activity` | out (Fabric) | `float 0–1` | `min(1, len(tracked)/activity_max_blobs)`, every frame |
-| `/flowerbeds/mode` | in (Fabric) | `string` | `active` / `dim` / `inactive` — relayed by Dashboard |
 
 ---
 

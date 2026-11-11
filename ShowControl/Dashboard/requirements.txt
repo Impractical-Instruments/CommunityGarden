@@ -3,5 +3,3 @@
 
 fastapi>=0.100
 uvicorn[standard]>=0.23
-python-osc>=1.8
-pydantic>=2.0

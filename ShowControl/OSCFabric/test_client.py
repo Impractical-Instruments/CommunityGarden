@@ -104,7 +104,7 @@ def test_send_event_sends_immediately():
 def test_send_event_carries_no_args():
     spy = SpyTransport()
     client = FabricClient("captcha", _config(), transport=spy)
-    client.send_event("game_started")
+    client.send_event("blowup")
     assert spy.calls[0][1] == ()
 
 

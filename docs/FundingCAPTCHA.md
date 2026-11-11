@@ -153,7 +153,6 @@ FundingCAPTCHA sends to the TreeHouse Hub each frame:
 |---|---|---|
 | `/captcha/intensity` | `f 0–1` | Arc progress toward Blow-Up. Configurable weighted sum of difficulty (current Level / 5) and time pressure (elapsed / `timer_s`). Resets to 0 at the start of each Arc. |
 | `/captcha/blowup` | — | One-shot — sent on the frame a Blow-Up fires. TreeHouse responds with the **Blow-Up Reaction** (attic spike + exponential decay). |
-| `/captcha/mode` | `s` (in) | `active` / `dim` / `inactive` from Dashboard |
 
 ---
 

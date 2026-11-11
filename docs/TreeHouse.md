@@ -207,7 +207,7 @@ Inbound (`/cg/...` are internal; rest are Fabric):
 
 | Address | Args | Source |
 |---|---|---|
-| `/treehouse/mode` | `s` | Dashboard (mode relay) |
+| `/treehouse/mode` | `s` | operator OSC tool (the Dashboard page uses `POST /control/show/mode` instead) |
 | `/treehouse/brightness` | `f` | operator override |
 | `/captcha/intensity` | `f` | FundingCAPTCHA Arc |
 | `/captcha/blowup` | — | FundingCAPTCHA Blow-Up event |
