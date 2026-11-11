@@ -1,6 +1,6 @@
 # ADR 0010 — TreeHouse LED driver: two MicroPython Picos with PIO
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-0020](0020-treehouse-esp32s3-location-controllers.md). The Pico path was removed from the tree on 2026-11-11.
 
 ## Context
 

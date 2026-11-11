@@ -29,7 +29,3 @@ Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT
 - Sender side on the Pi: `ShowControl/TreeHouse/location_sender.py`, configured by the `locations` block in `settings.json`.
 
 Full details in `Firmware/TreeHouse_Controllers/README.md`.
-
-## TreeHouse Pico LEDs (superseded)
-
-`Firmware/TreeHouse_PicoLEDs/main.py` — MicroPython on Raspberry Pi Pico; drives SK6812 RGBW LED strips. Superseded by the location controllers above (ADR-0020); still in the tree until the ESP32-S3 hardware is installed.

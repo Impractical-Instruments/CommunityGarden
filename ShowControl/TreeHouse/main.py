@@ -1,13 +1,9 @@
 """
 TreeHouse show control — entry point.
 
-Drives the per-frame update loop for all display elements:
-  2× diorama boxes   (House Swarming, Club)
-  2× garage windows  (Looking Glass, Forge & Flora)
-  1× dormer window   (Dormer)
-
-Receives OSC from the festival network to manage show modes.
-Sends LED pixel data to the Pi Pico over USB serial each frame.
+Each frame: builds the GardenState from the OSC signals of the other Elements,
+updates the Looking Glass, positions the Branch motors, and sends the state to
+the ESP32-S3 location controllers that run the LEDs (ADR-0020).
 """
 
 import argparse
@@ -18,10 +14,9 @@ import sys
 from pathlib import Path
 
 from branch_controller import BranchController
-from coordinator import Coordinator, build_displays, load_config
+from coordinator import Coordinator, build_controllables, load_config
 from location_sender import LocationSender
 from osc_server import serve as serve_osc
-from pico_driver import PicoDriver
 import visualizer
 
 log = logging.getLogger("treehouse")
@@ -30,7 +25,6 @@ log = logging.getLogger("treehouse")
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="TreeHouse show control")
     p.add_argument("--config", default="settings.json", help="Path to settings JSON")
-    p.add_argument("--no-pico", action="store_true", help="Skip Pico connection (dev mode)")
     p.add_argument("--no-branch", action="store_true", help="Skip branch controller connection (dev mode)")
     p.add_argument("--no-osc", action="store_true", help="Skip OSC listener")
     p.add_argument("--no-locations", action="store_true",
@@ -110,7 +104,6 @@ async def _renderer_subprocess(renderer_path: Path) -> None:
 
 async def _frame_loop(
     coordinator: Coordinator,
-    driver: PicoDriver,
     branch: BranchController,
     locations: LocationSender,
     fps: int,
@@ -125,7 +118,6 @@ async def _frame_loop(
     while True:
         t0 = loop.time()
         coordinator.update(dt)
-        driver.send_frames(coordinator.get_all_frames(), coordinator.brightness)
         for motor_id, degrees in coordinator.get_branch_positions():
             branch.set_position(motor_id, degrees)
         if frame % location_every == 0 or coordinator.garden_state.captcha_blowup:
@@ -138,17 +130,13 @@ async def _frame_loop(
 
 async def _run(args: argparse.Namespace) -> None:
     config = load_config(args.config)
-    displays = build_displays(config)
+    controllables = build_controllables(config)
     coordinator = Coordinator(
-        displays,
+        controllables,
         branch_config=config.branch,
         heartbeat_interval_s=config.osc.heartbeat_interval_s,
     )
     coordinator._dim_level = config.show.dim_level
-
-    driver = PicoDriver(config.pico.port, config.pico.baud)
-    if not args.no_pico:
-        driver.connect()
 
     branch = BranchController(config.branch.port, config.branch.baud)
     if not args.no_branch:
@@ -162,15 +150,15 @@ async def _run(args: argparse.Namespace) -> None:
     if not args.no_locations:
         locations.connect()
 
-    log.info("TreeHouse starting — %d displays, %d branch motors",
-             len(displays), len(config.branch.motors))
-    for name in coordinator.display_names:
+    log.info("TreeHouse starting — %d controllables, %d branch motors",
+             len(controllables), len(config.branch.motors))
+    for name in coordinator.controllable_names:
         log.info("  • %s", name)
     for name in locations.target_names:
         log.info("  • %s (location controller)", name)
 
     tasks = [asyncio.create_task(_frame_loop(
-        coordinator, driver, branch, locations, config.show.fps, config.locations.send_hz,
+        coordinator, branch, locations, config.show.fps, config.locations.send_hz,
     ))]
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
@@ -198,7 +186,6 @@ async def _run(args: argparse.Namespace) -> None:
         if weston_proc is not None and weston_proc.returncode is None:
             weston_proc.terminate()
             await weston_proc.wait()
-        driver.close()
         branch.close()
         locations.close()
 

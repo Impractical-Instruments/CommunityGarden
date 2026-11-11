@@ -27,7 +27,7 @@ Linux hosts run systemd units with `Restart=always RestartSec=5`. Pipes (Windows
 | Service | Host | Entry | Hardware |
 |---|---|---|---|
 | `flowerbeds` | flowerbeds | `ShowControl/FlowerBeds/main.py` | Orbbec cam, OSC servos |
-| `treehouse` | treehouse | `ShowControl/TreeHouse/main.py` | Picos, branch motor, 2× HDMI |
+| `treehouse` | treehouse | `ShowControl/TreeHouse/main.py` | location controllers (WiFi), branch motor, 2× HDMI |
 | `captcha` | captcha | `ShowControl/FundingCAPTCHA/app.py` | Orbbec cam, projector |
 | `cg-dashboard` | treehouse | `ShowControl/Dashboard/serve.py` | none |
 | `pipes-health` | pipes (NSSM) | `ShowControl/PlayingThePipes/health_server.py` | (Max runs separately) |
@@ -157,7 +157,7 @@ Every element has dev flags so you can run anywhere — no camera, no LEDs, no s
 
 ```bash
 # TreeHouse, no hardware or displays
-python3 main.py --no-pico --no-branch --no-renderer --no-club-screen
+python3 main.py --no-locations --no-branch --no-renderer --no-club-screen
 
 # FlowerBeds, no camera, no servo OSC
 python3 main.py --mock-camera --no-osc

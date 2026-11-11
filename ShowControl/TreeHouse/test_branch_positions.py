@@ -2,7 +2,7 @@
 import pytest
 
 from coordinator import BranchConfig, BranchMotorConfig, Coordinator
-from displays import GardenState
+from controllables import GardenState
 
 
 def _coord(*motors: BranchMotorConfig) -> Coordinator:

@@ -5,21 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from location_sender import LocationTarget
-from displays import (
-    ChannelFrame,
-    Color,
+from controllables import (
     Controllable,
     ControllableState,
-    ForgeAndFloraConfig,
-    ForgeAndFloraDisplay,
     GardenState,
-    LEDConfig,
-    LEDControllable,
-    LEDDisplay,
     LookingGlassConfig,
-    LookingGlassDisplay,
-    PorchLightsConfig,
-    PorchLightsDisplay,
+    LookingGlassControllable,
     ShowMode,
 )
 
@@ -29,12 +20,6 @@ log = logging.getLogger("treehouse")
 # ---------------------------------------------------------------------------
 # Config dataclasses — mirror settings.json structure
 # ---------------------------------------------------------------------------
-
-@dataclass
-class PicoConfig:
-    port: str = "/dev/ttyACM0"
-    baud: int = 115200
-
 
 @dataclass
 class BranchMotorConfig:
@@ -84,37 +69,10 @@ class ShowConfig:
 
 
 @dataclass
-class DioramaConfig:
-    name: str
-    pico_pin: int
-    led_count: int
-    brightness: float = 1.0
-    color: Color = (0, 0, 0, 255)
-    pattern: str = "solid"
-    pulse_period: float = 20.0
-    pulse_min: float = 0.5
-
-
-@dataclass
-class DormerConfig:
-    name: str
-    pico_pin: int
-    led_count: int
-    brightness: float = 1.0
-    color: Color = (0, 0, 0, 255)
-    pattern: str = "solid"
-
-
-@dataclass
 class TreehouseConfig:
-    pico: PicoConfig
     osc: OSCConfig
     show: ShowConfig
-    dioramas: list[DioramaConfig]
     looking_glass: LookingGlassConfig
-    forge_and_flora: ForgeAndFloraConfig
-    dormer: DormerConfig
-    porch_lights: PorchLightsConfig
     branch: BranchConfig = None
     locations: LocationsConfig = None
 
@@ -128,12 +86,6 @@ class TreehouseConfig:
 # ---------------------------------------------------------------------------
 # Config loader
 # ---------------------------------------------------------------------------
-
-def _color(raw: list[int]) -> Color:
-    if len(raw) != 4:
-        raise ValueError(f"Color must be [R, G, B, W], got {raw!r}")
-    return (raw[0], raw[1], raw[2], raw[3])
-
 
 def _load_locations(raw: dict, network: dict) -> LocationsConfig:
     """
@@ -174,61 +126,15 @@ def load_config(path: str) -> TreehouseConfig:
     else:
         log.warning("network.json not found at %s", network_path)
 
-    pico_raw = raw.get("pico", {})
     show_raw = raw.get("show", {})
 
-    dioramas = [
-        DioramaConfig(
-            name=d["name"],
-            pico_pin=d["pico_pin"],
-            led_count=d["led_count"],
-            brightness=d.get("brightness", 1.0),
-            color=_color(d.get("color", [0, 0, 0, 255])),
-            pattern=d.get("pattern", "solid"),
-            pulse_period=d.get("pulse_period", 20.0),
-            pulse_min=d.get("pulse_min", 0.5),
-        )
-        for d in raw.get("dioramas", [])
-    ]
-
-    lg = raw["garage_windows"]["looking_glass"]
+    lg = raw.get("looking_glass", {})
     looking_glass = LookingGlassConfig(
         name=lg.get("name", "Looking Glass"),
         scene=lg.get("scene", "bloom"),
         speed=lg.get("speed", 1.0),
         mirror_depth=lg.get("mirror_depth", 6),
         renderer_port=lg.get("renderer_port", 9002),
-    )
-
-    ff = raw["garage_windows"]["forge_and_flora"]
-    forge_and_flora = ForgeAndFloraConfig(
-        name=ff.get("name", "Forge & Flora"),
-        arc_pin=ff["arc_pin"],
-        bloom_pin=ff["bloom_pin"],
-        led_count=ff.get("led_count", 48),
-        blend=ff.get("blend", 0.0),
-        transition_speed=ff.get("transition_speed", 0.1),
-        base_flicker_intensity=ff.get("base_flicker_intensity", 0.1),
-        max_flicker_intensity=ff.get("max_flicker_intensity", 0.6),
-    )
-
-    dw = raw["dormer"]
-    dormer = DormerConfig(
-        name=dw.get("name", "Dormer"),
-        pico_pin=dw["pico_pin"],
-        led_count=dw["led_count"],
-        brightness=dw.get("brightness", 1.0),
-        color=_color(dw.get("color", [0, 0, 0, 255])),
-        pattern=dw.get("pattern", "solid"),
-    )
-
-    pl = raw.get("porch_lights", {})
-    porch_lights = PorchLightsConfig(
-        name=pl.get("name", "Porch Lights"),
-        pico_pin=pl.get("pico_pin", 8),
-        led_count=pl.get("led_count", 2),
-        blowup_duration=pl.get("blowup_duration", 3.0),
-        aftermath_duration=pl.get("aftermath_duration", 10.0),
     )
 
     bc = raw.get("branch_controller", {})
@@ -253,10 +159,6 @@ def load_config(path: str) -> TreehouseConfig:
     locations = _load_locations(raw.get("locations", {}), network)
 
     return TreehouseConfig(
-        pico=PicoConfig(
-            port=pico_raw.get("port", "/dev/ttyACM0"),
-            baud=pico_raw.get("baud", 115200),
-        ),
         osc=OSCConfig(
             listen_port=network.get("elements", {}).get("treehouse", {}).get("osc_port", 9001),
             heartbeat_interval_s=float(network.get("heartbeat_interval_s", 5.0)),
@@ -265,50 +167,20 @@ def load_config(path: str) -> TreehouseConfig:
             fps=show_raw.get("fps", 30),
             dim_level=show_raw.get("dim_level", 0.25),
         ),
-        dioramas=dioramas,
         looking_glass=looking_glass,
-        forge_and_flora=forge_and_flora,
-        dormer=dormer,
-        porch_lights=porch_lights,
         branch=branch,
         locations=locations,
     )
 
 
 # ---------------------------------------------------------------------------
-# Display factory
+# Controllable factory
 # ---------------------------------------------------------------------------
 
-def build_displays(config: TreehouseConfig) -> list[Controllable]:
-    displays: list[Controllable] = []
-
-    for d in config.dioramas:
-        displays.append(LEDDisplay(LEDConfig(
-            name=d.name,
-            pico_pin=d.pico_pin,
-            led_count=d.led_count,
-            brightness=d.brightness,
-            color=d.color,
-            pattern=d.pattern,
-            pulse_period=d.pulse_period,
-            pulse_min=d.pulse_min,
-        )))
-
-    displays.append(LookingGlassDisplay(config.looking_glass))
-    displays.append(ForgeAndFloraDisplay(config.forge_and_flora))
-
-    displays.append(LEDDisplay(LEDConfig(
-        name=config.dormer.name,
-        pico_pin=config.dormer.pico_pin,
-        led_count=config.dormer.led_count,
-        brightness=config.dormer.brightness,
-        color=config.dormer.color,
-        pattern=config.dormer.pattern,
-    )))
-
-    displays.append(PorchLightsDisplay(config.porch_lights))
-
-    return displays
+def build_controllables(config: TreehouseConfig) -> list[Controllable]:
+    """The Controllables the Pi drives itself. The LED locations are ESP32-S3
+    controllers reached through LocationSender (ADR-0020), not Controllables."""
+    return [LookingGlassControllable(config.looking_glass)]
 
 
 # ---------------------------------------------------------------------------
@@ -320,20 +192,14 @@ class Coordinator:
 
     def __init__(
         self,
-        displays: list[Controllable],
+        controllables: list[Controllable],
         branch_config: BranchConfig | None = None,
         heartbeat_interval_s: float = 5.0,
         _clock=None,
     ) -> None:
-        self._displays: dict[str, Controllable] = {d.name: d for d in displays}
-        self._led_displays: dict[str, LEDDisplay] = {
-            d.name: d for d in displays if isinstance(d, LEDDisplay)
-        }
-        self._looking_glass: LookingGlassDisplay | None = next(
-            (d for d in displays if isinstance(d, LookingGlassDisplay)), None
-        )
-        self._porch_lights: PorchLightsDisplay | None = next(
-            (d for d in displays if isinstance(d, PorchLightsDisplay)), None
+        self._controllables: dict[str, Controllable] = {c.name: c for c in controllables}
+        self._looking_glass: LookingGlassControllable | None = next(
+            (c for c in controllables if isinstance(c, LookingGlassControllable)), None
         )
         self.mode = ShowMode.ACTIVE
         self._dim_level = 0.25
@@ -373,13 +239,6 @@ class Coordinator:
         self._dim_level = max(0.0, min(1.0, level))
         log.info("Dim level → %.2f", self._dim_level)
 
-    def set_display_pattern(self, display_name: str, pattern: str) -> None:
-        display = self._led_displays.get(display_name)
-        if display:
-            display.set_pattern(pattern)
-        else:
-            log.warning("set_display_pattern: %r not found", display_name)
-
     def set_looking_glass_scene(self, scene: str) -> None:
         if self._looking_glass:
             self._looking_glass.set_scene(scene)
@@ -405,12 +264,8 @@ class Coordinator:
         self._last_received[sender] = self._clock()
         self._stale_warned.discard(sender)
 
-    def reset_porch_lights(self) -> None:
-        if self._porch_lights:
-            self._porch_lights.reset()
-
     def get(self, name: str) -> Controllable:
-        return self._displays[name]
+        return self._controllables[name]
 
     def _expire_stale_senders(self) -> None:
         now = self._clock()
@@ -446,7 +301,7 @@ class Coordinator:
         # Held for LocationSender, which reads it after update() returns and
         # needs to see the one-shot blowup flag this frame was built with.
         self._last_state = state
-        for controllable in self._displays.values():
+        for controllable in self._controllables.values():
             controllable.update(dt, state)
         self._update_branch_positions(state)
 
@@ -470,16 +325,9 @@ class Coordinator:
         """Return (motor_id, degrees) pairs for the current frame."""
         return list(self._branch_positions)
 
-    def get_all_frames(self) -> list[ChannelFrame]:
-        frames: list[ChannelFrame] = []
-        for controllable in self._displays.values():
-            if isinstance(controllable, LEDControllable):
-                frames.extend(controllable.get_pixels())
-        return frames
-
     def get_all_states(self) -> list[ControllableState]:
-        return [d.get_state() for d in self._displays.values()]
+        return [c.get_state() for c in self._controllables.values()]
 
     @property
-    def display_names(self) -> list[str]:
-        return list(self._displays.keys())
+    def controllable_names(self) -> list[str]:
+        return list(self._controllables.keys())

@@ -10,7 +10,7 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 
 | Machine | Host | OS | Element(s) | Hardware attached |
 |---|---|---|---|---|
-| `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 2× Pi Pico (USB), 1× branch controller (USB), 2× HDMI displays |
+| `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
 | `pipes` | 192.168.1.13 | Windows 11 | Playing the Pipes | 2× Pi Pico (USB COM), Max/RNBO audio I/O |
@@ -96,17 +96,15 @@ Service user (`ii`) needs `video` + `plugdev` groups (granted via `Supplementary
 - EGL/GL symlinks (Pi OS ships only `.so.1`; moderngl dlopens `.so`)
 - Display config: `ShowControl/TreeHouse/deploy/weston.ini` declares both HDMI outputs explicitly (1024×600 + 800×480)
 
-What it does **not** do — USB symlink rules for the Picos + branch controller. `/dev/ttyACMx` is plug-order; you need stable names referenced in `settings.json`.
+What it does **not** do — the USB symlink rule for the branch controller. `/dev/ttyACMx` is plug-order; you need stable names referenced in `settings.json`.
 
-**Pico/branch USB symlinks (one-time):**
+**Branch USB symlink (one-time):**
 
-| Symlink | Device | Channels |
+| Symlink | Device | Drives |
 |---|---|---|
-| `/dev/treehouse-pico-a` | Pico A (dioramas) | House Swarming, Club, Mycelium, F&F arc/bloom |
-| `/dev/treehouse-pico-b` | Pico B (structure) | Dormer, Porch Lights, Attic TV & Lamps |
 | `/dev/treehouse-branches` | Branch controller | Dynamixel branch motors |
 
-Plug each device in alone and record its serial:
+Plug it in alone and record its serial:
 
 ```bash
 udevadm info -a -n /dev/ttyACM0 | grep 'ATTRS{serial}'
@@ -115,8 +113,6 @@ udevadm info -a -n /dev/ttyACM0 | grep 'ATTRS{serial}'
 Then `/etc/udev/rules.d/99-treehouse.rules`:
 
 ```
-SUBSYSTEM=="tty", ATTRS{serial}=="<pico-a-serial>", SYMLINK+="treehouse-pico-a"
-SUBSYSTEM=="tty", ATTRS{serial}=="<pico-b-serial>", SYMLINK+="treehouse-pico-b"
 SUBSYSTEM=="tty", ATTRS{serial}=="<branch-serial>", SYMLINK+="treehouse-branches"
 ```
 

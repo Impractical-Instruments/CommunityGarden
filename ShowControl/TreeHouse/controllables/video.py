@@ -17,7 +17,7 @@ class LookingGlassConfig:
     renderer_port: int = 9002
 
 
-class LookingGlassDisplay(Controllable):
+class LookingGlassControllable(Controllable):
     """
     Generative video inside a physical mirrored box ('Looking Glass' garage window).
 
@@ -61,7 +61,7 @@ class LookingGlassDisplay(Controllable):
         self.mirror_depth = max(1, depth)
 
     # ------------------------------------------------------------------
-    # Display lifecycle
+    # Controllable lifecycle
     # ------------------------------------------------------------------
 
     def update(self, dt: float, state: GardenState) -> None:
