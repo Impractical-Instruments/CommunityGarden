@@ -1,6 +1,0 @@
-python-osc
-pyserial
-moderngl
-uvicorn
-fastapi
-pygame

@@ -19,7 +19,7 @@ echo ""
 echo "→ Installing Python dependencies..."
 # numpy and scipy from apt are faster on Pi/ARM
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
-pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+pip3 install --break-system-packages -e "$REPO_ROOT[flowerbeds,camera]"
 
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."

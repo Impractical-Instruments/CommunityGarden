@@ -80,7 +80,7 @@ To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_a
 Shader Setups and full-screen videos in one shuffle bag: every item plays once before any repeats. `playlist.json` defines the list:
 
 - `setups`: Setup folder names from `shaders/`. Each plays for `setup_duration_s` (300 s), which overrides the Setup's own `duration_s`.
-- `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show PC. Decoding uses PyAV (`av` in `requirements.txt`).
+- `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show PC. Decoding uses PyAV (`av`, in the `fundingcaptcha` extra of `pyproject.toml`).
 
 A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
 

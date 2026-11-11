@@ -3,6 +3,7 @@
 ## Tests
 
 ```bash
+pip install -e ".[dev]"   # first time, from the repo root: IIVision, OSCFabric and every test dependency
 make test                 # all Python tests (pytest: IIVision, ShowControl, scripts)
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
@@ -16,13 +17,13 @@ CI runs `test-fast` and `test-fundingcaptcha` as separate jobs and skips either 
 Install dependencies (first time):
 
 ```bash
-cd ShowControl/FlowerBeds
-pip install -r requirements.txt
+pip install -e ".[flowerbeds,camera]"   # from the repo root; drop `camera` on a machine with no Orbbec
 ```
 
 Run without hardware (fastest way to test logic changes):
 
 ```bash
+cd ShowControl/FlowerBeds
 python main.py --config settings.json --mock-camera --no-osc
 ```
 

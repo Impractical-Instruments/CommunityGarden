@@ -22,7 +22,7 @@ CommunityGarden/
 │   └── agents/                             # Agent guidance (this directory)
 ├── scripts/hooks/                          # firmware_config_gen.py
 ├── Makefile                                # `make test` — runs all tests
-├── pytest.ini                              # testpaths = ShowControl IIVision
+├── pyproject.toml                          # IIVision + OSCFabric packages, one extra per Element, pytest config
 └── CONTEXT.md                              # Domain glossary — read before naming anything
 ```
 

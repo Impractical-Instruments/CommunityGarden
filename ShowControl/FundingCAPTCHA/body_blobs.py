@@ -17,15 +17,11 @@ its slot without passing through lost.
 from __future__ import annotations
 
 import math
-import sys
 import time
 from dataclasses import dataclass, fields as _dc_fields
-from pathlib import Path
 
 import numpy as np
 from scipy import ndimage
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))  # IIVision, as app.py
 
 from IIVision.blob_stabilizer import BlobStabilizer, StabilizerConfig
 from shadertoy import (BLOB_COASTING, BLOB_CONFIRMED, BLOB_LOST, BLOB_ROWS,

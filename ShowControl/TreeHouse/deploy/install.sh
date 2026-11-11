@@ -32,7 +32,7 @@ ldconfig
 
 # ── Python dependencies ────────────────────────────────────────────────────────
 echo "→ Installing Python dependencies..."
-pip3 install --break-system-packages -r "$APP_DIR/requirements.txt"
+pip3 install --break-system-packages -e "$REPO_ROOT[treehouse]"
 
 # ── Install service file ───────────────────────────────────────────────────────
 echo "→ Installing systemd unit..."

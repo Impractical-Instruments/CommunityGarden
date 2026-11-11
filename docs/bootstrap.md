@@ -156,8 +156,8 @@ Settings → Apps → Optional Features → install **OpenSSH Server**. Start se
 ### 3. Python deps
 
 ```powershell
-cd C:\CommunityGarden\ShowControl\PlayingThePipes
-pip install -r requirements.txt
+cd C:\CommunityGarden
+pip install -e ".[pipes]"
 ```
 
 ### 4. COM port pinning
@@ -307,4 +307,4 @@ nmcli con mod "Wired connection 1" ipv4.method auto
 
 ### FlowerBeds layout tool
 
-The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: Python + `pip install -r ShowControl/FlowerBeds/requirements.txt`.
+The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: Python + `pip install -e ".[flowerbeds]"` from the repo root.

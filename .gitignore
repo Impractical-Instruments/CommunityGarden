@@ -13,6 +13,7 @@ Log/
 **/*.pyc
 **/*.pyo
 .venv/
+*.egg-info/
 *.calibration.npz
 
 # FundingCAPTCHA per-host settings override (machine-specific)
