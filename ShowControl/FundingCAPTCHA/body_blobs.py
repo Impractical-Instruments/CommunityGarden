@@ -124,10 +124,6 @@ class BodyBlobs:
         self._last_update: float | None = None
         self._last_records: float | None = None
 
-    @property
-    def active(self) -> bool:
-        return bool(self._recs) or self._last_update is not None
-
     def update(self, presence: np.ndarray, nearness: np.ndarray, now: float | None = None) -> None:
         """One camera frame of Body: presence bool (h, w), nearness 0–1 (h, w), row 0 = bottom."""
         now = self._clock() if now is None else now

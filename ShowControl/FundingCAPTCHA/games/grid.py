@@ -14,16 +14,6 @@ CYAN     = (  0, 200, 220)
 ORANGE   = (240, 130,   0)
 RED      = (220,  50,  50)
 
-SUCCESS_COLOR   = GREEN
-WRONG_COLOR     = RED
-WARN_COLOR      = YELLOW
-DANGER_COLOR    = RED
-HIT_COLOR       = GREEN
-MISS_COLOR      = RED
-HIGHLIGHT_COLOR = CYAN
-
-CELL_PAD = 4
-
 # Render caches. `draw_top_bar`/`draw_center_text` run every frame with a prompt
 # and screen size that are constant for the whole game, yet the originals rebuilt
 # SysFont objects (the priciest pygame call on a Pi) and re-rendered text 30×/sec.
@@ -63,7 +53,6 @@ class Grid:
         self._gy = top + (area_h - gh) // 2
         self._cell = cell
         self._top_reserve = top
-        self._flashes: dict[tuple[int, int], tuple] = {}
 
     @property
     def cell_size(self) -> int:
@@ -85,38 +74,6 @@ class Grid:
             self._gy + row * self._cell,
             self._cell, self._cell,
         )
-
-    def inner_rect(self, col: int, row: int) -> pygame.Rect:
-        return self.cell_rect(col, row).inflate(-CELL_PAD * 2, -CELL_PAD * 2)
-
-    def flash(self, col: int, row: int,
-              color: tuple, duration_ms: int, alpha: int = 160) -> None:
-        self._flashes[(col, row)] = (color, pygame.time.get_ticks() + duration_ms, alpha)
-
-    def draw_background(self, surf: pygame.Surface,
-                        fill: tuple = DK_GREY, border: tuple = MID_GREY) -> None:
-        for r in range(self.rows):
-            for c in range(self.cols):
-                pygame.draw.rect(surf, fill,   self.cell_rect(c, r))
-                pygame.draw.rect(surf, border, self.cell_rect(c, r), 1)
-
-    def draw_flashes(self, surf: pygame.Surface) -> None:
-        now  = pygame.time.get_ticks()
-        dead = []
-        tile = pygame.Surface((self._cell, self._cell), pygame.SRCALPHA)
-        for (c, r), (color, expiry, alpha) in list(self._flashes.items()):
-            if now >= expiry:
-                dead.append((c, r))
-                continue
-            tile.fill((*color, alpha))
-            surf.blit(tile, self.cell_rect(c, r).topleft)
-        for k in dead:
-            del self._flashes[k]
-
-    def blit_cell(self, surf: pygame.Surface,
-                  img: pygame.Surface, col: int, row: int) -> None:
-        r = self.inner_rect(col, row)
-        surf.blit(pygame.transform.scale(img, (r.w, r.h)), r.topleft)
 
 
 def hud_font(size: int = 20) -> pygame.font.Font:

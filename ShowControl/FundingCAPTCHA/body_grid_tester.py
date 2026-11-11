@@ -204,7 +204,6 @@ def _camera_inner(camera, settings: dict, cam_q: queue.Queue,
     det_cfg = settings.get("detection", {})
     detection_config = DetectionConfig(
         depth_delta_mm  = det_cfg.get("depth_delta_mm",   25),
-        min_blob_pixels = det_cfg.get("min_blob_pixels",  500),
         min_depth_mm    = det_cfg.get("min_depth_mm",     500),
         max_depth_mm    = det_cfg.get("max_depth_mm",     4000),
     )
@@ -375,7 +374,6 @@ def _draw_debug(surf: pygame.Surface, fonts: dict,
     _line("Detection:", YELLOW)
     _line(f"  delta:  {det_cfg.get('depth_delta_mm', 25)}mm")
     _line(f"  range:  {det_cfg.get('min_depth_mm', 500)}–{det_cfg.get('max_depth_mm', 4000)}mm")
-    _line(f"  blobs:  ≥{det_cfg.get('min_blob_pixels', 500)}px")
     _line("C: cycle bg view  R: reseed", LT_GREY)
 
     # Per-cell coverage in debug: draw on grid cells

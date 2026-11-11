@@ -95,7 +95,7 @@ Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallo
 Top-level fields:
 - `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
 - `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
-- `detection` — `depth_delta_mm`, `min_blob_pixels`, `min_depth_mm`, `max_depth_mm`
+- `detection` — `depth_delta_mm`, `min_depth_mm`, `max_depth_mm`
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`
 - `slab_styles[<slab_id>]` — `{color}` for silhouette render
 - `cell_activation_threshold` — fraction of cell coverage required (default 0.30)
@@ -141,7 +141,7 @@ Every Game must guarantee a loss after sustained inactivity (ADR-0003) — eithe
 
 ## Screensavers (`ScreenSavers/`)
 
-Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D pipes screensaver), `waiting.py` (idle waiting). Add new ones by dropping a module exposing `create(settings) -> Screensaver` and listing it in `screensavers.json`.
+Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D pipes screensaver). Add new ones by dropping a module exposing `create(settings) -> Screensaver` and listing it in `screensavers.json`.
 
 ---
 

@@ -3,7 +3,6 @@
 
   "detection": {
     "depth_delta_mm":  30,
-    "min_blob_pixels": 500,
     "min_depth_mm":    1000,
     "max_depth_mm":    4000
   },

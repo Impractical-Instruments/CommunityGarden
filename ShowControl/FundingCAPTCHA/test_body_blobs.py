@@ -143,6 +143,6 @@ def test_overflow_beyond_slots_is_dropped():
 def test_reset_clears_everything():
     bb = BodyBlobs(BlobConfig(**CFG))
     bb.update(*_body((0, 0, 10, 20, 1.0)), now=0.0)
-    assert bb.active
+    assert bb.records(now=0.0).any()
     bb.reset()
-    assert not bb.active and not bb.records(now=0.0).any()
+    assert not bb.records(now=0.0).any()

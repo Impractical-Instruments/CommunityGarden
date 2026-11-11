@@ -1,10 +1,10 @@
 [Unit]
-Description=FundingCAPTCHA Game Server
+Description=FundingCAPTCHA kiosk
 After=network-online.target graphical.target
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/FundingCAPTCHA.md
 # Remove --camera if the Orbbec camera is not present on this install.
-# Use --mock-camera to emit fake blobs for testing without hardware.
+# Use --mock-camera for drifting fake bodies when testing without hardware.
 
 [Service]
 WorkingDirectory=/home/ii/CommunityGarden/ShowControl/FundingCAPTCHA
