@@ -91,8 +91,16 @@ def load_settings() -> dict:
     return s
 
 
-def _save_local(data: dict) -> None:
-    SETTINGS_LOCAL.write_text(json.dumps(data, indent=2))
+def restart_camera(cam: dict, start_camera) -> None:
+    """Stop the camera thread and start a fresh one (POST /api/restart).
+
+    Touches no settings file: captcha-settings.local.json is the operator's.
+    """
+    cam["stop"].set()
+    if cam["thread"] and cam["thread"].is_alive():
+        cam["thread"].join(timeout=5.0)
+    start_camera()
+    log.info("Camera restarted — background relearning from the first frame")
 
 
 # ── App state ─────────────────────────────────────────────────────────────────
@@ -530,14 +538,6 @@ def main() -> None:
             log.info("Camera thread started (%s) — background learns from the first frame",
                      "mock" if use_mock else "Orbbec")
 
-    def _do_restart() -> None:
-        cam["stop"].set()
-        if cam["thread"] and cam["thread"].is_alive():
-            cam["thread"].join(timeout=5.0)
-        _save_local({})
-        _start_camera()
-        log.info("Camera restarted — background relearning from the first frame")
-
     # ── State ─────────────────────────────────────────────────────────────────
     state:             AppState          = AppState.SCREENSAVER
     current_foreground: np.ndarray | None = None
@@ -579,7 +579,7 @@ def main() -> None:
             sil_cache          = None
             fg_pixel_count     = 0
             attract_elapsed    = 0.0
-            threading.Thread(target=_do_restart, daemon=True).start()
+            threading.Thread(target=restart_camera, args=(cam, _start_camera), daemon=True).start()
 
         # Test-input: update paint canvas and push as foreground frame
         if test_handler:
