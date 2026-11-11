@@ -149,21 +149,21 @@ const int   MAX_TIPS = 12;              // sprigs and flowers a pixel can see at
 const float TREE_OPEN_D = 3.0 * TREE_CELL;   // a flower opens as the growth front passes this far beyond it
 const ivec2 TREE_DIRS[8] = ivec2[8](ivec2(-1, -1), ivec2(0, -1), ivec2(1, -1), ivec2(-1, 0),
                                     ivec2(1, 0), ivec2(-1, 1), ivec2(0, 1), ivec2(1, 1));
-// Sun
-const vec2  SUN_POS = vec2(-0.16, 0.84);   // x from the right edge (screen heights), y as a fraction of height
-const float SUN_R = 0.09, RAY_LEN = 0.07;
-const int   SUN_RAYS = 12;               // crayon rays at full level
-const float SUN_MUTE = 0.8;              // paper mixed into the yellow at level 0 (0 = full yellow)
-const float SUN_EDGE_WOBBLE = 0.07;      // the disc's edge is broken by noise: ± this fraction of SUN_R
+// Sun: an unfilled crayon outline peeking out of the top-right corner; its rays grow with the sun level.
+const float SUN_R = 0.2, RAY_LEN = 0.1;
+const float SUN_PEEK = 0.13;             // the centre sits this many SUN_R in from the corner, each way: a third of the disc shows
+const int   SUN_RAYS = 20;               // crayon rays round the whole disc at full level (a quarter of them are on screen)
+const float SUN_STROKE_W = 0.012;        // the outline's width (screen heights)
+const float SUN_STROKE_PRESS = 0.25;     // the outline is pressed harder than the rays: extra grain it gets
+const float SUN_EDGE_WOBBLE = 0.03;      // the outline is broken by noise: ± this fraction of SUN_R
 const float SUN_GRAIN = 45.0;            // crayon grain scale, cycles per screen height
-const float SUN_COVER = 0.4;             // grain threshold: higher = more paper shows through the fill
+const float SUN_COVER = 0.4;             // grain threshold: higher = more paper shows through the crayon
 const float SUN_RAY_W = 0.011;           // ray half-width (screen heights), tapering to a point
-const float SUN_RAY_FROM = 1.2;          // rays start this many SUN_R from the centre
+const float SUN_RAY_FROM = 1.15;         // rays start this many SUN_R from the centre
 const float SUN_WOBBLE_RATE = 0.3;       // the wobble's clock: noise offsets move this fast per second
 const float SUN_DRIFT = 0.02;            // rays turn this many ray-widths per wobble-second (slow drift)
-const float SUN_EDGE_SCALE = 25.0;       // scale of the noise that breaks the disc's edge, cycles per screen height
-const float SUN_RIM_FROM = 0.75, SUN_RIM_WEIGHT = 0.25;   // the pressed stroke starts at this fraction of the edge; extra grain it adds
-const float SUN_FILL_SOFT = 0.03;        // softness of the fill's grain threshold
+const float SUN_EDGE_SCALE = 25.0;       // scale of the noise that breaks the outline, cycles per screen height
+const float SUN_GRAIN_SOFT = 0.03;       // softness of the outline's grain threshold
 const float SUN_GRAIN_A = 0.6;           // weight of the round grain; the stretched (hatching) grain gets the rest
 const vec2  SUN_HATCH = vec2(0.2, 1.3);  // the hatching grain's scale along and across the stroke, × SUN_GRAIN
 const float SUN_RAY_MIN = 0.003;         // rays shorter than this (screen heights) aren't drawn
@@ -175,13 +175,24 @@ const float SUN_RAY_W_RATE = 6.0;
 const float SUN_RAY_GRAIN = 0.7, SUN_RAY_FADE = 0.25, SUN_RAY_BIAS = 0.3;   // ray grain weight; extra fill near the root; base fill
 const float SUN_RAY_SOFT = 0.1;          // softness of the ray grain threshold
 
+// Backdrop: a horizon line, two far hills standing on it and a few tufts of grass in front. Thin ink, static.
+const float HORIZON_Y = 0.3;             // the horizon's height
+const float HORIZON_WOBBLE = 0.005, HORIZON_FREQ = 2.5;   // it wanders ± this, about this many times per screen height
+const vec3  HILL_A = vec3(0.24, 0.20, 0.07), HILL_B = vec3(0.60, 0.30, 0.10);   // centre x and half-width (fractions of
+                                         // the screen's width), height (screen heights). A stands in front of B
+const int   GRASS_TUFTS = 7;             // spread across the width, each of three blades
+const float GRASS_H = 0.028;             // a blade's length
+const float GRASS_Y0 = 0.05, GRASS_Y1 = 0.24;             // tufts stand between these heights
+const float BACKDROP_INK = 0.5;          // how dark its lines are (1 = the plants' ink): the plants must read over them
+
 // ── Palette ───────────────────────────────────────────────────────────────────
-const vec3 PAPER  = vec3(0.965, 0.945, 0.894);   // #f6f1e4
+const vec3 PAPER  = vec3(0.776, 0.827, 0.851);   // #c6d3d9  the page: a pale slate blue, lighter and greyer than SKY
 const vec3 INK    = vec3(0.067);                 // #111111
 const vec3 YELLOW = vec3(1.000, 0.949, 0.000);   // #fff200
 const vec3 ORANGE = vec3(0.910, 0.525, 0.184);   // #e8862f
 const vec3 PALE   = vec3(0.984, 0.914, 0.627);   // #fbe9a0  pale yellow
 const vec3 SKY    = vec3(0.443, 0.604, 0.678);   // #719aad  light blue: the site's band, the concept art's sky
+const vec3 SUN_COL = YELLOW;                     // the sun's crayon
 
 // ── Blob records (ADR-0022) ───────────────────────────────────────────────────
 const float S_EMPTY = 0., S_TENTATIVE = 1., S_CONFIRMED = 2., S_COASTING = 3., S_LOST = 4.;
