@@ -56,14 +56,17 @@ const float BLINK_EVERY_S = 3.7, BLINK_S = 0.22;
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const vec3 INK       = vec3(0.07, 0.06, 0.06);
-const vec3 SKY_TOP   = vec3(0.47, 0.72, 0.90), SKY_LOW = vec3(0.86, 0.93, 0.93);
-const vec3 CLOUD     = vec3(1.00, 0.99, 0.96);
-const vec3 HILL_FAR  = vec3(0.47, 0.67, 0.45), HILL_NEAR = vec3(0.40, 0.62, 0.36);
-const vec3 FIELD     = vec3(0.56, 0.74, 0.36), FIELD_ROW = vec3(0.50, 0.69, 0.33);
-const vec3 DIRT      = vec3(0.47, 0.33, 0.22);
-const vec3 SHADE     = vec3(0.13, 0.20, 0.24);        // silhouettes and barn shadows
+// The field is drawn like the barn: muddy flat colour, heavy wobbly ink, scratchy dashes, stray hairs.
+const vec3 SKY_TOP   = vec3(0.55, 0.59, 0.57), SKY_LOW = vec3(0.80, 0.75, 0.60), SKY_STAIN = vec3(0.63, 0.58, 0.47);
+const vec3 CLOUD     = vec3(0.85, 0.82, 0.73), CLOUD_SHADE = vec3(0.66, 0.64, 0.58);
+const vec3 HILL_FAR  = vec3(0.49, 0.50, 0.37), HILL_NEAR = vec3(0.42, 0.43, 0.28), SCRUB = vec3(0.30, 0.33, 0.17);
+const vec3 MUD       = vec3(0.46, 0.35, 0.25), MUD_DARK = vec3(0.35, 0.26, 0.18), MUD_LIGHT = vec3(0.57, 0.45, 0.33);
+const vec3 PUDDLE    = vec3(0.40, 0.38, 0.34), PUDDLE_SHINE = vec3(0.70, 0.68, 0.60);
+const vec3 POST      = vec3(0.43, 0.33, 0.24);
+const vec3 DIRT      = vec3(0.29, 0.20, 0.14);
+const vec3 SHADE     = vec3(0.13, 0.15, 0.16);        // silhouettes and barn shadows
 const vec3 BARN_RED  = vec3(0.67, 0.27, 0.26), TRIM = vec3(0.98, 0.97, 0.94), SKIN = vec3(0.98, 0.78, 0.71);
-const float INK_W    = 0.004;            // background line weight
+const float INK_W    = 0.007;            // background line weight, before it wobbles
 
 // ── Sprite sheet ──────────────────────────────────────────────────────────────
 // Written by pack_atlas.py from source/barn.psd — rerun it instead of editing.
@@ -126,6 +129,13 @@ vec4  bBeat  (sampler2D s)        { return texelFetch(s, ivec2(0, 4), 0); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 float hash11(float n) { return fract(sin(n * 127.1 + 311.7) * 43758.5453); }
+float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise2(vec2 p) {                  // value noise, 0–1
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+               mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 vec2  rot2(vec2 p, float a) { float c = cos(a), s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }   // counter-clockwise
 float angleOf(vec2 v) { return atan(v.y, v.x); }
 float sdSegment(vec2 p, vec2 a, vec2 b) {

@@ -82,37 +82,105 @@ vec4 barn(vec2 p, Pose P, float px, float lod, bool sheet, vec3 tint) {
 }
 
 // ── The field ─────────────────────────────────────────────────────────────────
-float ridgeFar(float x)  { return 0.50 + 0.045 * sin(x * 2.1 + 1.0) + 0.018 * sin(x * 5.3 + 0.4); }
-float ridgeNear(float x) { return 0.41 + 0.035 * sin(x * 1.3 + 4.0) + 0.012 * sin(x * 4.1 + 2.0); }
-float ridgeField(float x) { return 0.33 + 0.010 * sin(x * 3.0 + 0.7); }
+// Ridge lines waver like a line drawn by hand.
+float wobble(float x)     { return 0.007 * (vnoise2(vec2(x * 14.0, 3.0)) - 0.5) + 0.003 * (vnoise2(vec2(x * 47.0, 9.0)) - 0.5); }
+float ridgeFar(float x)   { return 0.50 + 0.045 * sin(x * 2.1 + 1.0) + 0.018 * sin(x * 5.3 + 0.4) + wobble(x); }
+float ridgeNear(float x)  { return 0.41 + 0.035 * sin(x * 1.3 + 4.0) + 0.012 * sin(x * 4.1 + 2.0) + wobble(x + 5.0); }
+float ridgeField(float x) { return 0.33 + 0.010 * sin(x * 3.0 + 0.7) + wobble(x + 11.0); }
+// A hand-inked line at distance d: its weight swells and thins along x.
+float inkLine(float d, float x, float px) { return pen(abs(d), INK_W * (0.6 + 0.8 * vnoise2(vec2(x * 9.0, 1.0))), px); }
+
+// Short scratchy dashes, one in some cells of a staggered grid, like the barn's siding. 1 on a dash.
+float dashes(vec2 p, vec2 cell, float density, float px) {
+    vec2 g = p / cell;
+    g.x += hash11(floor(g.y)) * 7.0;
+    vec2 id = floor(g), f = fract(g) * cell;
+    if (hash21(id) > density) return 0.0;
+    float len = mix(0.25, 0.85, hash21(id + 3.1)), x0 = hash21(id + 7.7) * (1.0 - len);
+    float y0 = 0.3 + 0.4 * hash21(id + 1.9), y1 = y0 + 0.2 * (hash21(id + 5.3) - 0.5);
+    return pen(sdSegment(f, vec2(x0, y0) * cell, vec2(x0 + len, y1) * cell), cell.y * 0.2, px);
+}
+// Stray curls, like the hairs on the legs. 1 on a hair.
+float curls(vec2 p, float cell, float density, float px) {
+    vec2 id = floor(p / cell);
+    if (hash21(id + 11.0) > density) return 0.0;
+    vec2  v = p - (id + 0.3 + 0.4 * vec2(hash21(id + 1.3), hash21(id + 2.9))) * cell;
+    float a = hash21(id + 9.1) * 6.2832;
+    float gap = dot(v / max(length(v), 1e-6), vec2(cos(a), sin(a)));           // the ring is open on one side
+    return pen(abs(length(v) - cell * mix(0.1, 0.2, hash21(id + 5.5))), cell * 0.04, px) * smoothstep(-0.3, 0.0, gap);
+}
 
 float cloud(vec2 p, vec2 c, float s) {
     p = (p - c) / s;
     float d = length(p * vec2(1.0, 1.6)) - 0.5;
     d = min(d, length(p - vec2(0.42, -0.06)) - 0.3);
     d = min(d, length(p - vec2(-0.45, -0.08)) - 0.26);
-    return max(d, -0.22 - p.y) * s;                        // flat underside
+    return (max(d, -0.22 - p.y) + 0.05 * (vnoise2(p * 6.0 + c * 31.0) - 0.5)) * s;   // flat underside, lumpy edge
+}
+// A puddle at c, radii r: signed distance, with a ragged edge.
+float puddle(vec2 p, vec2 c, vec2 r) {
+    vec2 q = (p - c) / r;
+    float k = length(q);
+    return (k - 1.0 - 0.3 * (vnoise2(q * 2.0 + c * 17.0) - 0.5)) * k / max(length(q / r), 1e-6);
 }
 
 vec3 field(vec2 p, float aspect, float px) {
+    // Sky: overcast and stained, with dirty clouds.
     vec3 col = mix(SKY_LOW, SKY_TOP, smoothstep(0.45, 1.0, p.y));
+    col = mix(col, SKY_STAIN, 0.55 * smoothstep(0.45, 0.8, vnoise2(p * vec2(1.7, 3.5) + 2.0)));
+    col = mix(col, SKY_TOP * 0.85, 0.5 * dashes(p, vec2(0.11, 0.016), 0.22, px));
     float span = aspect + 1.2, drift = iTime * 0.012;      // clouds wrap just off screen
-    float cl = min(cloud(p, vec2(mod(0.3 + drift, span) - 0.6, 0.83), 0.26),
-               min(cloud(p, vec2(mod(1.2 + drift * 0.7, span) - 0.6, 0.70), 0.18),
-                   cloud(p, vec2(mod(2.0 + drift * 1.3, span) - 0.6, 0.90), 0.21)));
-    col = mix(col, CLOUD, 1.0 - smoothstep(-px, px, cl));
+    for (int i = 0; i < 3; i++) {
+        vec3  k  = i == 0 ? vec3(0.3, 0.83, 0.26) : i == 1 ? vec3(1.2, 0.70, 0.18) : vec3(2.0, 0.90, 0.21);
+        vec2  c  = vec2(mod(k.x + drift * (0.7 + 0.3 * float(i)), span) - 0.6, k.y);
+        float cl = cloud(p, c, k.z);
+        vec3  fill = mix(CLOUD_SHADE, CLOUD, smoothstep(-0.08, 0.06, (p.y - c.y) / k.z));
+        fill = mix(fill, CLOUD_SHADE * 0.8, 0.6 * dashes(p - c, vec2(0.06, 0.012), 0.3, px));
+        col = mix(col, fill, 1.0 - smoothstep(-px, px, cl));
+        col = mix(col, INK, inkLine(cl, p.x + float(i), px));
+    }
 
+    // Hills: scrubby, scratched.
     float far = p.y - ridgeFar(p.x), near = p.y - ridgeNear(p.x), fld = p.y - ridgeField(p.x);
-    col = mix(col, HILL_FAR, 1.0 - smoothstep(-px, px, far));
-    col = mix(col, INK, pen(abs(far), INK_W, px));
-    col = mix(col, HILL_NEAR, 1.0 - smoothstep(-px, px, near));
-    col = mix(col, INK, pen(abs(near), INK_W, px));
-    // Crop rows fanning out from the horizon.
-    float row = (p.x - aspect * 0.5) / (0.62 - p.y);
-    vec3  ground = mix(FIELD, FIELD_ROW, smoothstep(0.35, 0.65, abs(fract(row * 3.0) - 0.5) * 2.0));
-    col = mix(col, ground, 1.0 - smoothstep(-px, px, fld));
-    col = mix(col, INK, pen(abs(fld), INK_W, px));
-    return col;
+    vec3  hill = mix(HILL_FAR, SCRUB, 0.5 * dashes(p, vec2(0.07, 0.012), 0.35, px));
+    col = mix(col, hill, 1.0 - smoothstep(-px, px, far));
+    col = mix(col, INK, inkLine(far, p.x, px));
+    hill = mix(HILL_NEAR, SCRUB, 0.6 * dashes(p + 3.0, vec2(0.09, 0.014), 0.45, px));
+    hill = mix(hill, INK, 0.8 * curls(p, 0.035, 0.12, px));
+    col = mix(col, hill, 1.0 - smoothstep(-px, px, near));
+    col = mix(col, INK, inkLine(near, p.x + 3.0, px));
+
+    // The yard: churned mud, puddles, ruts and stray hairs.
+    vec3 mud = mix(MUD, MUD_DARK, smoothstep(0.35, 0.75, vnoise2(p * vec2(3.0, 9.0))));
+    mud = mix(mud, MUD_LIGHT, 0.4 * smoothstep(0.05, 0.33, p.y));
+    mud = mix(mud, MUD_DARK * 0.75, 0.8 * dashes(p, vec2(0.10, 0.014), 0.5, px));
+    mud = mix(mud, MUD_LIGHT, 0.7 * dashes(p + 7.0, vec2(0.08, 0.011), 0.3, px));
+    for (int i = 0; i < 4; i++) {
+        vec4  k = i == 0 ? vec4(0.17, 0.105, 0.17, 0.022) : i == 1 ? vec4(0.63, 0.040, 0.21, 0.020)
+                : i == 2 ? vec4(0.87, 0.175, 0.11, 0.013) : vec4(0.41, 0.235, 0.08, 0.009);
+        vec2  c = vec2(k.x * aspect, k.y);
+        float d = puddle(p, c, k.zw);
+        vec3  water = mix(PUDDLE, PUDDLE_SHINE, pen(sdSegment(p, c + k.zw * vec2(-0.5, 0.25), c + k.zw * vec2(0.15, 0.3)), k.w * 0.22, px));
+        mud = mix(mud, water, 1.0 - smoothstep(-px, px, d));
+        mud = mix(mud, INK, 0.9 * inkLine(d * 1.4, p.x * 3.0 + float(i), px));
+    }
+    mud = mix(mud, INK, 0.85 * curls(p, 0.045, 0.3, px));
+    mud = mix(mud, SCRUB, curls(p + 0.5, 0.03, 0.12, px));
+    col = mix(col, mud, 1.0 - smoothstep(-px, px, fld));
+    col = mix(col, INK, inkLine(fld, p.x + 7.0, px));
+
+    // A crooked fence along the yard's far edge.
+    float gx = p.x / 0.19, id = floor(gx);
+    float cx = (id + 0.4 + 0.2 * hash11(id)) * 0.19, base = ridgeField(cx) - 0.012;
+    vec2  top = vec2(cx + 0.03 * (hash11(id + 4.0) - 0.5), base + 0.055 + 0.02 * hash11(id + 8.0));
+    float wire = p.y - ridgeField(p.x) - 0.034 + 0.009 * sin(3.14159 * fract(gx + 0.5)) ;
+    col = mix(col, INK, pen(abs(wire), 0.003, px));
+    float post = sdSegment(p, vec2(cx, base), top) - 0.010;
+    col = mix(col, mix(POST, INK, smoothstep(-0.005 - px, -0.005, post)), 1.0 - smoothstep(-px, 0.0, post));
+
+    // Grit over everything.
+    col *= 1.0 - 0.10 * step(0.965, hash21(floor(p / 0.004)));
+    return col * (0.93 + 0.14 * vnoise2(p * 5.0 + 40.0));
 }
 
 // ── Dancers ───────────────────────────────────────────────────────────────────
@@ -142,7 +210,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         vec3  at = standing(d, aspect);
         float up = clamp(risen(bStage(B, k)), 0.0, 1.0);
         vec2  q  = (p - at.xy - vec2(0.0, 0.035 * at.z)) / (at.z * vec2(0.62, 0.06));
-        col = mix(col, SHADE, 0.3 * up * (1.0 - smoothstep(0.7, 1.0, length(q))));
+        col = mix(col, SHADE, 0.5 * up * (1.0 - smoothstep(0.7, 1.0, length(q))));
     }
 
     bool  sheet = iChannelResolution[2].x > 0.0;

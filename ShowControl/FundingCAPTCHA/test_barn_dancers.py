@@ -106,8 +106,8 @@ def test_empty_room_shows_only_the_field(ctx):
     assert not rig.b()[0, :8, 3].any()                    # no slot holds a barn
     img = rig.image()
     assert not barn_red(img).any()
-    assert img[100, 96, 2] > img[100, 96, 0]              # sky up top …
-    assert img[5, 96, 1] > img[5, 96, 2]                  # … grass below
+    assert img[90:].mean() > img[:20].mean() + 30         # pale sky up top …
+    assert img[:20, :, 0].mean() > img[:20, :, 2].mean() + 30         # … brown mud below
     rig.release()
 
 
