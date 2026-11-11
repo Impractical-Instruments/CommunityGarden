@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=68"]
+# 64 is the first setuptools with editable installs (PEP 660). The deploy installers
+# build with the system setuptools (--no-build-isolation), and Pi OS bookworm ships 66.
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,17 +9,22 @@ name = "communitygarden"
 version = "0"
 description = "Show control for The Community Garden: the IIVision and OSCFabric packages, plus one extra per Element."
 requires-python = ">=3.11"
-# What the two packages import: IIVision needs numpy and scipy, OSCFabric needs python-osc.
+# OSCFabric needs python-osc. IIVision also needs numpy and scipy; those are in the
+# `vision` extra so that a host which never imports IIVision (TreeHouse, Dashboard,
+# Pipes) does not have to download them — show machines have no internet.
 dependencies = [
-    "numpy>=1.24",
-    "scipy>=1.10",
     "python-osc>=1.8",
 ]
 
 # One extra per Element: everything its entry points import beyond the base.
 # Install with: pip install -e ".[<element>]" from the repo root.
 [project.optional-dependencies]
+vision = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+]
 flowerbeds = [
+    "communitygarden[vision]",
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
     "websockets>=11",
@@ -34,6 +41,7 @@ dashboard = [
     "uvicorn[standard]>=0.23",
 ]
 fundingcaptcha = [
+    "communitygarden[vision]",
     "pygame>=2.1",
     "websockets>=11",
     "Pillow>=9.0",    # JPEG fallback for SDL_image builds without JPEG (Pi)

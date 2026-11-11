@@ -3,13 +3,14 @@ Description=CommunityGarden Show Dashboard
 After=network-online.target
 Wants=network-online.target
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/Dashboard.md
+# Placeholders (@...@) are filled in by deploy/install.sh.
 
 [Service]
-WorkingDirectory=/home/ii/CommunityGarden/ShowControl/Dashboard
+WorkingDirectory=@REPO_ROOT@/ShowControl/Dashboard
 ExecStart=/usr/bin/python3 serve.py 9000
 Restart=always
 RestartSec=5
-User=ii
+User=@SERVICE_USER@
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=cg-dashboard

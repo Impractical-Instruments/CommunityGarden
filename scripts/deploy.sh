@@ -16,6 +16,11 @@
 #   scripts/deploy.sh treehouse  Dashboard       # same machine, other element
 #   scripts/deploy.sh captcha    FundingCAPTCHA
 #
+# The repo on the show machine is ~/CommunityGarden. If it is cloned somewhere
+# else, set CG_REMOTE_REPO to that path (absolute, or relative to the remote
+# user's home):
+#   CG_REMOTE_REPO=/opt/CommunityGarden scripts/deploy.sh treehouse TreeHouse
+#
 # Prerequisites:
 #   - laptop ssh key in show machine's ~/.ssh/authorized_keys
 #   - show machine bootstrapped: bash scripts/bootstrap-deploy.sh
@@ -56,7 +61,8 @@ echo "→ pushing $branch to $target"
 # refs/remotes/<target>/* tracking refs. A bare --force-with-lease has nothing
 # to compare against and git rejects the push with "(stale info)". Look the
 # remote branch up ourselves and pass the expected sha explicitly.
-url="$target":CommunityGarden
+remote_repo="${CG_REMOTE_REPO:-CommunityGarden}"
+url="$target:$remote_repo"
 remote_sha=$(git ls-remote "$url" "refs/heads/$branch" | cut -f1)
 
 if [ -z "$remote_sha" ]; then
@@ -73,7 +79,8 @@ fi
 echo "→ checking out $branch and running install.sh on $target"
 ssh -t "$target" "
   set -e
-  cd /home/ii/CommunityGarden
+  cd '$remote_repo'
   git checkout '$branch'
-  sudo bash /home/ii/CommunityGarden/ShowControl/$element/deploy/install.sh
+  # Absolute path: the sudoers rule from bootstrap-deploy.sh matches on it.
+  sudo bash \"\$(pwd)/ShowControl/$element/deploy/install.sh\"
 "

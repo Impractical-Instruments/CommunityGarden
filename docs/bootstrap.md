@@ -37,11 +37,11 @@ cd /home/ii
 git clone https://github.com/Impractical-Instruments/CommunityGarden.git
 ```
 
-The deploy scripts assume this exact path — `/home/ii/CommunityGarden`. If you put it elsewhere, edit each element's `deploy/*.service` `WorkingDirectory=` before installing.
+This is the default path. The installers work from wherever the repo is cloned (they fill the path into each systemd unit). `scripts/deploy.sh` expects `~/CommunityGarden` on the show machine; for any other location, set `CG_REMOTE_REPO` when running it.
 
 ### 3. Install element service
 
-Run the per-element installer once. Each `install.sh` handles apt packages, pip deps, systemd unit, enable + restart.
+Run the per-element installer once. Each `install.sh` handles apt packages, pip deps, systemd unit, enable + restart; the shared steps are in `scripts/lib/install-element.sh`. This first run needs internet for the apt and pip downloads. Later runs (every `deploy.sh`) do not, unless a dependency was added.
 
 ```bash
 sudo bash scripts/install-services.sh FlowerBeds

@@ -1,20 +1,9 @@
 #!/usr/bin/env bash
 # install.sh — set up FundingCAPTCHA as an auto-starting systemd service on Pi.
 # Run once after cloning the repo:
-#   cd ShowControl/FundingCAPTCHA/deploy
-#   sudo bash install.sh
+#   sudo bash ShowControl/FundingCAPTCHA/deploy/install.sh
 set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-APP_DIR="$REPO_ROOT/ShowControl/FundingCAPTCHA"
-
-SERVICE_USER="${SUDO_USER:-ii}"
-
-echo "=== FundingCAPTCHA install ==="
-echo "App dir:  $APP_DIR"
-echo "User:     $SERVICE_USER"
-echo ""
+. "$(dirname "$0")/../../../scripts/lib/install-element.sh"
 
 # ── Orbbec USB permissions ─────────────────────────────────────────────────────
 echo "→ Installing Orbbec udev rule..."
@@ -37,22 +26,10 @@ ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
 ln -sf /lib/aarch64-linux-gnu/libGL.so.1  /lib/aarch64-linux-gnu/libGL.so
 ldconfig
 
-# ── Python dependencies ────────────────────────────────────────────────────────
-echo "→ Installing Python dependencies..."
+# ── Python dependencies, systemd unit, enable + restart ───────────────────────
+# numpy and scipy from apt are faster on Pi/ARM
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
-pip3 install --break-system-packages -e "$REPO_ROOT[fundingcaptcha,camera]"
-
-# ── Patch service file with actual app path ────────────────────────────────────
-echo "→ Installing systemd unit..."
-DEST="/etc/systemd/system/captcha.service"
-sed "s|User=ii|User=$SERVICE_USER|g" \
-    "$SCRIPT_DIR/captcha.service" > "$DEST"
-echo "   written: $DEST"
-
-# ── Enable + start ─────────────────────────────────────────────────────────────
-systemctl daemon-reload
-systemctl enable captcha.service
-systemctl start  captcha.service
+install_element fundingcaptcha,camera captcha
 
 # ── Private show content (optional) ───────────────────────────────────────────
 # Set PRIVATE_ASSETS_REPO to an SSH clone URL to pull unpublishable show content
@@ -109,8 +86,4 @@ else
     fi
 fi
 
-echo ""
-echo "=== Done ==="
-echo "Start:   sudo systemctl start captcha"
-echo "Logs:    journalctl -u captcha -f"
-echo "Monitor: http://$(hostname -I | awk '{print $1}'):8080/"
+install_done Monitor 8080
