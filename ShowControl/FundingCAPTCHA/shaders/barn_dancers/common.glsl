@@ -27,6 +27,8 @@ const float BOW_END     = 0.45;          // fraction of EXIT_S spent bowing
 const float SINK_DEPTH  = 1.75;          // rig units a hidden barn sits below the ground
 const float POP_HOP     = 0.6;           // rig units of hop per unit the rise overshoots
 const float SIL_ALPHA   = 0.22;          // how strongly visitors' silhouettes shade the scene
+const vec3  BIG_BARN    = vec3(0.66, 0.30, 0.62);   // the barn behind the yard: x (fraction of the width), base y, height
+const float BIG_BARN_FADE = 0.45;        // how far distance washes it out toward the sky
 
 // ── Energy: how much a visitor moves (as hunter_bird's motion) ─────────────────
 const float SPEED_FULL   = 0.39;         // screen heights/s of travel that alone reads as energy 1
@@ -59,7 +61,8 @@ const vec3 INK       = vec3(0.07, 0.06, 0.06);
 // The field is drawn like the barn: muddy flat colour, heavy wobbly ink, scratchy dashes, stray hairs.
 const vec3 SKY_TOP   = vec3(0.55, 0.59, 0.57), SKY_LOW = vec3(0.80, 0.75, 0.60), SKY_STAIN = vec3(0.63, 0.58, 0.47);
 const vec3 CLOUD     = vec3(0.85, 0.82, 0.73), CLOUD_SHADE = vec3(0.66, 0.64, 0.58);
-const vec3 HILL_FAR  = vec3(0.49, 0.50, 0.37), HILL_NEAR = vec3(0.42, 0.43, 0.28), SCRUB = vec3(0.30, 0.33, 0.17);
+const vec3 SCRUB     = vec3(0.30, 0.33, 0.17);
+const vec3 RUST      = vec3(0.50, 0.31, 0.17), RUST_DARK = vec3(0.30, 0.17, 0.10);
 const vec3 MUD       = vec3(0.46, 0.35, 0.25), MUD_DARK = vec3(0.35, 0.26, 0.18), MUD_LIGHT = vec3(0.57, 0.45, 0.33);
 const vec3 PUDDLE    = vec3(0.40, 0.38, 0.34), PUDDLE_SHINE = vec3(0.70, 0.68, 0.60);
 const vec3 POST      = vec3(0.43, 0.33, 0.24);

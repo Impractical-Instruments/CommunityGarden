@@ -62,8 +62,9 @@ class Rig:
 
 
 def barn_red(img: np.ndarray) -> np.ndarray:
-    """Pixels the colour of barn walls: nothing else in the scene is red."""
-    return (img[..., 0] > 110) & (img[..., 0] > 1.6 * img[..., 1])
+    """Pixels the colour of a dancer's walls: nothing else in the scene is as red
+    (the big barn behind the yard is washed out, the wire is rust-brown)."""
+    return (img[..., 0] > 110) & (img[..., 0] > 1.9 * img[..., 1])
 
 
 def person(x0=36, w=10, mm=2500):

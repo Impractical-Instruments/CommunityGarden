@@ -84,8 +84,6 @@ vec4 barn(vec2 p, Pose P, float px, float lod, bool sheet, vec3 tint) {
 // ── The field ─────────────────────────────────────────────────────────────────
 // Ridge lines waver like a line drawn by hand.
 float wobble(float x)     { return 0.007 * (vnoise2(vec2(x * 14.0, 3.0)) - 0.5) + 0.003 * (vnoise2(vec2(x * 47.0, 9.0)) - 0.5); }
-float ridgeFar(float x)   { return 0.50 + 0.045 * sin(x * 2.1 + 1.0) + 0.018 * sin(x * 5.3 + 0.4) + wobble(x); }
-float ridgeNear(float x)  { return 0.41 + 0.035 * sin(x * 1.3 + 4.0) + 0.012 * sin(x * 4.1 + 2.0) + wobble(x + 5.0); }
 float ridgeField(float x) { return 0.33 + 0.010 * sin(x * 3.0 + 0.7) + wobble(x + 11.0); }
 // A hand-inked line at distance d: its weight swells and thins along x.
 float inkLine(float d, float x, float px) { return pen(abs(d), INK_W * (0.6 + 0.8 * vnoise2(vec2(x * 9.0, 1.0))), px); }
@@ -110,6 +108,27 @@ float curls(vec2 p, float cell, float density, float px) {
     return pen(abs(length(v) - cell * mix(0.1, 0.2, hash21(id + 5.5))), cell * 0.04, px) * smoothstep(-0.3, 0.0, gap);
 }
 
+// Rusty barbed wire sagging between the fence posts, `h` above the yard's edge:
+// x = ink under it, y = rust on top, z = how dark the rust is here.
+float wireY(float x, float h, float seed) {
+    float gx = x / 0.19 + 0.5;
+    return ridgeField(x) + h - 0.012 * sin(3.14159 * fract(gx)) * (0.4 + hash11(floor(gx) + seed))
+         + 0.005 * (vnoise2(vec2(x * 55.0, seed)) - 0.5);                      // kinks
+}
+vec3 barbedWire(vec2 p, float h, float seed, float px) {
+    // Two strands twisted round each other.
+    float y = p.y - wireY(p.x, h, seed), tw = 0.0028 * sin(p.x * 260.0 + seed);
+    float d = min(abs(y - tw), abs(y + tw));
+    // A barb in every cell: a knot and two crossed spikes, each at its own angle.
+    float id = floor(p.x / 0.05), bx = (id + 0.3 + 0.4 * hash11(id + seed)) * 0.05;
+    vec2  c  = vec2(bx, wireY(bx, h, seed)), v = p - c;
+    float a  = 0.9 + 0.8 * hash11(id + seed + 2.0), len = 0.009 + 0.006 * hash11(id + seed + 5.0);
+    vec2  s1 = vec2(cos(a), sin(a)) * len, s2 = vec2(cos(a + 1.3), -sin(a + 1.3)) * len;
+    d = min(d, min(sdSegment(v, -s1, s1), sdSegment(v, -s2, s2)));
+    d = min(d, max(length(v) - 0.003, 0.0));
+    return vec3(pen(d, 0.0065, px), pen(d, 0.003, px), vnoise2(p * vec2(90.0, 30.0) + seed));
+}
+
 float cloud(vec2 p, vec2 c, float s) {
     p = (p - c) / s;
     float d = length(p * vec2(1.0, 1.6)) - 0.5;
@@ -124,7 +143,7 @@ float puddle(vec2 p, vec2 c, vec2 r) {
     return (k - 1.0 - 0.3 * (vnoise2(q * 2.0 + c * 17.0) - 0.5)) * k / max(length(q / r), 1e-6);
 }
 
-vec3 field(vec2 p, float aspect, float px) {
+vec3 field(vec2 p, float aspect, float px, bool sheet) {
     // Sky: overcast and stained, with dirty clouds.
     vec3 col = mix(SKY_LOW, SKY_TOP, smoothstep(0.45, 1.0, p.y));
     col = mix(col, SKY_STAIN, 0.55 * smoothstep(0.45, 0.8, vnoise2(p * vec2(1.7, 3.5) + 2.0)));
@@ -140,15 +159,17 @@ vec3 field(vec2 p, float aspect, float px) {
         col = mix(col, INK, inkLine(cl, p.x + float(i), px));
     }
 
-    // Hills: scrubby, scratched.
-    float far = p.y - ridgeFar(p.x), near = p.y - ridgeNear(p.x), fld = p.y - ridgeField(p.x);
-    vec3  hill = mix(HILL_FAR, SCRUB, 0.5 * dashes(p, vec2(0.07, 0.012), 0.35, px));
-    col = mix(col, hill, 1.0 - smoothstep(-px, px, far));
-    col = mix(col, INK, inkLine(far, p.x, px));
-    hill = mix(HILL_NEAR, SCRUB, 0.6 * dashes(p + 3.0, vec2(0.09, 0.014), 0.45, px));
-    hill = mix(hill, INK, 0.8 * curls(p, 0.035, 0.12, px));
-    col = mix(col, hill, 1.0 - smoothstep(-px, px, near));
-    col = mix(col, INK, inkLine(near, p.x + 3.0, px));
+    // A big barn behind the yard, washed out by the distance. Its eye windows are dark: nobody's home.
+    float fld = p.y - ridgeField(p.x);
+    vec2  qb  = (p - vec2(BIG_BARN.x * aspect, BIG_BARN.y)) / BIG_BARN.z + vec2(0.0, BODY_Y);
+    float qpx = px / BIG_BARN.z;
+    vec4  big = vec4(INK, 1.0) * step(abs(abs(qb.x - 0.005) - 0.246), 0.04) * step(abs(qb.y - 1.069), 0.045);
+    big = over(big, sheet ? sheetPart(P_BARN, qb, clamp(log2(SHEET_UNIT * iChannelResolution[2].y * qpx), 0.0, float(LODS - 1)))
+                          : drawnPart(P_BARN, qb, qpx));
+    big.rgb = mix(big.rgb, vec3(dot(big.rgb, vec3(0.3, 0.6, 0.1))), 0.35);
+    big.rgb = mix(big.rgb, SKY_LOW * big.a, BIG_BARN_FADE);
+    big.rgb = mix(big.rgb, MUD_DARK * big.a, 0.5 * dashes(qb, vec2(0.13, 0.02), 0.3, qpx));   // grime
+    col = col * (1.0 - big.a) + big.rgb;
 
     // The yard: churned mud, puddles, ruts and stray hairs.
     vec3 mud = mix(MUD, MUD_DARK, smoothstep(0.35, 0.75, vnoise2(p * vec2(3.0, 9.0))));
@@ -173,10 +194,13 @@ vec3 field(vec2 p, float aspect, float px) {
     float gx = p.x / 0.19, id = floor(gx);
     float cx = (id + 0.4 + 0.2 * hash11(id)) * 0.19, base = ridgeField(cx) - 0.012;
     vec2  top = vec2(cx + 0.03 * (hash11(id + 4.0) - 0.5), base + 0.055 + 0.02 * hash11(id + 8.0));
-    float wire = p.y - ridgeField(p.x) - 0.034 + 0.009 * sin(3.14159 * fract(gx + 0.5)) ;
-    col = mix(col, INK, pen(abs(wire), 0.003, px));
     float post = sdSegment(p, vec2(cx, base), top) - 0.010;
     col = mix(col, mix(POST, INK, smoothstep(-0.005 - px, -0.005, post)), 1.0 - smoothstep(-px, 0.0, post));
+    for (int i = 0; i < 2; i++) {                          // two runs of barbed wire, stapled to the posts
+        vec3 w = barbedWire(p, i == 0 ? 0.046 : 0.021, float(i) * 13.0, px);
+        col = mix(col, INK, w.x);
+        col = mix(col, mix(RUST, RUST_DARK, w.z), w.y);
+    }
 
     // Grit over everything.
     col *= 1.0 - 0.10 * step(0.965, hash21(floor(p / 0.004)));
@@ -197,7 +221,8 @@ float risen(vec4 s) {
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float aspect = iResolution.x / iResolution.y, px = 1.0 / iResolution.y;
     vec2  p = fragCoord * px;
-    vec3  col = field(p, aspect, px);
+    bool  sheet = iChannelResolution[2].x > 0.0;
+    vec3  col = field(p, aspect, px, sheet);
 
     // Visitors: a faint shade over the scene, behind the barns.
     float body = smoothstep(0.35, 0.65, texture(BODY, fragCoord / iResolution.xy).r);
@@ -213,7 +238,6 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         col = mix(col, SHADE, 0.5 * up * (1.0 - smoothstep(0.7, 1.0, length(q))));
     }
 
-    bool  sheet = iChannelResolution[2].x > 0.0;
     float phase = bBeat(B).x;
     for (int r = 0; r < SLOTS; r++) {
         int  k = bOrder(B, r);
