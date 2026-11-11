@@ -18,6 +18,8 @@ concurrency:
 jobs:
   record:
     runs-on: ubuntu-latest
+    # A full run takes about 7 minutes; stop a hung one rather than hold the runner.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -36,7 +38,7 @@ jobs:
       - name: Run every FundingCAPTCHA test and record its dependencies
         env:
           TESTMON_DATAFILE: .testmondata
-        run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon
+        run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon -v --durations=20
 
       # Keep this key in step with tests.yml. Saved only when every test passed.
       - name: Save testmon data
