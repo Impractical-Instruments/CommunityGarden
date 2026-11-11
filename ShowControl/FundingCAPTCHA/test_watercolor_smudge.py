@@ -181,10 +181,11 @@ def _arm(x0: float, x1: float, y: float = 0.5, h: float = 0.07) -> np.ndarray:
     return body
 
 
-def test_reaching_arm_along_its_axis_does_not_smear_yet(ctx):
-    """Known limitation (final-review ruling): an arm extending along its own axis only gains
-    Body at the tip, so the balance gate reads it as appearing and suppresses the smear.
-    Pinned so a gate change that fixes it is noticed; flip the assertion when it does."""
+@pytest.mark.xfail(strict=True, reason="known limitation (final-review ruling): an arm extending along its own "
+                   "axis only gains Body at the tip, so the balance gate reads it as appearing and suppresses "
+                   "the smear. strict: a gate change that fixes it fails here, so remove this mark then")
+def test_reaching_arm_along_its_axis_smears(ctx):
+    """An arm reaching out along its own axis smears its path, as a sideways sweep does."""
     r = _rig(ctx, image=_checker())
     r.upload_body(_arm(0.25, 0.3))
     _frames(r, 15, PRESENT)
@@ -193,8 +194,8 @@ def test_reaching_arm_along_its_axis_does_not_smear_yet(ctx):
         if i % 3 == 0:
             r.upload_body(_arm(0.25, 0.3 + 0.5 * i / n))
         r.render(DT, PRESENT)
-    rows = slice(int(0.4 * SIZE[1]), int(0.6 * SIZE[1]))
-    assert (_diff(r)[rows, _cols(0.35, 0.75)] > 0.1).mean() < 0.02
+    rows = slice(int(0.465 * SIZE[1]), int(0.535 * SIZE[1]))   # the arm's own rows
+    assert (_diff(r)[rows, _cols(0.35, 0.75)] > 0.1).mean() > 0.3   # as test_moving_limb_smears_most_of_its_path
     r.release()
 
 

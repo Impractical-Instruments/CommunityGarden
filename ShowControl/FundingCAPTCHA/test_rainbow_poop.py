@@ -174,8 +174,8 @@ def test_cadence_is_about_every_five_seconds(ctx):
 def test_poop_falls_slowly_from_the_top(ctx):
     rig = Rig(ctx)
     seen, ys = 0.0, []
-    for _ in range(60):
-        rig.run(flickering(1))
+    for k in range(60):
+        rig.run(flickering(1, seed=k))                    # a fresh flicker each camera frame
         if rig.falling():
             seen = max(seen, rig.drop(0)[3])
             ys.append(rig.poop(0)[1])
@@ -388,8 +388,8 @@ def test_empty_room_is_paper_and_clouds(ctx):
 
 def test_falling_poop_is_drawn(ctx):
     rig = Rig(ctx, BIG)
-    for _ in range(60):
-        rig.run(flickering(1))
+    for k in range(60):
+        rig.run(flickering(1, seed=k))                    # a fresh flicker each camera frame
         if rig.falling() and rig.drop(0)[3] > 0.4:
             break
     assert rig.falling()

@@ -213,10 +213,15 @@ def b_at(rig, col, row):
 def test_presence_ignores_edge_flicker(ctx):
     rig = Rig(ctx)
     rig.run(flickering(30))
-    for _ in range(10):
-        rig.run(flickering(1, seed=_ + 5))
+    edge = []
+    for k in range(10):
+        rig.run(flickering(1, seed=k + 5))
         assert b_at(rig, 32, 20)[0] > 0.95            # torso centre
         assert b_at(rig, 22, 20)[0] < 0.05            # 3 px outside the flickering border
+        edge.append(b_at(rig, 25, 20)[0])             # on the flickering border itself
+    # Blur, hole fill and easing average the flicker out: ~0.12 as shipped; 0.26 without the easing,
+    # ~1 without all three (the texel toggles between empty and body).
+    assert max(edge) - min(edge) < 0.2, edge
     rig.release()
 
 
@@ -486,10 +491,10 @@ def test_touching_still_people_keep_growing(ctx, contact):
     rig.release()
 
 
-@pytest.mark.parametrize("feet", [44, 47])                    # the passer-by level with A, or nearer the camera
-def test_passer_by_costs_nothing_once_past(ctx, feet):
+def test_passer_by_costs_nothing_once_past(ctx):
     # Someone walks across in front of planted A (merging with them on the way). Merged, they share a level;
     # once the passer-by is clear, A loses nothing more and grows at the full rate straight away.
+    feet = 44
     rig = Rig(ctx)
     a = person(x=26)                                          # spans Body columns 26..38
     rig.run([a] * 100)
@@ -499,6 +504,25 @@ def test_passer_by_costs_nothing_once_past(ctx, feet):
     levels = []
     for m in [a | person(x=x, feet=feet) for x in xs[clear:]] + [a] * 20:
         rig.run([m])
+        levels.append(confirmed_near(rig, 32))
+    assert all(y >= x - 1e-3 for x, y in zip(levels, levels[1:])), str(np.round(levels, 3))
+    want = (len(levels) - 1) / 10 * LATE_RATE
+    assert levels[-1] - levels[0] > 0.85 * want, (want, levels)
+    rig.release()
+
+
+def test_merged_neighbour_stepping_nearer_leaves_a_planted_base(ctx):
+    # B stands touching planted A, nearer the camera, long enough that the merge's re-plant is over, then steps
+    # nearer still. The merged box's bottom is B's feet and moves with them; A's base must stay on A's own feet
+    # (BASE_FEET: no feet at the box bottom in A's window, so A's lowest body row). Following the box bottom
+    # would read B's step as A's, and rewind A.
+    rig = Rig(ctx)
+    a = person(x=26)                                          # Body columns 26..37: A's feet window is ~27..37
+    rig.run([a] * 100)
+    rig.run([a | person(x=38, feet=45)] * 20)                 # touching, so one blob; B's feet at 40..47
+    levels = []
+    for f in [46, 47, 48] + [48] * 15:
+        rig.run([a | person(x=38, feet=f)])
         levels.append(confirmed_near(rig, 32))
     assert all(y >= x - 1e-3 for x, y in zip(levels, levels[1:])), str(np.round(levels, 3))
     want = (len(levels) - 1) / 10 * LATE_RATE

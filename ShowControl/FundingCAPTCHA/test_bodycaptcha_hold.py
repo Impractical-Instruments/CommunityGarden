@@ -146,6 +146,19 @@ def test_decay_rate_is_configurable_per_level(tmp_path: Path) -> None:
         set_levels_path(None)
 
 
-def test_decay_rate_falls_back_to_settings_default(game) -> None:
+def test_decay_rate_falls_back_to_settings_default(tmp_path: Path) -> None:
     """With no per-level override, the bodycaptcha defaults block supplies it."""
-    assert game._hold_decay_rate == 3.0
+    levels = tmp_path / "levels.json"
+    levels.write_text(json.dumps([{
+        "prompt": "TEST",
+        "grid": [GRID_COLS, GRID_ROWS],
+        "valid_cells": [list(VALID_CELL)],
+        "difficulty": 1,
+    }]))
+    set_levels_path(levels)
+    try:
+        settings = dict(SETTINGS)
+        settings["bodycaptcha"] = dict(SETTINGS["bodycaptcha"], hold_decay_rate=7.0)   # not the code's 3.0
+        assert BodyCaptchaGame(settings)._hold_decay_rate == 7.0
+    finally:
+        set_levels_path(None)

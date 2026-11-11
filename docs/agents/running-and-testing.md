@@ -3,7 +3,7 @@
 ## Tests
 
 ```bash
-make test                 # Node tests (FundingCAPTCHA) + Python pytest (IIVision, ShowControl)
+make test                 # everything: IIVision, ShowControl, scripts
 make test-fast            # everything except FundingCAPTCHA; seconds
 make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
 python -m pytest          # Python only

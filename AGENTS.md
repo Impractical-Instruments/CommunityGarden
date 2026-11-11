@@ -5,7 +5,7 @@ Python show-control monorepo for *The Community Garden* — a touring interactiv
 ## Test command
 
 ```
-make test   # runs Node tests (FundingCAPTCHA) + Python pytest (IIVision, ShowControl)
+make test   # Python pytest: IIVision, ShowControl, scripts
 ```
 
 ## Critical constraints

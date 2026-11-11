@@ -45,7 +45,7 @@ def test_other_elements_run_only_the_fast_job(path):
 
 @pytest.mark.parametrize("path", [
     "ShowControl/FundingCAPTCHA/shadertoy.py",
-    "ShowControl/FundingCAPTCHA/setups/watering_can/image.glsl",
+    "ShowControl/FundingCAPTCHA/shaders/watering_can/image.glsl",
     "IIVision/blob_stabilizer.py",
     "ShowControl/OSCFabric/client.py",
     "ShowControl/network.json",

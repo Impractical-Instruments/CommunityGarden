@@ -78,9 +78,9 @@ def test_flicker_interpolates_at_half_intensity():
 
 
 def test_flicker_clamped_when_signals_exceed_one():
-    # Each signal at 1.0 → combined = (1.0 + 1.0) / 2 = 1.0 → max flicker
+    # combined = (2.0 + 1.0) / 2 = 1.5 → clamped to 1.0 → max flicker, not past it
     d = _display(base_flicker_intensity=0.0, max_flicker_intensity=0.8)
-    _step(d, _state(captcha_intensity=1.0, flowerbeds_activity=1.0))
+    _step(d, _state(captcha_intensity=2.0, flowerbeds_activity=1.0))
     assert d.flicker_intensity == pytest.approx(0.8)
 
 
