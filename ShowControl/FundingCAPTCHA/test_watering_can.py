@@ -730,7 +730,7 @@ def off_ink_line(img):
 def flower_pixels(img):
     """Pixels within 30 per channel of a flower colour (and not ink on paper, which passes near the light blue)."""
     rgb = img[..., :3].astype(int)
-    return (np.abs(rgb[..., None, :] - FLOWER_RGB).max(axis=-1) <= 30).any(axis=-1) & (off_ink_line(img) > 12)
+    return (np.abs(rgb[..., None, :] - FLOWER_RGB).max(axis=-1) <= 30).any(axis=-1) & (off_ink_line(img) > 6)
 
 
 def grown_rig(ctx, frames, size=IMG, **kw):
@@ -960,7 +960,7 @@ def test_growth_climbs_from_the_feet(shared_rig):
 
 def coloured(img):
     """Flower pixels: drawn and not ink on paper. The wood and leaves are ink on paper; only flowers carry colour."""
-    return drawn(img) & (off_ink_line(img) > 12)
+    return drawn(img) & (off_ink_line(img) > 6)
 
 
 def test_colour_ripens_flowers_pale_low_then_bold_high(shared_rig):
@@ -972,15 +972,15 @@ def test_colour_ripens_flowers_pale_low_then_bold_high(shared_rig):
     early = shared_rig(round(10 * seconds_to(0.3)))         # 2 s in
     assert abs(early.person(0)[1] - 0.3) < 0.05, early.person(0)
     img = early.image()
-    sat_early = saturation(img[..., :3][drawn(img)]).mean()
+    colour_early = off_ink_line(img)[drawn(img)].mean()   # not HSV saturation: the paper's own tint would count
     c = coloured(img)
     assert c[low].sum() > 20, c[low].sum()                  # flowers already open, low on the body ...
     assert (flower_pixels(img) & drawn(img)).sum() < 5      # ... and pale: hardly a pixel in full colour yet
     full = shared_rig(220)
     assert full.person(0)[1] > 0.99, full.person(0)
     img = full.image()
-    sat_full = saturation(img[..., :3][drawn(img)]).mean()
-    assert sat_full > 1.5 * sat_early, (sat_early, sat_full)   # rises clearly: the palette is pastel, the wood ink
+    colour_full = off_ink_line(img)[drawn(img)].mean()
+    assert colour_full > 1.5 * colour_early, (colour_early, colour_full)   # rises clearly: the palette is pastel, the wood ink
     bold = flower_pixels(img) & drawn(img)
     assert bold.sum() > 30                                  # bold flowers at full bloom (only the outer ones: few at this size)
     assert bold[high].sum() > 2 * bold[low].sum(), (bold[high].sum(), bold[low].sum())   # and mostly high up

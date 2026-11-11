@@ -291,16 +291,20 @@ float hillY(vec3 hill, float x, float aspect) {
     float u = (x / aspect - hill.x) / hill.y;
     return abs(u) < 1.0 ? hill.z * 0.5 * (1.0 + cos(0.5 * TAU * u)) : 0.0;
 }
-// Ink coverage of the backdrop at p: the horizon, the hills where they stand on it (B behind A), the grass.
+// A row of two hills standing on a wandering line at height y0, b behind a: p's distance from its ink. The
+// line is drawn where no hill stands, a's outline whole, and b's where it rises above a.
+float hillRow(vec2 p, float y0, vec3 a, vec3 b, float aspect) {
+    float base = y0 + HORIZON_WOBBLE * (2.0 * noise(vec2(p.x * HORIZON_FREQ, 40.0 * y0)) - 1.0);
+    float ha = hillY(a, p.x, aspect), hb = hillY(b, p.x, aspect);
+    float d = ha > 0.0 ? abs(p.y - base - ha) : hb > 0.0 ? 1e3 : abs(p.y - base);
+    return hb > ha ? min(d, abs(p.y - base - hb)) : d;
+}
+// Ink coverage of the backdrop at p: the horizon and its hills, the nearer row, the grass.
 float backdrop(vec2 p) {
     float top = HORIZON_Y + HORIZON_WOBBLE + max(HILL_A.z, HILL_B.z), pad = INK_W + 2.0 * AA;
-    if (p.y > top + pad || p.y < GRASS_Y0 - pad) return 0.0;          // most of the page: one compare
+    if (p.y > top + pad || p.y < min(GRASS_Y0, NEAR_Y - HORIZON_WOBBLE) - pad) return 0.0;   // most of the page: one compare
     float aspect = iResolution.x / iResolution.y;
-    float hz = HORIZON_Y + HORIZON_WOBBLE * (2.0 * noise(vec2(p.x * HORIZON_FREQ, 0.5)) - 1.0);
-    float ha = hillY(HILL_A, p.x, aspect), hb = hillY(HILL_B, p.x, aspect);
-    float d = ha > 0.0 ? abs(p.y - hz - ha) : hb > 0.0 ? 1e3 : abs(p.y - hz);
-    if (hb > ha) d = min(d, abs(p.y - hz - hb));
-    float a = lineA(d, INK_W);
+    float a = lineA(min(hillRow(p, HORIZON_Y, HILL_A, HILL_B, aspect), hillRow(p, NEAR_Y, NEAR_A, NEAR_B, aspect)), INK_W);
     for (int i = 0; i < GRASS_TUFTS; i++) {
         float fi = float(i);
         vec2  c = vec2(aspect * (fi + 0.5 + 0.7 * (hash12(vec2(fi, 1.3)) - 0.5)) / float(GRASS_TUFTS),
