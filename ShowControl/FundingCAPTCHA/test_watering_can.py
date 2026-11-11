@@ -639,10 +639,10 @@ def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 
 
 # ── Task 3: plants (Image) ────────────────────────────────────────────────────
 
-PAPER = np.array([246, 241, 228])
+PAPER = np.round(np.array(K["PAPER"]) * 255).astype(int)
 FLOWER_R, REACH = K["FLOWER_R"], K["REACH"]
 TWIG_REACH = (1 + K["FORK_LEN"]) * K["TWIG_LEN"] + K["SPRIG_LEN"]   # a forked twig and its sprig, from its node
-SUN_POS, SUN_R, RAY_LEN = K["SUN_POS"], K["SUN_R"], K["RAY_LEN"]
+SUN_R, RAY_LEN = K["SUN_R"], K["RAY_LEN"]
 FLOWER_RGB = np.array([[251, 233, 160], [113, 154, 173], [232, 134, 47]])   # pale yellow, light blue, orange
 IMG = (256, 144)                                   # image tests: big enough that petals have pure-colour pixels
 
@@ -654,19 +654,47 @@ def screen_xy(size):
     return (xs + 0.5) / h, (ys + 0.5) / h
 
 
-def sun_region(size):
-    """Pixels the sun (Task 4) may draw on: within SUN_R + RAY_LEN of its centre."""
+def sun_offset(size):
+    """(dx, dy) of every pixel from the sun's centre, which is SUN_PEEK × SUN_R inside the top-right corner."""
     x, y = screen_xy(size)
-    cx = size[0] / size[1] + SUN_POS[0]
-    return np.hypot(x - cx, y - SUN_POS[1]) <= SUN_R + RAY_LEN
+    peek = K["SUN_PEEK"] * SUN_R
+    return x - (size[0] / size[1] - peek), y - (1 - peek)
 
 
-def drawn(img, region=None):
-    """Pixels differing from paper by > 12 in any channel, within region (default: all but the sun's corner)."""
-    d = (np.abs(img[..., :3].astype(int) - PAPER) > 12).any(axis=-1)
-    if region is None:
-        region = ~sun_region((img.shape[1], img.shape[0]))
-    return d & region
+def sun_region(size):
+    """Pixels the sun (Task 4) may draw on: its outline and as far as its rays reach."""
+    return np.hypot(*sun_offset(size)) <= SUN_R * (1 + K["SUN_EDGE_WOBBLE"]) + max(RAY_LEN, K["SUN_STROKE_W"])
+
+
+def off_paper(img):
+    """Pixels differing from flat paper by > 12 in any channel."""
+    return (np.abs(img[..., :3].astype(int) - PAPER) > 12).any(axis=-1)
+
+
+_EMPTY_SCENES = {}                                 # render size → the Image of an empty room
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _empty_scene_ctx(ctx):
+    _EMPTY_SCENES["ctx"] = ctx
+    yield
+    _EMPTY_SCENES.clear()
+
+
+def empty_scene(size):
+    """The Image with nobody there: paper and the backdrop (which is static), as int RGB. Rendered once per size."""
+    if size not in _EMPTY_SCENES:
+        rig = Rig(_EMPTY_SCENES["ctx"], size=size)
+        rig.run([EMPTY])
+        _EMPTY_SCENES[size] = rig.image()[..., :3].astype(int)
+        rig.release()
+    return _EMPTY_SCENES[size]
+
+
+def drawn(img):
+    """Pixels the plants changed: differing from the empty scene by > 12 in any channel, outside the sun's corner."""
+    size = (img.shape[1], img.shape[0])
+    return (np.abs(img[..., :3].astype(int) - empty_scene(size)) > 12).any(axis=-1) & ~sun_region(size)
 
 
 def on_screen(mask, size):
@@ -690,10 +718,19 @@ def saturation(px):
     return np.where(mx > 0, (mx - mn) / np.maximum(mx, 1), 0.0)
 
 
+def off_ink_line(img):
+    """Each pixel's RGB distance from the line through ink and paper: 0 for ink drawn on the paper, at any coverage.
+    The paper is tinted, so "not grey" won't tell a flower from a line's antialiased edge; this does."""
+    ink = 255 * np.array(K["INK"])
+    axis = (PAPER - ink) / np.linalg.norm(PAPER - ink)
+    v = img[..., :3] - ink
+    return np.linalg.norm(v - (v @ axis)[..., None] * axis, axis=-1)
+
+
 def flower_pixels(img):
-    """Pixels within 30 per channel of a flower colour."""
+    """Pixels within 30 per channel of a flower colour (and not ink on paper, which passes near the light blue)."""
     rgb = img[..., :3].astype(int)
-    return (np.abs(rgb[..., None, :] - FLOWER_RGB).max(axis=-1) <= 30).any(axis=-1)
+    return (np.abs(rgb[..., None, :] - FLOWER_RGB).max(axis=-1) <= 30).any(axis=-1) & (off_ink_line(img) > 6)
 
 
 def grown_rig(ctx, frames, size=IMG, **kw):
@@ -922,9 +959,8 @@ def test_growth_climbs_from_the_feet(shared_rig):
 
 
 def coloured(img):
-    """Flower pixels: drawn and not grey. The wood and leaves are ink on paper; only flowers carry colour."""
-    rgb = img[..., :3].astype(int)
-    return drawn(img) & (rgb.max(axis=-1) - rgb.min(axis=-1) > 20)
+    """Flower pixels: drawn and not ink on paper. The wood and leaves are ink on paper; only flowers carry colour."""
+    return drawn(img) & (off_ink_line(img) > 6)
 
 
 def test_colour_ripens_flowers_pale_low_then_bold_high(shared_rig):
@@ -936,15 +972,15 @@ def test_colour_ripens_flowers_pale_low_then_bold_high(shared_rig):
     early = shared_rig(round(10 * seconds_to(0.3)))         # 2 s in
     assert abs(early.person(0)[1] - 0.3) < 0.05, early.person(0)
     img = early.image()
-    sat_early = saturation(img[..., :3][drawn(img)]).mean()
+    colour_early = off_ink_line(img)[drawn(img)].mean()   # not HSV saturation: the paper's own tint would count
     c = coloured(img)
     assert c[low].sum() > 20, c[low].sum()                  # flowers already open, low on the body ...
     assert (flower_pixels(img) & drawn(img)).sum() < 5      # ... and pale: hardly a pixel in full colour yet
     full = shared_rig(220)
     assert full.person(0)[1] > 0.99, full.person(0)
     img = full.image()
-    sat_full = saturation(img[..., :3][drawn(img)]).mean()
-    assert sat_full > 1.5 * sat_early, (sat_early, sat_full)   # rises clearly: the palette is pastel, the wood ink
+    colour_full = off_ink_line(img)[drawn(img)].mean()
+    assert colour_full > 1.5 * colour_early, (colour_early, colour_full)   # rises clearly: the palette is pastel, the wood ink
     bold = flower_pixels(img) & drawn(img)
     assert bold.sum() > 30                                  # bold flowers at full bloom (only the outer ones: few at this size)
     assert bold[high].sum() > 2 * bold[low].sum(), (bold[high].sum(), bold[low].sum())   # and mostly high up
@@ -1036,7 +1072,7 @@ def test_walker_leaves_footprints_that_grow_then_rewind_away(ctx):
     # Off the body, where the walker passed: footprint plants, standing up off the floor at the feet's row.
     x, y = screen_xy(IMG)
     floor = (y > feet - 0.03) & (y < feet + 0.12)
-    n0 = drawn(rig.image(), floor).sum()
+    n0 = (drawn(rig.image()) & floor).sum()
     assert n0 > 200, n0
     counts = []
     for _ in range(int(FOOT_LIFE * 10)):            # then they rewind away, without popping
@@ -1051,43 +1087,54 @@ def test_walker_leaves_footprints_that_grow_then_rewind_away(ctx):
 # ── Task 4: the crayon sun (Image) ────────────────────────────────────────────
 
 def sun_patch(img):
-    """(disc, ring) masks: pixels inside the sun's disc, and in the ring where its rays reach."""
-    size = (img.shape[1], img.shape[0])
-    x, y = screen_xy(size)
-    r = np.hypot(x - (size[0] / size[1] + SUN_POS[0]), y - SUN_POS[1])
-    return r <= 0.85 * SUN_R, (r >= 1.2 * SUN_R) & (r <= SUN_R + RAY_LEN)
+    """(inside, stroke, ring) masks: pixels well inside the sun's disc, in the band its outline wobbles in, and in the
+    ring where its rays reach."""
+    r = np.hypot(*sun_offset((img.shape[1], img.shape[0])))
+    band = K["SUN_EDGE_WOBBLE"] * SUN_R + 0.5 * K["SUN_STROKE_W"]
+    return r <= 0.85 * SUN_R, np.abs(r - SUN_R) <= band, (r >= K["SUN_RAY_FROM"] * SUN_R) & (r <= SUN_R + RAY_LEN)
 
 
-def test_sun_is_muted_when_empty(ctx):
+def assert_sun_is_an_outline(img):
+    inside, stroke, _ = sun_patch(img)
+    d = off_paper(img)
+    assert (d & inside).sum() == 0, (d & inside).sum()                 # never filled
+    assert (d & stroke).sum() > 0.2 * stroke.sum(), ((d & stroke).sum(), stroke.sum())   # a crayon stroke: grainy
+    assert saturation(img[..., :3][d & stroke]).mean() > 0.5           # in the sun's colour, not ink
+
+
+def test_sun_peeks_out_of_the_corner():
+    # About a third of the disc is on screen (the issue's brief), whatever the aspect.
+    x, y = np.mgrid[-1:1:801j, -1:1:801j]
+    disc = np.hypot(x, y) <= 1
+    shown = (disc & (x <= K["SUN_PEEK"]) & (y <= K["SUN_PEEK"])).sum() / disc.sum()
+    assert abs(shown - 1 / 3) < 0.02, shown
+
+
+def test_sun_is_an_outline_without_rays_when_empty(ctx):
     rig = Rig(ctx, size=IMG)
     rig.run([EMPTY] * 30)
     img = rig.image()
-    disc, ring = sun_patch(img)
-    d = drawn(img, disc)
-    assert d.sum() > 0.3 * disc.sum(), (d.sum(), disc.sum())          # the sun is drawn, not paper
-    assert saturation(img[..., :3][d]).mean() < 0.35
-    assert drawn(img, ring).sum() == 0                                 # no rays
+    assert_sun_is_an_outline(img)
+    assert (off_paper(img) & sun_patch(img)[2]).sum() == 0             # no rays
     rig.release()
 
 
-def test_sun_brightens_and_grows_rays_with_bloom(shared_rig):
+def test_sun_stays_an_outline_and_grows_rays_with_bloom(shared_rig):
     rig = shared_rig(220)
     img = rig.image()
-    disc, ring = sun_patch(img)
-    d = drawn(img, disc)
-    assert saturation(img[..., :3][d]).mean() > 0.7
-    assert drawn(img, ring).sum() > 0.15 * ring.sum(), (drawn(img, ring).sum(), ring.sum())
+    assert_sun_is_an_outline(img)
+    ring = sun_patch(img)[2]
+    assert (off_paper(img) & ring).sum() > 0.08 * ring.sum(), ((off_paper(img) & ring).sum(), ring.sum())
 
 
 def seam_extents(img):
     """Farthest drawn radius from the sun's centre in the two pixel rows of the left-pointing ray that are just above
     and just below atan's branch cut (the ray's axis when it hasn't drifted). 0 where the ray isn't drawn in a row."""
     size = (img.shape[1], img.shape[0])
-    x, y = screen_xy(size)
-    dx, dy = x - (size[0] / size[1] + SUN_POS[0]), y - SUN_POS[1]
+    dx, dy = sun_offset(size)
     r = np.hypot(dx, dy)
     ray = (dx < 0) & (r > 1.3 * SUN_R) & (r < SUN_R + RAY_LEN + 0.02)
-    d = (np.abs(img[..., :3].astype(int) - PAPER) > 12).any(axis=-1)
+    d = off_paper(img)
     row = 1.0 / size[1]
     far = lambda m: r[m].max(initial=0.0)
     return far(ray & d & (dy > 0) & (dy < row)), far(ray & d & (dy <= 0) & (dy > -row))

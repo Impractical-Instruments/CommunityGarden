@@ -1,4 +1,4 @@
-// Image — paper, the crayon sun, footprints and each person's tree.  iChannel0 = Buffer B, iChannel1 = Buffer C,
+// Image — paper, the backdrop, the crayon sun, footprints and each person's tree.  iChannel0 = Buffer B, iChannel1 = Buffer C,
 // iChannel2 = blobs. p is in screen heights, origin bottom left, y up; screen-height y and UV y are the same number.
 //
 // Buffer C grows each person's tree on a grid (see common.glsl, "The tree"): every body cell has a node and a
@@ -284,21 +284,57 @@ vec4 footprints(vec2 fc) {
     return acc;
 }
 
-// The crayon sun: a waxy, grain-filled disc with a noise-broken edge, and rays in the same hand.
-// Level 0 is a muted, paper-mixed yellow with no rays; level 1 is full yellow with its rays out.
-vec3 sunColour(vec2 fc) {
-    vec2 d = fc / iResolution.y - vec2(iResolution.x / iResolution.y + SUN_POS.x, SUN_POS.y);
+// ── The backdrop ──────────────────────────────────────────────────────────────
+
+// A hill's height above the horizon at x: a smooth bump, 0 off it. hill = HILL_A or HILL_B.
+float hillY(vec3 hill, float x, float aspect) {
+    float u = (x / aspect - hill.x) / hill.y;
+    return abs(u) < 1.0 ? hill.z * 0.5 * (1.0 + cos(0.5 * TAU * u)) : 0.0;
+}
+// A row of two hills standing on a wandering line at height y0, b behind a: p's distance from its ink. The
+// line is drawn where no hill stands, a's outline whole, and b's where it rises above a.
+float hillRow(vec2 p, float y0, vec3 a, vec3 b, float aspect) {
+    float base = y0 + HORIZON_WOBBLE * (2.0 * noise(vec2(p.x * HORIZON_FREQ, 40.0 * y0)) - 1.0);
+    float ha = hillY(a, p.x, aspect), hb = hillY(b, p.x, aspect);
+    float d = ha > 0.0 ? abs(p.y - base - ha) : hb > 0.0 ? 1e3 : abs(p.y - base);
+    return hb > ha ? min(d, abs(p.y - base - hb)) : d;
+}
+// Ink coverage of the backdrop at p: the horizon and its hills, the nearer row, the grass.
+float backdrop(vec2 p) {
+    float top = HORIZON_Y + HORIZON_WOBBLE + max(HILL_A.z, HILL_B.z), pad = INK_W + 2.0 * AA;
+    if (p.y > top + pad || p.y < min(GRASS_Y0, NEAR_Y - HORIZON_WOBBLE) - pad) return 0.0;   // most of the page: one compare
+    float aspect = iResolution.x / iResolution.y;
+    float a = lineA(min(hillRow(p, HORIZON_Y, HILL_A, HILL_B, aspect), hillRow(p, NEAR_Y, NEAR_A, NEAR_B, aspect)), INK_W);
+    for (int i = 0; i < GRASS_TUFTS; i++) {
+        float fi = float(i);
+        vec2  c = vec2(aspect * (fi + 0.5 + 0.7 * (hash12(vec2(fi, 1.3)) - 0.5)) / float(GRASS_TUFTS),
+                       mix(GRASS_Y0, GRASS_Y1, hash12(vec2(fi, 4.7))));
+        vec2  q = p - c;
+        if (abs(q.x) > GRASS_H + pad || q.y < -pad || q.y > GRASS_H + pad) continue;
+        for (int b = 0; b < 3; b++) {                                  // blades fanned from one point
+            float fb = float(b), h = hash12(vec2(fi, fb + 7.1));
+            vec2  tip = GRASS_H * (0.6 + 0.4 * h) * rot(vec2(0.0, 1.0), 0.45 * (1.0 - fb) + 0.3 * (h - 0.5));
+            a = max(a, lineA(sdTaper(q, vec2(0.0), tip, 0.0, 0.0), INK_W));
+        }
+    }
+    return a;
+}
+
+// ── The sun ───────────────────────────────────────────────────────────────────
+
+// The crayon sun's coverage: the disc's outline, noise-broken and never filled, and rays in the same hand.
+// Its centre is just inside the top-right corner, so a third of the disc shows. Level 0 has no rays; at
+// level 1 they are full length.
+float sun(vec2 fc) {
+    vec2 d = fc / iResolution.y - (vec2(iResolution.x / iResolution.y, 1.0) - SUN_PEEK * SUN_R);
     float r = length(d);
-    if (r > SUN_R * (1.0 + SUN_EDGE_WOBBLE) + RAY_LEN) return PAPER;
+    if (r > SUN_R * (1.0 + SUN_EDGE_WOBBLE) + max(RAY_LEN, SUN_STROKE_W)) return 0.0;
     float lv = clamp(cSun(iChannel1).x, 0.0, 1.0);
     float t = iTime * SUN_WOBBLE_RATE;                                             // a slow wobble; nothing is stored
     float grain = SUN_GRAIN_A * noise(d * SUN_GRAIN + t) + (1.0 - SUN_GRAIN_A) * noise(vec2(d.x + d.y, d.x - d.y) * SUN_GRAIN * SUN_HATCH);
-    float cov = 0.0;
     float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * SUN_EDGE_SCALE + t) - 1.0));
-    if (r < edge) {
-        float rim = smoothstep(SUN_RIM_FROM, 1.0, r / edge);                   // the stroke round the edge is pressed harder
-        cov = smoothstep(SUN_COVER - SUN_FILL_SOFT, SUN_COVER + SUN_FILL_SOFT, grain + SUN_RIM_WEIGHT * rim);
-    }
+    float cov = (1.0 - smoothstep(0.5 * SUN_STROKE_W - AA, 0.5 * SUN_STROKE_W + AA, abs(r - edge)))
+              * smoothstep(SUN_COVER - SUN_GRAIN_SOFT, SUN_COVER + SUN_GRAIN_SOFT, grain + SUN_STROKE_PRESS);
     float len = RAY_LEN * lv;
     float r0 = SUN_R * SUN_RAY_FROM;
     if (len > SUN_RAY_MIN && r > r0 && r < SUN_R + len) {
@@ -313,13 +349,13 @@ vec3 sunColour(vec2 fc) {
             cov = max(cov, rg);
         }
     }
-    vec3 c = mix(mix(YELLOW, PAPER, SUN_MUTE), YELLOW, lv);
-    return mix(PAPER, c, cov);
+    return cov;
 }
 
 void mainImage(out vec4 o, in vec2 fc) {
     AA = 1.0 / iResolution.y;
-    vec3 col = sunColour(fc);                                         // the sun, under the plants
+    vec3 col = mix(PAPER, INK, BACKDROP_INK * backdrop(fc / iResolution.y));   // the page and its backdrop
+    col = mix(col, SUN_COL, sun(fc));                                 // the sun, under the plants
     vec4 fp  = footprints(fc);                                        // behind the people
     col = fp.rgb + col * (1.0 - fp.a);
     vec4 pl  = tree(fc);
