@@ -61,6 +61,7 @@ A Setup can paint over a picture instead of generating everything ([ADR-0024](..
 - Keep images near display size; larger ones are downscaled on load and add a hitch.
 - Images are committed publicly. Nothing private goes here.
 - For smear-type Setups, fairly saturated images with clear colour regions smear more legibly than soft, low-contrast ones.
+- For sprites, pack every part into one sheet, since a Setup gets one image per load. [`barn_dancers/`](barn_dancers/) does this: `pack_atlas.py` builds the sheet from a layered PSD and writes each part's rectangle into `common.glsl`.
 
 ## Hand it in
 

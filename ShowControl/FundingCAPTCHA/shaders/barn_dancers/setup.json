@@ -1,0 +1,8 @@
+{
+  "_comment": "Barn dancers: a barn on legs rises from the field for each visitor and dances a kick line with them.",
+  "duration_s": 120,
+  "channels": {
+    "buffer_b": ["B", "blobs"],
+    "image":    ["A", "B", "image"]
+  }
+}
