@@ -38,7 +38,7 @@ jobs:
       - name: Run every FundingCAPTCHA test and record its dependencies
         env:
           TESTMON_DATAFILE: .testmondata
-        run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon -v --durations=20
+        run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon -v --durations=25
 
       # Keep this key in step with tests.yml. Saved only when every test passed.
       - name: Save testmon data

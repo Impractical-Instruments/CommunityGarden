@@ -22,6 +22,7 @@ ABSENT, PRESENT = (0.0, 0.0, -1.0, -1.0), (48.0, 27.0, 48.0, 27.0)
 def _rig(ctx, image: np.ndarray | None = None) -> Renderer:
     r = Renderer(ctx, SIZE, body_mode="camera")
     r.load(load_setup(SETUP), image=image)
+    r.defer_image = True                         # _out() draws the Image on demand
     r.upload_body(np.zeros((SIZE[1], SIZE[0], 4), dtype=np.uint8))
     return r
 
@@ -33,6 +34,7 @@ def _buf(r: Renderer, name: str) -> np.ndarray:
 
 
 def _out(r: Renderer) -> np.ndarray:
+    r.draw_deferred_image()
     data = np.frombuffer(r.output.read(components=4), dtype=np.uint8)
     return data.reshape(SIZE[1], SIZE[0], 4)
 

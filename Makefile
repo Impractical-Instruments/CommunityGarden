@@ -12,8 +12,9 @@ test-fast:
 
 # FundingCAPTCHA only. The shader tests need a headless OpenGL context and
 # take minutes on software Mesa; without one they skip (locally) or fail (CI).
+# Lists the 25 slowest, so a slow new test shows up (#203).
 test-fundingcaptcha:
-	python3 -m pytest ShowControl/FundingCAPTCHA || test $$? -eq 5
+	python3 -m pytest ShowControl/FundingCAPTCHA --durations=25 || test $$? -eq 5
 
 # TreeHouse controller host tests (Unity, on this machine). Needs PlatformIO:
 # pip install platformio. Not part of `make test`.

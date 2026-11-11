@@ -282,6 +282,64 @@ def test_camera_body_reaches_image(ctx, tmp_path):
     r.release()
 
 
+def _feed(r: Renderer, k: int) -> None:
+    """Frame k's inputs: a Body square and one confirmed blob, both moving."""
+    fg = np.zeros((48, 64), dtype=np.uint16)
+    fg[10:40, 8 + k:24 + k] = 2000
+    r.upload_body(pack_body(fg, {"x": 0, "y": 0, "w": 64, "h": 48}, [{"near_mm": 1000, "far_mm": 4000}]))
+    rec = np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32)
+    rec[0, 0] = (1, BLOB_CONFIRMED, (16 + k) / 64, 0.5)
+    rec[1, 0] = (0.25, 0.6, 0.2, 0.5)
+    rec[2, 0] = (k * 0.1, 0, 0, 0)
+    r.upload_blobs(rec)
+
+
+@pytest.mark.parametrize("name", json.loads((SHADER_DIR / "setups.json").read_text()))
+def test_deferred_image_matches_drawing_it_every_frame(ctx, name):
+    # defer_image skips the Image pass; drawing it afterwards must give the bytes the frame would have drawn.
+    rs = []
+    for defer in (False, True):
+        r = Renderer(ctx, (96, 54), body_mode="camera")
+        r.load(load_setup(SHADER_DIR / name))
+        r.defer_image = defer
+        rs.append(r)
+    try:
+        for k in range(12):
+            for r in rs:
+                _feed(r, k)
+                r.render(1 / 30, (0, 0, 0, 0))
+            if k in (4, 11):                         # read mid-run too: drawing it late must not disturb the next frame
+                rs[1].draw_deferred_image()
+                assert rs[0].output.read() == rs[1].output.read(), k
+    finally:
+        for r in rs:
+            r.release()
+
+
+def test_deferred_image_refuses_after_an_upload(ctx, tmp_path):
+    r = Renderer(ctx, (8, 8), body_mode="camera")
+    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.defer_image = True
+    r.render(1 / 30, (0, 0, 0, 0))
+    r.upload_blobs(np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32))   # that frame's inputs are gone
+    with pytest.raises(RuntimeError, match="render again"):
+        r.draw_deferred_image()
+    r.render(1 / 30, (0, 0, 0, 0))
+    r.draw_deferred_image()                          # a new frame clears it
+    r.release()
+
+
+def test_draw_deferred_image_is_a_no_op_when_nothing_was_skipped(ctx, tmp_path):
+    r = Renderer(ctx, (8, 8))
+    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.render(1 / 30, (0, 0, 0, 0))
+    before = r.output.read()
+    r.output.clear()
+    r.draw_deferred_image()                          # defer_image is off: the Image was drawn, nothing to redo
+    assert r.output.read() != before
+    r.release()
+
+
 def test_painter_puts_body_under_mouse(ctx, tmp_path):
     d = _write_setup(tmp_path, {
         "image.glsl": "void mainImage(out vec4 o, in vec2 f) {"

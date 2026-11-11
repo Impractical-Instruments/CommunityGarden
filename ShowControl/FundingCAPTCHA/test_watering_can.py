@@ -63,6 +63,7 @@ class Rig:
         self.size, self.dt, self.slot = size, dt, slot   # slot: move the tracker's records there (owner = slot + 1)
         self.r = Renderer(ctx, size, body_mode="camera")
         self.r.load(load_setup(SETUP))
+        self.r.defer_image = True                         # most tests read buffers: image() draws the Image on demand
         self.blobs = BodyBlobs(BLOBS)
         self.t = 0.0
 
@@ -89,6 +90,7 @@ class Rig:
 
     def image(self) -> np.ndarray:
         """The Image as uint8 (h, w, 4), row 0 = bottom."""
+        self.r.draw_deferred_image()
         return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(self.size[1], self.size[0], 4)
 
     def release(self):
@@ -105,6 +107,7 @@ class Rig:
         return {"tex":   [t.read() for t in self._state_textures()],
                 "reads": {n: b.read for n, b in r._buffers.items()},
                 "clock": (r.time, r.frame, self.t),
+                "image": (r._deferred, r._deferred_lost),
                 "blobs": copy.deepcopy(self.blobs)}
 
     def restore(self, snap):
@@ -114,6 +117,7 @@ class Rig:
         for n, read in snap["reads"].items():
             r._buffers[n].read = read
         r.time, r.frame, self.t = snap["clock"]
+        r._deferred, r._deferred_lost = snap["image"]
         self.blobs = copy.deepcopy(snap["blobs"])
 
 
@@ -725,6 +729,7 @@ def shared_rig(ctx, _shared_rigs):
 
 
 def _all_state(rig):
+    rig.r.draw_deferred_image()
     return [*(t.read() for t in rig._state_textures()), rig.r.time, rig.r.frame, rig.t]
 
 

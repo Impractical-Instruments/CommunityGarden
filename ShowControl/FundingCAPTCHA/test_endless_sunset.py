@@ -21,6 +21,7 @@ DT    = 1 / 30
 def make(ctx, size=SIZE) -> Renderer:
     r = Renderer(ctx, size, body_mode="camera")
     r.load(load_setup(SETUP))
+    r.defer_image = True                         # image() draws the Image on demand
     return r
 
 
@@ -51,6 +52,7 @@ def buf(r, name) -> np.ndarray:
 
 
 def image(r) -> np.ndarray:
+    r.draw_deferred_image()
     return np.frombuffer(r.output.read(components=4), dtype=np.uint8).reshape(r.size[1], r.size[0], 4)
 
 
@@ -274,6 +276,7 @@ def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
     c.write_text(src)
     r = Renderer(ctx, size, body_mode="camera")
     r.load(load_setup(d))
+    r.defer_image = True
     return r
 
 
