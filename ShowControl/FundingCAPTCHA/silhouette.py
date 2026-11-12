@@ -43,15 +43,15 @@ def build_cam_transform(settings: dict):
         from IIVision import Rotator, Transform
     except ImportError:
         return None
-    cam = settings.get("camera", {})
-    pos = cam.get("pos_cm", [0, 0, 0])
-    rot = cam.get("rotation", {})
+    cam = settings["camera"]
+    pos = cam["pos_cm"]
+    rot = cam["rotation"]
     return Transform(
         translation=np.array(pos, dtype=float),
         rotation=Rotator(
-            pitch=rot.get("pitch", 0.0),
-            yaw=rot.get("yaw", 0.0),
-            roll=rot.get("roll", 0.0),
+            pitch=rot["pitch"],
+            yaw=rot["yaw"],
+            roll=rot["roll"],
         ),
     )
 

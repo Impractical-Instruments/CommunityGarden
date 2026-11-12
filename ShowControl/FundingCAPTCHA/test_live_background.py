@@ -1,13 +1,11 @@
 """Entry points go live from the first frame: no standback, no calibration (ADR-0023)."""
-import argparse
 import json
 import time
 from pathlib import Path
 
 import numpy as np
 
-import app
-from shader_app import drain_camera, start_camera
+from camera_feed import CameraFeed, build_background, build_detection_config
 from shadertoy import pack_body
 
 SETTINGS = json.loads((Path(__file__).parent / "captcha-settings.json").read_text())
@@ -16,13 +14,13 @@ SETTINGS = json.loads((Path(__file__).parent / "captcha-settings.json").read_tex
 def test_mock_camera_shows_bodies_within_about_two_seconds():
     # MockCamera has its bodies in view from frame 0. They must not wait for a
     # calibration pass, and must not be baked into the background for good.
-    args = argparse.Namespace(camera=False, mock_camera=True, test_input=False)
-    cam_q, stop = start_camera(args, SETTINGS)
+    feed = CameraFeed(SETTINGS, "mock")
+    feed.start()
     t0 = time.monotonic()
     body_px = 0
     try:
         while time.monotonic() - t0 < 5.0:
-            fg = drain_camera(cam_q)
+            fg = feed.drain()
             if fg is not None:
                 body = pack_body(fg, SETTINGS["camera_roi"], SETTINGS["depth_slabs"])
                 body_px = int(np.count_nonzero(body[..., 0]))
@@ -31,7 +29,7 @@ def test_mock_camera_shows_bodies_within_about_two_seconds():
             time.sleep(0.01)
         elapsed = time.monotonic() - t0
     finally:
-        stop.set()
+        feed.stop()
     assert body_px > 200, "no body in the Body texture after 5 s"
     # background.warmup_s (1 s, the Orbbec's bad first frames) + min_valid_frames.
     warmup = SETTINGS["background"]["warmup_s"]
@@ -39,8 +37,8 @@ def test_mock_camera_shows_bodies_within_about_two_seconds():
 
 
 def test_background_settings_build_the_model():
-    det = app.build_detection_config(SETTINGS)
-    model = app.build_background(SETTINGS, det)
+    det = build_detection_config(SETTINGS)
+    model = build_background(SETTINGS, det)
     cfg = model.config
     assert cfg.depth_delta_mm == SETTINGS["detection"]["depth_delta_mm"]
     assert cfg.absorb_s > 120, "must outlast Watering can's 120 s stand-still"
