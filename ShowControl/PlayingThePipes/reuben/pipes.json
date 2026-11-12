@@ -1,0 +1,2715 @@
+{
+  "format_version": 3,
+  "instrument": "pipes",
+  "doc": "Playing the Pipes: twelve encoder-driven grain voices through a stereo reverb, thirteen stereo loops whose levels follow how busy the pipes are, and a live mic echo; reach for it only as the Playing the Pipes show engine, driven by ShowControl/PlayingThePipes/encoder_bridge.py.",
+  "resources": {
+    "grain_flexitone": "../Lamplight2026/media/flexitone_clip_1.wav",
+    "grain_mallet1": "../Lamplight2026/media/Mallet_Clip_1.wav",
+    "grain_mallet2": "../Lamplight2026/media/Mallet_Clip_2.wav",
+    "grain_modular2": "../Lamplight2026/media/Cmdlr2_Clip_2.wav",
+    "grain_scrape1": "../Lamplight2026/media/scrape_clip_1.wav",
+    "grain_scrape2": "../Lamplight2026/media/scrape_clip_2.wav",
+    "loop1": "../Lamplight2026/media/tone.50.wav",
+    "loop10": "../Lamplight2026/media/bass.ArpMagnet.wav",
+    "loop11": "../Lamplight2026/media/G.mdlr2.wav",
+    "loop12": "../Lamplight2026/media/casioVl1.beat.wav",
+    "loop13": "../Lamplight2026/media/C.mdlr2.wav",
+    "loop2": "../Lamplight2026/media/tone.31.wav",
+    "loop3": "../Lamplight2026/media/steel.bowls.slow.ALT.wav",
+    "loop4": "../Lamplight2026/media/percClacks1.wav",
+    "loop5": "../Lamplight2026/media/shakerswings.wav",
+    "loop6": "../Lamplight2026/media/Mallet.vfm.wav",
+    "loop7": "../Lamplight2026/media/percRhythm1.wav",
+    "loop8": "../Lamplight2026/media/vfm.mouth.wav",
+    "loop9": "../Lamplight2026/media/KickHat.wav"
+  },
+  "interface": {
+    "inputs": {
+      "mic_l": {
+        "type": "f32_buffer",
+        "channel": 0
+      },
+      "mic_r": {
+        "type": "f32_buffer",
+        "channel": 1
+      },
+      "pipes/knob0/density": {
+        "type": "f32",
+        "default": 1.5,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob0/grain_size": {
+        "type": "f32",
+        "default": 500.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob0/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob0/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob0/spray": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob1/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob1/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob1/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob1/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob1/spray": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob10/density": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob10/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob10/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob10/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob10/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob11/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob11/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob11/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob11/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob11/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob2/density": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob2/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob2/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob2/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob2/spray": {
+        "type": "f32",
+        "default": 200.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob3/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob3/grain_size": {
+        "type": "f32",
+        "default": 500.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob3/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob3/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob3/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob4/density": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob4/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob4/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob4/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob4/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob5/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob5/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob5/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob5/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob5/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob6/density": {
+        "type": "f32",
+        "default": 1.5,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob6/grain_size": {
+        "type": "f32",
+        "default": 500.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob6/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob6/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob6/spray": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob7/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob7/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob7/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob7/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob7/spray": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob8/density": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob8/grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob8/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob8/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob8/spray": {
+        "type": "f32",
+        "default": 200.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/knob9/density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "pipes/knob9/grain_size": {
+        "type": "f32",
+        "default": 500.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "pipes/knob9/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob9/position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/knob9/spray": {
+        "type": "f32",
+        "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "pipes/loop1/level": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop10/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop11/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop12/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop13/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop2/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop3/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop4/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop5/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop6/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop7/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop8/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pipes/loop9/level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "volume": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    "outputs": {
+      "main_l": {
+        "from": "/master/clamp_l",
+        "channel": 0
+      },
+      "main_r": {
+        "from": "/master/clamp_r",
+        "channel": 1
+      }
+    }
+  },
+  "nodes": [
+    {
+      "type": "granulator",
+      "address": "/k0/grain",
+      "doc": "knob 0 grains (scrape1)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob0/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob0/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob0/position"
+        },
+        "spray": {
+          "from": "/pipes/knob0/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_scrape1"
+    },
+    {
+      "type": "m2s",
+      "address": "/k0/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob0/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k0/amp",
+      "inputs": {
+        "a": {
+          "from": "/k0/grain"
+        },
+        "b": {
+          "from": "/k0/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k0/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k0/amp"
+        },
+        "pan": -0.75
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k1/grain",
+      "doc": "knob 1 grains (mallet1)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob1/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob1/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob1/position"
+        },
+        "spray": {
+          "from": "/pipes/knob1/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_mallet1"
+    },
+    {
+      "type": "m2s",
+      "address": "/k1/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob1/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k1/amp",
+      "inputs": {
+        "a": {
+          "from": "/k1/grain"
+        },
+        "b": {
+          "from": "/k1/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k1/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k1/amp"
+        },
+        "pan": -0.614
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k2/grain",
+      "doc": "knob 2 grains (scrape2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob2/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob2/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob2/position"
+        },
+        "spray": {
+          "from": "/pipes/knob2/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_scrape2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k2/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob2/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k2/amp",
+      "inputs": {
+        "a": {
+          "from": "/k2/grain"
+        },
+        "b": {
+          "from": "/k2/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k2/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k2/amp"
+        },
+        "pan": -0.477
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k3/grain",
+      "doc": "knob 3 grains (mallet2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob3/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob3/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob3/position"
+        },
+        "spray": {
+          "from": "/pipes/knob3/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_mallet2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k3/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob3/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k3/amp",
+      "inputs": {
+        "a": {
+          "from": "/k3/grain"
+        },
+        "b": {
+          "from": "/k3/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k3/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k3/amp"
+        },
+        "pan": -0.341
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k4/grain",
+      "doc": "knob 4 grains (modular2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob4/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob4/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob4/position"
+        },
+        "spray": {
+          "from": "/pipes/knob4/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_modular2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k4/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob4/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k4/amp",
+      "inputs": {
+        "a": {
+          "from": "/k4/grain"
+        },
+        "b": {
+          "from": "/k4/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k4/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k4/amp"
+        },
+        "pan": -0.205
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k5/grain",
+      "doc": "knob 5 grains (flexitone)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob5/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob5/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob5/position"
+        },
+        "spray": {
+          "from": "/pipes/knob5/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_flexitone"
+    },
+    {
+      "type": "m2s",
+      "address": "/k5/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob5/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k5/amp",
+      "inputs": {
+        "a": {
+          "from": "/k5/grain"
+        },
+        "b": {
+          "from": "/k5/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k5/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k5/amp"
+        },
+        "pan": -0.068
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k6/grain",
+      "doc": "knob 6 grains (scrape1)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob6/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob6/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob6/position"
+        },
+        "spray": {
+          "from": "/pipes/knob6/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_scrape1"
+    },
+    {
+      "type": "m2s",
+      "address": "/k6/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob6/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k6/amp",
+      "inputs": {
+        "a": {
+          "from": "/k6/grain"
+        },
+        "b": {
+          "from": "/k6/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k6/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k6/amp"
+        },
+        "pan": 0.068
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k7/grain",
+      "doc": "knob 7 grains (mallet1)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob7/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob7/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob7/position"
+        },
+        "spray": {
+          "from": "/pipes/knob7/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_mallet1"
+    },
+    {
+      "type": "m2s",
+      "address": "/k7/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob7/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k7/amp",
+      "inputs": {
+        "a": {
+          "from": "/k7/grain"
+        },
+        "b": {
+          "from": "/k7/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k7/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k7/amp"
+        },
+        "pan": 0.205
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k8/grain",
+      "doc": "knob 8 grains (scrape2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob8/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob8/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob8/position"
+        },
+        "spray": {
+          "from": "/pipes/knob8/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_scrape2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k8/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob8/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k8/amp",
+      "inputs": {
+        "a": {
+          "from": "/k8/grain"
+        },
+        "b": {
+          "from": "/k8/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k8/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k8/amp"
+        },
+        "pan": 0.341
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k9/grain",
+      "doc": "knob 9 grains (mallet2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob9/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob9/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob9/position"
+        },
+        "spray": {
+          "from": "/pipes/knob9/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_mallet2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k9/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob9/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k9/amp",
+      "inputs": {
+        "a": {
+          "from": "/k9/grain"
+        },
+        "b": {
+          "from": "/k9/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k9/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k9/amp"
+        },
+        "pan": 0.477
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k10/grain",
+      "doc": "knob 10 grains (modular2)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob10/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob10/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob10/position"
+        },
+        "spray": {
+          "from": "/pipes/knob10/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_modular2"
+    },
+    {
+      "type": "m2s",
+      "address": "/k10/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob10/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k10/amp",
+      "inputs": {
+        "a": {
+          "from": "/k10/grain"
+        },
+        "b": {
+          "from": "/k10/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k10/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k10/amp"
+        },
+        "pan": 0.614
+      }
+    },
+    {
+      "type": "granulator",
+      "address": "/k11/grain",
+      "doc": "knob 11 grains (flexitone)",
+      "inputs": {
+        "density": {
+          "from": "/pipes/knob11/density"
+        },
+        "grain_size": {
+          "from": "/pipes/knob11/grain_size"
+        },
+        "position": {
+          "from": "/pipes/knob11/position"
+        },
+        "spray": {
+          "from": "/pipes/knob11/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "grain_flexitone"
+    },
+    {
+      "type": "m2s",
+      "address": "/k11/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/knob11/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/k11/amp",
+      "inputs": {
+        "a": {
+          "from": "/k11/grain"
+        },
+        "b": {
+          "from": "/k11/level"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/k11/pan",
+      "inputs": {
+        "audio": {
+          "from": "/k11/amp"
+        },
+        "pan": 0.75
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l1",
+      "inputs": {
+        "a": {
+          "from": "/k0/pan.left"
+        },
+        "b": {
+          "from": "/k1/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l2",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l1"
+        },
+        "b": {
+          "from": "/k2/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l3",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l2"
+        },
+        "b": {
+          "from": "/k3/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l4",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l3"
+        },
+        "b": {
+          "from": "/k4/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l5",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l4"
+        },
+        "b": {
+          "from": "/k5/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l6",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l5"
+        },
+        "b": {
+          "from": "/k6/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l7",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l6"
+        },
+        "b": {
+          "from": "/k7/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l8",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l7"
+        },
+        "b": {
+          "from": "/k8/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l9",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l8"
+        },
+        "b": {
+          "from": "/k9/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l10",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l9"
+        },
+        "b": {
+          "from": "/k10/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_l11",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_l10"
+        },
+        "b": {
+          "from": "/k11/pan.left"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r1",
+      "inputs": {
+        "a": {
+          "from": "/k0/pan.right"
+        },
+        "b": {
+          "from": "/k1/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r2",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r1"
+        },
+        "b": {
+          "from": "/k2/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r3",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r2"
+        },
+        "b": {
+          "from": "/k3/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r4",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r3"
+        },
+        "b": {
+          "from": "/k4/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r5",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r4"
+        },
+        "b": {
+          "from": "/k5/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r6",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r5"
+        },
+        "b": {
+          "from": "/k6/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r7",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r6"
+        },
+        "b": {
+          "from": "/k7/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r8",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r7"
+        },
+        "b": {
+          "from": "/k8/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r9",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r8"
+        },
+        "b": {
+          "from": "/k9/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r10",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r9"
+        },
+        "b": {
+          "from": "/k10/pan.right"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/fx/sum_r11",
+      "inputs": {
+        "a": {
+          "from": "/fx/sum_r10"
+        },
+        "b": {
+          "from": "/k11/pan.right"
+        }
+      }
+    },
+    {
+      "type": "reverb",
+      "address": "/fx/verb_l",
+      "inputs": {
+        "audio": {
+          "from": "/fx/sum_l11"
+        },
+        "damp": 0.5,
+        "mix": 1.0,
+        "room": 0.85
+      }
+    },
+    {
+      "type": "reverb",
+      "address": "/fx/verb_r",
+      "inputs": {
+        "audio": {
+          "from": "/fx/sum_r11"
+        },
+        "damp": 0.5,
+        "mix": 1.0,
+        "room": 0.85
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l1/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 2.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop1"
+    },
+    {
+      "type": "sample",
+      "address": "/l1/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 2.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop1"
+    },
+    {
+      "type": "m2s",
+      "address": "/l1/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop1/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l1/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l1/play_l"
+        },
+        "b": {
+          "from": "/l1/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l1/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l1/play_r"
+        },
+        "b": {
+          "from": "/l1/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l2/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 3.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop2"
+    },
+    {
+      "type": "sample",
+      "address": "/l2/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 3.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop2"
+    },
+    {
+      "type": "m2s",
+      "address": "/l2/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop2/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l2/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l2/play_l"
+        },
+        "b": {
+          "from": "/l2/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l2/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l2/play_r"
+        },
+        "b": {
+          "from": "/l2/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l3/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop3"
+    },
+    {
+      "type": "sample",
+      "address": "/l3/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop3"
+    },
+    {
+      "type": "m2s",
+      "address": "/l3/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop3/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l3/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l3/play_l"
+        },
+        "b": {
+          "from": "/l3/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l3/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l3/play_r"
+        },
+        "b": {
+          "from": "/l3/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l4/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop4"
+    },
+    {
+      "type": "sample",
+      "address": "/l4/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop4"
+    },
+    {
+      "type": "m2s",
+      "address": "/l4/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop4/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l4/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l4/play_l"
+        },
+        "b": {
+          "from": "/l4/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l4/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l4/play_r"
+        },
+        "b": {
+          "from": "/l4/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l5/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop5"
+    },
+    {
+      "type": "sample",
+      "address": "/l5/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop5"
+    },
+    {
+      "type": "m2s",
+      "address": "/l5/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop5/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l5/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l5/play_l"
+        },
+        "b": {
+          "from": "/l5/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l5/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l5/play_r"
+        },
+        "b": {
+          "from": "/l5/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l6/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 1.2,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop6"
+    },
+    {
+      "type": "sample",
+      "address": "/l6/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 1.2,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop6"
+    },
+    {
+      "type": "m2s",
+      "address": "/l6/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop6/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l6/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l6/play_l"
+        },
+        "b": {
+          "from": "/l6/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l6/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l6/play_r"
+        },
+        "b": {
+          "from": "/l6/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l7/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.5,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop7"
+    },
+    {
+      "type": "sample",
+      "address": "/l7/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.5,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop7"
+    },
+    {
+      "type": "m2s",
+      "address": "/l7/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop7/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l7/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l7/play_l"
+        },
+        "b": {
+          "from": "/l7/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l7/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l7/play_r"
+        },
+        "b": {
+          "from": "/l7/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l8/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop8"
+    },
+    {
+      "type": "sample",
+      "address": "/l8/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 1.0,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop8"
+    },
+    {
+      "type": "m2s",
+      "address": "/l8/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop8/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l8/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l8/play_l"
+        },
+        "b": {
+          "from": "/l8/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l8/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l8/play_r"
+        },
+        "b": {
+          "from": "/l8/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l9/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.5,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop9"
+    },
+    {
+      "type": "sample",
+      "address": "/l9/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.5,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop9"
+    },
+    {
+      "type": "m2s",
+      "address": "/l9/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop9/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l9/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l9/play_l"
+        },
+        "b": {
+          "from": "/l9/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l9/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l9/play_r"
+        },
+        "b": {
+          "from": "/l9/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l10/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.3,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop10"
+    },
+    {
+      "type": "sample",
+      "address": "/l10/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.3,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop10"
+    },
+    {
+      "type": "m2s",
+      "address": "/l10/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop10/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l10/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l10/play_l"
+        },
+        "b": {
+          "from": "/l10/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l10/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l10/play_r"
+        },
+        "b": {
+          "from": "/l10/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l11/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop11"
+    },
+    {
+      "type": "sample",
+      "address": "/l11/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop11"
+    },
+    {
+      "type": "m2s",
+      "address": "/l11/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop11/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l11/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l11/play_l"
+        },
+        "b": {
+          "from": "/l11/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l11/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l11/play_r"
+        },
+        "b": {
+          "from": "/l11/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l12/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.2,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop12"
+    },
+    {
+      "type": "sample",
+      "address": "/l12/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.2,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop12"
+    },
+    {
+      "type": "m2s",
+      "address": "/l12/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop12/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l12/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l12/play_l"
+        },
+        "b": {
+          "from": "/l12/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l12/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l12/play_r"
+        },
+        "b": {
+          "from": "/l12/level"
+        }
+      }
+    },
+    {
+      "type": "sample",
+      "address": "/l13/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop13"
+    },
+    {
+      "type": "sample",
+      "address": "/l13/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": 0.4,
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "loop13"
+    },
+    {
+      "type": "m2s",
+      "address": "/l13/level",
+      "inputs": {
+        "in": {
+          "from": "/pipes/loop13/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l13/amp_l",
+      "inputs": {
+        "a": {
+          "from": "/l13/play_l"
+        },
+        "b": {
+          "from": "/l13/level"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/l13/amp_r",
+      "inputs": {
+        "a": {
+          "from": "/l13/play_r"
+        },
+        "b": {
+          "from": "/l13/level"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l1",
+      "inputs": {
+        "a": {
+          "from": "/l1/amp_l"
+        },
+        "b": {
+          "from": "/l2/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l2",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l1"
+        },
+        "b": {
+          "from": "/l3/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l3",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l2"
+        },
+        "b": {
+          "from": "/l4/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l4",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l3"
+        },
+        "b": {
+          "from": "/l5/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l5",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l4"
+        },
+        "b": {
+          "from": "/l6/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l6",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l5"
+        },
+        "b": {
+          "from": "/l7/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l7",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l6"
+        },
+        "b": {
+          "from": "/l8/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l8",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l7"
+        },
+        "b": {
+          "from": "/l9/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l9",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l8"
+        },
+        "b": {
+          "from": "/l10/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l10",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l9"
+        },
+        "b": {
+          "from": "/l11/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l11",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l10"
+        },
+        "b": {
+          "from": "/l12/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_l12",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l11"
+        },
+        "b": {
+          "from": "/l13/amp_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r1",
+      "inputs": {
+        "a": {
+          "from": "/l1/amp_r"
+        },
+        "b": {
+          "from": "/l2/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r2",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r1"
+        },
+        "b": {
+          "from": "/l3/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r3",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r2"
+        },
+        "b": {
+          "from": "/l4/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r4",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r3"
+        },
+        "b": {
+          "from": "/l5/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r5",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r4"
+        },
+        "b": {
+          "from": "/l6/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r6",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r5"
+        },
+        "b": {
+          "from": "/l7/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r7",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r6"
+        },
+        "b": {
+          "from": "/l8/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r8",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r7"
+        },
+        "b": {
+          "from": "/l9/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r9",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r8"
+        },
+        "b": {
+          "from": "/l10/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r10",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r9"
+        },
+        "b": {
+          "from": "/l11/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r11",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r10"
+        },
+        "b": {
+          "from": "/l12/amp_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/loops/sum_r12",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r11"
+        },
+        "b": {
+          "from": "/l13/amp_r"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/loops/bus_l",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_l12"
+        },
+        "b": 0.25
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/loops/bus_r",
+      "inputs": {
+        "a": {
+          "from": "/loops/sum_r12"
+        },
+        "b": 0.25
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/mic/in_l",
+      "inputs": {
+        "a": {
+          "from": "/mic_l"
+        },
+        "b": 0.5
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/mic/predelay_l",
+      "inputs": {
+        "audio": {
+          "from": "/mic/in_l"
+        },
+        "feedback": 0.0,
+        "mix": 1.0,
+        "time": 0.5
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/mic/echo_l",
+      "inputs": {
+        "audio": {
+          "from": "/mic/predelay_l"
+        },
+        "feedback": 0.45,
+        "mix": 0.6,
+        "time": 0.6
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/mic/in_r",
+      "inputs": {
+        "a": {
+          "from": "/mic_r"
+        },
+        "b": 0.5
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/mic/predelay_r",
+      "inputs": {
+        "audio": {
+          "from": "/mic/in_r"
+        },
+        "feedback": 0.0,
+        "mix": 1.0,
+        "time": 0.75
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/mic/echo_r",
+      "inputs": {
+        "audio": {
+          "from": "/mic/predelay_r"
+        },
+        "feedback": 0.45,
+        "mix": 0.6,
+        "time": 0.6
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/master/sum1_l",
+      "inputs": {
+        "a": {
+          "from": "/fx/verb_l"
+        },
+        "b": {
+          "from": "/loops/bus_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/master/sum2_l",
+      "inputs": {
+        "a": {
+          "from": "/master/sum1_l"
+        },
+        "b": {
+          "from": "/mic/echo_l"
+        }
+      }
+    },
+    {
+      "type": "compressor",
+      "address": "/master/limit_l",
+      "inputs": {
+        "attack": 0.1,
+        "audio": {
+          "from": "/master/sum2_l"
+        },
+        "ratio": 20.0,
+        "release": 50.0,
+        "threshold": -1.0
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/master/volume_l",
+      "inputs": {
+        "a": {
+          "from": "/master/limit_l"
+        },
+        "b": {
+          "from": "/volume"
+        }
+      }
+    },
+    {
+      "type": "clamp_f32_signal",
+      "address": "/master/clamp_l",
+      "inputs": {
+        "hi": 1.0,
+        "lo": -1.0,
+        "x": {
+          "from": "/master/volume_l"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/master/sum1_r",
+      "inputs": {
+        "a": {
+          "from": "/fx/verb_r"
+        },
+        "b": {
+          "from": "/loops/bus_r"
+        }
+      }
+    },
+    {
+      "type": "add_f32_signal",
+      "address": "/master/sum2_r",
+      "inputs": {
+        "a": {
+          "from": "/master/sum1_r"
+        },
+        "b": {
+          "from": "/mic/echo_r"
+        }
+      }
+    },
+    {
+      "type": "compressor",
+      "address": "/master/limit_r",
+      "inputs": {
+        "attack": 0.1,
+        "audio": {
+          "from": "/master/sum2_r"
+        },
+        "ratio": 20.0,
+        "release": 50.0,
+        "threshold": -1.0
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/master/volume_r",
+      "inputs": {
+        "a": {
+          "from": "/master/limit_r"
+        },
+        "b": {
+          "from": "/volume"
+        }
+      }
+    },
+    {
+      "type": "clamp_f32_signal",
+      "address": "/master/clamp_r",
+      "inputs": {
+        "hi": 1.0,
+        "lo": -1.0,
+        "x": {
+          "from": "/master/volume_r"
+        }
+      }
+    }
+  ]
+}

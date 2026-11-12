@@ -3,15 +3,13 @@
 Playing the Pipes: encoder bridge. Pico serial lines in, reuben OSC out, plus /health.
 
 The two encoder Picos (ADR-0014) send `/enc BOARD ENC DELTA` text lines over USB
-serial. This bridge finds every Pico by its USB vendor ID, reads those lines and
-sends each event to reuben (#177) as one OSC message:
-
-    /pipes/knobN/in  <delta: float>      N = BOARD * 6 + ENC, 0-11
-
-That address list is a cross-layer contract, like /cg/ff/rot: the reuben
-instrument (ShowControl/PlayingThePipes/reuben/) has an input pipe for each
-address, and the two must change together. The bridge forwards raw deltas only;
-velocity, wake and idle live in the instrument.
+serial. This bridge finds every Pico by its USB vendor ID, reads those lines, and
+feeds each knob's detents (knob N = BOARD * 6 + ENC, 0-11) to pipes_control, which
+turns them into the values the reuben instrument plays from: grain parameters
+and a level per knob, and a level per loop (#177, #238). A 10 ms control loop
+sends those to reuben as OSC. The address list in pipes_control is a cross-layer
+contract, like /cg/ff/rot: ShowControl/PlayingThePipes/reuben/pipes.json has an
+input pipe for each address, and the two must change together.
 
 Which Pico is on which port does not matter: every line carries its board ID. A
 Pico unplugged mid-show is picked up again when it comes back, without a restart.
@@ -24,8 +22,10 @@ GET /health (CORS open, for the Dashboard) reports:
     last_event_age_s   seconds since the last encoder event, or null
     reuben_alive       reuben's structure channel accepts a TCP connection
     fake_encoders      true when --fake-encoders stands in for the Picos
+    state              the loop mix state, 0-12 (how busy the pipes are)
+    awake_knobs        knobs turned in the last few seconds
 
-Ports come from ShowControl/network.json, elements.pipes: http_port (health),
+Tuning comes from settings.json beside this file. Ports come from ShowControl/network.json, elements.pipes: http_port (health),
 reuben_osc_port (reuben's OSC input) and reuben_structure_port (liveness). The
 two reuben ports must equal what `reuben play` binds: its defaults, 9000 and
 9124, since play has no flag to change them.
@@ -56,6 +56,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pythonosc.udp_client import SimpleUDPClient
 
 from OSCFabric.config import load_network_config
+from pipes_control import SETTINGS, ChangeSender, Controller, Settings
 
 log = logging.getLogger("pipes-bridge")
 
@@ -92,23 +93,6 @@ def parse_line(line: str) -> EncoderEvent | None:
     if board >= BOARDS or enc >= ENCODERS_PER_BOARD:
         return None
     return EncoderEvent(board, enc, delta)
-
-
-def knob_address(knob: int) -> str:
-    """The reuben input pipe for knob 0-11."""
-    if not 0 <= knob < KNOBS:
-        raise ValueError(f"knob {knob} is outside 0-{KNOBS - 1}")
-    return f"/pipes/knob{knob}/in"
-
-
-class OscSender:
-    """Sends each encoder event to reuben's input pipe for its knob."""
-
-    def __init__(self, host: str, port: int) -> None:
-        self._client = SimpleUDPClient(host, port)
-
-    def __call__(self, event: EncoderEvent) -> None:
-        self._client.send_message(knob_address(event.knob), float(event.delta))
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
@@ -290,6 +274,24 @@ def run_fake_encoders(state: BridgeState, on_event: Callable[[EncoderEvent], Non
             on_event(event)
 
 
+# ── Control loop ──────────────────────────────────────────────────────────────
+
+def run_control(controller: Controller, send: Callable[[dict[str, float], float], int],
+                stop: threading.Event, tick_s: float, clock: Callable[[], float] = time.monotonic) -> None:
+    """Tick the controller every tick_s and send what changed, without drifting."""
+    next_tick = clock()
+    while not stop.is_set():
+        now = clock()
+        try:
+            send(controller.tick(now), now)
+        except Exception:
+            log.exception("control tick failed")
+        next_tick += tick_s
+        if next_tick < now:          # fell behind (a stall): skip ahead rather than burst
+            next_tick = now + tick_s
+        stop.wait(max(0.0, next_tick - clock()))
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 def tcp_port_open(host: str, port: int, timeout_s: float = 0.25) -> bool:
@@ -300,14 +302,15 @@ def tcp_port_open(host: str, port: int, timeout_s: float = 0.25) -> bool:
         return False
 
 
-def make_app(state: BridgeState, reuben_alive: Callable[[], bool], fake_encoders: bool = False) -> FastAPI:
+def make_app(state: BridgeState, reuben_alive: Callable[[], bool], fake_encoders: bool = False,
+             status: Callable[[], dict] = dict) -> FastAPI:
     app = FastAPI()
     # The Dashboard reads this from another host and port.
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"])
 
     @app.get("/health")
     def health() -> dict:  # sync: the liveness probe blocks briefly, so it runs in the threadpool
-        return state.health(reuben_alive(), fake_encoders)
+        return {**state.health(reuben_alive(), fake_encoders), **status()}
 
     return app
 
@@ -337,6 +340,7 @@ def main() -> None:
     parser.add_argument("--reuben-host", default="127.0.0.1",
                         help="where reuben runs (default: this machine)")
     parser.add_argument("--network", default=None, help="network.json path (default: ShowControl/network.json)")
+    parser.add_argument("--settings", default=str(SETTINGS), help="tuning (default: settings.json beside this file)")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -346,9 +350,18 @@ def main() -> None:
     )
 
     cfg = load_pipes_config(args.network)
-    send = OscSender(args.reuben_host, cfg.reuben_osc_port)
+    settings = Settings.load(args.settings)
+    controller = Controller(settings)
+    client = SimpleUDPClient(args.reuben_host, cfg.reuben_osc_port)
+    sender = ChangeSender(lambda addr, v: client.send_message(addr, float(v)), settings)
     state = BridgeState()
     stop = threading.Event()
+
+    def send(event: EncoderEvent) -> None:
+        controller.on_detents(event.knob, event.delta, time.monotonic())
+
+    threading.Thread(target=run_control, args=(controller, sender, stop, settings.tick_s),
+                     name="control", daemon=True).start()
 
     if args.fake_encoders:
         worker = threading.Thread(target=run_fake_encoders, args=(state, send, stop), name="fake-encoders", daemon=True)
@@ -360,8 +373,9 @@ def main() -> None:
         state,
         lambda: tcp_port_open(args.reuben_host, cfg.reuben_structure_port),
         fake_encoders=args.fake_encoders,
+        status=controller.status,
     )
-    log.info("sending /pipes/knob0-%d/in to reuben at %s:%d%s", KNOBS - 1, args.reuben_host,
+    log.info("sending knob and loop values to reuben at %s:%d%s", args.reuben_host,
              cfg.reuben_osc_port, " (fake encoders)" if args.fake_encoders else "")
     log.info("health: http://0.0.0.0:%d/health", cfg.http_port)
     try:

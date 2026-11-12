@@ -1,4 +1,4 @@
-.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments
+.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments pipes
 
 CONTROLLERS := Firmware/TreeHouse_Controllers
 
@@ -79,3 +79,11 @@ reuben: cargo
 # warning (such as a missing sample) fails too.
 validate-instruments: reuben
 	@bash scripts/validate-instruments.sh $(REUBEN) $(REUBEN_INSTRUMENTS)
+
+# Playing the Pipes on this machine, no hardware: reuben plays the instrument (default audio
+# devices, mic included) and the bridge drives it with fake encoders. Ctrl-C stops both.
+PIPES_INSTRUMENT := ShowControl/PlayingThePipes/reuben/pipes.json
+pipes: reuben uv
+	@$(REUBEN) play $(PIPES_INSTRUMENT) $(REUBEN_PLAY_ARGS) & rp=$$!; \
+	trap 'kill $$rp 2>/dev/null' EXIT INT TERM; \
+	$(RUN) python ShowControl/PlayingThePipes/encoder_bridge.py --fake-encoders

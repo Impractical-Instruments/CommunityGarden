@@ -1,0 +1,70 @@
+{
+  "_comment": "Playing the Pipes control tuning, read by encoder_bridge.py (pipes_control.py). Values come from the Max patch it replaces (Lamplight2026.maxpat); see ShowControl/PlayingThePipes/README.md. Times in seconds, levels in dB unless named otherwise.",
+
+  "tick_s": 0.01,
+
+  "velocity": {
+    "_comment": "Detents per second, smoothed y = alpha*v + (1-alpha)*y every tick; |y| clipped to max_detents_per_s, which is 'fast' in the voice ranges below.",
+    "alpha": 0.1,
+    "max_detents_per_s": 400
+  },
+
+  "wake": {
+    "_comment": "A knob wakes on its first detent and sleeps after sleep_after_s without one; its level fades over fade_s each way.",
+    "sleep_after_s": 4.0,
+    "fade_s": 0.3
+  },
+
+  "position": {
+    "_comment": "Detents since wake, clipped to +-range_detents, mapped linearly to out_min..out_max of the grain buffer.",
+    "range_detents": 500,
+    "out_min": 0.0,
+    "out_max": 0.5
+  },
+
+  "level_scale": 0.5,
+
+  "_voices_comment": "Grain voice per encoder: [at rest, at max velocity], linear in |velocity|. grain_size_ms is also the grain period, so grains per second = 1000 / grain_size_ms * grain_probability. spray_ms is the Max patch's delayRandom. Level = level_scale * fade * volume^2.",
+  "voices": [
+    { "name": "scrape1",   "grain_size_ms": [500, 80],  "grain_probability": [0.75, 1.0], "spray_ms": [0, 100],  "volume": [0.25, 1.0] },
+    { "name": "mallet1",   "grain_size_ms": [400, 40],  "grain_probability": [0.5, 1.0],  "spray_ms": [0, 100],  "volume": [0.5, 1.0] },
+    { "name": "scrape2",   "grain_size_ms": [400, 100], "grain_probability": [0.25, 1.0], "spray_ms": [200, 60], "volume": [0.25, 1.0] },
+    { "name": "mallet2",   "grain_size_ms": [600, 100], "grain_probability": [0.75, 1.0], "spray_ms": [300, 40], "volume": [0.5, 1.0] },
+    { "name": "modular2",  "grain_size_ms": [400, 120], "grain_probability": [0.25, 1.0], "spray_ms": [300, 40], "volume": [0.25, 1.0] },
+    { "name": "flexitone", "grain_size_ms": [400, 40],  "grain_probability": [0.5, 1.0],  "spray_ms": [300, 40], "volume": [0.5, 1.0] }
+  ],
+  "_knob_voice_comment": "Knob N (= board*6 + enc) plays voices[knob_voice[N]]: board 1 mirrors board 0.",
+  "knob_voice": [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5],
+
+  "mix": {
+    "_comment": "A knob counts as active for active_for_s after its last detent. target = floor(min(max_state, per_active_knob * active knobs)); a new, higher target raises the state; the state then steps down by 1 every step_down_s to 0. Each state change crossfades the 13 loop levels to presets_db[state] over crossfade_s, linear in dB. floor_db and below is silence.",
+    "active_for_s": 20.0,
+    "per_active_knob": 1.5,
+    "max_state": 12,
+    "step_down_s": 5.0,
+    "crossfade_s": 10.0,
+    "floor_db": -70.0,
+    "presets_db": [
+      [0,     -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70],
+      [0,       0, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70],
+      [0,      -6,  -6, -70, -70, -70, -70, -70, -70, -70, -70, -70, -70],
+      [0,      -6,  -6,   0, -70, -70, -70, -70, -70, -70, -70, -70, -70],
+      [-69.4,  -6,  -6,   0,   0, -70, -70, -70, -70, -70, -70, -70, -70],
+      [-69.4, -70,  -6,   0,   0,  -6, -70, -70, -70, -70, -70, -70, -70],
+      [-69.4, -70,  -6, -70,   0,  -6,   0, -70, -70, -70, -70, -70, -70],
+      [-69.4, -70, -70, -70,   0,   0,   0,   0, -70, -70, -70, -70, -70],
+      [-69.4, -70, -70, -70,   0,   0,   0,   0,   0, -70, -70, -70, -70],
+      [-69.4, -70, -70, -70,   0,   0,   0, -70,   0,   0, -70, -70, -70],
+      [-69.4, -70, -70, -70,   0, -70,   0, -70,   0,   0,   0, -70, -70],
+      [-69.4, -70, -70, -70,   0, -70, -70, -70,   0,   0,   0,   0, -70],
+      [-69.4, -70, -70, -70,   0, -70, -70, -70,   0,   0, -70,   0,   0]
+    ]
+  },
+
+  "send": {
+    "_comment": "Each OSC value is sent when it moves by more than epsilon, at most every min_interval_s; every value is re-sent every refresh_s so a restarted reuben catches up.",
+    "min_interval_s": 0.02,
+    "epsilon": 0.0005,
+    "refresh_s": 2.0
+  }
+}

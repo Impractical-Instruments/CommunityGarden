@@ -33,6 +33,10 @@
         <span id="pp-last">—</span>
       </div>
       <div class="th-field">
+        <label>Loop state</label>
+        <span id="pp-state">—</span>
+      </div>
+      <div class="th-field">
         <label>reuben</label>
         <span class="log-conn" id="pp-reuben">—</span>
       </div>
@@ -71,11 +75,12 @@ async function poll(url) {
     show('pp-picos', `${h.picos_connected} of 2`);
     show('pp-boards', h.boards.length ? h.boards.join(', ') : 'none');
     show('pp-last', fmtAge(h.last_event_age_s));
+    show('pp-state', h.state === undefined ? '—' : `${h.state} of 12 · ${h.awake_knobs} turning`);
     show('pp-reuben', h.reuben_alive ? 'running' : 'not running', h.reuben_alive ? 'connected' : 'disconnected');
     document.getElementById('pp-note').textContent = h.fake_encoders ? 'fake encoders: no Picos are being read' : '';
   } catch (_) {
     show('pp-bridge', 'unreachable', 'disconnected');
-    ['pp-picos', 'pp-boards', 'pp-last'].forEach(id => show(id, '—'));
+    ['pp-picos', 'pp-boards', 'pp-last', 'pp-state'].forEach(id => show(id, '—'));
     show('pp-reuben', '—', '');
     document.getElementById('pp-note').textContent = '';
   }

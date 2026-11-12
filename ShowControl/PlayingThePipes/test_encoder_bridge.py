@@ -45,23 +45,67 @@ def test_knob_is_board_times_six_plus_encoder():
     assert eb.EncoderEvent(1, 2, 1).knob == 8
 
 
-def test_knob_addresses_are_the_contract():
-    assert [eb.knob_address(n) for n in (0, 5, 11)] == ["/pipes/knob0/in", "/pipes/knob5/in", "/pipes/knob11/in"]
-    with pytest.raises(ValueError):
-        eb.knob_address(12)
+def test_detents_reach_reuben_as_knob_values_over_osc():
+    """A detent goes through the controller and the control loop out as /pipes/knobN/... OSC."""
+    import pipes_control as pc
 
-
-def test_osc_sender_sends_the_raw_delta_as_a_float_to_the_knob_pipe():
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     rx.bind(("127.0.0.1", 0))
     rx.settimeout(2)
+    from pythonosc.udp_client import SimpleUDPClient
+    client = SimpleUDPClient("127.0.0.1", rx.getsockname()[1])
+    s = pc.Settings.load()
+    ctrl = pc.Controller(s)
+    sender = pc.ChangeSender(lambda a, v: client.send_message(a, float(v)), s)
+    ctrl.on_detents(eb.EncoderEvent(1, 3, 5).knob, 5, 0.0)
+    sender(ctrl.tick(0.01), 0.01)
+    got = {}
     try:
-        eb.OscSender("127.0.0.1", rx.getsockname()[1])(eb.EncoderEvent(1, 3, -2))
-        msg = OscMessage(rx.recv(1024))
+        while True:
+            m = OscMessage(rx.recv(1024))
+            got[m.address] = m.params[0]
+    except socket.timeout:
+        pass
     finally:
         rx.close()
-    assert msg.address == "/pipes/knob9/in"
-    assert msg.params == [-2.0]
+    assert got["/pipes/knob9/position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
+    assert got["/pipes/knob9/level/in"] > 0
+    assert got["/pipes/knob0/level/in"] == 0.0
+    assert "/pipes/loop1/level/in" in got
+
+
+def test_control_loop_ticks_and_sends_until_stopped():
+    stop = threading.Event()
+    calls = []
+
+    class Ctrl:
+        def tick(self, now):
+            return {"/x": now}
+
+    def send(values, now):
+        calls.append(values)
+        if len(calls) == 5:
+            stop.set()
+        return 1
+
+    eb.run_control(Ctrl(), send, stop, tick_s=0.001)
+    assert len(calls) == 5
+
+
+def test_control_loop_survives_a_failing_tick(caplog):
+    stop = threading.Event()
+    n = []
+
+    class Ctrl:
+        def tick(self, now):
+            n.append(now)
+            if len(n) == 3:
+                stop.set()
+            raise RuntimeError("boom")
+
+    with caplog.at_level(logging.ERROR, logger="pipes-bridge"):
+        eb.run_control(Ctrl(), lambda v, t: 0, stop, tick_s=0.001)
+    assert len(n) == 3 and "control tick failed" in caplog.text
 
 
 # ── State and health ──────────────────────────────────────────────────────────
@@ -108,13 +152,15 @@ def test_unplugging_a_pico_forgets_its_board():
 def test_health_route_serves_the_state_with_cors():
     state = eb.BridgeState()
     state.connected("COM3")
-    client = TestClient(eb.make_app(state, lambda: True, fake_encoders=True))
+    client = TestClient(eb.make_app(state, lambda: True, fake_encoders=True,
+                                    status=lambda: {"state": 4, "awake_knobs": 2}))
     resp = client.get("/health", headers={"Origin": "http://192.168.1.10:8000"})
     assert resp.status_code == 200
     assert resp.headers["access-control-allow-origin"] == "*"
     assert resp.json()["picos_connected"] == 1
     assert resp.json()["reuben_alive"] is True
     assert resp.json()["fake_encoders"] is True
+    assert resp.json()["state"] == 4 and resp.json()["awake_knobs"] == 2
 
 
 def test_tcp_port_open_tells_a_listener_from_nothing():
