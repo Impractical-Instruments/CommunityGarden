@@ -87,6 +87,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true # the encoder-bridge test reads reuben's default ports
 
       # Python and every package from uv.lock, in .venv, on PATH for later steps.
       # --locked fails the job if uv.lock is out of date with pyproject.toml.

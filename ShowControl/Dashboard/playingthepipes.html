@@ -12,10 +12,82 @@
   <h1>Playing the Pipes</h1>
 </nav>
 <div class="detail-body">
-  <div class="coming-soon">
-    <div class="icon">🎵</div>
-    <div class="label">coming soon</div>
+
+  <!-- The encoder bridge's /health on the pipes host (encoder_bridge.py). -->
+  <div class="th-status">
+    <div class="th-row">
+      <div class="th-field">
+        <label>Bridge</label>
+        <span class="log-conn" id="pp-bridge">connecting…</span>
+      </div>
+      <div class="th-field">
+        <label>Encoder Picos</label>
+        <span id="pp-picos">—</span>
+      </div>
+      <div class="th-field">
+        <label>Boards seen</label>
+        <span id="pp-boards">—</span>
+      </div>
+      <div class="th-field">
+        <label>Last turn</label>
+        <span id="pp-last">—</span>
+      </div>
+      <div class="th-field">
+        <label>reuben</label>
+        <span class="log-conn" id="pp-reuben">—</span>
+      </div>
+    </div>
+    <div class="th-displays" id="pp-note"></div>
   </div>
+
 </div>
+<script>
+// The pipes host and port come from network.json via serve.py (AGENTS.md constraint 3).
+async function pipesHealthUrl() {
+  const resp = await fetch('/api/network');
+  if (!resp.ok) throw new Error(`/api/network: HTTP ${resp.status}`);
+  const pipes = ((await resp.json()).elements || {}).pipes;
+  if (!pipes || !pipes.ip || !pipes.http_port) throw new Error('network.json has no ip/http_port for "pipes"');
+  return `http://${pipes.ip}:${pipes.http_port}/health`;
+}
+
+function show(id, text, cls) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  if (cls !== undefined) el.className = 'log-conn ' + cls;
+}
+
+function fmtAge(s) {
+  if (s === null || s === undefined) return 'none yet';
+  if (s < 60) return `${s.toFixed(1)} s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  return `${Math.floor(s / 3600)} h ago`;
+}
+
+async function poll(url) {
+  try {
+    const h = await (await fetch(url, { signal: AbortSignal.timeout(2000) })).json();
+    show('pp-bridge', h.ok ? 'ok' : 'degraded', h.ok ? 'connected' : 'disconnected');
+    show('pp-picos', `${h.picos_connected} of 2`);
+    show('pp-boards', h.boards.length ? h.boards.join(', ') : 'none');
+    show('pp-last', fmtAge(h.last_event_age_s));
+    show('pp-reuben', h.reuben_alive ? 'running' : 'not running', h.reuben_alive ? 'connected' : 'disconnected');
+    document.getElementById('pp-note').textContent = h.fake_encoders ? 'fake encoders: no Picos are being read' : '';
+  } catch (_) {
+    show('pp-bridge', 'unreachable', 'disconnected');
+    ['pp-picos', 'pp-boards', 'pp-last'].forEach(id => show(id, '—'));
+    show('pp-reuben', '—', '');
+    document.getElementById('pp-note').textContent = '';
+  }
+}
+
+pipesHealthUrl().then(url => {
+  poll(url);
+  setInterval(() => poll(url), 2000);
+}).catch(e => {
+  console.error(e);
+  show('pp-bridge', 'no network.json entry', 'disconnected');
+});
+</script>
 </body>
 </html>

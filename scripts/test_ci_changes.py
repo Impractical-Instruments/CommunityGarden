@@ -82,12 +82,16 @@ def test_other_elements_run_only_the_fast_job(path):
     assert jobs(path) == FAST
 
 
+def test_the_reuben_submodule_runs_the_reuben_job_and_the_fast_job():
+    """The fast job's encoder-bridge test checks network.json against reuben's default ports."""
+    assert jobs("vendor/reuben") == {"code": True, "gl": False, "firmware": False, "reuben": True}
+
+
 @pytest.mark.parametrize("path", [
-    "vendor/reuben",                                      # the submodule's gitlink
     "ShowControl/PlayingThePipes/reuben/pipes.json",
     "ShowControl/PlayingThePipes/reuben/pipes.profile.json",
 ])
-def test_reuben_and_the_instruments_run_only_the_reuben_job(path):
+def test_instruments_run_only_the_reuben_job(path):
     assert jobs(path) == REUBEN
 
 
