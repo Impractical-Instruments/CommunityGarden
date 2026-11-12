@@ -284,3 +284,14 @@ def test_every_address_sets_a_pipe_of_the_instrument():
     for addr in pc.Controller(S).tick(0.0):
         assert addr.endswith("/in"), addr
         assert addr[1:-len("/in")] in pipes, addr
+
+
+def test_snapshot_reports_what_the_surface_draws():
+    ctrl = pc.Controller(S)
+    ctrl.on_detents(4, 3, 0.0)
+    out = ctrl.tick(0.01)
+    snap = ctrl.snapshot()
+    assert len(snap["knobs"]) == pc.KNOBS and len(snap["loops"]) == pc.LOOPS
+    assert snap["knobs"][4] == {"awake": True, "level": out[k(4, "level")], "position": out[k(4, "position")]}
+    assert snap["loops"] == [out[pc.loop_address(i)] for i in range(1, pc.LOOPS + 1)]
+    assert snap["state"] == ctrl.mix.state and snap["max_state"] == S.max_state
