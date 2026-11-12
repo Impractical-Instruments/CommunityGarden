@@ -197,6 +197,7 @@ fundingcaptcha = [
 ]
 pipes = [
     { name = "fastapi" },
+    { name = "pyserial" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 treehouse = [
@@ -237,6 +238,7 @@ requires-dist = [
     { name = "pygame", marker = "extra == 'fundingcaptcha'", specifier = ">=2.1" },
     { name = "pygame", marker = "extra == 'treehouse'", specifier = ">=2.1" },
     { name = "pyorbbecsdk2", marker = "extra == 'camera'" },
+    { name = "pyserial", marker = "extra == 'pipes'" },
     { name = "pyserial", marker = "extra == 'treehouse'" },
     { name = "python-osc", specifier = ">=1.8" },
     { name = "scipy", marker = "extra == 'vision'", specifier = ">=1.10" },

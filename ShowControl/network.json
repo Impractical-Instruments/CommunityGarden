@@ -10,7 +10,7 @@
     "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
     "flowerbeds": { "ip": "192.168.1.11", "osc_port": 9002, "http_port": 8765 },
     "captcha":    { "ip": "192.168.1.12", "osc_port": 9003, "http_port": 8080 },
-    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767 }
+    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767, "reuben_osc_port": 9000, "reuben_structure_port": 9124 }
   },
 
   "firmware": {

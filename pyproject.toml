@@ -51,6 +51,7 @@ fundingcaptcha = [
 pipes = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
+    "pyserial",       # encoder_bridge.py reads the encoder Picos
 ]
 # Orbbec camera SDK. Only for a host with a real camera (FlowerBeds, FundingCAPTCHA);
 # --mock-camera runs without it, and CI cannot install it.

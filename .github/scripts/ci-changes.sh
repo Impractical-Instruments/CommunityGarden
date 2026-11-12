@@ -51,9 +51,14 @@ while IFS= read -r path; do
         # Other firmware has no tests.
         Firmware/*)
             ;;
-        # The reuben submodule (a gitlink: the one path vendor/reuben) and the
-        # Playing the Pipes instruments. No Python test reads either.
-        vendor/*|ShowControl/PlayingThePipes/reuben/*)
+        # The reuben submodule (a gitlink: the one path vendor/reuben). The fast
+        # job's encoder-bridge test checks network.json against reuben's ports.
+        vendor/*)
+            code=true
+            reuben=true
+            ;;
+        # The Playing the Pipes instruments. No Python test reads them.
+        ShowControl/PlayingThePipes/reuben/*)
             reuben=true
             ;;
         # Elements FundingCAPTCHA does not import. Their own tests are in the fast job.
