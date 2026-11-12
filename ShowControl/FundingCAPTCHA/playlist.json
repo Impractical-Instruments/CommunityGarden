@@ -1,6 +1,6 @@
 {
   "_comment": "playlist_app.py: one shuffle bag of shader Setups (shaders/<name>/) and videos (files in videos/, which is gitignored — copy them onto the show PC). Each Setup plays setup_duration_s, overriding its own duration_s; each video plays to the end of its file, silent and letterboxed. A missing or unreadable item is skipped. The interstitial Setup plays for interstitial_s between every two items.",
-  "setup_duration_s": 300,
+  "setup_duration_s": 150,
   "interstitial": "logo_attract",
   "interstitial_s": 30,
   "setups": ["watering_can", "endless_sunset", "barn_dancers", "rainbow_poop"],
