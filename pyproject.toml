@@ -64,7 +64,7 @@ camera = [
 [dependency-groups]
 dev = [
     "communitygarden[flowerbeds,treehouse,dashboard,fundingcaptcha,pipes]",
-    "pytest>=8.0",
+    "pytest>=9.2",  # faulthandler_exit_on_timeout, below
     "httpx>=0.24",
     "pytest-testmon>=2.3,<3",  # CI selects shader tests with it; see docs/agents/running-and-testing.md
 ]
@@ -81,3 +81,8 @@ OSCFabric = "ShowControl/OSCFabric"
 [tool.pytest.ini_options]
 testpaths = ["ShowControl", "IIVision", "scripts"]
 pythonpath = ["."]
+# A test that runs this long has hung: print every thread's stack and end the run with exit
+# code 1. The slowest test takes about 25 s in CI. The watchdog is a C thread, so it fires
+# even when the test is stuck inside the OpenGL driver holding the GIL.
+faulthandler_timeout = 120
+faulthandler_exit_on_timeout = true

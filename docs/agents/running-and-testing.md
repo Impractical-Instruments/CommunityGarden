@@ -31,6 +31,8 @@ CI runs `test-fast`, the FundingCAPTCHA tests, the two firmware targets and the 
 
 Inside the FundingCAPTCHA job, [pytest-testmon](https://testmon.org/) runs only the tests whose Python dependencies changed, using data recorded by `.github/workflows/testmon-data.yml` on each push to `main`. testmon sees only the Python code a test executes, so it is blind to shaders, JSON and other data files. Any changed path listed in `.github/scripts/shader-force-run.txt` runs every test, and so does a run that finds no recorded data. When a test reads a new kind of non-Python file, add its path to that list. Locally, `make test` and `make test-fundingcaptcha` always run everything.
 
+A test that runs for 120 s has hung: pytest prints every thread's stack and ends the whole run with exit code 1 (`faulthandler_timeout` in `pyproject.toml`). The stack at the top of that dump names the test and the line it stopped on. The run stops there, so later tests do not run and there is no summary.
+
 Shader tests run on software Mesa in CI, where fragment shading is the whole cost. The test rigs set `Renderer.defer_image = True`: frames skip the Image pass, and the file's image helper calls `draw_deferred_image()` to draw the last frame's Image only when a test reads it. A new rig should do the same and read `output` only through such a helper. To time the tests locally as CI does, force llvmpipe with `LIBGL_ALWAYS_SOFTWARE=1 __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`; without these, EGL may pick a hardware GPU.
 
 ## reuben (Playing the Pipes audio engine)

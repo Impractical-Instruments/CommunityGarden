@@ -253,7 +253,7 @@ provides-extras = ["vision", "flowerbeds", "treehouse", "dashboard", "fundingcap
 dev = [
     { name = "communitygarden", extras = ["flowerbeds", "treehouse", "dashboard", "fundingcaptcha", "pipes"] },
     { name = "httpx", specifier = ">=0.24" },
-    { name = "pytest", specifier = ">=8.0" },
+    { name = "pytest", specifier = ">=9.2" },
     { name = "pytest-testmon", specifier = ">=2.3,<3" },
 ]
 

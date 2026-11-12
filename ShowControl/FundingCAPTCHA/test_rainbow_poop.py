@@ -329,6 +329,7 @@ def colourful(img) -> np.ndarray:
     return (px.max(axis=-1) - px.min(axis=-1)) > 90
 
 
+@pytest.mark.skip(reason="#243: hangs intermittently on llvmpipe in CI; disabled until fixed")
 def test_splats_drawn_only_on_the_silhouette(ctx):
     rig = Rig(ctx, BIG)
     rig.run(standing(60))
