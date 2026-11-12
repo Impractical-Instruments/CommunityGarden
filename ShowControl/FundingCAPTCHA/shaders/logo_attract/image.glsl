@@ -1,4 +1,5 @@
-// Image — the logo on a blue gradient, leaning into its motion.
+// Image — the logo on black, leaning into its motion. Drawn in screen heights on both
+// axes, so it stays round whatever the screen's aspect.
 // iChannel0 = Buffer B, iChannel1 = image (the logo; images/logo.png).
 
 #define B    iChannel0
@@ -29,11 +30,7 @@ void mainImage(out vec4 o, in vec2 fc) {
     float ang = clamp(-g.z * TILT, -TILT_MAX, TILT_MAX);
     mat2  R   = rot(-ang);
 
-    vec3 col = mix(BG_BOTTOM, BG_TOP, fc.y / iResolution.y);
-
-    // Soft shadow under the disc.
-    float sd = length(p - at - SHADOW) / RADIUS;
-    col *= 1.0 - 0.45 * (1.0 - smoothstep(0.9, 1.08, sd));
+    vec3 col = BG;
 
     // The logo, 4 taps per pixel so its lettering doesn't shimmer when small.
     float px = 1.0 / (iResolution.y * RADIUS);  // one pixel in logo-local units

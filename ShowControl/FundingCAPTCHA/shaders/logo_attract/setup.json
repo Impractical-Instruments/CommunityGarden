@@ -1,5 +1,5 @@
 {
-  "_comment": "Logo attract: the Impractical Instruments logo rests at the centre and drifts toward visitors, each pulling harder the longer they have been there. playlist_app plays it between items (playlist.json \"interstitial\"); not in shader_app's rotation.",
+  "_comment": "Logo attract: the Impractical Instruments logo rests at the centre of a black screen and drifts toward visitors, each pulling harder the longer they have been there. playlist_app plays it between items (playlist.json \"interstitial\"); not in shader_app's rotation.",
   "duration_s": 30,
   "channels": {
     "buffer_b": ["B", "blobs"],

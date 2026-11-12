@@ -26,8 +26,7 @@ const float EDGE_IN  = 0.85;             // the logo's centre stays this many ra
 const float TILT     = 0.35;             // rad of lean per height/s of sideways speed
 const float TILT_MAX = 0.3;              // rad
 const float BOB      = 0.012;            // idle bob amplitude
-const vec2  SHADOW   = vec2(0.012, -0.02);
-const vec3  BG_TOP   = vec3(0.125, 0.463, 0.639), BG_BOTTOM = vec3(0.067, 0.200, 0.310);
+const vec3  BG       = vec3(0.0);
 
 bool isState(float s, float v) { return abs(s - v) < 0.5; }
 vec4 bLife(sampler2D b, int k) { return texelFetch(b, ivec2(k, 0), 0); }

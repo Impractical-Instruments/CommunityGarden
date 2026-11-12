@@ -15,15 +15,15 @@ from shadertoy import (BLOB_CONFIRMED, BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, Re
 
 SETUP  = Path(__file__).parent / "shaders" / "logo_attract"
 SIZE   = (160, 90)
-ASPECT = SIZE[0] / SIZE[1]
 DT     = 1 / 30
 
 
 class Rig:
-    def __init__(self, ctx, image=True):
-        self.r = Renderer(ctx, SIZE, body_mode="camera")
+    def __init__(self, ctx, image=True, size=SIZE):
+        self.size = size
+        self.r = Renderer(ctx, size, body_mode="camera")
         setup = load_setup(SETUP)
-        self.r.load(setup, image=decode_image(setup.images[0], SIZE) if image else None)
+        self.r.load(setup, image=decode_image(setup.images[0], size) if image else None)
         self.r.defer_image = True
 
     def run(self, seconds, people=()):
@@ -40,19 +40,19 @@ class Rig:
     def logo(self):
         """Logo centre in screen UV."""
         tex = self.r._buffers["buffer_b"].read_tex
-        data = np.frombuffer(tex.read(), dtype=np.float16).reshape(SIZE[1], SIZE[0], 4)
+        data = np.frombuffer(tex.read(), dtype=np.float16).reshape(self.size[1], self.size[0], 4)
         x, y = data[1, 0, :2].astype(float)
-        return x / ASPECT, y
+        return x / (self.size[0] / self.size[1]), y
 
     def life(self, slot):
         tex = self.r._buffers["buffer_b"].read_tex
-        data = np.frombuffer(tex.read(), dtype=np.float16).reshape(SIZE[1], SIZE[0], 4)
+        data = np.frombuffer(tex.read(), dtype=np.float16).reshape(self.size[1], self.size[0], 4)
         return float(data[0, slot, 1])
 
     def image(self):
         self.r.draw_deferred_image()
         data = np.frombuffer(self.r.output.read(components=4), dtype=np.uint8)
-        return data.reshape(SIZE[1], SIZE[0], 4)
+        return data.reshape(self.size[1], self.size[0], 4)
 
     def release(self):
         self.r.release()
@@ -73,7 +73,25 @@ def test_rests_at_centre_when_nobody_is_there(rig):
     rig.run(3.0)
     assert rig.logo() == pytest.approx((0.5, 0.5), abs=0.01)
     img = rig.image()
-    assert img[45, 80, :3].tolist() != img[5, 5, :3].tolist()   # the logo, not the background, at the centre
+    assert img[5, 5, :3].tolist() == [0, 0, 0]               # black background
+    assert (img[..., :3].sum(-1) > 700).any()                # and the logo's white ring on it
+
+
+def _white_extent(img) -> tuple[int, int]:
+    ys, xs = np.nonzero(img[..., :3].astype(int).sum(-1) > 700)
+    return xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
+
+
+@pytest.mark.parametrize("size", [(320, 180), (320, 200), (240, 180), (240, 320)])
+def test_logo_is_round_at_any_aspect(ctx, size):
+    rig = Rig(ctx, size=size)
+    try:
+        rig.run(1.0)
+        w, h = _white_extent(rig.image())
+        assert w == pytest.approx(h, abs=2)
+        assert h == pytest.approx(2 * 0.3 * size[1], abs=3)    # diameter: 2 · RADIUS screen heights
+    finally:
+        rig.release()
 
 
 def test_drifts_to_a_visitor_and_back(rig):
