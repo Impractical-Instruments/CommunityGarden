@@ -241,23 +241,12 @@ If the install uses private show content, also re-run the sync — see
 
 ---
 
-## Body Grid tester
-
-`body_grid_tester.py` — standalone tool to exercise the Body Grid in isolation (no Game). Useful for verifying the background model + slab config visually (`C` cycles background views, `R` reseeds).
-
-```bash
-cd ShowControl/FundingCAPTCHA
-python3 body_grid_tester.py
-```
-
----
-
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | No silhouette ever appears | Camera not producing frames | Check Orbbec USB; check udev rule (`install.sh` writes it — re-run if missing); `journalctl -u captcha -f` |
-| Players ignored, screensaver loops | `min_foreground_pixels` too high, or slab depths wrong | Body grid tester; tune `depth_slabs[]` near/far per Play Zone |
+| Players ignored, screensaver loops | `min_foreground_pixels` too high, or slab depths wrong | Tune `depth_slabs[]` near/far per Play Zone |
 | A ghost silhouette that won't go away, or a still Player fading out | Something moved into the scene (absorbed after `background.absorb_s`), or a Player stood still longer than that | Wait it out, or press `R` to reseed the background; tune `background.absorb_s` (keep > 120) |
 | Cells flicker on/off | `cell_activation_threshold` too low | Raise it (try 0.40) |
 | Game never escalates | Level set thin or shuffle bag favoring easy | Add Levels at higher `difficulty`; check `intensity_weights` |
