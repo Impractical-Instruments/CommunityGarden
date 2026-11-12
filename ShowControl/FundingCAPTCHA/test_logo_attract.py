@@ -1,6 +1,8 @@
 """Behaviour tests for the logo_attract Setup (shaders/logo_attract/), the playlist's interstitial.
 
 Blob records are written by hand: one confirmed visitor per slot, centroid in Body UV.
+Behaviour tests draw the Setup's procedural stand-in, so they need no image. Tests
+of the real logo skip where images/logo.png is a Git LFS pointer, as in CI.
 GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
@@ -11,19 +13,28 @@ import numpy as np
 import pytest
 
 from shadertoy import (BLOB_CONFIRMED, BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, Renderer,
-                       decode_image, load_setup)
+                       ShaderError, decode_image, load_setup)
 
 SETUP  = Path(__file__).parent / "shaders" / "logo_attract"
 SIZE   = (160, 90)
 DT     = 1 / 30
 
 
+def shipped_logo(size=SIZE) -> np.ndarray:
+    """images/logo.png decoded, or skip the test where it's a Git LFS pointer."""
+    try:
+        return decode_image(load_setup(SETUP).images[0], size)
+    except ShaderError:
+        pytest.skip("logo.png is a Git LFS pointer here (git lfs pull)")
+
+
 class Rig:
-    def __init__(self, ctx, image=True, size=SIZE):
+    """image: the "image" source (decode_image output), or None for the procedural stand-in."""
+
+    def __init__(self, ctx, image=None, size=SIZE):
         self.size = size
         self.r = Renderer(ctx, size, body_mode="camera")
-        setup = load_setup(SETUP)
-        self.r.load(setup, image=decode_image(setup.images[0], size) if image else None)
+        self.r.load(load_setup(SETUP), image=image)
         self.r.defer_image = True
 
     def run(self, seconds, people=()):
@@ -82,9 +93,10 @@ def _white_extent(img) -> tuple[int, int]:
     return xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
 
 
+@pytest.mark.parametrize("real", [False, True], ids=["stand-in", "logo.png"])
 @pytest.mark.parametrize("size", [(320, 180), (320, 200), (240, 180), (240, 320)])
-def test_logo_is_round_at_any_aspect(ctx, size):
-    rig = Rig(ctx, size=size)
+def test_logo_is_round_at_any_aspect(ctx, size, real):
+    rig = Rig(ctx, image=shipped_logo(size) if real else None, size=size)
     try:
         rig.run(1.0)
         w, h = _white_extent(rig.image())
@@ -134,12 +146,14 @@ def test_tentative_blobs_dont_pull(rig):
     assert rig.logo() == pytest.approx((0.5, 0.5), abs=0.01)
 
 
-def test_draws_a_stand_in_without_the_image(ctx):
-    r = Rig(ctx, image=False)
+def test_draws_the_shipped_logo(ctx):
+    r = Rig(ctx, image=shipped_logo())
     try:
         r.run(1.0)
-        img = r.image()
-        assert img[45, 80, :3].tolist() != img[5, 5, :3].tolist()
+        img = r.image().astype(int)
+        yellow = (img[..., 0] > 200) & (img[..., 1] > 200) & (img[..., 2] < 80)
+        assert yellow.any()                                 # the bulb
+        assert img[5, 5, :3].tolist() == [0, 0, 0]
     finally:
         r.release()
 
