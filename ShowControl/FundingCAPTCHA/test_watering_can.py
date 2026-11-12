@@ -1055,6 +1055,18 @@ def test_dropped_camera_frames_dont_pop_the_tree(shared_rig, missing):
     assert min(counts) > 0.8 * n0, (n0, counts)
 
 
+def test_backing_away_keeps_the_tree(shared_rig):
+    # Backing away lifts the feet up the image. The root used to ease up after them over a second, lag more than
+    # TREE_ROOT_BAND below every cell, and leave the whole tree with no way back to it: it un-grew to nothing,
+    # then grew back in once the root caught up.
+    rig = shared_rig(220)
+    n0, counts = drawn(rig.image()).sum(), []
+    for m in [person(feet=44 - k) for k in range(1, 9)] + [person(feet=36)] * 30:
+        rig.run([m])
+        counts.append(drawn(rig.image()).sum())
+    assert min(counts) > 0.6 * n0, (n0, counts)
+
+
 # ── Footprints: a walker leaves plants on the floor where they step ──────────
 
 FOOTPRINTS, FOOT_GAP, FOOT_LIFE = K["FOOTPRINTS"], K["FOOT_GAP"], K["FOOT_LIFE"]
