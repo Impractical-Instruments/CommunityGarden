@@ -22,6 +22,15 @@ def test_load_playlist(tmp_path):
     assert cfg.setup_duration_s == 300
 
 
+def test_load_playlist_setup_copies(tmp_path):
+    p = tmp_path / "playlist.json"
+    p.write_text(json.dumps({"setup_duration_s": 300, "setup_copies": 2,
+                             "setups": ["a", "b"], "videos": ["v.mp4"]}))
+    assert load_playlist(p).items == [Item("setup", "a"), Item("setup", "a"),
+                                      Item("setup", "b"), Item("setup", "b"),
+                                      Item("video", "v.mp4")]
+
+
 def test_shipped_playlist_names_real_setups():
     cfg = load_playlist(Path(__file__).parent / "playlist.json")
     shaders = Path(__file__).parent / "shaders"
@@ -206,6 +215,17 @@ def test_render_failure_drops_setup(ctx, tmp_path):
     pl.failed(RuntimeError("boom"))
     assert pl.items == [Item("video", "ok.mp4")]
     assert pl.playing_video
+    r.release()
+
+
+def test_render_failure_drops_every_copy_of_setup(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("setup", "a"), Item("setup", "a"),
+                                      Item("video", "ok.mp4")], now)
+    pl._bag.next = iter([Item("setup", "a")]).__next__
+    pl.next()
+    pl.failed(RuntimeError("boom"))
+    assert pl.items == [Item("video", "ok.mp4")]
     r.release()
 
 

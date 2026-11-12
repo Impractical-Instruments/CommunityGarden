@@ -2,8 +2,9 @@
 
 playlist.json lists Setups (shaders/<name>/) and videos (videos/<file>,
 gitignored: copy them onto the show PC). One shuffle bag holds both, so
-every item plays once before any repeats. A Setup plays for the playlist's
-setup_duration_s (overriding its own duration_s); a video plays to the end
+every item plays once before any repeats; setup_copies puts each Setup in
+the bag that many times, so videos come round less often. A Setup plays for
+the playlist's setup_duration_s (overriding its own duration_s); a video plays to the end
 of its file, silent and letterboxed. Between every two items an optional
 interstitial Setup (the logo) plays for interstitial_s.
 
@@ -66,7 +67,8 @@ class PlaylistConfig:
 
 def load_playlist(path: Path) -> PlaylistConfig:
     cfg = json.loads(Path(path).read_text())
-    items = ([Item("setup", n) for n in cfg.get("setups", [])]
+    copies = max(1, int(cfg.get("setup_copies", 1)))
+    items = ([Item("setup", n) for n in cfg.get("setups", []) for _ in range(copies)]
              + [Item("video", n) for n in cfg.get("videos", [])])
     between = cfg.get("interstitial")
     return PlaylistConfig(items, float(cfg.get("setup_duration_s", 300.0)),
@@ -329,7 +331,7 @@ class Playlist:
         if self.in_interstitial:
             self.interstitial, self.in_interstitial = None, False
         elif item in self.items:
-            self.items.remove(item)
+            self.items = [i for i in self.items if i != item]   # every copy
             self._bag = ShuffleBag(self.items)
         self.next()
 
