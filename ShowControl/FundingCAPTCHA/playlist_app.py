@@ -4,7 +4,8 @@ playlist.json lists Setups (shaders/<name>/) and videos (videos/<file>,
 gitignored: copy them onto the show PC). One shuffle bag holds both, so
 every item plays once before any repeats. A Setup plays for the playlist's
 setup_duration_s (overriding its own duration_s); a video plays to the end
-of its file, silent and letterboxed.
+of its file, silent and letterboxed. Between every two items an optional
+interstitial Setup (the logo) plays for interstitial_s.
 
 The camera runs throughout, so the depth background keeps learning (ADR-0023)
 and Setups find the Body live whenever they come round.
@@ -59,13 +60,18 @@ class Item:
 class PlaylistConfig:
     items:            list[Item]
     setup_duration_s: float
+    interstitial:     Item | None = None    # a Setup played between every two items
+    interstitial_s:   float = 30.0
 
 
 def load_playlist(path: Path) -> PlaylistConfig:
     cfg = json.loads(Path(path).read_text())
     items = ([Item("setup", n) for n in cfg.get("setups", [])]
              + [Item("video", n) for n in cfg.get("videos", [])])
-    return PlaylistConfig(items, float(cfg.get("setup_duration_s", 300.0)))
+    between = cfg.get("interstitial")
+    return PlaylistConfig(items, float(cfg.get("setup_duration_s", 300.0)),
+                          Item("setup", between) if between else None,
+                          float(cfg.get("interstitial_s", 30.0)))
 
 
 # ── Video ─────────────────────────────────────────────────────────────────────
@@ -241,6 +247,10 @@ class VideoScreen:
 class Playlist:
     """Which item plays: one shuffle bag of Setups and videos.
 
+    With an `interstitial` Setup, it plays for `interstitial_s` after every
+    item, before the next is drawn from the bag. If it won't load, the bag
+    carries straight on; if it fails at render time, it's dropped for the run.
+
     An item that won't load is skipped for this draw. A Setup that fails at
     render time is dropped for the rest of the run (as shader_app.Rotation).
     """
@@ -250,6 +260,7 @@ class Playlist:
                  open_video: Callable[[Path], VideoPlayer] = VideoPlayer,
                  clock: Callable[[], float] = time.monotonic,
                  on_load: Callable[[], None] | None = None,
+                 interstitial: Item | None = None, interstitial_s: float = 30.0,
                  image_max: tuple[int, int] = (4096, 4096), image_max_side: int = 16384) -> None:
         self.renderer   = renderer
         self._images    = SetupImages(image_max, image_max_side)
@@ -261,12 +272,19 @@ class Playlist:
         self._open_video = open_video
         self._clock     = clock
         self._on_load   = on_load                 # after every Setup load
+        self.interstitial   = interstitial
+        self.interstitial_s = interstitial_s
+        self.in_interstitial = False              # the current item is the interstitial
         self.current: Item | None = None
         self.video:   VideoPlayer | None = None
         self.started  = clock()
 
     def next(self) -> None:
-        if (len(self.items) == 1 and self.current is not None
+        """End the current item: the interstitial after an item, a bag item after that."""
+        if (self.interstitial is not None and self.current is not None
+                and not self.in_interstitial and self._start_interstitial()):
+            return
+        if (self.interstitial is None and len(self.items) == 1 and self.current is not None
                 and self.current.kind == "setup" and self.renderer.setup is not None):
             self.started = self._clock()          # nothing else to play; keep its state
             return
@@ -287,6 +305,9 @@ class Playlist:
         if self.current is None:
             if elapsed >= RETRY_S:
                 self.next()
+        elif self.in_interstitial:
+            if elapsed >= self.interstitial_s:
+                self.next()
         elif self.current.kind == "setup":
             if elapsed >= self.setup_duration_s:
                 self.next()
@@ -305,7 +326,9 @@ class Playlist:
         log.error("%s failed while rendering, dropped: %s", item, exc)
         self.renderer.unload()
         self.current = None
-        if item in self.items:
+        if self.in_interstitial:
+            self.interstitial, self.in_interstitial = None, False
+        elif item in self.items:
             self.items.remove(item)
             self._bag = ShuffleBag(self.items)
         self.next()
@@ -331,9 +354,18 @@ class Playlist:
             self._stop_video()
             self.renderer.unload()                # free the Setup's buffers while the video plays
             self.video = video
-        self.current = item
+        self.current, self.in_interstitial = item, False
         self.started = self._clock()
         log.info("Playing %s", item)
+        return True
+
+    def _start_interstitial(self) -> bool:
+        if not self._load_setup(self.interstitial.name):
+            return False
+        self._stop_video()
+        self.current, self.in_interstitial = self.interstitial, True
+        self.started = self._clock()
+        log.info("Playing %s (interstitial)", self.current)
         return True
 
     def _load_setup(self, name: str) -> bool:
@@ -379,6 +411,8 @@ def main() -> None:
     screen   = VideoScreen(ctx, win, stage.renderer.vbo)
     playlist = Playlist(stage.renderer, playlist_cfg.items, playlist_cfg.setup_duration_s,
                         on_load=stage.blobs.reset,
+                        interstitial=playlist_cfg.interstitial,
+                        interstitial_s=playlist_cfg.interstitial_s,
                         image_max=win, image_max_side=stage.max_texture_side)
     playlist.next()
     cam_q, stop = start_camera(args, settings)

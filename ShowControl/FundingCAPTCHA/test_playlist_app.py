@@ -231,3 +231,101 @@ def test_setup_gets_a_shuffled_image_per_load(ctx, tmp_path):
     seen.append(_rendered_colour(r))
     assert set(seen) == {(255, 0, 0, 255), (0, 255, 0, 255)}
     r.release()
+
+
+# ── Interstitial ──────────────────────────────────────────────────────────────
+
+def test_load_playlist_interstitial(tmp_path):
+    p = tmp_path / "playlist.json"
+    p.write_text(json.dumps({"setups": ["a"], "interstitial": "logo", "interstitial_s": 12}))
+    cfg = load_playlist(p)
+    assert cfg.interstitial == Item("setup", "logo") and cfg.interstitial_s == 12
+    p.write_text(json.dumps({"setups": ["a"]}))
+    assert load_playlist(p).interstitial is None
+
+
+def test_shipped_interstitial_is_a_real_setup():
+    cfg = load_playlist(Path(__file__).parent / "playlist.json")
+    assert cfg.interstitial is not None
+    assert (Path(__file__).parent / "shaders" / cfg.interstitial.name / "image.glsl").exists()
+
+
+def _between(ctx, tmp_path, items, now, interstitial="i"):
+    r = Renderer(ctx, (4, 4))
+    pl = Playlist(r, items, 300, shader_dir=_setups(tmp_path, "a", "b", "i"),
+                  video_dir=tmp_path, open_video=_FakeVideo, clock=lambda: now[0],
+                  interstitial=Item("setup", interstitial), interstitial_s=30)
+    return r, pl
+
+
+def test_interstitial_plays_between_items(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _between(ctx, tmp_path, [Item("setup", "a"), Item("video", "ok.mp4")], now)
+    pl._bag.next = iter([Item("setup", "a"), Item("video", "ok.mp4"), Item("setup", "a")]).__next__
+    pl.next()
+    assert pl.current == Item("setup", "a") and not pl.in_interstitial   # the show opens on an item
+    now[0] = 300.0
+    pl.tick()
+    assert pl.in_interstitial and r.setup.name == "i"
+    now[0] = 329.0
+    pl.tick()
+    assert pl.in_interstitial
+    now[0] = 330.0
+    pl.tick()
+    assert pl.current == Item("video", "ok.mp4") and not pl.in_interstitial
+    video = pl.video
+    video.done = True
+    pl.tick()
+    assert video.closed and pl.in_interstitial and r.setup.name == "i"
+    now[0] = 360.0
+    pl.tick()
+    assert pl.current == Item("setup", "a") and r.setup.name == "a"
+    r.release()
+
+
+def test_skip_key_also_goes_through_the_interstitial(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _between(ctx, tmp_path, [Item("setup", "a"), Item("setup", "b")], now)
+    pl.next()
+    pl.next()
+    assert pl.in_interstitial
+    pl.next()
+    assert not pl.in_interstitial and pl.current.name in ("a", "b")
+    r.release()
+
+
+def test_single_item_alternates_with_interstitial(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _between(ctx, tmp_path, [Item("setup", "a")], now)
+    pl.next()
+    now[0] = 300.0
+    pl.tick()
+    assert pl.in_interstitial
+    now[0] = 330.0
+    pl.tick()
+    assert pl.current == Item("setup", "a") and r.setup.name == "a"
+    r.release()
+
+
+def test_missing_interstitial_is_skipped(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _between(ctx, tmp_path, [Item("setup", "a"), Item("setup", "b")], now, interstitial="gone")
+    pl.next()
+    first = pl.current
+    pl.next()
+    assert not pl.in_interstitial and pl.current != first
+    r.release()
+
+
+def test_interstitial_render_failure_drops_it(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _between(ctx, tmp_path, [Item("setup", "a"), Item("setup", "b")], now)
+    pl.next()
+    pl.next()
+    assert pl.in_interstitial
+    pl.failed(RuntimeError("boom"))
+    assert pl.interstitial is None and not pl.in_interstitial
+    assert pl.items == [Item("setup", "a"), Item("setup", "b")] and r.setup is not None
+    pl.next()
+    assert not pl.in_interstitial
+    r.release()
