@@ -89,7 +89,12 @@ void mainImage(out vec4 o, in vec2 fc) {
         a = float(ownerAt(uv)) + floor(0.9 / HOLD_Q) * HOLD_Q;
     } else {
         float ph = bHold(prev);
-        if (po > 0 && ph > 0.0) {
+        if (po > 0 && ph > 0.0 && (isState(pst, S_TENTATIVE) || isState(pst, S_CONFIRMED)) && target >= BODY_OFF) {
+            // The body is back under its held shape (a dropped camera frame or two) while its presence eases up
+            // to BODY_ON: keep the hold, so the tree on it isn't wiped and rebuilt cell by cell from the feet.
+            // No run: it isn't body until BODY_ON, and a held run's ends would disagree with its marching neighbours'.
+            a = prev.a;
+        } else if (po > 0 && ph > 0.0) {
             // A missing body coasts first: keep its plants until the track is lost, then rewind them away.
             if (!isState(pst, S_TENTATIVE) && !isState(pst, S_CONFIRMED)) {
                 // The step is below a half float's resolution at high render rates, so round it
