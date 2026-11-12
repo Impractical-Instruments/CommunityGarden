@@ -1043,6 +1043,18 @@ def test_lost_person_plants_rewind_without_popping(shared_rig):
     assert counts[4] > 0.5 * n0, (n0, counts)       # it rewinds: still mostly there half a second in
 
 
+@pytest.mark.parametrize("missing", [2, 5])         # camera frames: shorter than the tracker's coast
+def test_dropped_camera_frames_dont_pop_the_tree(shared_rig, missing):
+    # The body comes back under its held shape: the tree stays, rather than being wiped as presence eases
+    # back up and rebuilt cell by cell from the feet (a whole tree in ~1.5 s: it popped out and back in).
+    rig = shared_rig(220)
+    n0, counts = drawn(rig.image()).sum(), []
+    for m in [EMPTY] * missing + [person()] * 15:
+        rig.run([m])
+        counts.append(drawn(rig.image()).sum())
+    assert min(counts) > 0.8 * n0, (n0, counts)
+
+
 # ── Footprints: a walker leaves plants on the floor where they step ──────────
 
 FOOTPRINTS, FOOT_GAP, FOOT_LIFE = K["FOOTPRINTS"], K["FOOT_GAP"], K["FOOT_LIFE"]
