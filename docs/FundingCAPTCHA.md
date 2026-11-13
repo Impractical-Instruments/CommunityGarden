@@ -39,7 +39,7 @@ Key references:
 - ADR-0013 — silhouette body interaction
 - ADR-0016 — `--test-input` mouse-paint dev mode
 - ADR-0019 — game UI shell
-- ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
+- ADR-0021 — shader player (`shader_stage.py`, Shadertoy Setups; played by `playlist_app.py`)
 - ADR-0022 — shader player blob records (`blobs` channel source)
 - ADR-0023 — self-learning depth background (no boot-time standback)
 - `app.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
@@ -65,24 +65,24 @@ Keys at runtime:
 
 ---
 
-## Shader player — `shader_app.py`
+## Shader player — `playlist_app.py --setup`
 
-Alternative show mode: instead of the Game Arc, cycles Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, background model, and settings as `app.py`. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
+Alternative show mode: instead of the Game Arc, plays Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, background model, and settings as `app.py`. `playlist_app.py` is the one program that plays Setups; `shader_stage.py` is the library under it (`ShaderStage`, `SetupImages`, display and camera helpers) and `video_player.py` holds the video player. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
-Setups in rotation: `ripples` (example), `endless_sunset` (tunables at the top of its `common.glsl`), `hunter_bird` (a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`), `watering_can` (a visitor standing still grows vines, leaves and flowers over their silhouette in ~20 s, and stepping sideways rewinds them — tunables, including `WALK_DIST`, `GROW_S` and `REWIND_S`, at the top of its `common.glsl`), `rainbow_poop` (about every 5 s a rainbow poop drifts down from the sky on to each visitor, and the splats stick to their silhouette, drip and fade over 20 s — step back the other way after it appears and it lands on the floor; tunables, including `BOMB_EVERY_S`, `FALL_SPEED`, `SPLAT_R` and `SPLAT_LIFE_S`, at the top of its `common.glsl`), `barn_dancers` (a barn on hairy legs rises out of a field for each visitor, stands at their left–right position and dances a kick line on a beat the whole troupe shares; the more a visitor moves, the bigger their barn dances and the faster the beat, and when they leave it bows and sinks back — tunables, including `CYCLE_S`, `AMP_MIN` and `BARN_H`, at the top of its `common.glsl`; its art is one sprite sheet, `images/barn.png`, rebuilt from `source/barn.psd` by `pack_atlas.py`).
+Setups in the shipped playlist (`playlist.json`) and the rest of `shaders/`: `ripples` (example), `endless_sunset` (tunables at the top of its `common.glsl`), `hunter_bird` (a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`), `watering_can` (a visitor standing still grows vines, leaves and flowers over their silhouette in ~20 s, and stepping sideways rewinds them — tunables, including `WALK_DIST`, `GROW_S` and `REWIND_S`, at the top of its `common.glsl`), `rainbow_poop` (about every 5 s a rainbow poop drifts down from the sky on to each visitor, and the splats stick to their silhouette, drip and fade over 20 s — step back the other way after it appears and it lands on the floor; tunables, including `BOMB_EVERY_S`, `FALL_SPEED`, `SPLAT_R` and `SPLAT_LIFE_S`, at the top of its `common.glsl`), `barn_dancers` (a barn on hairy legs rises out of a field for each visitor, stands at their left–right position and dances a kick line on a beat the whole troupe shares; the more a visitor moves, the bigger their barn dances and the faster the beat, and when they leave it bows and sinks back — tunables, including `CYCLE_S`, `AMP_MIN` and `BARN_H`, at the top of its `common.glsl`; its art is one sprite sheet, `images/barn.png`, rebuilt from `source/barn.psd` by `pack_atlas.py`).
 
-Setups can also read the tracker's **blob records** (boxes, stable IDs, lifecycle) through the `blobs` channel source (ADR-0022). `blob_debug` is the reference reader, outside the rotation: `python3 shader_app.py --mock-camera --windowed --setup blob_debug`.
+Setups can also read the tracker's **blob records** (boxes, stable IDs, lifecycle) through the `blobs` channel source (ADR-0022). `blob_debug` is the reference reader, outside the playlist: `python3 playlist_app.py --mock-camera --windowed --setup blob_debug`.
 
 | Flag | Effect |
 |---|---|
 | `--camera` / `--mock-camera` | As `app.py` |
 | `--test-input` | Mouse paints the Body via `shaders/body_painter.glsl`, as in Shadertoy |
-| `--setup NAME` | Pin one Setup, no rotation |
+| `--setup NAME` | Play one Setup alone: a one-item playlist, no cycling, no interstitial |
 | `--windowed` | 1280×720 window |
 
 Keys: `N` / `→` next Setup · `R` reload Setup from disk · Escape quit.
 
-To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `shader_app.py --camera`. `deploy/install.sh` installs the Mesa GL/EGL libraries moderngl needs. Not yet verified on the Pi 5 under `kmsdrm`; if the GL context fails to start, that is the first place to look.
+To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `playlist_app.py --camera`. `deploy/install.sh` installs the Mesa GL/EGL libraries moderngl needs. Not yet verified on the Pi 5 under `kmsdrm`; if the GL context fails to start, that is the first place to look.
 
 ---
 
@@ -96,7 +96,7 @@ Shader Setups and full-screen videos in one shuffle bag: every item plays once b
 
 A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
 
-Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display N` as `shader_app.py`, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
+Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display N` as above, `--setup NAME` to play one Setup alone, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
 
 ---
 

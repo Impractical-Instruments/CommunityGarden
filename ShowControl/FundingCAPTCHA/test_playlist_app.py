@@ -1,4 +1,4 @@
-"""playlist_app.py: playlist file, video decoding and pacing, letterbox, rotation."""
+"""playlist_app.py: playlist file, --setup, rotation; video_player.py: decoding and pacing, letterbox."""
 import json
 import time
 from pathlib import Path
@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from playlist_app import (Item, Playlist, VideoPlayer, fit_rect, load_playlist,
-                          quarter_turns)
-from shader_test_rig import SOLID, image_setup, rendered_colour
+from playlist_app import Item, Playlist, load_playlist, setup_only
+from shader_test_rig import SOLID, image_setup, png, rendered_colour
 from shadertoy import Renderer
+from video_player import VideoPlayer, fit_rect, quarter_turns
 
 
 # ── Playlist file ─────────────────────────────────────────────────────────────
@@ -37,6 +37,12 @@ def test_shipped_playlist_names_real_setups():
     for item in cfg.items:
         if item.kind == "setup":
             assert (shaders / item.name / "image.glsl").exists(), item.name
+
+
+def test_setup_only_is_a_one_item_playlist_without_interstitial():
+    cfg = setup_only("ripples")
+    assert cfg.items == [Item("setup", "ripples")]
+    assert cfg.interstitial is None
 
 
 # ── Letterbox ─────────────────────────────────────────────────────────────────
@@ -241,7 +247,7 @@ def test_single_setup_is_not_reloaded_on_expiry(ctx, tmp_path):
 
 
 def test_setup_gets_a_shuffled_image_per_load(ctx, tmp_path):
-    """The "image" source works under the playlist as under shader_app.Rotation (ADR-0024)."""
+    """The "image" source works under the playlist (ADR-0024)."""
     image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255)})
     r = Renderer(ctx, (4, 4))
     pl = Playlist(r, [Item("setup", "s")], 300, shader_dir=tmp_path, video_dir=tmp_path)
@@ -250,6 +256,83 @@ def test_setup_gets_a_shuffled_image_per_load(ctx, tmp_path):
     pl.reload()
     seen.append(rendered_colour(r))
     assert set(seen) == {(255, 0, 0, 255), (0, 255, 0, 255)}
+    r.release()
+
+
+def test_reload_with_broken_edit_keeps_current(ctx, tmp_path):
+    now = [0.0]
+    r, pl = _playlist(ctx, tmp_path, [Item("setup", "a"), Item("setup", "b")], now)
+    pl.next()
+    current = r.setup.name
+    (tmp_path / current / "image.glsl").write_text("garbage")
+    pl.reload()
+    assert r.setup.name == current
+    r.release()
+
+
+def test_on_load_is_called_for_every_load(ctx, tmp_path):
+    """Buffer state resets on every load, so the blob tracker must too (stamps match on id)."""
+    loads = []
+    r = Renderer(ctx, (4, 4))
+    pl = Playlist(r, [Item("setup", "a"), Item("setup", "b")], 300,
+                  shader_dir=_setups(tmp_path, "a", "b"), video_dir=tmp_path,
+                  on_load=lambda: loads.append(r.setup.name))
+    pl.next()
+    pl.reload()
+    assert loads == [r.setup.name] * 2
+    (tmp_path / r.setup.name / "image.glsl").write_text("garbage")
+    pl.reload()                                   # broken edit: nothing reloaded
+    assert len(loads) == 2
+    r.release()
+
+
+def _image_playlist(ctx, tmp_path, **kwargs):
+    r = Renderer(ctx, (4, 4))
+    return r, Playlist(r, [Item("setup", "s")], 300, shader_dir=tmp_path,
+                       video_dir=tmp_path, **kwargs)
+
+
+def test_images_shuffle_with_no_repeat_until_all_have_shown(ctx, tmp_path):
+    image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255),
+                           "b.png": (0, 0, 255, 255)})
+    r, pl = _image_playlist(ctx, tmp_path)
+    pl.next()
+    seen = [rendered_colour(r)]
+    for _ in range(3):
+        pl.reload()
+        seen.append(rendered_colour(r))
+    assert len(set(seen[:3])) == 3
+    assert seen[3] in seen[:3]
+    r.release()
+
+
+def test_corrupt_image_is_skipped(ctx, tmp_path):
+    image_setup(tmp_path, {"bad.png": b"not a png", "good.png": (0, 255, 0, 255)})
+    r, pl = _image_playlist(ctx, tmp_path)
+    pl.next()
+    colours = [rendered_colour(r)]
+    for _ in range(3):
+        pl.reload()
+        colours.append(rendered_colour(r))
+    assert colours == [(0, 255, 0, 255)] * 4
+    r.release()
+
+
+def test_only_corrupt_images_binds_nothing(ctx, tmp_path):
+    image_setup(tmp_path, {"bad.png": b"not a png"})
+    r, pl = _image_playlist(ctx, tmp_path)
+    pl.next()
+    assert r.setup is not None and r.setup.name == "s"
+    assert rendered_colour(r)[3] == 0
+    r.release()
+
+
+def test_images_are_scaled_to_cover_image_max(ctx, tmp_path):
+    d = image_setup(tmp_path, {})
+    png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
+    r, pl = _image_playlist(ctx, tmp_path, image_max=(10, 10))
+    pl.next()
+    assert r.image_size == (20, 10)               # smallest size that still covers 10x10
     r.release()
 
 

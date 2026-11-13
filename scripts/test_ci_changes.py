@@ -144,7 +144,6 @@ def test_no_changed_files_runs_nothing():
     "ShowControl/FundingCAPTCHA/shaders/watering_can/setup.json",
     "ShowControl/FundingCAPTCHA/shaders/watering_can/common.glsl",
     "ShowControl/FundingCAPTCHA/shaders/logo_attract/images/logo.png",
-    "ShowControl/FundingCAPTCHA/shaders/setups.json",
     "ShowControl/FundingCAPTCHA/images/bg.png",
     "ShowControl/FundingCAPTCHA/captcha-settings.json",
     "ShowControl/FundingCAPTCHA/playlist.json",
