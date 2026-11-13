@@ -9,8 +9,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shadertoy import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLOB_PAINTER_PATH,
-                       BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, BodyMouse, Keyboard, Renderer,
+from blobs_contract import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLOB_ROWS,
+                            BLOB_SLOTS, BLOB_TENTATIVE)
+from shadertoy import (BLOB_PAINTER_PATH, BodyMouse, Keyboard, Renderer,
                        ShaderError, decode_image, js_keycode, load_setup, pack_body)
 from shader_test_rig import SOLID, image_setup, pixel, png, rendered_colour, write_setup
 

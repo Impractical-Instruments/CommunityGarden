@@ -9,7 +9,7 @@ ADR-0021 gives Setups the Body (Buffer A: `.r` presence, `.g` nearness) and noth
 
 ## Decision
 
-1. **A new channel source, `"blobs"`.** It's bound like any other source in `setup.json`. On the Pi it's a `BLOB_SLOTS` × `BLOB_ROWS` (8 × 3) RGBA32F texture with `NEAREST` filtering, read with `texelFetch(iChannelN, ivec2(slot, row), 0)`. This is the exception to "never `texelFetch`": records have a fixed layout, not a resolution.
+1. **A new channel source, `"blobs"`.** It's bound like any other source in `setup.json`. On the Pi it's a `BLOB_SLOTS` × `BLOB_ROWS` (8 × 3) RGBA32F texture (constants in `blobs_contract.py`) with `NEAREST` filtering, read with `texelFetch(iChannelN, ivec2(slot, row), 0)`. This is the exception to "never `texelFetch`": records have a fixed layout, not a resolution.
 
    | Row | `.x` | `.y` | `.z` | `.w` |
    |---|---|---|---|---|
