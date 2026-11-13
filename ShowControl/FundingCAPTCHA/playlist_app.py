@@ -92,7 +92,7 @@ class Playlist:
     carries straight on; if it fails at render time, it's dropped for the run.
 
     An item that won't load is skipped for this draw. A Setup that fails at
-    render time is dropped for the rest of the run .
+    render time is dropped for the rest of the run.
     """
 
     def __init__(self, renderer: Renderer, items: list[Item], setup_duration_s: float,
