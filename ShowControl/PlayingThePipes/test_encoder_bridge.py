@@ -1,9 +1,11 @@
-"""The encoder bridge: Pico serial lines in, /pipes/knobN/in OSC out, /health (#237)."""
+"""The encoder bridge: Pico serial lines in, /pipes/knobN/in OSC out, /health (#237),
+and the Dashboard's virtual encoders (#263)."""
 from __future__ import annotations
 
 import json
 import logging
 import random
+import re
 import socket
 import threading
 from pathlib import Path
@@ -16,6 +18,7 @@ from pythonosc.osc_message import OscMessage
 import encoder_bridge as eb
 
 NETWORK = Path(__file__).resolve().parents[1] / "network.json"
+DASHBOARD_PAGE = Path(__file__).resolve().parents[1] / "Dashboard" / "playingthepipes.html"
 
 
 # ── Protocol ──────────────────────────────────────────────────────────────────
@@ -121,6 +124,7 @@ class Clock:
 def test_health_with_nothing_connected():
     assert eb.BridgeState().health(reuben_alive=False) == {
         "ok": False, "picos_connected": 0, "boards": [], "last_event_age_s": None,
+        "last_virtual_age_s": None, "last_source": None,
         "reuben_alive": False, "fake_encoders": False,
     }
 
@@ -136,6 +140,7 @@ def test_health_is_ok_only_with_both_boards_and_reuben():
     clock.t += 3.25
     health = state.health(reuben_alive=True)
     assert health == {"ok": True, "picos_connected": 2, "boards": [0, 1], "last_event_age_s": 3.2,
+                      "last_virtual_age_s": None, "last_source": "pico",
                       "reuben_alive": True, "fake_encoders": False}
     assert state.health(reuben_alive=False)["ok"] is False
 
@@ -326,6 +331,117 @@ def test_run_fake_encoders_reports_both_fake_boards_and_sends_events():
     eb.run_fake_encoders(state, on_event, stop, seed=2)
     assert len(sent) >= 3
     assert state.health(reuben_alive=False)["picos_connected"] == 2
+    assert state.health(reuben_alive=False)["last_source"] == "fake"
+
+
+# ── Virtual encoders: the Dashboard surface (#263) ────────────────────────────
+
+def surface_app(state=None, sent=None, reuben_alive=True):
+    """The app wired the way main() wires it, around a real controller."""
+    import pipes_control as pc
+
+    controller = pc.Controller(pc.Settings.load())
+    state = state or eb.BridgeState()
+    sent = [] if sent is None else sent
+
+    def inject(event):
+        sent.append(event)
+        controller.on_detents(event.knob, event.delta, 0.0)
+
+    app = eb.make_app(state, lambda: reuben_alive, status=controller.status,
+                      on_event=inject, snapshot=controller.snapshot)
+    return TestClient(app), controller, state, sent
+
+
+def post_enc(client, line):
+    return client.post("/control/enc", content=line, headers={"Content-Type": "text/plain"})
+
+
+def test_a_posted_enc_line_reaches_the_controller_and_goes_out_as_osc():
+    import pipes_control as pc
+
+    client, controller, _, sent = surface_app()
+    assert post_enc(client, "/enc 1 3 5").status_code == 204
+    assert sent == [eb.EncoderEvent(1, 3, 5)]
+
+    out = []
+    pc.ChangeSender(lambda a, v: out.append((a, v)), controller.s)(controller.tick(0.01), 0.01)
+    got = dict(out)
+    assert got["/pipes/knob9/position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
+    assert got["/pipes/knob9/level/in"] > 0
+    assert got["/pipes/knob0/level/in"] == 0.0
+
+
+@pytest.mark.parametrize("body", [
+    "", "garbage", "/enc 2 0 1", "/enc 0 6 1", "/enc 0 0", "/enc 0 0 1\n/enc 0 1 1",
+    "/enc 0 0 " + "9" * 80,     # over the size limit
+])
+def test_a_malformed_or_out_of_range_line_is_refused_and_touches_nothing(body):
+    client, controller, state, sent = surface_app()
+    before = controller.snapshot()
+    assert post_enc(client, body).status_code == 400
+    assert sent == []
+    assert controller.snapshot() == before
+    assert state.health(reuben_alive=True)["last_source"] is None
+
+
+def test_virtual_turns_stay_out_of_the_pico_health_numbers():
+    clock = Clock()
+    state = eb.BridgeState(clock)
+    client, *_ = surface_app(state=state)
+    assert post_enc(client, "/enc 0 0 1").status_code == 204
+    assert post_enc(client, "/enc 1 5 -2").status_code == 204
+    clock.t += 1.5
+    health = client.get("/health").json()
+    assert health["picos_connected"] == 0 and health["boards"] == []
+    assert health["ok"] is False and health["last_event_age_s"] is None
+    assert health["last_virtual_age_s"] == 1.5 and health["last_source"] == "virtual"
+
+    state.event("COM3", eb.EncoderEvent(0, 0, 1))      # a real turn afterwards
+    health = client.get("/health").json()
+    assert health["last_source"] == "pico" and health["last_event_age_s"] == 0.0
+    assert health["last_virtual_age_s"] == 1.5
+
+
+def test_the_control_route_allows_cross_origin_posts():
+    client, *_ = surface_app()
+    resp = client.options("/control/enc", headers={
+        "Origin": "http://192.168.1.10:8000", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type"})
+    assert resp.status_code == 200
+    assert "POST" in resp.headers["access-control-allow-methods"]
+
+
+def test_state_counts_match_the_controller():
+    import pipes_control as pc
+
+    client, controller, *_ = surface_app()
+    post_enc(client, "/enc 0 2 3")
+    controller.tick(0.01)
+    snap = client.get("/state").json()
+    assert snap["layout"] == {"boards": eb.BOARDS, "encoders_per_board": eb.ENCODERS_PER_BOARD}
+    assert len(snap["knobs"]) == len(controller.knobs) == eb.KNOBS
+    assert len(snap["loops"]) == pc.LOOPS
+    assert snap["max_state"] == controller.s.max_state
+    assert snap["knobs"][2]["awake"] is True and snap["knobs"][2]["level"] > 0
+    assert snap["knobs"][0] == {"awake": False, "level": 0.0, "position": snap["knobs"][0]["position"]}
+    lo, hi = snap["position_range"]
+    assert all(lo <= k["position"] <= hi for k in snap["knobs"])
+
+
+def test_the_dashboard_page_reads_only_fields_the_bridge_returns():
+    """Drift guard: playingthepipes.html names /health fields `health.x`, /state fields
+    `snap.x`, layout fields `layout.x` and per-knob fields `kv.x`. Each must exist."""
+    page = DASHBOARD_PAGE.read_text()
+    client, controller, *_ = surface_app()
+    health = client.get("/health").json()
+    snap = client.get("/state").json()
+    sources = {"health": health, "snap": snap, "layout": snap["layout"], "kv": snap["knobs"][0]}
+    for name, fields in sources.items():
+        used = set(re.findall(rf"\b{name}\.(\w+)", page))
+        assert used, f"the page reads no {name}.* fields: has the naming convention changed?"
+        missing = used - set(fields)
+        assert not missing, f"playingthepipes.html reads {name}.{sorted(missing)}, which the bridge does not return"
 
 
 # ── Config ────────────────────────────────────────────────────────────────────

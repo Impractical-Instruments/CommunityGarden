@@ -1,4 +1,4 @@
-.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments pipes
+.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments pipes pipes-surface
 
 CONTROLLERS := Firmware/TreeHouse_Controllers
 
@@ -87,3 +87,15 @@ pipes: reuben uv
 	@$(REUBEN) play $(PIPES_INSTRUMENT) $(REUBEN_PLAY_ARGS) & rp=$$!; \
 	trap 'kill $$rp 2>/dev/null' EXIT INT TERM; \
 	$(RUN) python ShowControl/PlayingThePipes/encoder_bridge.py --fake-encoders
+
+# The same, but nothing turns the knobs until you do, from the Dashboard's virtual encoder
+# surface (#263): reuben, the bridge without fake encoders, and the Dashboard on
+# DASHBOARD_PORT. Open the URL it prints and arm the surface. Ctrl-C stops all three.
+DASHBOARD_PORT ?= 9000
+pipes-surface: reuben uv
+	@pipes_port=$$($(RUN) python -c "from OSCFabric.config import load_network_config as n; print(n()['elements']['pipes']['http_port'])") || exit 1; \
+	$(REUBEN) play $(PIPES_INSTRUMENT) $(REUBEN_PLAY_ARGS) & rp=$$!; \
+	$(RUN) python ShowControl/Dashboard/serve.py $(DASHBOARD_PORT) >/dev/null & dp=$$!; \
+	trap 'kill $$rp $$dp 2>/dev/null' EXIT INT TERM; \
+	echo "Virtual encoder surface: http://127.0.0.1:$(DASHBOARD_PORT)/playingthepipes.html?pipes=127.0.0.1:$$pipes_port"; \
+	$(RUN) python ShowControl/PlayingThePipes/encoder_bridge.py

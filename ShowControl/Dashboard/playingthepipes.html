@@ -33,6 +33,10 @@
         <span id="pp-last">—</span>
       </div>
       <div class="th-field">
+        <label>Last virtual turn</label>
+        <span id="pp-virtual">—</span>
+      </div>
+      <div class="th-field">
         <label>Loop state</label>
         <span id="pp-state">—</span>
       </div>
@@ -44,16 +48,55 @@
     <div class="th-displays" id="pp-note"></div>
   </div>
 
+  <!-- Virtual encoders (#263): detents into the bridge, the way a Pico sends them. -->
+  <div class="pp-surface disarmed" id="pp-surface">
+    <div class="pp-toolbar">
+      <button class="ctrl-btn" id="pp-arm" type="button">disarmed · click to arm</button>
+      <label class="pp-rate">spin
+        <input type="range" id="pp-rate" min="1" max="100" value="20">
+        <span id="pp-rate-val">20</span> detents/s
+      </label>
+      <span class="pp-surface-note" id="pp-surface-note"></span>
+    </div>
+    <div class="pp-help">Armed: drag a dial up/down or scroll on it to turn it; hold ◀ ▶ to spin at the set rate.
+      Disarms when this tab is hidden or loses focus, and after 5 min without a turn.</div>
+    <div class="pp-board-grid" id="pp-board-grid"></div>
+    <div class="pp-loops-wrap">
+      <div class="pp-section-label">Loops</div>
+      <div class="pp-loops" id="pp-loops"></div>
+    </div>
+  </div>
+
 </div>
 <script>
-// The pipes host and port come from network.json via serve.py (AGENTS.md constraint 3).
-async function pipesHealthUrl() {
+// Field naming: test_encoder_bridge.py's drift test reads this page for `health.<field>`
+// (/health), `snap.<field>` (/state), `layout.<field>` (/state's layout) and
+// `kv.<field>` (one knob in /state) and checks the bridge returns each. Keep those names.
+
+const PX_PER_DETENT = 6;          // drag distance per detent
+const WHEEL_PX_PER_DETENT = 40;   // scroll distance per detent
+const FLUSH_MS = 50;              // each knob's detents go out summed, this often
+const STATE_POLL_MS = 100;
+const HEALTH_POLL_MS = 2000;
+const IDLE_DISARM_MS = 5 * 60 * 1000;
+
+// ── Where the bridge is ──────────────────────────────────────────────────────
+
+// ?pipes=host:port reaches a bridge somewhere else (a laptop: make pipes-surface);
+// otherwise the pipes host and port come from network.json via serve.py (AGENTS.md constraint 3).
+async function pipesBase() {
+  const override = new URLSearchParams(location.search).get('pipes');
+  if (override) return `http://${override}`;
   const resp = await fetch('/api/network');
   if (!resp.ok) throw new Error(`/api/network: HTTP ${resp.status}`);
   const pipes = ((await resp.json()).elements || {}).pipes;
   if (!pipes || !pipes.ip || !pipes.http_port) throw new Error('network.json has no ip/http_port for "pipes"');
-  return `http://${pipes.ip}:${pipes.http_port}/health`;
+  return `http://${pipes.ip}:${pipes.http_port}`;
 }
+
+let BASE;
+
+// ── Status row (/health) ─────────────────────────────────────────────────────
 
 function show(id, text, cls) {
   const el = document.getElementById(id);
@@ -68,27 +111,248 @@ function fmtAge(s) {
   return `${Math.floor(s / 3600)} h ago`;
 }
 
-async function poll(url) {
+let awakeKnobs = null;
+let boardsTotal = null;   // from /state's layout: one Pico per board
+
+async function pollHealth() {
   try {
-    const h = await (await fetch(url, { signal: AbortSignal.timeout(2000) })).json();
-    show('pp-bridge', h.ok ? 'ok' : 'degraded', h.ok ? 'connected' : 'disconnected');
-    show('pp-picos', `${h.picos_connected} of 2`);
-    show('pp-boards', h.boards.length ? h.boards.join(', ') : 'none');
-    show('pp-last', fmtAge(h.last_event_age_s));
-    show('pp-state', h.state === undefined ? '—' : `${h.state} of 12 · ${h.awake_knobs} turning`);
-    show('pp-reuben', h.reuben_alive ? 'running' : 'not running', h.reuben_alive ? 'connected' : 'disconnected');
-    document.getElementById('pp-note').textContent = h.fake_encoders ? 'fake encoders: no Picos are being read' : '';
+    const health = await (await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) })).json();
+    show('pp-bridge', health.ok ? 'ok' : 'degraded', health.ok ? 'connected' : 'disconnected');
+    show('pp-picos', boardsTotal === null ? `${health.picos_connected}` : `${health.picos_connected} of ${boardsTotal}`);
+    show('pp-boards', health.boards.length ? health.boards.join(', ') : 'none');
+    show('pp-last', fmtAge(health.last_event_age_s) + (health.last_source && health.last_source !== 'virtual' ? ` (${health.last_source})` : ''));
+    show('pp-virtual', fmtAge(health.last_virtual_age_s));
+    show('pp-reuben', health.reuben_alive ? 'running' : 'not running', health.reuben_alive ? 'connected' : 'disconnected');
+    awakeKnobs = health.awake_knobs;
+    document.getElementById('pp-note').textContent = health.fake_encoders ? 'fake encoders: no Picos are being read' : '';
   } catch (_) {
     show('pp-bridge', 'unreachable', 'disconnected');
-    ['pp-picos', 'pp-boards', 'pp-last', 'pp-state'].forEach(id => show(id, '—'));
+    ['pp-picos', 'pp-boards', 'pp-last', 'pp-virtual'].forEach(id => show(id, '—'));
     show('pp-reuben', '—', '');
+    awakeKnobs = null;
     document.getElementById('pp-note').textContent = '';
   }
 }
 
-pipesHealthUrl().then(url => {
-  poll(url);
-  setInterval(() => poll(url), 2000);
+// ── Surface: layout and meters (/state) ──────────────────────────────────────
+
+const grid = document.getElementById('pp-board-grid');
+const loopsEl = document.getElementById('pp-loops');
+const surface = document.getElementById('pp-surface');
+const surfaceNote = document.getElementById('pp-surface-note');
+let layoutKey = null;
+let encodersPerBoard = 0;
+let knobEls = [];
+let loopEls = [];
+
+function buildKnobs(layout) {
+  encodersPerBoard = layout.encoders_per_board;
+  grid.innerHTML = '';
+  knobEls = [];
+  for (let b = 0; b < layout.boards; b++) {
+    const board = document.createElement('div');
+    board.className = 'pp-board';
+    board.innerHTML = `<div class="pp-section-label">Board ${b}</div><div class="pp-knobs"></div>`;
+    const row = board.querySelector('.pp-knobs');
+    for (let e = 0; e < layout.encoders_per_board; e++) {
+      const k = b * layout.encoders_per_board + e;
+      const el = document.createElement('div');
+      el.className = 'pp-knob';
+      el.innerHTML = `
+        <div class="pp-dial" title="drag or scroll to turn"><div class="pp-pointer"></div></div>
+        <div class="pp-name" title="knob ${k}: board ${b}, encoder ${e}">k${k} <span>b${b}·e${e}</span></div>
+        <div class="pp-meter" title="level"><div class="pp-meter-fill"></div></div>
+        <div class="pp-spin">
+          <button class="ctrl-btn" type="button" data-dir="-1" title="hold to spin back">◀</button>
+          <button class="ctrl-btn" type="button" data-dir="1" title="hold to spin forward">▶</button>
+        </div>`;
+      wireKnob(el, k);
+      row.appendChild(el);
+      knobEls.push(el);
+    }
+    grid.appendChild(board);
+  }
+}
+
+function buildLoops(n) {
+  loopsEl.innerHTML = '';
+  loopEls = [];
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = 'pp-loop';
+    el.innerHTML = `<div class="pp-loop-bar"><div class="pp-loop-fill"></div></div><div class="pp-loop-num">${i + 1}</div>`;
+    loopsEl.appendChild(el);
+    loopEls.push(el.querySelector('.pp-loop-fill'));
+  }
+}
+
+function renderSnap(snap) {
+  const layout = snap.layout;
+  const key = `${layout.boards}x${layout.encoders_per_board}`;
+  boardsTotal = layout.boards;
+  if (key !== layoutKey) { disarm(); buildKnobs(layout); layoutKey = key; }
+  if (loopEls.length !== snap.loops.length) buildLoops(snap.loops.length);
+
+  const [lo, hi] = snap.position_range;
+  snap.knobs.forEach((kv, k) => {
+    const el = knobEls[k];
+    if (!el) return;
+    const t = hi > lo ? (kv.position - lo) / (hi - lo) : 0.5;
+    el.querySelector('.pp-pointer').style.transform = `rotate(${-135 + 270 * t}deg)`;
+    el.querySelector('.pp-meter-fill').style.width = `${Math.min(1, kv.level) * 100}%`;
+    el.classList.toggle('awake', kv.awake);
+  });
+  snap.loops.forEach((v, i) => { loopEls[i].style.height = `${Math.min(1, v) * 100}%`; });
+  show('pp-state', `${snap.state} of ${snap.max_state}` + (awakeKnobs === null ? '' : ` · ${awakeKnobs} turning`));
+}
+
+let stateInFlight = false;
+let stateOk = true;
+
+async function pollState() {
+  if (stateInFlight) return;
+  stateInFlight = true;
+  try {
+    const snap = await (await fetch(`${BASE}/state`, { signal: AbortSignal.timeout(1000) })).json();
+    renderSnap(snap);
+    if (!stateOk) surfaceNote.textContent = '';
+    stateOk = true;
+    surface.classList.remove('stale');
+  } catch (_) {
+    if (stateOk) surfaceNote.textContent = 'bridge unreachable: meters are stale';
+    stateOk = false;
+    surface.classList.add('stale');
+    show('pp-state', '—');
+  } finally {
+    stateInFlight = false;
+  }
+}
+
+// ── Surface: turning (POST /control/enc) ─────────────────────────────────────
+
+let armed = false;
+let lastTurn = 0;
+const pending = new Map();    // knob -> whole detents not yet sent
+const fraction = new Map();   // knob -> sub-detent remainder from drag, wheel and spin
+const spinning = new Map();   // knob -> direction while a spin button is held
+
+function turn(k, detents) {
+  if (!armed) return;
+  const f = (fraction.get(k) || 0) + detents;
+  const whole = Math.trunc(f);
+  fraction.set(k, f - whole);
+  if (whole) {
+    pending.set(k, (pending.get(k) || 0) + whole);
+    lastTurn = performance.now();
+  }
+}
+
+function wireKnob(el, k) {
+  const dial = el.querySelector('.pp-dial');
+  let lastY = null;
+  dial.addEventListener('pointerdown', ev => {
+    if (!armed) return;
+    lastY = ev.clientY;
+    dial.setPointerCapture(ev.pointerId);
+    ev.preventDefault();
+  });
+  dial.addEventListener('pointermove', ev => {
+    if (lastY === null || !armed) return;
+    turn(k, (lastY - ev.clientY) / PX_PER_DETENT);   // up is forward
+    lastY = ev.clientY;
+  });
+  const endDrag = () => { lastY = null; };
+  dial.addEventListener('pointerup', endDrag);
+  dial.addEventListener('pointercancel', endDrag);
+  dial.addEventListener('wheel', ev => {
+    if (!armed) return;
+    ev.preventDefault();
+    const px = ev.deltaMode === 1 ? ev.deltaY * 16 : ev.deltaY;
+    turn(k, -px / WHEEL_PX_PER_DETENT);                // scroll up is forward
+  }, { passive: false });
+
+  el.querySelectorAll('.pp-spin button').forEach(btn => {
+    const dir = Number(btn.dataset.dir);
+    btn.addEventListener('pointerdown', ev => {
+      if (!armed) return;
+      spinning.set(k, dir);
+      btn.setPointerCapture(ev.pointerId);
+      btn.classList.add('active');
+      lastTurn = performance.now();
+    });
+    const stop = () => { if (spinning.get(k) === dir) spinning.delete(k); btn.classList.remove('active'); };
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointercancel', stop);
+    btn.addEventListener('lostpointercapture', stop);
+  });
+}
+
+async function postEnc(k, delta) {
+  const board = Math.floor(k / encodersPerBoard);
+  const enc = k % encodersPerBoard;
+  try {
+    // text/plain keeps this a simple cross-origin request: no preflight.
+    const resp = await fetch(`${BASE}/control/enc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: `/enc ${board} ${enc} ${delta}`,
+    });
+    if (!resp.ok) surfaceNote.textContent = `turn refused: HTTP ${resp.status}`;
+  } catch (_) {
+    surfaceNote.textContent = 'turn not sent: bridge unreachable';
+  }
+}
+
+const rateInput = document.getElementById('pp-rate');
+const rateVal = document.getElementById('pp-rate-val');
+rateInput.addEventListener('input', () => { rateVal.textContent = rateInput.value; });
+
+let lastFlush = performance.now();
+
+function flush() {
+  const now = performance.now();
+  const dt = (now - lastFlush) / 1000;
+  lastFlush = now;
+  if (!armed) return;
+  const rate = Number(rateInput.value);
+  for (const [k, dir] of spinning) turn(k, dir * rate * dt);
+  for (const [k, delta] of pending) if (delta) postEnc(k, delta);
+  pending.clear();
+  if (now - lastTurn > IDLE_DISARM_MS) disarm('disarmed after 5 min without a turn');
+}
+
+// ── Arm switch: page-only, always starts disarmed ────────────────────────────
+
+const armBtn = document.getElementById('pp-arm');
+
+function setArmed(on, why = '') {
+  armed = on;
+  pending.clear();
+  fraction.clear();
+  spinning.clear();
+  document.querySelectorAll('.pp-spin button.active').forEach(b => b.classList.remove('active'));
+  surface.classList.toggle('disarmed', !on);
+  armBtn.classList.toggle('active', on);
+  armBtn.textContent = on ? 'armed · sending turns · click to disarm' : 'disarmed · click to arm';
+  if (on) lastTurn = performance.now();
+  surfaceNote.textContent = why;
+}
+
+function disarm(why = '') { if (armed) setArmed(false, why); }
+
+armBtn.addEventListener('click', () => setArmed(!armed));
+document.addEventListener('visibilitychange', () => { if (document.hidden) disarm('disarmed: tab hidden'); });
+window.addEventListener('blur', () => disarm('disarmed: window lost focus'));
+
+// ── Start ────────────────────────────────────────────────────────────────────
+
+pipesBase().then(base => {
+  BASE = base;
+  pollHealth();
+  setInterval(pollHealth, HEALTH_POLL_MS);
+  pollState();
+  setInterval(pollState, STATE_POLL_MS);
+  setInterval(flush, FLUSH_MS);
 }).catch(e => {
   console.error(e);
   show('pp-bridge', 'no network.json entry', 'disconnected');

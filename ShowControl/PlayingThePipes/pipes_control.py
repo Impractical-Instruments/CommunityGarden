@@ -250,6 +250,22 @@ class Controller:
         with self._lock:
             return {"state": self.mix.state, "awake_knobs": sum(k.awake for k in self.knobs)}
 
+    def snapshot(self) -> dict:
+        """What the Dashboard's virtual encoder surface draws: each knob's awake, level
+        and position (as sent to reuben), the loop levels, and the mix state."""
+        with self._lock:
+            knobs = []
+            for k in self.knobs:
+                v = k.values()
+                knobs.append({"awake": k.awake, "level": v["level"], "position": v["position"]})
+            return {
+                "knobs": knobs,
+                "loops": self.mix.levels(),
+                "state": self.mix.state,
+                "max_state": self.s.max_state,
+                "position_range": list(self.s.position_out),
+            }
+
 
 class ChangeSender:
     """Sends a value when it has moved by more than epsilon (at most every

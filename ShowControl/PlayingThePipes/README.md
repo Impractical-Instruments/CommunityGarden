@@ -8,12 +8,16 @@ The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). Bot
 
 | Path | What it is |
 |---|---|
-| `encoder_bridge.py` | Reads the encoder Picos (found by USB vendor ID, any port), feeds their detents to `pipes_control`, and sends its values to reuben as OSC every 10 ms. Serves `GET /health` (Picos, reuben, loop state). `--fake-encoders` runs it without hardware |
+| `encoder_bridge.py` | Reads the encoder Picos (found by USB vendor ID, any port), feeds their detents to `pipes_control`, and sends its values to reuben as OSC every 10 ms. Serves `GET /health` (Picos, reuben, loop state), and `POST /control/enc` + `GET /state` for the Dashboard's virtual encoder surface. `--fake-encoders` runs it without hardware |
 | `pipes_control.py` | What the Max patch's `knobgrain`/`knobvelocity`/`wakemove`/`ComputeState` did: per-knob velocity, wake/sleep, grain parameters and level; the loop mix state and its preset crossfades |
 | `settings.json` | All of `pipes_control`'s tuning, from the Max patch: velocity smoothing, timeouts, each grain voice's ranges, the 13 loop presets |
 | `reuben/pipes.json` | The reuben instrument: 12 grain voices into a stereo reverb, 13 stereo loops, the mic echo, a limited master. Edit it only through reuben's MCP document verbs (`.mcp.json` at the repo root starts that server) |
 
 **Run it on a laptop:** `make pipes` builds reuben, plays `reuben/pipes.json` on the default audio devices (the mic included), and drives it with fake encoders. `REUBEN_PLAY_ARGS="--io-map <profile>"` picks other devices.
+
+**Turn the knobs yourself:** `make pipes-surface` does the same without fake encoders, starts the Dashboard too, and prints the URL of its Playing the Pipes page with `?pipes=127.0.0.1:<port>`. Arm the surface there; then drag, scroll or hold-to-spin each knob (#263).
+
+**The virtual encoder surface** sends `POST /control/enc` with one ADR-0014 line (`/enc BOARD ENC DELTA`, text/plain) to the bridge, which takes it through `parse_line` and the same inject path as the Picos: it exercises all of `pipes_control` and knows nothing about the OSC contract below. Virtual turns mix with Pico turns, and never count toward the Pico numbers in `/health` (`picos_connected`, `boards`, `ok`, `last_event_age_s`); `last_virtual_age_s` and `last_source` report them. The route is always open; the page loads disarmed and disarms itself when hidden, unfocused, or 5 min idle. `GET /state` is what it draws: layout, each knob's awake/level/position, the loop levels and the mix state. `test_encoder_bridge.py` fails if the page reads a `/health` or `/state` field the bridge does not return.
 
 **The OSC contract** between the bridge and the instrument (each a reuben input pipe, set at `/<pipe name>/in`):
 
