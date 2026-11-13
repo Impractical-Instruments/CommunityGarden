@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import random
 from enum import Enum, auto
 from pathlib import Path
@@ -13,9 +12,10 @@ import pygame
 
 log = logging.getLogger(__name__)
 
-from games.grid import (
-    Grid,
-    BLACK, WHITE, DK_GREY, MID_GREY, GREEN, YELLOW, RED, CYAN, ORANGE,
+from games.blowup import Blowup
+from games.grid import Grid
+from games.shell import (
+    BLACK, DK_GREY, MID_GREY, GREEN, RED,
     HOLD_RING_COLOR,
     draw_top_bar, draw_hold_ring, draw_center_text,
 )
@@ -33,7 +33,6 @@ COVER_VALID  = (  0, 220,  80)
 COVER_EXTRA  = (220,  50,  50)
 
 _WIN_FLASH_S = 0.5
-_BLOWUP_S    = 2.8
 
 
 class _State(Enum):
@@ -41,23 +40,6 @@ class _State(Enum):
     WIN_FLASH = auto()
     BLOWUP    = auto()
     DONE      = auto()
-
-
-class _Particle:
-    __slots__ = ("x", "y", "vx", "vy", "color", "size", "life", "max_life")
-
-    def __init__(self, x: float, y: float, vx: float, vy: float,
-                 color: tuple, size: int, life: float) -> None:
-        self.x = x; self.y = y
-        self.vx = vx; self.vy = vy
-        self.color = color; self.size = size
-        self.life = life; self.max_life = life
-
-    def update(self, dt: float) -> None:
-        self.x   += self.vx * dt
-        self.y   += self.vy * dt
-        self.vy  += 500 * dt  # gravity
-        self.life -= dt
 
 
 class _LevelBag:
@@ -142,7 +124,7 @@ class BodyCaptchaGame:
         self._state_t      = 0.0
         self._state:       _State          = _State.PLAYING
         self._taunt        = ""
-        self._particles:   list[_Particle] = []
+        self._blowup       = Blowup()
         self._intensity    = 0.0
         self._activations: CellActivations = {}
         self._foreground:  np.ndarray | None = None
@@ -164,7 +146,6 @@ class BodyCaptchaGame:
         self._hold_elapsed = 0.0
         self._state_t    = 0.0
         self._state      = _State.PLAYING
-        self._particles  = []
         self._activations = {}
 
     @property
@@ -229,11 +210,8 @@ class BodyCaptchaGame:
             return 0.0, "loss"
 
         if self._state == _State.BLOWUP:
-            self._state_t += dt
-            for p in self._particles:
-                p.update(dt)
-            self._particles = [p for p in self._particles if p.life > 0]
-            if self._state_t >= _BLOWUP_S:
+            self._blowup.update(dt)
+            if self._blowup.done:
                 self._state = _State.DONE
             return 0.0, None
 
@@ -283,30 +261,8 @@ class BodyCaptchaGame:
 
     def _begin_blowup(self) -> None:
         self._state   = _State.BLOWUP
-        self._state_t = 0.0
         self._taunt   = random.choice(self._taunts)
-        self._particles = self._spawn_confetti()
-
-    def _spawn_confetti(self) -> list[_Particle]:
-        if self._grid is None:
-            return []
-        g       = self._grid
-        colors  = [GREEN, YELLOW, RED, CYAN, ORANGE, WHITE, (200, 50, 255), (255, 100, 0)]
-        result  = []
-        for r in range(g.rows):
-            for c in range(g.cols):
-                rect    = g.cell_rect(c, r)
-                cx, cy  = rect.centerx, rect.centery
-                for _ in range(10):
-                    angle = random.uniform(0, 2 * math.pi)
-                    speed = random.uniform(60, 400)
-                    vx    = math.cos(angle) * speed
-                    vy    = math.sin(angle) * speed - 200
-                    color = random.choice(colors)
-                    size  = random.randint(4, 16)
-                    life  = random.uniform(1.2, _BLOWUP_S)
-                    result.append(_Particle(cx, cy, vx, vy, color, size, life))
-        return result
+        self._blowup.start(self._grid)
 
     # ── Drawing ───────────────────────────────────────────────────────────────
 
@@ -322,7 +278,7 @@ class BodyCaptchaGame:
         prompt  = self._level.get("prompt", "")
 
         if self._state == _State.BLOWUP:
-            self._draw_confetti(surf)
+            self._blowup.draw(surf)
             draw_center_text(surf, self._taunt, RED,
                              self._WW, bar_h, self._WH, max_font=120)
             draw_top_bar(surf, self._WW, bar_h, prompt, None)
@@ -389,14 +345,6 @@ class BodyCaptchaGame:
         # Top bar (prompt + timer)
         remaining = max(0.0, self._timer_s - self._elapsed)
         draw_top_bar(surf, self._WW, bar_h, prompt, remaining)
-
-    def _draw_confetti(self, surf: pygame.Surface) -> None:
-        for p in self._particles:
-            alpha = max(0, int(255 * p.life / p.max_life))
-            s     = p.size
-            tile  = pygame.Surface((s * 2, s * 2), pygame.SRCALPHA)
-            tile.fill((*p.color, alpha))
-            surf.blit(tile, (int(p.x) - s, int(p.y) - s))
 
 
 def create(settings: dict, size: tuple[int, int], levels: Levels) -> BodyCaptchaGame:
