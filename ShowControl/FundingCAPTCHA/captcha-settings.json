@@ -51,7 +51,7 @@
   },
 
   "shader_app": {
-    "_comment": "shader_app.py (ADR-0021). render_scale: fraction of display resolution the passes render at. display: which monitor to go fullscreen on (0 = first; --display N overrides).",
+    "_comment": "Shader player: shader_stage.py / playlist_app.py (ADR-0021); the block is still named shader_app so installed local settings keep working. render_scale: fraction of display resolution the passes render at. display: which monitor to go fullscreen on (0 = first; --display N overrides).",
     "render_scale": 0.5,
     "display": 0,
     "fps": 30,
