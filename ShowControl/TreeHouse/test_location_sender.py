@@ -1,7 +1,7 @@
 """Tests for LocationSender — Garden State out to the ESP32-S3 controllers (ADR-0020). No hardware."""
 import pytest
 
-from coordinator import _load_locations
+from config import LocationsConfig
 from controllables import GardenState, ShowMode
 from location_sender import LocationSender, LocationTarget
 
@@ -176,7 +176,7 @@ _NETWORK = {
 
 
 def test_controllers_resolve_against_network_json():
-    config = _load_locations({"controllers": ["treehouse_jess"], "send_hz": 15}, _NETWORK)
+    config = LocationsConfig.from_dict({"controllers": ["treehouse_jess"], "send_hz": 15}, _NETWORK)
 
     assert config.targets == [LocationTarget("treehouse_jess", "192.168.1.62", 9000)]
     assert config.send_hz == 15
@@ -185,7 +185,7 @@ def test_controllers_resolve_against_network_json():
 
 
 def test_controller_without_an_address_is_skipped_not_fatal():
-    config = _load_locations(
+    config = LocationsConfig.from_dict(
         {"controllers": ["treehouse_jess", "treehouse_branch", "treehouse_nowhere"]}, _NETWORK
     )
     assert [t.name for t in config.targets] == ["treehouse_jess"]

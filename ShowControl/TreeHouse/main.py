@@ -13,8 +13,10 @@ import os
 import sys
 from pathlib import Path
 
-from branch_controller import BranchController
-from coordinator import Coordinator, build_controllables, load_config
+from branches import BranchDriver
+from config import load_config
+from coordinator import Coordinator, build_controllables
+from garden_state import SignalIntake
 from location_sender import LocationSender
 from osc_server import serve as serve_osc
 import visualizer
@@ -104,7 +106,6 @@ async def _renderer_subprocess(renderer_path: Path, *renderer_args: str) -> None
 
 async def _frame_loop(
     coordinator: Coordinator,
-    branch: BranchController,
     locations: LocationSender,
     fps: int,
     location_send_hz: float,
@@ -118,8 +119,6 @@ async def _frame_loop(
     while True:
         t0 = loop.time()
         coordinator.update(dt)
-        for motor_id, degrees in coordinator.get_branch_positions():
-            branch.set_position(motor_id, degrees)
         if frame % location_every == 0 or coordinator.garden_state.captcha_blowup:
             locations.send(coordinator.garden_state)
         frame += 1
@@ -130,17 +129,15 @@ async def _frame_loop(
 
 async def _run(args: argparse.Namespace) -> None:
     config = load_config(args.config)
-    controllables = build_controllables(config)
+    branch_driver = BranchDriver(config.branch.port, config.branch.baud)
+    if not args.no_branch:
+        branch_driver.connect()
+    controllables = build_controllables(config, branch_driver)
     coordinator = Coordinator(
         controllables,
-        branch_config=config.branch,
-        heartbeat_interval_s=config.osc.heartbeat_interval_s,
+        intake=SignalIntake(config.osc.heartbeat_interval_s),
+        dim_level=config.show.dim_level,
     )
-    coordinator._dim_level = config.show.dim_level
-
-    branch = BranchController(config.branch.port, config.branch.baud)
-    if not args.no_branch:
-        branch.connect()
 
     locations = LocationSender(
         config.locations.targets,
@@ -158,7 +155,7 @@ async def _run(args: argparse.Namespace) -> None:
         log.info("  • %s (location controller)", name)
 
     tasks = [asyncio.create_task(_frame_loop(
-        coordinator, branch, locations, config.show.fps, config.locations.send_hz,
+        coordinator, locations, config.show.fps, config.locations.send_hz,
     ))]
     if not args.no_osc:
         tasks.append(asyncio.create_task(serve_osc(coordinator, config.osc.listen_port)))
@@ -188,7 +185,7 @@ async def _run(args: argparse.Namespace) -> None:
         if weston_proc is not None and weston_proc.returncode is None:
             weston_proc.terminate()
             await weston_proc.wait()
-        branch.close()
+        branch_driver.close()
         locations.close()
 
 

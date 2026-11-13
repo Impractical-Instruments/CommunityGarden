@@ -7,17 +7,28 @@ from fastapi.testclient import TestClient
 
 import visualizer
 from controllables import LookingGlassConfig, LookingGlassControllable, ShowMode
-from coordinator import BranchConfig, BranchMotorConfig, Coordinator
+from branches import BranchController
+from config import BranchConfig, BranchMotorConfig
+from coordinator import Coordinator
 
 DASHBOARD_PAGE = Path(__file__).parent.parent / "Dashboard" / "treehouse.html"
 
 
+class _NullDriver:
+    def set_position(self, motor_id, degrees):
+        pass
+
+
 @pytest.fixture
-def coordinator(monkeypatch):
-    coord = Coordinator(
-        [LookingGlassControllable(LookingGlassConfig())],
-        branch_config=BranchConfig(motors=[BranchMotorConfig(id=1, recoil_pos=-20.0)]),
+def branches():
+    return BranchController(
+        BranchConfig(motors=[BranchMotorConfig(id=1, recoil_pos=-20.0)]), _NullDriver(),
     )
+
+
+@pytest.fixture
+def coordinator(monkeypatch, branches):
+    coord = Coordinator([LookingGlassControllable(LookingGlassConfig()), branches])
     monkeypatch.setattr(visualizer, "_coordinator", coord)
     return coord
 
@@ -50,11 +61,11 @@ def test_looking_glass_sets_the_scene(client, coordinator):
     assert coordinator.get_all_states()[0].params["scene"] == "cosmos"
 
 
-def test_blowup_recoils_the_branches_for_one_frame(client, coordinator):
+def test_blowup_recoils_the_branches_for_one_frame(client, coordinator, branches):
     assert client.post("/control/blowup").json() == {"ok": True}
     coordinator.update(1 / 30)
     assert coordinator.garden_state.captcha_blowup
-    assert coordinator.get_branch_positions() == [(1, -20.0)]
+    assert branches.positions == [(1, -20.0)]
     coordinator.update(1 / 30)
     assert not coordinator.garden_state.captcha_blowup
 

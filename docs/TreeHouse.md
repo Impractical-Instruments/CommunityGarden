@@ -8,7 +8,7 @@ The Hub Element. A 9.5-foot structure with dioramas, branch motors, and dual scr
 
 ## Architecture summary
 
-`main.py` runs an asyncio loop that ticks every `Controllable` once per frame, sends Garden State to the location controllers over WiFi, and sends branch commands over USB serial.
+`main.py` runs an asyncio loop that ticks every `Controllable` once per frame (the Looking Glass and the Branches, which send their motor commands over USB serial) and sends Garden State to the location controllers over WiFi. Each frame, `Coordinator.update()` takes `SignalIntake.snapshot()` (the OSC signals, with silent senders zeroed), adds show mode and brightness, and hands the resulting Garden State to every `Controllable` alike.
 
 Hardware:
 - 5× ESP32-S3 location controllers (WiFi/OSC) — Swannatopia, Julia, Jess, Dormer, Garage (ADR-0020, ADR-0021). They drive every LED in the TreeHouse. The Pi sends them Garden State, not pixels; they animate themselves.
@@ -27,7 +27,7 @@ Key references:
 - ADR-0017 — Club diorama rave screen
 - ADR-0018 — pygame/weston dual-display
 - ADR-0020 — ESP32-S3 location controllers (supersedes ADR-0010)
-- `coordinator.py`, `controllables/`, `looking_glass/`, `club_screen.py`, `location_sender.py`, `branch_controller.py`
+- `config.py` (settings.json + network.json → typed config), `garden_state.py` (`SignalIntake`: OSC signals, stale-sender expiry, `snapshot()`), `branches.py` (`branch_positions()` maths, `BranchDriver` serial driver, `BranchController` as a `Controllable`), `coordinator.py` (intake → GardenState → every `Controllable`), `controllables/`, `looking_glass/`, `club_screen.py`, `location_sender.py`
 
 ---
 
