@@ -24,8 +24,8 @@ import numpy as np
 from scipy import ndimage
 
 from IIVision.blob_stabilizer import BlobStabilizer, StabilizerConfig
-from shadertoy import (BLOB_COASTING, BLOB_CONFIRMED, BLOB_LOST, BLOB_ROWS,
-                       BLOB_SLOTS, BLOB_TENTATIVE)
+from blobs_contract import (BLOB_COASTING, BLOB_CONFIRMED, BLOB_LOST, BLOB_ROWS,
+                            BLOB_SLOTS, BLOB_TENTATIVE)
 
 _VEL_ALPHA   = 0.5     # EMA on velocity, per camera frame
 _COAST_DECAY = 0.85    # velocity kept per missed camera frame, so coasting boxes slow down

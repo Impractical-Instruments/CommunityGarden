@@ -14,14 +14,9 @@ Buffer A is reserved for the Body: on the Pi it is the Orbbec silhouette,
 in Shadertoy (and in --test-input) it is shaders/body_painter.glsl driven
 by the mouse. Body texel: .r presence 0/1, .g nearness 0 (far) – 1 (near).
 
-Source "blobs" is the tracker's blob records (ADR-0022): BLOB_SLOTS columns ×
-BLOB_ROWS rows of RGBA32F, read with texelFetch(ch, ivec2(slot, row), 0):
-  row 0  x0, y0, x1, y1         bounding box, Body UV (y up)
-  row 1  cx, cy, vx, vy         centroid (UV) and velocity (UV/s)
-  row 2  id, state, age_s, near stable id 1–999, BLOB_* state, seconds in
-                                that state, mean Body nearness
-A slot keeps its track for the track's whole life. In Shadertoy the source is
-shaders/blob_painter.glsl in a spare buffer.
+Source "blobs" is the tracker's blob records (ADR-0022); the layout is in
+blobs_contract.py. In Shadertoy the source is shaders/blob_painter.glsl in a
+spare buffer.
 
 Source "image" is one image from <setup>/images/, chosen per load by
 shader_stage.SetupImages (ADR-0024); unbound (reads 0, resolution 0) without one.
@@ -45,6 +40,8 @@ from pathlib import Path
 
 import numpy as np
 
+from blobs_contract import BLOB_ROWS, BLOB_SLOTS
+
 log = logging.getLogger("shadertoy")
 
 BUFFERS  = ("buffer_b", "buffer_c", "buffer_d")      # render order, before image
@@ -55,10 +52,6 @@ _BUF_KEY = {"buffer_b": "B", "buffer_c": "C", "buffer_d": "D"}
 PAINTER_PATH = Path(__file__).parent / "shaders" / "body_painter.glsl"
 BLOB_PAINTER_PATH = Path(__file__).parent / "shaders" / "blob_painter.glsl"
 
-# Blob records contract (ADR-0022). Changing any of these breaks Setups.
-BLOB_SLOTS = 8
-BLOB_ROWS  = 3
-BLOB_EMPTY, BLOB_TENTATIVE, BLOB_CONFIRMED, BLOB_COASTING, BLOB_LOST = range(5)
 PAINTER_CHANNELS = ["A", "keyboard", None, None]
 
 VERT = """

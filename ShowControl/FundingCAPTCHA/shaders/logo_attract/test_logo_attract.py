@@ -13,7 +13,8 @@ import numpy as np
 import pytest
 
 from shader_test_rig import DT, Rig
-from shadertoy import BLOB_CONFIRMED, BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, ShaderError, decode_image, load_setup
+from blobs_contract import BLOB_CONFIRMED, BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE
+from shadertoy import ShaderError, decode_image, load_setup
 
 SETUP  = Path(__file__).parent
 SIZE   = (160, 90)
