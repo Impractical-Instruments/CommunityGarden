@@ -57,8 +57,10 @@ while IFS= read -r path; do
             code=true
             reuben=true
             ;;
-        # The Playing the Pipes instruments. No Python test reads them.
+        # The Playing the Pipes instruments: the reuben job validates them, and the fast
+        # job's contract test checks the bridge's OSC addresses against their pipes.
         ShowControl/PlayingThePipes/reuben/*)
+            code=true
             reuben=true
             ;;
         # Elements FundingCAPTCHA does not import. Their own tests are in the fast job.
