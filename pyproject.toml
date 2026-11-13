@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "communitygarden"
 version = "0"
-description = "Show control for The Community Garden: the IIVision and OSCFabric packages, plus one extra per Element."
+description = "Show control for The Community Garden: the IIVision, OSCFabric and ShowWeb packages, plus one extra per Element."
 requires-python = ">=3.11"
 # OSCFabric needs python-osc. IIVision also needs numpy and scipy; those are in the
 # `vision` extra so that a host which never imports IIVision (TreeHouse, Dashboard,
@@ -74,10 +74,11 @@ dev = [
 required-version = ">=0.11"
 
 [tool.setuptools]
-packages = ["IIVision", "OSCFabric"]
+packages = ["IIVision", "OSCFabric", "ShowWeb"]
 
 [tool.setuptools.package-dir]
 OSCFabric = "ShowControl/OSCFabric"
+ShowWeb = "ShowControl/ShowWeb"
 
 [tool.pytest.ini_options]
 testpaths = ["ShowControl", "IIVision", "scripts"]

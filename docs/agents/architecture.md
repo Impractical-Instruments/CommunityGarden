@@ -11,6 +11,7 @@ CommunityGarden/
 │   ├── TreeHouse/                          # TreeHouse Element show control
 │   ├── Dashboard/                          # Show-operator browser dashboard (FastAPI)
 │   ├── OSCFabric/                          # Shared OSC client for cross-element messaging
+│   ├── ShowWeb/                            # Shared live-view server (LiveServer) behind the Element visualizers
 │   └── network.json                        # Single source of truth: all IPs, MACs, ports
 ├── Firmware/
 │   ├── FlowerBeds_Follow_ServoController/  # OpenRB-150 Arduino — drives Dynamixel servos
@@ -22,7 +23,7 @@ CommunityGarden/
 │   └── agents/                             # Agent guidance (this directory)
 ├── scripts/                                # Deploy, install and repo tooling — see scripts/README.md
 ├── Makefile                                # `make test` — runs all tests
-├── pyproject.toml                          # IIVision + OSCFabric packages, one extra per Element, pytest config
+├── pyproject.toml                          # IIVision + OSCFabric + ShowWeb packages, one extra per Element, pytest config
 └── CONTEXT.md                              # Domain glossary — read before naming anything
 ```
 
@@ -110,4 +111,4 @@ The Attraction policy scores candidates by proximity, dwell time, and inertia. S
 
 ## Visualizer
 
-`visualizer.py` runs a FastAPI WebSocket server (default port 8765). Each frame, `broadcast(state)` pushes a JSON snapshot of blobs, clusters, and camera positions to all connected browser clients. The Show Dashboard (`ShowControl/Dashboard/`) aggregates per-Element visualizers into a single operator view.
+`visualizer.py` serves the page `visualizer_static/index.html` and a state socket on a `ShowWeb.LiveServer` (default port 8765; the server plumbing, `/ws` and `/logs` live in `ShowControl/ShowWeb/live.py`, shared with the TreeHouse visualizer). Each frame, `broadcast(state)` pushes a JSON snapshot of blobs, clusters, and camera positions to all connected browser clients. The Show Dashboard (`ShowControl/Dashboard/`) aggregates per-Element visualizers into a single operator view.
