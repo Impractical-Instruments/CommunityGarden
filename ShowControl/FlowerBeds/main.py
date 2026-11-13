@@ -15,16 +15,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
-import signal
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from visualizer import VisualizerState
 
 import numpy as np
 
@@ -33,77 +27,15 @@ from IIVision import (
     Calibration, build_calibration, run_pipeline,
 )
 
-from flower_beds import (
-    CameraConfig,
-    Coordinator,
-    CoordinatorConfig,
-    MotorCommand,
-)
-from diag import osc_ping, parse_found_ids
-from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
+from config import CameraConfig, CoordinatorConfig, load_settings
+from controllers import ControllerBus
+from flower_beds import Coordinator
+from state import build_visualizer_state
+from stop_signal import StopSignal
 
 from OSCFabric import FabricClient, load_network_config_or_empty
 
-_OSC_ADDRESS = "/cg/ff/rot"
-
 log = logging.getLogger("flower_beds")
-
-
-# ---------------------------------------------------------------------------
-# Config loading
-# ---------------------------------------------------------------------------
-
-def load_settings(path: str) -> dict:
-    with open(path) as f:
-        return json.load(f)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _build_controllers(network: dict, no_osc: bool) -> list[SimpleUDPClient]:
-    if no_osc:
-        return []
-    clients = []
-    for key, fw in network.get("firmware", {}).items():
-        if key.startswith("flowerbeds_controller_") and fw.get("ip") and fw.get("osc_port"):
-            clients.append(SimpleUDPClient(fw["ip"], fw["osc_port"]))
-    return clients
-
-
-def _diagnose_controllers(network: dict, expected_motor_ids: set[int]) -> list[int]:
-    """
-    Ping every flowerbeds controller, log scanned servo IDs + packet counters,
-    and return motor IDs from coordinator config that no controller reported.
-
-    Empty list = healthy.  Non-empty list = some configured motors will not move.
-    """
-    seen: set[int] = set()
-    for key, fw in network.get("firmware", {}).items():
-        if not key.startswith("flowerbeds_controller_"):
-            continue
-        ip, port = fw.get("ip"), fw.get("osc_port")
-        if not (ip and port):
-            continue
-        pong = osc_ping(ip, port, timeout=0.5)
-        if pong is None:
-            log.warning("ctrl %s (%s:%d) — no pong (offline or unreachable)", key, ip, port)
-            continue
-        ids = parse_found_ids(pong["found_ids"])
-        seen |= ids
-        log.info(
-            "ctrl %s (%s) — baud=%d, %d servo(s): %s | rx=%d drop=%d",
-            key, ip, pong["baud"], pong["found_count"],
-            sorted(ids) or "-", pong["pkt_rx_count"], pong["pkt_drop_count"],
-        )
-    missing = sorted(expected_motor_ids - seen)
-    if missing:
-        log.warning(
-            "Configured motor IDs not found on any controller: %s "
-            "(these flowers will NOT move)", missing,
-        )
-    return missing
 
 
 # ---------------------------------------------------------------------------
@@ -136,21 +68,17 @@ def run(args: argparse.Namespace) -> None:
         log.info("Using Orbbec camera (auto-discover, mirror=%s)", cam_cfg.mirror)
 
     # --- OSC controllers (servo hardware) ---
-    controllers = _build_controllers(network, args.no_osc)
-    if controllers:
-        log.info("OSC output → %d controller(s)", len(controllers))
+    bus = ControllerBus([]) if args.no_osc else ControllerBus.from_network(network)
+    if len(bus):
+        log.info("OSC output → %d controller(s)", len(bus))
     else:
         log.info("OSC output disabled (--no-osc)")
 
     # --- diagnose: ping each controller, surface missing motor IDs ---
     coord_cfg_preview = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
-    expected_motor_ids: set[int] = {
-        cluster.motor_id
-        for module in coord_cfg_preview.modules
-        for cluster in module.clusters
-    }
-    if controllers and not args.no_osc:
-        missing_motor_ids = _diagnose_controllers(network, expected_motor_ids)
+    expected_motor_ids: set[int] = {c.motor_id for c in coord_cfg_preview.all_clusters()}
+    if len(bus):
+        missing_motor_ids = bus.diagnose(expected_motor_ids)
     else:
         missing_motor_ids = []
 
@@ -182,15 +110,7 @@ def run(args: argparse.Namespace) -> None:
     )
 
     # --- graceful shutdown ---
-    _running = True
-
-    def _stop(sig, frame):
-        nonlocal _running
-        log.info("Shutting down…")
-        _running = False
-
-    signal.signal(signal.SIGINT, _stop)
-    signal.signal(signal.SIGTERM, _stop)
+    stop = StopSignal("Shutting down…")
 
     # --- depth calibration (persisted, reused across restarts) ---
     calib_path = Path(args.config).with_suffix(".calibration.npz")
@@ -207,7 +127,7 @@ def run(args: argparse.Namespace) -> None:
         log.info("Calibration saved to %s", calib_path)
 
     # --- outer restart loop (re-enters if pipeline exits unexpectedly) ---
-    while _running:
+    while not stop:
         coordinator = Coordinator.from_config(
             CoordinatorConfig.from_dict(settings.get("coordinator", {}))
         )
@@ -222,13 +142,12 @@ def run(args: argparse.Namespace) -> None:
         t_last_log = time.monotonic()
 
         for tracked in run_pipeline(camera, camera_transform, calibration, stab_cfg, excl_filter):
-            if not _running:
+            if stop:
                 break
 
             commands = coordinator.process_tracked_blobs(tracked)
-            for ctrl in controllers:
-                for cmd in commands:
-                    ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
+            for cmd in commands:
+                bus.send(cmd.motor_id, cmd.rotation_deg)
 
             if fabric is not None:
                 activity = min(1.0, len(tracked) / activity_max_blobs)
@@ -236,27 +155,9 @@ def run(args: argparse.Namespace) -> None:
                 fabric.tick(1.0 / cam_cfg.framerate)
 
             frame_count += 1
-            state: VisualizerState = {
-                "frame": frame_count,
-                "blobs": [
-                    {
-                        "id": t.stable_id,
-                        "x": float(t.world_pos_cm[0]),
-                        "y": float(t.world_pos_cm[1]),
-                    }
-                    for t in tracked
-                ],
-                "clusters": coordinator.snapshot(),
-                "cameras": [
-                    {
-                        "name": cam_cfg.name,
-                        "x": float(cam_cfg.pos_cm[0]),
-                        "y": float(cam_cfg.pos_cm[1]),
-                        "yaw_deg": float(cam_cfg.rotation.get("yaw", 0)),
-                    }
-                ],
-                "missing_motor_ids": missing_motor_ids,
-            }
+            state = build_visualizer_state(
+                frame_count, tracked, coordinator.snapshot(), cam_cfg, missing_motor_ids,
+            )
             broadcast(state)
 
             now = time.monotonic()
@@ -264,127 +165,10 @@ def run(args: argparse.Namespace) -> None:
                 log.info("frame %d | tracked_blobs=%d", frame_count, len(tracked))
                 t_last_log = now
 
-        if not _running:
-            break
-
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
-def run_calibrate(args: argparse.Namespace) -> None:
-    """
-    Calibration mode: command every motor to a fixed yaw so the physical
-    flowers can be rotated to a known reference orientation.
-
-    All motors are held at --calibrate-yaw degrees (default 0) until Ctrl+C.
-    0° = forward (+Y world axis), 90° = right (+X), -90° = left.
-    """
-    settings = load_settings(args.config)
-    network = load_network_config_or_empty(log)
-    yaw = args.calibrate_yaw
-
-    # Collect every motor_id from config.
-    coordinator_cfg = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
-    motor_ids: list[int] = [
-        cluster.motor_id
-        for module in coordinator_cfg.modules
-        for cluster in module.clusters
-    ]
-    if not motor_ids:
-        log.error("No motors found in config")
-        return
-
-    commands = [MotorCommand(motor_id=mid, rotation_deg=yaw) for mid in motor_ids]
-
-    controllers = _build_controllers(network, args.no_osc)
-
-    log.info(
-        "Calibration mode — holding %d motor(s) at %.1f° (Ctrl+C to exit)",
-        len(motor_ids), yaw,
-    )
-    log.info("Motor IDs: %s", motor_ids)
-    if not controllers:
-        log.info("(OSC disabled — no commands will be sent)")
-
-    _running = True
-
-    def _stop(*_):
-        nonlocal _running
-        _running = False
-
-    signal.signal(signal.SIGINT, _stop)
-    signal.signal(signal.SIGTERM, _stop)
-
-    while _running:
-        for ctrl in controllers:
-            for cmd in commands:
-                ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
-        time.sleep(0.5)
-
-
-def run_calibrate_sweep(args: argparse.Namespace) -> None:
-    """
-    Sweep every motor through -yaw_limit_deg, 0, +yaw_limit_deg, 0 at a fixed
-    period.  Crew watches the physical motion to confirm per-cluster limits
-    match physical travel before showtime.
-
-    Each cluster uses ITS OWN yaw_limit_deg from settings.json — so a cluster
-    that has been locally tightened in the layout tool will sweep within the
-    tighter cone, not the global default.
-    """
-    settings = load_settings(args.config)
-    network = load_network_config_or_empty(log)
-
-    coordinator_cfg = CoordinatorConfig.from_dict(settings.get("coordinator", {}))
-    # (motor_id, yaw_limit_deg) for every cluster.
-    motors: list[tuple[int, float]] = [
-        (cluster.motor_id, float(cluster.yaw_limit_deg))
-        for module in coordinator_cfg.modules
-        for cluster in module.clusters
-    ]
-    if not motors:
-        log.error("No motors found in config")
-        return
-
-    controllers = _build_controllers(network, args.no_osc)
-
-    period_s = max(0.5, args.sweep_period_s)
-    phase_s  = period_s / 4.0
-
-    log.info(
-        "Sweep mode — %d motor(s), %.1fs period (±limit → 0 → +limit → 0). Ctrl+C to exit.",
-        len(motors), period_s,
-    )
-    log.info("Motor IDs + limits: %s", motors)
-    if not controllers:
-        log.info("(OSC disabled — no commands will be sent)")
-
-    _running = True
-
-    def _stop(*_):
-        nonlocal _running
-        _running = False
-
-    signal.signal(signal.SIGINT, _stop)
-    signal.signal(signal.SIGTERM, _stop)
-
-    # 4-phase cycle scaled per-motor by its own yaw_limit_deg.
-    phase_scales = [-1.0, 0.0, 1.0, 0.0]
-    phase_idx = 0
-    while _running:
-        scale = phase_scales[phase_idx]
-        commands = [
-            MotorCommand(motor_id=mid, rotation_deg=scale * limit)
-            for mid, limit in motors
-        ]
-        for ctrl in controllers:
-            for cmd in commands:
-                ctrl.send_message(_OSC_ADDRESS, cmd.to_osc_args())
-        log.info("phase %d/4 — scale=%+.1f × limit", phase_idx + 1, scale)
-        time.sleep(phase_s)
-        phase_idx = (phase_idx + 1) % 4
-
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Flower Beds standalone show control")
@@ -396,20 +180,6 @@ def main() -> None:
     ap.add_argument("--recalibrate", action="store_true",
                     help="Ignore saved calibration and recalibrate from scratch")
     ap.add_argument("--verbose", "-v", action="store_true")
-    ap.add_argument(
-        "--calibrate-yaw", type=float, metavar="DEG", default=None,
-        help="Calibration mode: hold all motors at this yaw (degrees) and exit when done. "
-             "0=forward, 90=right, -90=left. No camera needed.",
-    )
-    ap.add_argument(
-        "--calibrate-yaw-sweep", action="store_true",
-        help="Sweep mode: cycle every motor through -limit, 0, +limit, 0 forever "
-             "so the crew can verify each cluster's yaw_limit_deg on site. No camera needed.",
-    )
-    ap.add_argument(
-        "--sweep-period-s", type=float, default=4.0,
-        help="Seconds for one full sweep cycle in --calibrate-yaw-sweep mode (default 4.0).",
-    )
     args = ap.parse_args()
 
     logging.basicConfig(
@@ -417,12 +187,7 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    if args.calibrate_yaw_sweep:
-        run_calibrate_sweep(args)
-    elif args.calibrate_yaw is not None:
-        run_calibrate(args)
-    else:
-        run(args)
+    run(args)
 
 
 if __name__ == "__main__":

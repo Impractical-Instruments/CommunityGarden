@@ -8,7 +8,7 @@ Servo-driven flowers at the entrance Element. Mirrors at flower centres track Vi
 
 ## Architecture summary
 
-A depth camera (Orbbec, USB) feeds the IIVision pipeline: background subtraction → blob detection → cross-frame stabilisation (`BlobTracker` with EMA smoothing). Stabilised Blob Tracks are passed to the `Coordinator`, which holds one `FlowerCluster` per servo motor. Each FlowerCluster runs the **Attraction** policy each frame — a weighted sum of proximity, dwell, and inertia — to pick the Visitor it should look at, and produces a `MotorCommand`.
+A depth camera (Orbbec, USB) feeds the IIVision pipeline: background subtraction → blob detection → cross-frame stabilisation (`BlobStabilizer` with EMA smoothing). Stabilised Blob Tracks are passed to the `Coordinator`, which holds one `FlowerCluster` per servo motor. Each FlowerCluster runs the **Attraction** policy each frame — a weighted sum of proximity, dwell, and inertia — to pick the Visitor it should look at, and produces a `MotorCommand`.
 
 `MotorCommand`s are sent via OSC (`/cg/ff/rot [motor_id, yaw_deg]`) to **OpenRB-150** Dynamixel controllers on the show LAN (`192.168.1.50` / `.51`). The controllers fan out RS-485 to the servos themselves.
 
@@ -17,7 +17,12 @@ FlowerBeds also publishes `/flowerbeds/activity` (float 0–1) onto the OSC Fabr
 Key references:
 - ADR-0007 — OSC Fabric schema
 - ADR-0015 — GUI layout tool (supersedes the ArUco auto-layout ADR-0009)
-- `flower_beds.py` — Coordinator, FlowerCluster, Attraction
+- `main.py` — the show loop and argument parsing
+- `flower_beds.py` — Coordinator, FlowerCluster (which visitor each cluster looks at)
+- `config.py` — settings dataclasses (Attraction, ClusterConfig, ModuleConfig, CoordinatorConfig, CameraConfig)
+- `controllers.py` — `OSC_ROT_ADDRESS`, controller discovery from `network.json`, `ControllerBus` (send, diagnose); the one place the yaw sign flips
+- `calibrate_motors.py` — hold / sweep motor calibration, no camera
+- `state.py` — the visualizer's per-frame state
 - `IIVision/` — camera + pipeline
 
 ---
@@ -33,7 +38,7 @@ Attraction tuning — `coordinator.attraction`:
 - `inertia_weight` — bonus for the previous frame's target (anti-jitter)
 - `exclusion_radius_cm` — Visitors closer than this are ignored (anti-self-detection)
 
-Pipeline — `stabilizer` (BlobTracker EMA, match distance, confirm/miss frames), `calibration_frames` (default 60 — the BG model length), `cameras[]` (Orbbec pose: `pos_cm`, `rotation`, `width/height/framerate`), `activity_max_blobs` (normaliser for `/flowerbeds/activity`).
+Pipeline — `stabilizer` (BlobStabilizer EMA, match distance, confirm/miss frames), `calibration_frames` (default 60 — the BG model length), `cameras[]` (Orbbec pose: `pos_cm`, `rotation`, `width/height/framerate`), `activity_max_blobs` (normaliser for `/flowerbeds/activity`).
 
 Persisted background calibration: `settings.calibration.npz` (path = `<settings>.calibration.npz`). Loaded on start unless `--recalibrate` or missing/corrupt.
 
@@ -86,9 +91,15 @@ ssh flowerbeds "sudo systemctl restart flowerbeds"
 | `--visualizer-port N` | Default 8765 |
 | `--recalibrate` | Ignore saved `.calibration.npz`, rebuild background model |
 | `--verbose` / `-v` | DEBUG logging |
-| `--calibrate-yaw DEG` | Calibration mode: hold every motor at this yaw (deg), no camera. 0=forward, 90=right, -90=left. Crew physically rotates flowers to a known reference. |
-| `--calibrate-yaw-sweep` | Sweep mode: cycle every motor through `-yaw_limit, 0, +yaw_limit, 0`. Crew verifies cluster cones match physical travel. Uses each cluster's own `yaw_limit_deg`. |
+
+Motor calibration is a separate tool, `calibrate_motors.py` (no camera):
+
+| Flag | Effect |
+|---|---|
+| `--yaw DEG` | Hold every motor at this yaw (deg) until Ctrl+C. 0=forward, 90=right, -90=left. Crew physically rotates flowers to a known reference. |
+| `--sweep` | Cycle every motor through `-yaw_limit, 0, +yaw_limit, 0`. Crew verifies cluster cones match physical travel. Uses each cluster's own `yaw_limit_deg`. |
 | `--sweep-period-s SECS` | Sweep cycle period (default 4.0) |
+| `--config <path>`, `--no-osc`, `-v` | As for `main.py` |
 
 ---
 
@@ -97,7 +108,7 @@ ssh flowerbeds "sudo systemctl restart flowerbeds"
 | Address | Direction | Args | Notes |
 |---|---|---|---|
 | `/cg/ff/rot` | out (to controllers) | `[motor_id:int, yaw_deg:float]` | Per-motor command, sent every frame to **every** configured controller (controllers ignore IDs they don't own) |
-| `/cg/ff/ping` | out | — | Boot-time diagnostic (`diag.py`) |
+| `/cg/ff/ping` | out | — | Boot-time diagnostic (`diag.py`, `controllers.py`) |
 | `/cg/ff/pong` | in | (controller status) | Reports scanned servo IDs + rx/drop counters |
 | `/flowerbeds/activity` | out (Fabric) | `float 0–1` | `min(1, len(tracked)/activity_max_blobs)`, every frame |
 
@@ -105,7 +116,7 @@ ssh flowerbeds "sudo systemctl restart flowerbeds"
 
 ## Boot diagnostics
 
-On start (after calibration loads), `main.py` pings every controller and logs:
+On start (after calibration loads), `main.py` pings every controller (`ControllerBus.diagnose`) and logs:
 
 ```
 ctrl flowerbeds_controller_1 (192.168.1.50) — baud=1000000, 28 servo(s): [...] | rx=12345 drop=0
@@ -126,5 +137,5 @@ If a motor ID is in the "not found" line, that flower will not move — even tho
 | Camera fails to open | Orbbec udev rule missing | See [bootstrap.md → FlowerBeds host](bootstrap.md#flowerbeds-host) |
 | Flowers jittery | `inertia_weight` too low | Raise it; watch the visualizer |
 | Flowers slow to commit to a Visitor | `dwell_halflife_frames` too high | Lower it |
-| Flower aims past max travel | Cluster `yaw_limit_deg` larger than physical cone | Tighten in layout tool, run `--calibrate-yaw-sweep` to verify |
+| Flower aims past max travel | Cluster `yaw_limit_deg` larger than physical cone | Tighten in layout tool, run `calibrate_motors.py --sweep` to verify |
 | Visualizer empty | Camera background not yet built | The visualizer gets no state until calibration finishes; wait ~60 frames for `Calibration saved` (or `Loaded calibration`) in the log |

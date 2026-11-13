@@ -32,11 +32,13 @@ CommunityGarden/
 
 | Module | Contents |
 |---|---|
-| `blob_tracker.py` | `BlobTracker`, `Blob2D`, `Blob3D`, `FramePacket` — per-frame detection |
+| `types.py` | `FramePacket`, `CameraIntrinsics`, `DetectionConfig`, `Blob2D`, `Blob3D`, `DetectionResult` — data types |
+| `calibration.py` | `Calibration`, `Calibrator` — fixed background model |
+| `detector.py` | `BlobDetector` — per-frame detection (`BlobTracker` is a legacy alias) |
 | `blob_stabilizer.py` | `BlobStabilizer`, `StabilizerConfig` — cross-frame tracking + EMA smoothing |
 | `camera.py` | `OrbbecCamera`, `MockCamera` — frame iterator abstraction |
 | `transforms.py` | `Transform`, `Rotator`, coordinate helpers |
-| `pipeline.py` | `run_pipeline`, `build_calibration`, `Calibration` — wires the above together |
+| `pipeline.py` | `run_pipeline`, `build_calibration` — wires the above together |
 
 Import from the `IIVision` package directly, not from its internal modules.
 
@@ -49,7 +51,7 @@ Import from the `IIVision` package directly, not from its internal modules.
 ```
 OrbbecCamera.frames() / MockCamera.frames()
   → IIVision.run_pipeline()
-      → BlobTracker.detect(frame)        # background subtraction + 3D unproject
+      → BlobDetector.detect(frame)       # background subtraction + 3D unproject
       → BlobStabilizer.update(blobs)     # greedy nearest-neighbour + EMA smoothing
   → Coordinator.process_tracked_blobs()  # cluster assignment + yaw calculation
   → SimpleUDPClient → Arduino            # OSC /cg/ff/rot [motor_id, rotation_deg]
@@ -78,7 +80,7 @@ Key features:
 
 See ADR-0015 for full design and implementation plan.
 
-## Blob detection (BlobTracker)
+## Blob detection (BlobDetector)
 
 Runs per frame once calibrated:
 
@@ -87,7 +89,7 @@ Runs per frame once calibrated:
 3. **Connected components** — 8-connected blobs via `scipy.ndimage.label`
 4. **3D unproject** — pinhole model, median-Z windowing, camera → world coordinates
 
-`BlobTracker` reads any background model with `background`, `valid_mask` and `threshold()`. FlowerBeds uses `Calibration`: `Calibrator` collects `calibration_frames` frames (from `settings.json`) to build a per-pixel median background and validity mask. FundingCAPTCHA uses `AdaptiveBackground` (`adaptive_background.py`, ADR-0023), learned continuously from the first frame — the farthest steady depth wins.
+`BlobDetector` reads any background model with `background`, `valid_mask` and `threshold()`. FlowerBeds uses `Calibration`: `Calibrator` collects `calibration_frames` frames (from `settings.json`) to build a per-pixel median background and validity mask. FundingCAPTCHA uses `AdaptiveBackground` (`adaptive_background.py`, ADR-0023), learned continuously from the first frame — the farthest steady depth wins.
 
 ## Blob stabilisation (BlobStabilizer)
 
