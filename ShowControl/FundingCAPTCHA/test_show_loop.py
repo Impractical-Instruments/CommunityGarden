@@ -166,7 +166,7 @@ def rig(monkeypatch):
     monkeypatch.setattr(app, "CameraFeed", make_feed)
     monkeypatch.setattr(app, "MonitoringServer", make_monitor)
     monkeypatch.setattr(app, "Arc", make_arc)
-    monkeypatch.setattr(app, "load_games", lambda settings, levels_path=None: [])
+    monkeypatch.setattr(app, "load_games", lambda settings, size, levels: [])
     monkeypatch.setattr(app, "load_screensavers", lambda settings: list(r.savers))
 
     # Fabric: a configured TreeHouse, a client that records.

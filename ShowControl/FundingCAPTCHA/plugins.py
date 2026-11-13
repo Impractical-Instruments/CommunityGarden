@@ -1,9 +1,11 @@
 """Finds the kiosk's Games and screensavers on disk and loads them.
 
-    games  = load_games(settings)           # games/<name>.py for each name in GAMES
+    games  = load_games(settings, size, levels)   # games/<name>.py for each name in GAMES
     savers = load_screensavers(settings)    # each path listed in screensavers.json
 
-Each is a Python file with a `create(settings)` function. One that is missing
+A game's `create(settings, size, levels)` is given the screen size and the
+`Levels` to play; a screensaver's `create(settings)` just the settings.
+Each is a Python file with such a function. One that is missing
 or fails to load is logged and skipped. Choosing and running them is not done
 here: Games are the Arc's job (arc.py), screensavers the kiosk loop's.
 """
@@ -20,6 +22,7 @@ import numpy as np
 import pygame
 
 from arc import Game
+from levels import Levels
 from settings import DIR
 
 log = logging.getLogger("captcha.plugins")
@@ -35,8 +38,8 @@ def _load_module(module_name: str, path: Path) -> ModuleType:
     return mod
 
 
-def load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
-    """`levels_path` overrides the levels file of any Game that has one (app.py --levels)."""
+def load_games(settings: dict, size: tuple[int, int], levels: Levels) -> list[Game]:
+    """`size` is the (width, height) of the screen; `levels` is the levels file to play (app.py --levels)."""
     games: list[Game] = []
     for name in GAMES:
         path = DIR / "games" / f"{name}.py"
@@ -45,10 +48,7 @@ def load_games(settings: dict, levels_path: Path | None = None) -> list[Game]:
             continue
         try:
             mod = _load_module(f"games.{name}", path)
-            if levels_path is not None and hasattr(mod, "set_levels_path"):
-                mod.set_levels_path(levels_path)
-                log.info("Levels override for %s: %s", name, levels_path)
-            games.append(mod.create(settings))
+            games.append(mod.create(settings, size, levels))
             log.info("Loaded game: %s", name)
         except Exception as exc:
             log.warning("Could not load game %s: %s", name, exc)
