@@ -59,9 +59,9 @@ def test_falls_back_to_every_level_when_none_is_eligible() -> None:
 
 def test_reset_returns_to_difficulty_one() -> None:
     bag = _LevelBag(LEVELS)
-    bag.next(beat_difficulty=4)
-    bag.reset()
-    for _ in range(1):
+    for _ in range(30):
+        bag.next(beat_difficulty=4)
+        bag.reset()
         assert bag.next()["difficulty"] in (1, 2)
 
 

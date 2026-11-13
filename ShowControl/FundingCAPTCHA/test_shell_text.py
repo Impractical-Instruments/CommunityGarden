@@ -43,14 +43,14 @@ def test_wrap_of_empty_text_is_no_lines() -> None:
     assert wrap_to_width("", hud_font(20), 100) == []
 
 
-def testfit_prompt_font_fits_the_box() -> None:
+def test_fit_prompt_font_fits_the_box() -> None:
     text = "Make a T with your body"
     f = fit_prompt_font(text, 400, 60)
     w, h = f.size(text)
     assert w <= 400 and h <= 60
 
 
-def testfit_prompt_font_is_the_largest_that_fits() -> None:
+def test_fit_prompt_font_is_the_largest_that_fits() -> None:
     text = "Make a T with your body"
     f = fit_prompt_font(text, 400, 60)
     size = next(s for s in range(8, shell.PROMPT_FONT_CAP + 1) if hud_font(s) is f)
@@ -68,7 +68,7 @@ def test_unfittable_prompt_falls_back_to_the_smallest_font() -> None:
     assert fit_prompt_font("a very long prompt indeed", 1, 1) is hud_font(8)
 
 
-def testfit_prompt_font_is_cached() -> None:
+def test_fit_prompt_font_is_cached() -> None:
     assert fit_prompt_font("cached", 300, 50) is fit_prompt_font("cached", 300, 50)
 
 

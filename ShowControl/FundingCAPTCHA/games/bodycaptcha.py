@@ -210,7 +210,6 @@ class BodyCaptchaGame:
             return 0.0, "loss"
 
         if self._state == _State.BLOWUP:
-            self._state_t += dt
             self._blowup.update(dt)
             if self._blowup.done:
                 self._state = _State.DONE
@@ -262,7 +261,6 @@ class BodyCaptchaGame:
 
     def _begin_blowup(self) -> None:
         self._state   = _State.BLOWUP
-        self._state_t = 0.0
         self._taunt   = random.choice(self._taunts)
         self._blowup.start(self._grid)
 
