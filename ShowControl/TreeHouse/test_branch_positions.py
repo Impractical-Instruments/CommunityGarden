@@ -1,7 +1,7 @@
 """Tests for branch_positions and BranchController — position math only, no hardware."""
 
 from branches import BranchController, branch_positions
-from config import BranchConfig, BranchMotorConfig
+from treehouse_config import BranchConfig, BranchMotorConfig
 from controllables import Controllable, GardenState
 
 

@@ -1,7 +1,7 @@
 """The shipped settings.json loads, and names only what the Pi itself drives."""
 from pathlib import Path
 
-from config import load_config
+from treehouse_config import load_config
 from coordinator import build_controllables
 
 SETTINGS = Path(__file__).parent / "settings.json"

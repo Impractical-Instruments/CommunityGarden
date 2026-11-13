@@ -5,7 +5,7 @@ import logging
 
 import serial
 
-from config import BranchConfig, BranchMotorConfig
+from treehouse_config import BranchConfig, BranchMotorConfig
 from controllables import Controllable, ControllableState, GardenState
 
 log = logging.getLogger("treehouse")

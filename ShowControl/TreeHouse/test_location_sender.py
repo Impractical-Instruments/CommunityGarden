@@ -1,7 +1,7 @@
 """Tests for LocationSender — Garden State out to the ESP32-S3 controllers (ADR-0020). No hardware."""
 import pytest
 
-from config import LocationsConfig
+from treehouse_config import LocationsConfig
 from controllables import GardenState, ShowMode
 from location_sender import LocationSender, LocationTarget
 

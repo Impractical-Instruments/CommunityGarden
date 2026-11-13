@@ -27,7 +27,7 @@ Key references:
 - ADR-0017 — Club diorama rave screen
 - ADR-0018 — pygame/weston dual-display
 - ADR-0020 — ESP32-S3 location controllers (supersedes ADR-0010)
-- `config.py` (settings.json + network.json → typed config), `garden_state.py` (`SignalIntake`: OSC signals, stale-sender expiry, `snapshot()`), `branches.py` (`branch_positions()` maths, `BranchDriver` serial driver, `BranchController` as a `Controllable`), `coordinator.py` (intake → GardenState → every `Controllable`), `controllables/`, `looking_glass/`, `club_screen.py`, `location_sender.py`
+- `treehouse_config.py` (settings.json + network.json → typed config), `garden_state.py` (`SignalIntake`: OSC signals, stale-sender expiry, `snapshot()`), `branches.py` (`branch_positions()` maths, `BranchDriver` serial driver, `BranchController` as a `Controllable`), `coordinator.py` (intake → GardenState → every `Controllable`), `controllables/`, `looking_glass/`, `club_screen.py`, `location_sender.py`
 
 ---
 

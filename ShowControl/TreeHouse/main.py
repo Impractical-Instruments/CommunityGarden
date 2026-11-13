@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 from branches import BranchDriver
-from config import load_config
+from treehouse_config import load_config
 from coordinator import Coordinator, build_controllables
 from garden_state import SignalIntake
 from location_sender import LocationSender

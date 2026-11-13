@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 import visualizer
 from controllables import LookingGlassConfig, LookingGlassControllable, ShowMode
 from branches import BranchController
-from config import BranchConfig, BranchMotorConfig
+from treehouse_config import BranchConfig, BranchMotorConfig
 from coordinator import Coordinator
 
 DASHBOARD_PAGE = Path(__file__).parent.parent / "Dashboard" / "treehouse.html"

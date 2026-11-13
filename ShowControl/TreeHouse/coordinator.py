@@ -10,7 +10,7 @@ from controllables import (
     ShowMode,
 )
 from branches import BranchController, BranchDriver
-from config import OSCConfig, TreehouseConfig
+from treehouse_config import OSCConfig, TreehouseConfig
 from garden_state import SignalIntake
 
 log = logging.getLogger("treehouse")
