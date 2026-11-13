@@ -10,6 +10,17 @@ The 7-foot CRT-styled kiosk Element. Players activate a projected grid using the
 
 `app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, **Game** rotation, and a lightweight HTTP/WebSocket monitoring server on port 8080.
 
+`app.py` itself is the show loop. Each thing it runs on is one module beside it, and each can be read on its own:
+
+| Module | Its one job |
+|---|---|
+| `settings.py` | Where the settings files are, the default for every key (`DEFAULTS`), how they merge, unknown-key warnings |
+| `camera_feed.py` | `CameraFeed`: camera thread → foreground frames on a queue; restart; reseed. Shared with the shader and playlist players |
+| `monitor.py` | `MonitoringServer`: the port the Dashboard talks to (`/health`, `/logs`, `/api/restart`) |
+| `paint_input.py` | `PaintInput`: `--test-input`, the mouse-painted foreground |
+| `plugins.py` | Loads Games and screensavers from disk |
+| `arc.py` | Runs Games as an Arc |
+
 State machine (no calibration screen — the depth background is learned continuously from the first frame, with people in view; ADR-0023):
 - **SCREENSAVER** — idle animation; detects a Player and counts down `attract_dwell_s`
 - **GAME** — active Arc; ends with a Blow-Up, returns to SCREENSAVER
@@ -31,7 +42,7 @@ Key references:
 - ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
 - ADR-0022 — shader player blob records (`blobs` channel source)
 - ADR-0023 — self-learning depth background (no boot-time standback)
-- `app.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
+- `app.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
 
@@ -91,7 +102,9 @@ Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display
 
 ## Settings — `captcha-settings.json`
 
-Per-machine overrides go in `captcha-settings.local.json` (loaded second, shallow-merged on top — gitignored, per-host).
+Per-machine overrides go in `captcha-settings.local.json` (loaded second, merged on top — gitignored, per-host). Blocks merge key by key, so a local file that sets only `camera.serial` keeps the rest of `camera`; a list (`depth_slabs`) is replaced whole.
+
+Every key has its default in `settings.py` (`DEFAULTS`), which equals the committed `captcha-settings.json`; a test keeps the two together, so change both. No other code carries a fallback value. A key that `DEFAULTS` does not have — a typo, or a setting nothing reads — is logged as a warning at startup, with its file and dotted path. Keys starting with `_` are comments.
 
 Top-level fields:
 - `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
@@ -99,14 +112,14 @@ Top-level fields:
 - `detection` — `depth_delta_mm`, `min_depth_mm`, `max_depth_mm`, `min_blob_pixels` (connected foreground regions smaller than this many camera pixels are dropped as camera noise, default 500)
 - `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`
 - `slab_styles[<slab_id>]` — `{color}` for silhouette render
-- `cell_activation_threshold` — fraction of cell coverage required (default 0.30)
+- `cell_activation_threshold` — fraction of cell coverage required (default 0.25)
 - `camera_roi` — `{x, y, w, h}` in camera pixel coords
 - `attract_dwell_s` — seconds a Player must dwell to exit Screensaver
 - `min_foreground_pixels` — anti-noise threshold for Player presence
 - `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
 - `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
 - `background` — self-learning depth background (ADR-0023): `warmup_s` (ignore the camera's first, too-far frames), `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
-- Per-game block: `bodycaptcha` (timer_s, hold_s, hold_decay_rate, grace_s, abandon_s, weights for **Intensity** computation)
+- Per-game block: `bodycaptcha` (`timer_s`, `hold_s`, `hold_decay_rate`, `hint_opacity`, `intensity_weights` for the **Intensity** computation); a Level may override any of the first four
 
 ---
 
@@ -165,7 +178,7 @@ FundingCAPTCHA sends to the TreeHouse Hub each frame:
 - Live `intensity` value
 - Last 100 log lines
 
-Logs stream over a separate WebSocket; `_LogHandler` in `app.py` pumps records to connected clients.
+Logs stream over a separate WebSocket; `MonitoringServer.log_handler()` in `monitor.py` pumps records to connected clients.
 
 ---
 

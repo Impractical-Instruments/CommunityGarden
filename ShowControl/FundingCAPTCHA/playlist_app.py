@@ -32,10 +32,11 @@ from typing import Callable
 
 import numpy as np
 
-from app import DIR, load_settings
 from arc import ShuffleBag
+from camera_feed import CameraFeed, source_from_args
+from settings import DIR, load_settings
 from shader_app import (SHADER_DIR, SetupImages, ShaderStage, add_mode_args, display_index,
-                        drain_camera, open_display, start_camera)
+                        open_display)
 from shadertoy import Renderer, load_setup
 
 log = logging.getLogger("playlist_app")
@@ -401,7 +402,8 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     settings = load_settings()
-    fps      = int(settings.get("shader_app", {}).get("fps", 30))
+    fps      = int(settings["shader_app"]["fps"])
+    feed     = CameraFeed(settings, source_from_args(args))
     playlist_cfg = load_playlist(args.playlist)
     for item in playlist_cfg.items:
         if item.kind == "video" and not (VIDEO_DIR / item.name).is_file():
@@ -417,7 +419,7 @@ def main() -> None:
                         interstitial_s=playlist_cfg.interstitial_s,
                         image_max=win, image_max_side=stage.max_texture_side)
     playlist.next()
-    cam_q, stop = start_camera(args, settings)
+    feed.start()
 
     import pygame
     clock     = pygame.time.Clock()
@@ -444,7 +446,7 @@ def main() -> None:
                 stage.handle_key(ev)
 
         playlist.tick()
-        fg = drain_camera(cam_q)                  # always drain: the camera thread blocks when full
+        fg = feed.drain()                         # always drain: the camera thread blocks when full
 
         if playlist.video is not showing:
             screen.clear()
@@ -468,7 +470,7 @@ def main() -> None:
                      playlist.current or "-")
             fps_t, fps_n = time.monotonic(), 0
 
-    stop.set()
+    feed.stop()
     playlist.close()
     screen.release()
     stage.release()

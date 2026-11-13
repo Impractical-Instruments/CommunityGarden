@@ -685,4 +685,5 @@ def test_display_index_flag_beats_settings():
     settings = {"shader_app": {"display": 1}}
     assert display_index(Namespace(display=None), settings) == 1
     assert display_index(Namespace(display=2), settings) == 2
-    assert display_index(Namespace(display=None), {}) == 0
+    from settings import with_defaults
+    assert display_index(Namespace(display=None), with_defaults({})) == 0
