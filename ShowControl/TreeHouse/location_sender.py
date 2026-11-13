@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from controllables.base import GardenState
+from OSCFabric.gate import SignalGate
 
 log = logging.getLogger("treehouse")
 
@@ -62,13 +63,9 @@ class LocationSender:
         client_factory: Callable[[str, int], OSCClient] = _default_client_factory,
     ) -> None:
         self._targets = list(targets)
-        self._heartbeat_interval = heartbeat_interval_s
-        self._epsilon = change_epsilon
-        self._clock = clock or time.monotonic
+        self._gate = SignalGate(heartbeat_interval_s, change_epsilon, clock or time.monotonic)
         self._client_factory = client_factory
         self._clients: list[tuple[LocationTarget, OSCClient]] = []
-        self._last_sent: dict[str, float | str] = {}
-        self._last_send_time: dict[str, float] = {}
 
     def connect(self) -> None:
         """
@@ -95,7 +92,6 @@ class LocationSender:
         if not self._clients:
             return 0
 
-        now = self._clock()
         sent = 0
 
         for address, value in (
@@ -106,14 +102,14 @@ class LocationSender:
             # level, which is what the firmware reads it as.
             ("/treehouse/brightness", state.brightness),
         ):
-            if self._should_send_float(address, float(value), now):
+            if self._gate.due(address, float(value)):
                 sent += self._broadcast(address, float(value))
-                self._mark(address, float(value), now)
+                self._gate.mark(address, float(value))
 
         mode = state.show_mode.value
-        if self._should_send_string("/treehouse/mode", mode, now):
+        if self._gate.due("/treehouse/mode", mode):
             sent += self._broadcast("/treehouse/mode", mode)
-            self._mark("/treehouse/mode", mode, now)
+            self._gate.mark("/treehouse/mode", mode)
 
         # One-shot, and the most time-sensitive thing here: never rate-limited.
         if state.captcha_blowup:
@@ -125,27 +121,6 @@ class LocationSender:
         self._clients.clear()
 
     # -- internals ---------------------------------------------------------
-
-    def _should_send_float(self, address: str, value: float, now: float) -> bool:
-        previous = self._last_sent.get(address)
-        if previous is None or not isinstance(previous, float):
-            return True
-        if abs(value - previous) > self._epsilon:
-            return True
-        return self._heartbeat_due(address, now)
-
-    def _should_send_string(self, address: str, value: str, now: float) -> bool:
-        if self._last_sent.get(address) != value:
-            return True
-        return self._heartbeat_due(address, now)
-
-    def _heartbeat_due(self, address: str, now: float) -> bool:
-        last = self._last_send_time.get(address)
-        return last is None or (now - last) >= self._heartbeat_interval
-
-    def _mark(self, address: str, value: float | str, now: float) -> None:
-        self._last_sent[address] = value
-        self._last_send_time[address] = now
 
     def _broadcast(self, address: str, value) -> int:
         sent = 0

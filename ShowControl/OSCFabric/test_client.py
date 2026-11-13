@@ -175,6 +175,32 @@ def test_heartbeat_sends_most_recent_value():
     assert ("/flowerbeds/activity", (0.5,)) not in spy.calls
 
 
+def test_report_just_before_heartbeat_is_not_repeated_by_it():
+    # Deliberate change (#253): report() restarts that signal's heartbeat, so
+    # a value sent at t=4.9 is not sent again at t=5.0.
+    spy = SpyTransport()
+    client = FabricClient("flowerbeds", _config(heartbeat_interval_s=5.0), transport=spy)
+    client.report("activity", 0.5)
+    client.tick(4.9)
+    client.report("activity", 0.9)
+    spy.calls.clear()
+    client.tick(0.1)
+    assert spy.calls == []
+    client.tick(4.9)
+    assert spy.calls == [("/flowerbeds/activity", (0.9,))]
+
+
+def test_heartbeat_is_per_signal():
+    spy = SpyTransport()
+    client = FabricClient("flowerbeds", _config(heartbeat_interval_s=5.0), transport=spy)
+    client.report("activity", 0.5)
+    client.tick(3.0)
+    client.report("mood", 0.8)
+    spy.calls.clear()
+    client.tick(2.0)
+    assert spy.sent_addresses() == ["/flowerbeds/activity"]
+
+
 # ---------------------------------------------------------------------------
 # load_network_config()
 # ---------------------------------------------------------------------------
