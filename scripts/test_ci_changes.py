@@ -142,6 +142,8 @@ def test_no_changed_files_runs_nothing():
 @pytest.mark.parametrize("path", [
     "ShowControl/FundingCAPTCHA/shaders/watering_can/image.glsl",
     "ShowControl/FundingCAPTCHA/shaders/watering_can/setup.json",
+    "ShowControl/FundingCAPTCHA/shaders/watering_can/common.glsl",
+    "ShowControl/FundingCAPTCHA/shaders/logo_attract/images/logo.png",
     "ShowControl/FundingCAPTCHA/shaders/setups.json",
     "ShowControl/FundingCAPTCHA/images/bg.png",
     "ShowControl/FundingCAPTCHA/captcha-settings.json",
@@ -166,6 +168,9 @@ def test_paths_testmon_cannot_see_force_every_shader_test(path):
     "ShowControl/OSCFabric/client.py",
     "IIVision/blob_stabilizer.py",
     "ShowControl/FundingCAPTCHA/shadertoy.py",
+    "ShowControl/FundingCAPTCHA/shader_test_rig.py",
+    "ShowControl/FundingCAPTCHA/shaders/watering_can/test_watering_can.py",
+    "ShowControl/FundingCAPTCHA/shaders/barn_dancers/pack_atlas.py",
     "ShowControl/FundingCAPTCHA/games/grid.py",
     "SomethingNew/thing.py",
 ])

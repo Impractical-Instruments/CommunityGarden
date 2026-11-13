@@ -13,29 +13,17 @@ import pytest
 from shadertoy import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLOB_PAINTER_PATH,
                        BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE, BodyMouse, Keyboard, Renderer,
                        ShaderError, decode_image, js_keycode, load_setup, pack_body)
+from shader_test_rig import SOLID, image_setup, pixel, png, rendered_colour, write_setup
 
 SHADER_DIR = Path(__file__).parent / "shaders"
-
-
-def _write_setup(tmp_path: Path, files: dict[str, str], cfg: dict | None = None) -> Path:
-    d = tmp_path / "s"
-    d.mkdir()
-    for name, src in files.items():
-        (d / name).write_text(src)
-    if cfg is not None:
-        (d / "setup.json").write_text(json.dumps(cfg))
-    return d
-
-
-SOLID = "void mainImage(out vec4 o, in vec2 f) { o = vec4(1.0, 0.0, 0.0, 1.0); }"
 
 
 # ── Setup loading ─────────────────────────────────────────────────────────────
 
 def test_load_setup_pads_channels_and_orders_passes(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID, "buffer_c.glsl": SOLID,
-                                "buffer_b.glsl": SOLID, "common.glsl": "// c"},
-                     {"duration_s": 30, "channels": {"image": ["A", "B"]}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID, "buffer_c.glsl": SOLID,
+                               "buffer_b.glsl": SOLID, "common.glsl": "// c"},
+                    {"duration_s": 30, "channels": {"image": ["A", "B"]}})
     s = load_setup(d)
     assert list(s.passes) == ["buffer_b", "buffer_c", "image"]
     assert s.channels["image"] == ["A", "B", None, None]
@@ -45,25 +33,25 @@ def test_load_setup_pads_channels_and_orders_passes(tmp_path):
 
 def test_load_setup_rejects_missing_image(tmp_path):
     with pytest.raises(ShaderError, match="image.glsl"):
-        load_setup(_write_setup(tmp_path, {"buffer_b.glsl": SOLID}))
+        load_setup(write_setup(tmp_path, {"buffer_b.glsl": SOLID}))
 
 
 def test_load_setup_rejects_reading_absent_buffer(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["C"]}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["C"]}})
     with pytest.raises(ShaderError, match="no such buffer"):
         load_setup(d)
 
 
 def test_load_setup_accepts_blobs_source(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["A", "blobs"]}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["A", "blobs"]}})
     s = load_setup(d)
     assert s.channels["image"][1] == "blobs" and s.uses_blobs
     (tmp_path / "x").mkdir()
-    assert not load_setup(_write_setup(tmp_path / "x", {"image.glsl": SOLID}, {})).uses_blobs
+    assert not load_setup(write_setup(tmp_path / "x", {"image.glsl": SOLID}, {})).uses_blobs
 
 
 def test_load_setup_rejects_unknown_source(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["webcam"]}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["webcam"]}})
     with pytest.raises(ShaderError, match="unknown source"):
         load_setup(d)
 
@@ -102,7 +90,7 @@ def test_pack_body_slab_gap_is_absent():
 
 
 def test_load_setup_rejects_non_list_channels(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": None}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": None}})
     with pytest.raises(ShaderError, match="must be a list"):
         load_setup(d)
 
@@ -151,22 +139,8 @@ def test_js_keycode():
     assert js_keycode(pygame.K_F12) is None
 
 
-def _png(path: Path, size: tuple[int, int], colour: tuple, rows: list | None = None) -> Path:
-    """Solid PNG, or one colour per row band (top first) when `rows` is given."""
-    from PIL import Image
-    im = Image.new("RGBA", size, colour)
-    if rows:
-        band = size[1] // len(rows)
-        for i, c in enumerate(rows):
-            for y in range(i * band, (i + 1) * band):
-                for x in range(size[0]):
-                    im.putpixel((x, y), c)
-    im.save(path)
-    return path
-
-
 def test_load_setup_lists_images_sorted_ignoring_others(tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}})
+    d = write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}})
     (d / "images").mkdir()
     for n in ("b.JPG", "a.png", "c.jpeg", "notes.md", ".DS_Store"):
         (d / "images" / n).write_bytes(b"x")
@@ -176,23 +150,23 @@ def test_load_setup_lists_images_sorted_ignoring_others(tmp_path):
 
 
 def test_load_setup_without_images_folder_has_no_images(tmp_path):
-    s = load_setup(_write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}}))
+    s = load_setup(write_setup(tmp_path, {"image.glsl": SOLID}, {"channels": {"image": ["image"]}}))
     assert s.images == [] and s.uses_image
 
 
 def test_setup_without_image_source_does_not_use_image(tmp_path):
-    assert not load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})).uses_image
+    assert not load_setup(write_setup(tmp_path, {"image.glsl": SOLID})).uses_image
 
 
 def test_decode_image_puts_bottom_row_first(tmp_path):
-    p = _png(tmp_path / "t.png", (1, 2), (0, 0, 0, 255), rows=[(255, 0, 0, 255), (0, 0, 255, 255)])
+    p = png(tmp_path / "t.png", (1, 2), (0, 0, 0, 255), rows=[(255, 0, 0, 255), (0, 0, 255, 255)])
     a = decode_image(p, (64, 64))
     assert a.shape == (2, 1, 4) and a.dtype == np.uint8
     assert tuple(a[0, 0]) == (0, 0, 255, 255) and tuple(a[1, 0]) == (255, 0, 0, 255)
 
 
 def test_decode_image_downscales_only_while_still_covering(tmp_path):
-    p = _png(tmp_path / "w.png", (400, 200), (10, 20, 30, 255))
+    p = png(tmp_path / "w.png", (400, 200), (10, 20, 30, 255))
     assert decode_image(p, (100, 100)).shape == (100, 200, 4)     # covers 100×100, aspect kept
     assert decode_image(p, (1000, 1000)).shape == (200, 400, 4)   # never upscaled
     assert decode_image(p, (100, 100), max_side=150).shape == (75, 150, 4)
@@ -215,11 +189,6 @@ def test_decode_image_corrupt_raises(tmp_path):
 
 # ── GL ────────────────────────────────────────────────────────────────────────
 
-def _pixel(r: Renderer, x: int, y: int) -> tuple:
-    data = np.frombuffer(r.output.read(components=4), dtype=np.uint8)
-    return tuple(data.reshape(r.size[1], r.size[0], 4)[y, x])
-
-
 @pytest.mark.parametrize("name", json.loads((SHADER_DIR / "setups.json").read_text()))
 def test_listed_setups_compile(ctx, name):
     r = Renderer(ctx, (64, 36), body_mode="painter")
@@ -230,7 +199,7 @@ def test_listed_setups_compile(ctx, name):
 
 
 def test_compile_error_reports_tab_line(ctx, tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {\n  o = nope;\n}"})
+    d = write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {\n  o = nope;\n}"})
     r = Renderer(ctx, (8, 8))
     with pytest.raises(ShaderError, match=r"\b0(:2\b|\(2\))"):    # Mesa "0:2", NVIDIA "0(2)"
         r.load(load_setup(d))
@@ -239,37 +208,37 @@ def test_compile_error_reports_tab_line(ctx, tmp_path):
 
 def test_broken_setup_keeps_current_running(ctx, tmp_path):
     r = Renderer(ctx, (8, 8))
-    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.load(load_setup(write_setup(tmp_path, {"image.glsl": SOLID})))
     bad = tmp_path / "bad"
     bad.mkdir()
     (bad / "image.glsl").write_text("garbage")
     with pytest.raises(ShaderError):
         r.load(load_setup(bad))
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 4, 4)[:3] == (255, 0, 0)
+    assert pixel(r, 4, 4)[:3] == (255, 0, 0)
     r.release()
 
 
 def test_buffer_feedback_and_same_frame_reads(ctx, tmp_path):
     # B counts frames by reading itself (previous frame); Image reads B (this frame).
-    d = _write_setup(tmp_path, {
+    d = write_setup(tmp_path, {
         "buffer_b.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                         " o = texture(iChannel0, f / iResolution.xy) + vec4(0.1); }",
+                        " o = texture(iChannel0, f / iResolution.xy) + vec4(0.1); }",
         "image.glsl":    "void mainImage(out vec4 o, in vec2 f) {"
-                         " o = vec4(texture(iChannel0, f / iResolution.xy).r, 0.0, 0.0, 1.0); }",
+                        " o = vec4(texture(iChannel0, f / iResolution.xy).r, 0.0, 0.0, 1.0); }",
     }, {"channels": {"buffer_b": ["B"], "image": ["B"]}})
     r = Renderer(ctx, (4, 4))
     r.load(load_setup(d))
     for _ in range(3):
         r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[0] == pytest.approx(round(0.3 * 255), abs=2)
+    assert pixel(r, 1, 1)[0] == pytest.approx(round(0.3 * 255), abs=2)
     r.release()
 
 
 def test_camera_body_reaches_image(ctx, tmp_path):
-    d = _write_setup(tmp_path, {
+    d = write_setup(tmp_path, {
         "image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                      " o = vec4(texture(iChannel0, f / iResolution.xy).rg, 0.0, 1.0); }",
+                     " o = vec4(texture(iChannel0, f / iResolution.xy).rg, 0.0, 1.0); }",
     }, {"channels": {"image": ["A"]}})
     r = Renderer(ctx, (8, 8), body_mode="camera")
     r.load(load_setup(d))
@@ -277,8 +246,8 @@ def test_camera_body_reaches_image(ctx, tmp_path):
     fg[0:4, :] = 1000                                # top half, nearest
     r.upload_body(pack_body(fg, {"x": 0, "y": 0, "w": 8, "h": 8}, [{"near_mm": 1000, "far_mm": 4000}]))
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 4, 6)[:2] == (255, 255)         # GL y=6 is the top half
-    assert _pixel(r, 4, 1)[:2] == (0, 0)
+    assert pixel(r, 4, 6)[:2] == (255, 255)         # GL y=6 is the top half
+    assert pixel(r, 4, 1)[:2] == (0, 0)
     r.release()
 
 
@@ -318,7 +287,7 @@ def test_deferred_image_matches_drawing_it_every_frame(ctx, name):
 
 def test_deferred_image_refuses_after_an_upload(ctx, tmp_path):
     r = Renderer(ctx, (8, 8), body_mode="camera")
-    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.load(load_setup(write_setup(tmp_path, {"image.glsl": SOLID})))
     r.defer_image = True
     r.render(1 / 30, (0, 0, 0, 0))
     r.upload_blobs(np.zeros((BLOB_ROWS, BLOB_SLOTS, 4), dtype=np.float32))   # that frame's inputs are gone
@@ -331,7 +300,7 @@ def test_deferred_image_refuses_after_an_upload(ctx, tmp_path):
 
 def test_draw_deferred_image_is_a_no_op_when_nothing_was_skipped(ctx, tmp_path):
     r = Renderer(ctx, (8, 8))
-    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.load(load_setup(write_setup(tmp_path, {"image.glsl": SOLID})))
     r.render(1 / 30, (0, 0, 0, 0))
     before = r.output.read()
     r.output.clear()
@@ -341,17 +310,56 @@ def test_draw_deferred_image_is_a_no_op_when_nothing_was_skipped(ctx, tmp_path):
 
 
 def test_painter_puts_body_under_mouse(ctx, tmp_path):
-    d = _write_setup(tmp_path, {
+    d = write_setup(tmp_path, {
         "image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                      " o = vec4(texture(iChannel0, f / iResolution.xy).r, 0.0, 0.0, 1.0); }",
+                     " o = vec4(texture(iChannel0, f / iResolution.xy).r, 0.0, 0.0, 1.0); }",
     }, {"channels": {"image": ["A"]}})
     r = Renderer(ctx, (160, 90), body_mode="painter")
     r.load(load_setup(d))
     r.render(1 / 30, (40.0, 45.0, 40.0, 45.0))      # left button down at x=40
-    assert _pixel(r, 40, 45)[0] == 255
-    assert _pixel(r, 130, 45)[0] == 0
+    assert pixel(r, 40, 45)[0] == 255
+    assert pixel(r, 130, 45)[0] == 0
     r.render(1 / 30, (40.0, 45.0, -40.0, -45.0))    # released, nothing parked
-    assert _pixel(r, 40, 45)[0] == 0
+    assert pixel(r, 40, 45)[0] == 0
+    r.release()
+
+
+def _counting_renderer(ctx, tmp_path) -> Renderer:
+    """A Renderer whose Buffer B adds 0.25 to its red channel every frame."""
+    d = write_setup(tmp_path, {
+        "buffer_b.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                         " o = texelFetch(iChannel0, ivec2(0, 0), 0) + vec4(0.25, 0.0, 0.0, 0.0); }",
+        "image.glsl": SOLID,
+    }, {"channels": {"buffer_b": ["B"]}})
+    r = Renderer(ctx, (8, 4))
+    r.load(load_setup(d))
+    return r
+
+
+def test_read_buffer_returns_what_the_next_frame_reads(ctx, tmp_path):
+    r = _counting_renderer(ctx, tmp_path)
+    for _ in range(2):
+        r.render(1 / 30, (0, 0, 0, 0))
+    b = r.read_buffer("buffer_b")
+    assert b.shape == (4, 8, 4) and b.dtype == np.float32
+    assert b[0, 0, 0] == pytest.approx(0.5)
+    with pytest.raises(KeyError, match="buffer_c"):
+        r.read_buffer("buffer_c")
+    r.release()
+
+
+def test_restore_puts_the_renderer_back_as_snapshot_found_it(ctx, tmp_path):
+    r = _counting_renderer(ctx, tmp_path)
+    r.render(1 / 30, (0, 0, 0, 0))
+    snap = r.snapshot()
+    r.render(1 / 30, (0, 0, 0, 0))
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert r.snapshot() != snap
+    r.restore(snap)
+    assert r.snapshot() == snap
+    assert (r.time, r.frame) == pytest.approx((1 / 30, 1))
+    r.render(1 / 30, (0, 0, 0, 0))
+    assert r.read_buffer("buffer_b")[0, 0, 0] == pytest.approx(0.5)     # carries on from the snapshot, not from frame 3
     r.release()
 
 
@@ -364,8 +372,8 @@ def test_painter_puts_body_under_mouse(ctx, tmp_path):
     "o = vec4(float(HW_PERFORMANCE + 1));",
 ])
 def test_shadertoy_idioms_render(ctx, tmp_path, src):
-    d = _write_setup(tmp_path, {"image.glsl": f"void mainImage(out vec4 o, in vec2 f) {{ {src} }}"},
-                     {"channels": {"image": ["keyboard"]}})
+    d = write_setup(tmp_path, {"image.glsl": f"void mainImage(out vec4 o, in vec2 f) {{ {src} }}"},
+                    {"channels": {"image": ["keyboard"]}})
     r = Renderer(ctx, (8, 8))
     r.load(load_setup(d))
     r.render(1 / 30, (0, 0, 0, 0))
@@ -373,26 +381,26 @@ def test_shadertoy_idioms_render(ctx, tmp_path, src):
 
 
 def test_keyboard_reaches_shaders(ctx, tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                                " o = vec4(texelFetch(iChannel0, ivec2(32, 0), 0).x, 0.0, 0.0, 1.0); }"},
-                     {"channels": {"image": ["keyboard"]}})
+    d = write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                               " o = vec4(texelFetch(iChannel0, ivec2(32, 0), 0).x, 0.0, 0.0, 1.0); }"},
+                    {"channels": {"image": ["keyboard"]}})
     r = Renderer(ctx, (4, 4))
     r.load(load_setup(d))
     r.keyboard.key_down(32)
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[0] == 255
+    assert pixel(r, 1, 1)[0] == 255
     r.release()
 
 
 def test_itime_starts_at_zero(ctx, tmp_path):
-    d = _write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
-                                              " o = vec4(iTime, 0.0, 0.0, 1.0); }"})
+    d = write_setup(tmp_path, {"image.glsl": "void mainImage(out vec4 o, in vec2 f) {"
+                                             " o = vec4(iTime, 0.0, 0.0, 1.0); }"})
     r = Renderer(ctx, (4, 4))
     r.load(load_setup(d))
     r.render(0.5, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[0] == 0
+    assert pixel(r, 1, 1)[0] == 0
     r.render(0.5, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[0] == pytest.approx(128, abs=1)
+    assert pixel(r, 1, 1)[0] == pytest.approx(128, abs=1)
     r.release()
 
 
@@ -447,7 +455,7 @@ def test_render_failure_drops_setup(ctx, tmp_path):
 # ── Blob records (ADR-0022) ───────────────────────────────────────────────────
 
 def _blob_setup(tmp_path, files, channels):
-    return load_setup(_write_setup(tmp_path, files, {"channels": channels}))
+    return load_setup(write_setup(tmp_path, files, {"channels": channels}))
 
 
 def test_uploaded_blobs_reach_texelfetch(ctx, tmp_path):
@@ -460,7 +468,7 @@ def test_uploaded_blobs_reach_texelfetch(ctx, tmp_path):
     rec[2, 5] = (17, BLOB_COASTING, 0.5, 1.0)
     r.upload_blobs(rec)
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 3, 3)[0] == pytest.approx(round(BLOB_COASTING / 4 * 255), abs=1)
+    assert pixel(r, 3, 3)[0] == pytest.approx(round(BLOB_COASTING / 4 * 255), abs=1)
     with pytest.raises(ValueError):
         r.upload_blobs(np.zeros((BLOB_SLOTS, BLOB_ROWS, 4), dtype=np.float32))
     r.release()
@@ -472,13 +480,13 @@ def test_blobs_channel_resolution_is_slots_by_rows(ctx, tmp_path):
                                   " o = vec4(iChannelResolution[0].xy / 32.0, 0.0, 1.0); }"},
                        {"image": ["blobs"]}))
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1)[:2] == (round(BLOB_SLOTS / 32 * 255), round(BLOB_ROWS / 32 * 255))   # no .5 ties: drivers round those either way
+    assert pixel(r, 1, 1)[:2] == (round(BLOB_SLOTS / 32 * 255), round(BLOB_ROWS / 32 * 255))   # no .5 ties: drivers round those either way
     r.release()
 
 
 def test_read_body_returns_painted_body(ctx, tmp_path):
     r = Renderer(ctx, (160, 90), body_mode="painter")
-    r.load(load_setup(_write_setup(tmp_path, {"image.glsl": SOLID})))
+    r.load(load_setup(write_setup(tmp_path, {"image.glsl": SOLID})))
     r.render(1 / 30, (40.0, 45.0, 40.0, 45.0))
     body = r.read_body()
     assert body.shape == (90, 160, 4)
@@ -487,9 +495,7 @@ def test_read_body_returns_painted_body(ctx, tmp_path):
 
 
 def _painter_records(r) -> np.ndarray:
-    tex = r._buffers["buffer_d"].read_tex
-    data = np.frombuffer(tex.read(), dtype=np.float16).reshape(tex.size[1], tex.size[0], 4)
-    return data[:BLOB_ROWS, :BLOB_SLOTS].astype(np.float32)
+    return r.read_buffer("buffer_d")[:BLOB_ROWS, :BLOB_SLOTS]
 
 
 def test_blob_painter_lifecycle(ctx, tmp_path):
@@ -547,7 +553,7 @@ def test_blob_debug_reference_setup_renders(ctx):
     rec[2, 0] = (1, BLOB_CONFIRMED, 0.0, 0.5)
     r.upload_blobs(rec)
     r.render(1 / 30, (32, 18, 32, 18))
-    assert _pixel(r, int(0.1 * 64), 18)[:3] == (17, 17, 17)  # ink on the box's left edge
+    assert pixel(r, int(0.1 * 64), 18)[:3] == (17, 17, 17)  # ink on the box's left edge
     r.release()
 
 
@@ -569,60 +575,37 @@ def test_rotation_calls_on_load_for_every_load(ctx, tmp_path):
 
 # ── Image source (ADR-0024) ───────────────────────────────────────────────────
 
-SHOW_CH0 = ("void mainImage(out vec4 o, in vec2 f) {"
-            " o = vec4(texture(iChannel0, f / iResolution.xy).rgb,"
-            "          iChannelResolution[0].x > 0.0 ? 1.0 : 0.0); }")
-
-
-def _image_setup(tmp_path: Path, images: dict[str, tuple | bytes] | None = None) -> Path:
-    """Setup "s" under tmp_path showing its image; images: name → solid RGBA or raw bytes."""
-    d = _write_setup(tmp_path, {"image.glsl": SHOW_CH0}, {"channels": {"image": ["image"]}})
-    if images is not None:
-        (d / "images").mkdir()
-        for name, v in images.items():
-            if isinstance(v, bytes):
-                (d / "images" / name).write_bytes(v)
-            else:
-                _png(d / "images" / name, (4, 4), v)
-    return d
-
-
 def test_image_channel_reaches_shader(ctx, tmp_path):
     img = np.zeros((2, 1, 4), dtype=np.uint8)
     img[0, 0] = (0, 0, 255, 255)                          # row 0 = bottom
     img[1, 0] = (255, 0, 0, 255)
     r = Renderer(ctx, (4, 4))
-    r.load(load_setup(_image_setup(tmp_path)), image=img)
+    r.load(load_setup(image_setup(tmp_path)), image=img)
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 3) == (255, 0, 0, 255)            # GL y=3 is the top
-    assert _pixel(r, 1, 0) == (0, 0, 255, 255)
+    assert pixel(r, 1, 3) == (255, 0, 0, 255)            # GL y=3 is the top
+    assert pixel(r, 1, 0) == (0, 0, 255, 255)
     r.release()
 
 
 def test_unbound_image_reads_zero_resolution(ctx, tmp_path):
     r = Renderer(ctx, (4, 4))
-    r.load(load_setup(_image_setup(tmp_path)))
+    r.load(load_setup(image_setup(tmp_path)))
     r.render(1 / 30, (0, 0, 0, 0))
-    assert _pixel(r, 1, 1) == (0, 0, 0, 0)
+    assert pixel(r, 1, 1) == (0, 0, 0, 0)
     r.release()
-
-
-def _rendered_colour(r: Renderer) -> tuple:
-    r.render(1 / 30, (0, 0, 0, 0))
-    return _pixel(r, 1, 1)
 
 
 def test_rotation_shuffles_images_per_load(ctx, tmp_path):
     from shader_app import Rotation
-    _image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255),
-                            "b.png": (0, 0, 255, 255)})
+    image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255),
+                           "b.png": (0, 0, 255, 255)})
     r = Renderer(ctx, (4, 4))
     rot = Rotation(r, ["s"], shader_dir=tmp_path)
     rot.next()
-    seen = [_rendered_colour(r)]
+    seen = [rendered_colour(r)]
     for _ in range(3):
         rot.reload()
-        seen.append(_rendered_colour(r))
+        seen.append(rendered_colour(r))
     assert len(set(seen[:3])) == 3                        # no repeat until all have shown
     assert seen[3] in seen[:3]
     r.release()
@@ -630,33 +613,33 @@ def test_rotation_shuffles_images_per_load(ctx, tmp_path):
 
 def test_rotation_skips_corrupt_image(ctx, tmp_path):
     from shader_app import Rotation
-    _image_setup(tmp_path, {"bad.png": b"not a png", "good.png": (0, 255, 0, 255)})
+    image_setup(tmp_path, {"bad.png": b"not a png", "good.png": (0, 255, 0, 255)})
     r = Renderer(ctx, (4, 4))
     rot = Rotation(r, ["s"], shader_dir=tmp_path)
     rot.next()
-    colours = [_rendered_colour(r)]
+    colours = [rendered_colour(r)]
     for _ in range(3):
         rot.reload()
-        colours.append(_rendered_colour(r))
+        colours.append(rendered_colour(r))
     assert colours == [(0, 255, 0, 255)] * 4
     r.release()
 
 
 def test_rotation_with_only_corrupt_images_binds_nothing(ctx, tmp_path):
     from shader_app import Rotation
-    _image_setup(tmp_path, {"bad.png": b"not a png"})
+    image_setup(tmp_path, {"bad.png": b"not a png"})
     r = Renderer(ctx, (4, 4))
     rot = Rotation(r, ["s"], shader_dir=tmp_path)
     rot.next()
     assert r.setup is not None and r.setup.name == "s"
-    assert _rendered_colour(r)[3] == 0
+    assert rendered_colour(r)[3] == 0
     r.release()
 
 
 def test_rotation_scales_images_to_cover_image_max(ctx, tmp_path):
     from shader_app import Rotation
-    d = _image_setup(tmp_path, {})
-    _png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
+    d = image_setup(tmp_path, {})
+    png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
     r = Renderer(ctx, (4, 4))
     rot = Rotation(r, ["s"], shader_dir=tmp_path, image_max=(10, 10))
     rot.next()

@@ -6,128 +6,35 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import copy
-import math
-import re
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from body_blobs import BlobConfig, BodyBlobs
-from shadertoy import Renderer, load_setup, pack_body
+from shader_test_rig import BLOBS, DT, Rig, glsl_consts
+from shader_test_rig import rect as body_rect
 
-SETUP = Path(__file__).parent / "shaders" / "watering_can"
-
-
-def glsl_consts(path=SETUP / "common.glsl") -> dict:
-    """Every `const float|int|vec2|vec3 NAME = <expr>, ...;` in common.glsl, evaluated: simple arithmetic,
-    earlier constants, max/min/ceil, float(...)/int(...); vec2/vec3 become tuples."""
-    src = re.sub(r"//[^\n]*", "", path.read_text())
-    env = {"max": max, "min": min, "ceil": math.ceil, "float": float, "int": int,
-           "vec2": lambda *a: tuple(float(x) for x in a), "vec3": lambda *a: tuple(float(x) for x in a)}
-    out = {}
-    for m in re.finditer(r"\bconst\s+(?:float|int|vec2|vec3)\s+([^;]*);", src):
-        depth, start, decls = 0, 0, []
-        body = m.group(1)
-        for i, ch in enumerate(body + ","):                 # split on top-level commas only
-            depth += (ch == "(") - (ch == ")")
-            if ch == "," and depth == 0:
-                decls.append(body[start:i]); start = i + 1
-        for d in decls:
-            name, expr = (x.strip() for x in d.split("=", 1))
-            out[name] = env[name] = eval(expr, {"__builtins__": {}}, env)
-    return out
-
-
-class _Consts(dict):
-    def __getitem__(self, name):
-        if name not in self:
-            raise KeyError(f"{name} is not a constant in common.glsl")
-        return dict.__getitem__(self, name)
-
-
-K = _Consts(glsl_consts())
+SETUP = Path(__file__).parent
+K = glsl_consts(SETUP)
 SIZE  = (128, 72)                         # render
 BODY  = (64, 48)                          # camera ROI (w, h)
-SLABS = [{"near_mm": 1000, "far_mm": 4000}]
-DT    = 1 / 30
 LEAVE_S = K["LEAVE_S"]
-BLOBS = BlobConfig(min_blob_pixels=20)    # the shipped defaults, but for the small test Body
+
+rect = partial(body_rect, body=BODY)
+EMPTY = rect(0, 0, 0, 0)
 
 
-class Rig:
-    """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at `dt`."""
+class WateringRig(Rig):
+    """Buffer C layout: see common.glsl."""
 
     def __init__(self, ctx, size=SIZE, dt=DT, slot=0):
-        self.size, self.dt, self.slot = size, dt, slot   # slot: move the tracker's records there (owner = slot + 1)
-        self.r = Renderer(ctx, size, body_mode="camera")
-        self.r.load(load_setup(SETUP))
-        self.r.defer_image = True                         # most tests read buffers: image() draws the Image on demand
-        self.blobs = BodyBlobs(BLOBS)
-        self.t = 0.0
-
-    def run(self, masks, frames_per_camera=3):
-        for m in masks:                                   # one mask per camera frame, row 0 = top
-            fg = np.where(m, 2000, 0).astype(np.uint16)
-            body = pack_body(fg, {"x": 0, "y": 0, "w": m.shape[1], "h": m.shape[0]}, SLABS)   # usually BODY
-            self.r.upload_body(body)
-            self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
-            for _ in range(frames_per_camera):
-                self.r.upload_blobs(np.roll(self.blobs.records(now=self.t), self.slot, axis=1))
-                self.r.render(self.dt, (0, 0, 0, 0))
-                self.t += self.dt
-
-    def buf(self, name) -> np.ndarray:
-        """A buffer as float32 (h, w, 4), row 0 = the GL bottom."""
-        t = self.r._buffers[name].read_tex
-        return np.frombuffer(t.read(), dtype=np.float16).astype(np.float32).reshape(t.size[1], t.size[0], 4)
+        super().__init__(ctx, SETUP, size, dt=dt, record_slot=slot)
 
     def person(self, k): return self.buf("buffer_c")[0, k]   # id, growth, spot x, y
     def base(self, k):   return self.buf("buffer_c")[1, k]   # base x, y, since step
     def ghost(self, k):  return self.buf("buffer_c")[2, k]   # spot x, y, growth, since loss
     def sun(self):       return self.buf("buffer_c")[3, 0]   # level, raw total
-
-    def image(self) -> np.ndarray:
-        """The Image as uint8 (h, w, 4), row 0 = bottom."""
-        self.r.draw_deferred_image()
-        return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(self.size[1], self.size[0], 4)
-
-    def release(self):
-        self.r.release()
-
-    def _state_textures(self):
-        """Every texture a frame reads or writes: the feedback buffers (both halves), the Image, the inputs."""
-        r = self.r
-        return [*(t for b in r._buffers.values() for t in b.tex), r.output_tex, r._body_tex, r._blobs_tex]
-
-    def snapshot(self):
-        """All state the next run() or read depends on, for restore()."""
-        r = self.r
-        return {"tex":   [t.read() for t in self._state_textures()],
-                "reads": {n: b.read for n, b in r._buffers.items()},
-                "clock": (r.time, r.frame, self.t),
-                "image": (r._deferred, r._deferred_lost),
-                "blobs": copy.deepcopy(self.blobs)}
-
-    def restore(self, snap):
-        r = self.r
-        for t, data in zip(self._state_textures(), snap["tex"], strict=True):
-            t.write(data)
-        for n, read in snap["reads"].items():
-            r._buffers[n].read = read
-        r.time, r.frame, self.t = snap["clock"]
-        r._deferred, r._deferred_lost = snap["image"]
-        self.blobs = copy.deepcopy(snap["blobs"])
-
-
-def rect(x0, y0, x1, y1):
-    m = np.zeros(BODY[::-1], dtype=bool)
-    m[max(y0, 0):y1, max(x0, 0):x1] = True
-    return m
-
-
-EMPTY = np.zeros(BODY[::-1], dtype=bool)
 
 
 def person(x=26, feet=44, arm="down", lift=None):
@@ -208,7 +115,7 @@ def b_at(rig, col, row):
 
 
 def test_presence_ignores_edge_flicker(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run(flickering(30))
     edge = []
     for k in range(10):
@@ -223,7 +130,7 @@ def test_presence_ignores_edge_flicker(ctx):
 
 
 def test_run_extents_span_leg_to_shoulder(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person()] * 10)
     g, b = b_at(rig, 29, 40)[1:3]                     # in a leg
     assert abs(g - (1 - 44 / 48)) < 1 / 48
@@ -232,7 +139,7 @@ def test_run_extents_span_leg_to_shoulder(ctx):
 
 
 def test_raised_arm_runs_start_at_its_lowest_point(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(arm="up")] * 10)
     g = b_at(rig, 36, 3)[1]                           # in the raised arm, above the head
     assert abs(g - (1 - 12 / 48)) < 2 / 48            # its lowest row (the shoulder), not the feet
@@ -241,7 +148,7 @@ def test_raised_arm_runs_start_at_its_lowest_point(ctx):
 
 
 def test_walker_leaves_no_hold_trail(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run(walking(20))
     b = rig.buf("buffer_b")
     gone = b[..., 0] < 0.05
@@ -254,7 +161,7 @@ def test_walker_leaves_no_hold_trail(ctx):
 
 
 def test_lost_person_holds_then_fades(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person()] * 20)
     rig.run([EMPTY] * 15)                             # 1.5 s: lost after 8 misses
     h1 = b_at(rig, 32, 20)
@@ -274,7 +181,7 @@ def test_hold_fade_independent_of_render_rate(ctx, dt, per_cam):
     Measured as the slope of the mean hold over the torso between 0.5 s and 1.5 s into the fade.
     In slot 7 (owner 8): the hold is stored as owner + 0.9 * hold, so owner 8 has the coarsest half-float
     spacing; the quantisation is otherwise the same for every owner."""
-    rig = Rig(ctx, dt=dt, slot=7)
+    rig = WateringRig(ctx, dt=dt, slot=7)
     rig.run([person()] * 20, frames_per_camera=per_cam)
 
     def hold():                                        # mean over a torso patch, so per-pixel noise averages out
@@ -297,7 +204,7 @@ def test_fading_hold_agrees_along_a_run(ctx):
     the hold's peak-to-peak down a torso column stays within 2 * HOLD_Q at every point of the fade.
     (The fade's step offset is per frame, not per texel, at any render rate: one rate is enough.)"""
     size, per_cam = (640, 360), 3
-    rig = Rig(ctx, size=size, dt=1 / 30)
+    rig = WateringRig(ctx, size=size, dt=1 / 30)
     rig.run([person()] * 20, frames_per_camera=per_cam)
     seen = []
     for k in range(28):                                # coasting (0.8 s), then the whole LEAVE_S fade
@@ -345,7 +252,7 @@ def slot_near(rig, x_px):
 
 
 def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, never loses growth
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     levels = []
     for _ in range(22):
         rig.run(flickering(10))
@@ -357,7 +264,7 @@ def test_planted_flickering_person_blooms_in_20s(ctx):          # spec: ~20 s, n
 
 
 def test_arm_waving_does_not_rewind(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(arm=("down", "out", "up")[k // 5 % 3]) for k in range(100)])
     assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
     assert footprints(rig) == []                    # nor is waving
@@ -365,7 +272,7 @@ def test_arm_waving_does_not_rewind(ctx):
 
 
 def test_weight_shift_does_not_rewind(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(lift=(None, "L", None, "R")[k // 3 % 4]) for k in range(100)])
     assert abs(rig.person(0)[1] - grown(10)) < 0.06, rig.person(0)
     rig.release()
@@ -374,7 +281,7 @@ def test_weight_shift_does_not_rewind(ctx):
 def test_stepping_toward_camera_rewinds(ctx):
     # Toward the camera for 1.1 s, then back away for 1.1 s. Detecting a step takes ~2 px of
     # movement plus easing (~0.4 s, still growing meanwhile), so 1.1 s alone nets only ~0.01.
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(feet=36)] * 100)
     g0 = rig.person(0)[1]
     assert g0 > 0.4
@@ -384,7 +291,7 @@ def test_stepping_toward_camera_rewinds(ctx):
 
 
 def test_walking_sideways_rewinds_then_growth_resumes(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(x=WALK_X)] * 100)
     g0 = rig.person(0)[1]
     walk = walking(30, x=WALK_X)
@@ -404,7 +311,7 @@ def test_walking_sideways_rewinds_then_growth_resumes(ctx):
 
 
 def test_neighbour_walking_does_not_rewind_still_person(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run(both([person(x=46)] * 100, walking(100, x=4, bounce=(4, 20))))
     assert len(live_slots(rig)) == 2
     still, walker = slot_near(rig, 52), slot_near(rig, 4)
@@ -416,7 +323,7 @@ def test_neighbour_walking_does_not_rewind_still_person(ctx):
 
 def test_merge_then_split_both_inherit(ctx):
     # A has grown far more than B, so B starting from the merged level is told apart from B keeping its own.
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(x=4)] * 150)                                       # A alone, 15 s
     rig.run(both([person(x=4)] * 30, [person(x=40)] * 30))             # B arrives, 3 s
     assert len(live_slots(rig)) == 2
@@ -450,7 +357,7 @@ def test_touching_still_people_keep_growing(ctx, contact):
     # gap is bridged; neither moves, so neither may lose growth to the box swelling and shrinking.
     rng = np.random.default_rng(1)
     a, b = person(x=10), person(x=23)
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([a | b] * 60)
     before = confirmed_near(rig, 16), confirmed_near(rig, 29)
     frames = []
@@ -471,7 +378,7 @@ def test_passer_by_costs_nothing_once_past(ctx):
     # Someone walks across in front of planted A (merging with them on the way). Merged, they share a level;
     # once the passer-by is clear, A loses nothing more and grows at the full rate straight away.
     feet = 44
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     a = person(x=26)                                          # spans Body columns 26..38
     rig.run([a] * 100)
     xs = list(range(-12, 64, 2))                              # 2 px per camera frame: a brisk walk
@@ -492,7 +399,7 @@ def test_merged_neighbour_stepping_nearer_leaves_a_planted_base(ctx):
     # nearer still. The merged box's bottom is B's feet and moves with them; A's base must stay on A's own feet
     # (BASE_FEET: no feet at the box bottom in A's window, so A's lowest body row). Following the box bottom
     # would read B's step as A's, and rewind A.
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     a = person(x=26)                                          # Body columns 26..37: A's feet window is ~27..37
     rig.run([a] * 100)
     rig.run([a | person(x=38, feet=45)] * 20)                 # touching, so one blob; B's feet at 40..47
@@ -518,7 +425,7 @@ def test_split_off_part_inherits(ctx):                          # Review Focus 1
     arm = detached_arm()
     sizes = sorted(d.pixels for d in find_blobs(arm, np.zeros(arm.shape), BLOBS.min_blob_pixels))
     assert len(sizes) == 2 and sizes[0] >= BLOBS.min_blob_pixels, sizes   # really a second blob
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(arm="out")] * 100)
     g = rig.person(0)[1]
     assert g > 0.4
@@ -531,7 +438,7 @@ def test_split_off_part_inherits(ctx):                          # Review Focus 1
 
 
 def test_feet_off_frame(ctx):                                   # Review Focus 2
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     for _ in range(10):
         rig.run(flickering(10, x=WALK_X, feet=48))
     g0 = rig.person(0)[1]
@@ -542,7 +449,7 @@ def test_feet_off_frame(ctx):                                   # Review Focus 2
 
 
 def test_new_person_far_from_ghosts_starts_bare(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(x=4)] * 100)
     assert rig.person(0)[1] > 0.4
     rig.run([EMPTY] * 10)                          # A is lost; its ghost is fresh
@@ -561,7 +468,7 @@ def test_fragment_in_freed_slot_keeps_ghost(ctx, frag_frames):
     # back at their old spot within INHERIT_S and must still inherit their own ghost.
     # 1 frame: a tentative fragment that expires bare. 6 frames: it confirms, grows a little,
     # and is lost after the ghost has faded from the sun (since > LEAVE_S) but is still inheritable.
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(x=4)] * 100)
     g = rig.person(0)[1]
     assert g > 0.4
@@ -587,7 +494,7 @@ def test_fragment_in_freed_slot_keeps_ghost(ctx, frag_frames):
 
 
 def test_newcomer_beside_bloomed_person_starts_bare(ctx):
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person(x=4)] * 200)                   # A in full bloom
     assert rig.person(0)[1] > 0.9
     rig.run(both([person(x=4)] * 10, [person(x=20)] * 10))   # B appears with a 4 px gap
@@ -602,7 +509,7 @@ def test_newcomer_beside_bloomed_person_starts_bare(ctx):
 
 def test_sun_tracks_growth(ctx):                     # at 30 fps a half float already stalls naive easing short of full
     per_cam = 3
-    rig = Rig(ctx, dt=1 / 30)
+    rig = WateringRig(ctx, dt=1 / 30)
     rig.run([EMPTY] * 30, frames_per_camera=per_cam)
     assert rig.sun()[0] < 0.02
     rig.run([person()] * 300, frames_per_camera=per_cam)   # full bloom from ~21 s, then 6 SUN_EASE_S to catch up
@@ -613,9 +520,9 @@ def test_sun_tracks_growth(ctx):                     # at 30 fps a half float al
 
 
 def test_growth_independent_of_render_rate(ctx):     # a half float stalls small steps: 240 fps has the smallest
-    a = Rig(ctx, dt=1 / 30)
+    a = WateringRig(ctx, dt=1 / 30)
     a.run([person()] * 150, frames_per_camera=3)              # 15 s: through the coarser steps above 0.5
-    b = Rig(ctx, dt=1 / 240)
+    b = WateringRig(ctx, dt=1 / 240)
     b.run([person()] * 150, frames_per_camera=24)
     assert abs(a.person(0)[1] - grown(15)) < 0.06, a.person(0)
     assert abs(a.person(0)[1] - b.person(0)[1]) < 0.02, (a.person(0), b.person(0))
@@ -623,7 +530,7 @@ def test_growth_independent_of_render_rate(ctx):     # a half float stalls small
 
 
 def test_state_stays_bounded_when_idle(ctx):                     # Review Focus 4
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([person()] * 10)
     rig.r.render(200.0, (0, 0, 0, 0))              # one huge dt
     rig.run([EMPTY] * 3)
@@ -684,7 +591,7 @@ def _empty_scene_ctx(ctx):
 def empty_scene(size):
     """The Image with nobody there: paper and the backdrop (which is static), as int RGB. Rendered once per size."""
     if size not in _EMPTY_SCENES:
-        rig = Rig(_EMPTY_SCENES["ctx"], size=size)
+        rig = WateringRig(_EMPTY_SCENES["ctx"], size=size)
         rig.run([EMPTY])
         _EMPTY_SCENES[size] = rig.image()[..., :3].astype(int)
         rig.release()
@@ -734,7 +641,7 @@ def flower_pixels(img):
 
 
 def grown_rig(ctx, frames, size=IMG, **kw):
-    rig = Rig(ctx, size=size)
+    rig = WateringRig(ctx, size=size)
     rig.run([person(**kw)] * frames)
     return rig
 
@@ -767,7 +674,7 @@ def shared_rig(ctx, _shared_rigs):
 
 def _all_state(rig):
     rig.r.draw_deferred_image()
-    return [*(t.read() for t in rig._state_textures()), rig.r.time, rig.r.frame, rig.t]
+    return [rig.r.snapshot(), rig.t]
 
 
 def test_shared_grown_rig_is_as_fresh_after_another_test_ran_it(ctx, shared_rig):
@@ -811,7 +718,7 @@ def swinging_arm(angle_deg, dx=0):
 
 
 def test_run_ends_agree_while_moving(ctx):          # a waving arm, a swaying body: the plants don't tear
-    rig = Rig(ctx, size=(320, 240))
+    rig = WateringRig(ctx, size=(320, 240))
     rig.run([swinging_arm(20)] * 30)
     worst = []
     for k in range(16):                             # down to up over 1.6 s, drifting a Body px a frame
@@ -824,7 +731,7 @@ def test_run_ends_agree_while_moving(ctx):          # a waving arm, a swaying bo
 
 def test_run_ends_agree_along_a_column(ctx):          # else the plants tear into rows
     size = (640, 360)                               # the march's step is 5.6 px here
-    rig = Rig(ctx, size=size)
+    rig = WateringRig(ctx, size=size)
     rig.run(flickering(20))
     b = rig.buf("buffer_b")
     for col in (29.5, 32.5, 34.5):                  # inside the legs and torso (an edge is ragged under flicker)
@@ -839,7 +746,7 @@ TREE_CELL = K["TREE_CELL"]
 
 
 def test_tree_grid_marks_body_and_neighbourhood(ctx):
-    rig = Rig(ctx)                                  # SIZE: 4 + 48 grid rows fit in 72
+    rig = WateringRig(ctx)                                  # SIZE: 4 + 48 grid rows fit in 72
     rig.run([person()] * 10)
     c = rig.buf("buffer_c")
     aspect = SIZE[0] / SIZE[1]
@@ -888,7 +795,7 @@ def tree_cells(rig, mask):
 
 
 def test_one_root_at_the_feet(ctx):                 # one tree from the base: no roots in the arms or elsewhere
-    rig = Rig(ctx)
+    rig = WateringRig(ctx)
     rig.run([feet_apart_arm_up()] * 40)
     far = rig.buf("buffer_c")[3, K["TREE_P_X"], 0]
     left, right = tree_cells(rig, rect(24, 40, 28, 44)), tree_cells(rig, rect(34, 40, 38, 44))
@@ -905,7 +812,7 @@ def test_one_root_at_the_feet(ctx):                 # one tree from the base: no
 
 
 def test_still_trunk_and_root_hold_steady_under_flicker(ctx):   # no fidgeting root or trunk
-    rig = Rig(ctx, size=(240, 180))
+    rig = WateringRig(ctx, size=(240, 180))
     rig.run(flickering(150, seed=3))
     rows = K["TREE_ROWS"]
 
@@ -1003,7 +910,7 @@ def test_horizontal_arm_blooms(ctx):                 # a thin run grows to full 
     # A finer Body than BODY, so the arm can be thinner than a flower and still be body after B's blur.
     m = np.kron(person(arm="out"), np.ones((2, 2), dtype=bool))   # 128 x 96; the arm is rows 26-31
     m[26 + thick:32, 72:] = False                                  # thin it from below
-    rig = Rig(ctx, size=IMG)
+    rig = WateringRig(ctx, size=IMG)
     rig.run([m] * 220)
     assert rig.person(0)[1] > 0.99
     arm = rect(0, 0, 0, 0).repeat(2, 0).repeat(2, 1)
@@ -1014,7 +921,7 @@ def test_horizontal_arm_blooms(ctx):                 # a thin run grows to full 
 
 
 def test_bloom_is_stable_under_flicker(ctx):        # Review Focus 3
-    rig = Rig(ctx, size=IMG)
+    rig = WateringRig(ctx, size=IMG)
     rig.run(flickering(220))
     fig = on_screen(person(), IMG)
     prev, deltas = rig.image()[..., :3].astype(int), []
@@ -1079,7 +986,7 @@ def footprints(rig):
 
 
 def test_walker_leaves_footprints_that_grow_then_rewind_away(ctx):
-    rig = Rig(ctx, size=IMG)
+    rig = WateringRig(ctx, size=IMG)
     rig.run([person(x=WALK_X)] * 30)
     rig.run(walking(30, x=WALK_X))                  # 30 px right in 3 s
     feet = 1 - 44 / BODY[1]                         # the feet's row, UV y
@@ -1135,7 +1042,7 @@ def test_sun_peeks_out_of_the_corner():
 
 
 def test_sun_is_an_outline_without_rays_when_empty(ctx):
-    rig = Rig(ctx, size=IMG)
+    rig = WateringRig(ctx, size=IMG)
     rig.run([EMPTY] * 30)
     img = rig.image()
     assert_sun_is_an_outline(img)

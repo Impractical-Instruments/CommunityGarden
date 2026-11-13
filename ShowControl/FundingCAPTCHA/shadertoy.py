@@ -307,6 +307,21 @@ class _PingPong:
             o.release()
 
 
+def _read_f16(tex) -> np.ndarray:
+    """A RGBA16F texture as float32 (h, w, 4), row 0 = bottom."""
+    data = np.frombuffer(tex.read(), dtype=np.float16)
+    return data.reshape(tex.size[1], tex.size[0], 4).astype(np.float32)
+
+
+@dataclass
+class RendererState:
+    """What Renderer.snapshot() captured; opaque to callers, comparable with ==."""
+    textures: list[bytes]
+    reads: dict[str, int]
+    clock: tuple[float, int]
+    deferred: tuple
+
+
 class Renderer:
     """Runs one Setup per frame at `size`, leaving the Image in `self.output`.
 
@@ -445,9 +460,39 @@ class Renderer:
         """Painter mode: the painted Body as float (h, w, 4), row 0 = bottom. None otherwise."""
         if self._painter_buf is None:
             return None
-        tex = self._painter_buf.read_tex
-        data = np.frombuffer(tex.read(), dtype=np.float16)
-        return data.reshape(tex.size[1], tex.size[0], 4).astype(np.float32)
+        return _read_f16(self._painter_buf.read_tex)
+
+    def read_buffer(self, name: str) -> np.ndarray:
+        """Feedback buffer `name` ("buffer_b" …) as float32 (h, w, 4), row 0 = bottom: what the next frame reads."""
+        if name not in self._buffers:
+            raise KeyError(f"no buffer {name!r} in the loaded Setup (has {sorted(self._buffers)})")
+        return _read_f16(self._buffers[name].read_tex)
+
+    def _state_textures(self) -> list:
+        """Every texture a frame reads or writes: the feedback buffers (both halves), the Image, the inputs."""
+        textures = [t for b in self._buffers.values() for t in b.tex]
+        textures += [self.output_tex, self._blobs_tex]
+        if self._body_tex is not None:
+            textures.append(self._body_tex)
+        return textures
+
+    def snapshot(self) -> RendererState:
+        """Everything the next render() or read depends on, for restore(). Two equal states render identically."""
+        return RendererState(
+            textures=[t.read() for t in self._state_textures()],
+            reads={n: b.read for n, b in self._buffers.items()},
+            clock=(self.time, self.frame),
+            deferred=(self._deferred, self._deferred_lost),
+        )
+
+    def restore(self, state: RendererState) -> None:
+        """Put the Renderer back as snapshot() found it. The same Setup and Body size must still be loaded."""
+        for t, data in zip(self._state_textures(), state.textures, strict=True):
+            t.write(data)
+        for n, read in state.reads.items():
+            self._buffers[n].read = read
+        self.time, self.frame = state.clock
+        self._deferred, self._deferred_lost = state.deferred
 
     def _source_tex(self, src: str | None):
         if src is None:
