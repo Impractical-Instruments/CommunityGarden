@@ -24,13 +24,12 @@ from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 from fastapi.responses import FileResponse, JSONResponse  # type: ignore[import]
 from fastapi.staticfiles import StaticFiles  # type: ignore[import]
 from pydantic import BaseModel  # type: ignore[import]
-from pythonosc.udp_client import SimpleUDPClient  # type: ignore[import]
 
 from OSCFabric import load_network_config
 
+from controllers import ControllerBus, controllers_from_network
 from diag import osc_ping
 
-_OSC_ADDRESS = "/cg/ff/rot"
 STATIC_DIR   = Path(__file__).resolve().parent / "layout_tool"
 
 _DEFAULT_CLUSTER_OFFSETS = [
@@ -54,27 +53,9 @@ def _load_json(path: Path) -> dict:
         return json.load(f)
 
 
-def _flowerbeds_controllers(network: dict) -> list[dict]:
-    """Return [{name, ip, osc_port}] for all flowerbeds_controller_* firmware entries."""
-    out = []
-    for name, fw in network.get("firmware", {}).items():
-        if name.startswith("flowerbeds_controller_") and fw.get("ip") and fw.get("osc_port"):
-            out.append({"name": name, "ip": fw["ip"], "osc_port": fw["osc_port"]})
-    return out
-
-
-def _osc_clients(network: dict) -> list[SimpleUDPClient]:
-    return [
-        SimpleUDPClient(c["ip"], c["osc_port"])
-        for c in _flowerbeds_controllers(network)
-    ]
-
-
 def _send_osc(network: dict, motor_id: int, deg_software: float) -> None:
-    """Send /cg/ff/rot to all flowerbeds controllers. Negates deg (CCW+ → CW+)."""
-    osc_deg = -deg_software
-    for client in _osc_clients(network):
-        client.send_message(_OSC_ADDRESS, [motor_id, osc_deg])
+    """Send one motor command to all flowerbeds controllers."""
+    ControllerBus.from_network(network).send(motor_id, deg_software)
 
 
 def _default_module(index: int) -> dict:
@@ -163,7 +144,7 @@ async def post_layout(body: LayoutBody):
 async def get_network():
     try:
         network     = load_network_config(_network_path)
-        controllers = _flowerbeds_controllers(network)
+        controllers = controllers_from_network(network)
         return JSONResponse({"controllers": controllers})
     except FileNotFoundError as exc:
         return JSONResponse({"controllers": [], "error": str(exc)})
@@ -175,7 +156,7 @@ async def get_network():
 async def controller_status():
     try:
         network     = load_network_config(_network_path)
-        controllers = _flowerbeds_controllers(network)
+        controllers = controllers_from_network(network)
     except Exception:
         controllers = []
 

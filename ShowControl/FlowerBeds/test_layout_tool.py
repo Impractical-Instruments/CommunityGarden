@@ -7,7 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 import layout_tool
-from layout_tool import app, _default_module, _flowerbeds_controllers
+import controllers
+from controllers import controllers_from_network
+from layout_tool import app, _default_module
 
 
 @pytest.fixture
@@ -206,7 +208,7 @@ def test_aim_sends_negated_angle_to_every_controller(client, monkeypatch):
             self.dest = (ip, port)
         def send_message(self, address, args):
             sent.append((self.dest, address, args))
-    monkeypatch.setattr(layout_tool, "SimpleUDPClient", FakeUDP)
+    monkeypatch.setattr(controllers, "SimpleUDPClient", FakeUDP)
     r = client.post("/api/aim", json={"motor_id": 1, "deg": 45.0})
     assert r.status_code == 200 and r.json() == {"ok": True}
     assert sent == [(("192.0.2.50", 9000), "/cg/ff/rot", [1, -45.0]),     # software CCW+ -> firmware CW+
@@ -214,16 +216,16 @@ def test_aim_sends_negated_angle_to_every_controller(client, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Helper: _flowerbeds_controllers
+# Helper: controllers_from_network
 # ---------------------------------------------------------------------------
 
-def test_flowerbeds_controllers_excludes_non_flowerbeds():
+def test_controllers_from_network_excludes_non_flowerbeds():
     network = {
         "firmware": {
             "treehouse_branch": {"ip": "192.0.2.20", "osc_port": 9001, "mac": "CC"},
         }
     }
-    assert _flowerbeds_controllers(network) == []
+    assert controllers_from_network(network) == []
 
 
 # ---------------------------------------------------------------------------
