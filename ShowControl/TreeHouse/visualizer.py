@@ -51,7 +51,7 @@ def _control_routes(app: FastAPI) -> None:
     async def ctrl_blowup():
         """Fire the Blow-Up one-shot, as /captcha/blowup does."""
         if _coordinator:
-            _coordinator.trigger_captcha_blowup()
+            _coordinator.intake.trigger_captcha_blowup()
         return {"ok": True}
 
 
