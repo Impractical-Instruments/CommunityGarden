@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import grey_dilation
 
-from .blob_tracker import CameraIntrinsics
+from .types import CameraIntrinsics
 from .transforms import Transform, rotator_to_matrix
 
 

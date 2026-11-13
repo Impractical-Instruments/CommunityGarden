@@ -15,48 +15,14 @@ import json
 import logging
 import threading
 from datetime import datetime
-from typing import TypedDict
 
 import uvicorn  # type: ignore[import]
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect  # type: ignore[import]
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore[import]
 from fastapi.responses import HTMLResponse, JSONResponse  # type: ignore[import]
 
+from state import VisualizerState
 
-# ---------------------------------------------------------------------------
-# State schema
-# ---------------------------------------------------------------------------
-
-class BlobState(TypedDict):
-    id: int
-    x: float
-    y: float
-
-
-class ClusterState(TypedDict):
-    motor_id: int
-    x: float
-    y: float
-    world_yaw_deg: float       # real-world look direction (arrow points here)
-    motor_yaw_deg: float       # commanded motor angle in local frame
-    clamped: bool              # True when the yaw cap is fighting the target
-    has_target: bool
-    target_id: int | None
-
-
-class CameraState(TypedDict):
-    name: str
-    x: float
-    y: float
-    yaw_deg: float
-
-
-class VisualizerState(TypedDict):
-    frame: int
-    blobs: list[BlobState]
-    clusters: list[ClusterState]
-    cameras: list[CameraState]
-    missing_motor_ids: list[int]
 
 # ---------------------------------------------------------------------------
 # Embedded HTML/JS client

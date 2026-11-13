@@ -26,7 +26,9 @@ from typing import Any
 import numpy as np
 
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
-from .blob_tracker import BlobTracker, Calibration, Calibrator, DetectionConfig
+from .calibration import Calibration, Calibrator
+from .detector import BlobDetector
+from .types import DetectionConfig
 from .transforms import Transform, orbbec_to_world, transform_position
 
 log = logging.getLogger(__name__)
@@ -93,12 +95,12 @@ def run_pipeline(
     coordinate transform but before the stabilizer — useful for discarding
     positions inside physical obstacles (e.g. flower clusters).
     """
-    tracker = BlobTracker(calibration, detection_config)
+    detector = BlobDetector(calibration, detection_config)
     stabilizer = BlobStabilizer(stabilizer_config)
 
     with camera:
         for frame in camera.frames():
-            result = tracker.detect(frame)
+            result = detector.detect(frame)
             raw_positions = [
                 transform_position(camera_transform, orbbec_to_world(blob.cam_pos_m))
                 for blob in result.world_blobs

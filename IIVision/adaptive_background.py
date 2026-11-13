@@ -23,7 +23,7 @@ noise_k × noise)):
            → reseed bg from the current frame
 
 Exposes the same background / valid_mask / threshold() interface as
-Calibration, so BlobTracker works with either.
+Calibration, so BlobDetector works with either.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ from typing import Callable
 
 import numpy as np
 
-from .blob_tracker import FramePacket
+from .types import FramePacket
 
 log = logging.getLogger("IIVision.adaptive_background")
 
@@ -72,13 +72,13 @@ class AdaptiveBackground:
     Continuously learned background model.
 
     Usage:
-        model   = AdaptiveBackground(AdaptiveBackgroundConfig(depth_delta_mm=30))
-        tracker = BlobTracker(model, detection_config)
+        model    = AdaptiveBackground(AdaptiveBackgroundConfig(depth_delta_mm=30))
+        detector = BlobDetector(model, detection_config)
         for frame in camera.frames():
             model.push(frame)
-            fg = tracker.detect_foreground(frame)
+            fg = detector.detect_foreground(frame)
 
-    Before the first push() width/height are 0; BlobTracker needs one push first.
+    Before the first push() width/height are 0; BlobDetector needs one push first.
     reseed() may be called from another thread: it takes effect on the next push.
     """
 
@@ -100,7 +100,7 @@ class AdaptiveBackground:
         self._stats_t0 = time.monotonic()
 
     # ------------------------------------------------------------------
-    # Interface read by BlobTracker
+    # Interface read by BlobDetector
     # ------------------------------------------------------------------
 
     @property
