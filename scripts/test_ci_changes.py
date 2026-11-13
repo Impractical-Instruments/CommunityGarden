@@ -27,7 +27,6 @@ NEITHER  = {"code": False, "gl": False, "firmware": False, "reuben": False}
 FAST     = {"code": True,  "gl": False, "firmware": False, "reuben": False}
 BOTH     = {"code": True,  "gl": True,  "firmware": False, "reuben": False}   # both Python jobs
 FIRMWARE = {"code": False, "gl": False, "firmware": True,  "reuben": False}
-REUBEN   = {"code": False, "gl": False, "firmware": False, "reuben": True}
 ALL      = {"code": True,  "gl": True,  "firmware": True,  "reuben": True}
 
 
@@ -91,8 +90,9 @@ def test_the_reuben_submodule_runs_the_reuben_job_and_the_fast_job():
     "ShowControl/PlayingThePipes/reuben/pipes.json",
     "ShowControl/PlayingThePipes/reuben/pipes.profile.json",
 ])
-def test_instruments_run_only_the_reuben_job(path):
-    assert jobs(path) == REUBEN
+def test_instruments_run_the_reuben_job_and_the_fast_job(path):
+    """The fast job's contract test reads the instrument's pipes."""
+    assert jobs(path) == {"code": True, "gl": False, "firmware": False, "reuben": True}
 
 
 @pytest.mark.parametrize("path", [

@@ -346,6 +346,10 @@ vec4 treePersonNext(int k, float dt) {
     // The root eases (TREE_ROOT_EASE_S), so a foot's flickering edge doesn't shuffle it and the trunk with it.
     vec2  raw2 = vec2(n > 0.0 ? sx / n : cBase(C, k).x * iResolution.x / iResolution.y, baseY);
     vec2  root = pr.w <= 0.0 ? raw2 : mix(pr.wy, raw2, 1.0 - exp(-dt / TREE_ROOT_EASE_S));
+    // But it rises with the feet at once (the base is eased already): backing away from the camera lifts the
+    // feet up the image, and a root lagging more than TREE_ROOT_BAND below them reaches no cell, so the whole
+    // tree lost its way back to the root, un-grew, and grew back in once the root caught up.
+    root.y = max(root.y, baseY);
     return vec4(farD, root.y, g, root.x);
 }
 

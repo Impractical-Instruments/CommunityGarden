@@ -97,6 +97,13 @@ const float TWIG_FLOWER_R_MIN = 2.5/360.0, TWIG_FLOWER_R_MAX = 6.5/360.0;   // r
 const float BOLD_MIN = 0.35;            // how much colour a flower at a run's bottom has (the rest is paper); 1 at its top
 const float BOLD_YOUNG = 0.6;           // ... times this while the person's growth is young, rising to 1 at full bloom
 const float DAISY_PETAL_W = 0.3;        // a petal's half-width at its tip, × the flower radius
+// A daisy pops open (and, run backwards, swells a little before it shrinks away): its size eases out past
+// full by POP_BACK's overshoot (an ease-out-back), and it stretches along its stem by up to POP_STRETCH as it
+// shoots out, then squashes as much as it overshoots, settling at 1. Area is kept.
+const float POP_BACK = 1.70158;         // the back-ease's constant: about a tenth's overshoot
+const float POP_STRETCH = 0.25;
+const float POP_PEAK = 1.0 + 4.0 * POP_BACK * POP_BACK * POP_BACK / (27.0 * (POP_BACK + 1.0) * (POP_BACK + 1.0));   // its largest size
+const float POP_REACH = POP_PEAK * (1.0 + POP_STRETCH);   // the farthest an opening daisy reaches, × its open size
 const float PEN_MIN = 1.5;              // thinnest line, render pixels: thinner ones are drawn this wide but fainter
 const float REACH = FLOWER_R * (1.0 + PETAL_R);   // a flower's outer radius (FLOWER_R is its petals' ring, as the mockup's r);
                                         // the Image taps B at ±REACH and ±REACH / 2 above and below each pixel
@@ -113,10 +120,11 @@ const float FOOT_H = 0.08;              // the tallest stands this high (screen 
 const float FOOT_SPREAD = 0.025;        // they stand across this either side of the footprint
 const float FOOT_LEAN = 0.35;           // and lean up to this far sideways per unit height
 const float FOOT_FLOWER_FROM = 0.5, FOOT_FLOWER_R = 5.0/360.0;   // the middle one's daisy opens from this growth; its size
-// How far a footprint's plants reach from it: sideways, below, above (for the near grid and the Image's bounds).
-const float FOOT_REACH_X = FOOT_SPREAD * 1.2 + FOOT_LEAN * FOOT_H + 0.7 * TWIG_LEN + SPRIG_LEN + INK_W;
+// How far a footprint's plants reach from it: sideways, below, above (for the near grid and the Image's bounds);
+// its stems and daisy pop up (POP_REACH) past their full size as they grow.
+const float FOOT_REACH_X = FOOT_SPREAD * 1.2 + FOOT_LEAN * FOOT_H * POP_REACH + 0.7 * TWIG_LEN + SPRIG_LEN + INK_W;
 const float FOOT_REACH_DOWN = SPRIG_LEN + INK_W;
-const float FOOT_REACH_UP = FOOT_H + max(SPRIG_LEN, FOOT_FLOWER_R * (1.0 + PETAL_R)) + INK_W;
+const float FOOT_REACH_UP = FOOT_H * POP_REACH + max(SPRIG_LEN, FOOT_FLOWER_R * (1.0 + PETAL_R) * POP_REACH) + INK_W;
 // The tree (Buffer C rows 4+). Each person's plants are one tree, rooted on the floor at their base (feet).
 // Every body cell's parent is its neighbour on the cheapest path back to the root through that person's body;
 // paths cost more near the silhouette's edge, so they run up the middle of the legs, torso and arms. A cell is
@@ -217,7 +225,7 @@ vec4 cFoot  (sampler2D c, int f) { return texelFetch(c, ivec2(1 + f, 3), 0); }
 float footGrowth(float age) {
     if (age >= FOOT_LIFE) return 0.0;
     if (age < FOOT_GROW_S) { float u = 1.0 - age / FOOT_GROW_S; return 1.0 - u * u; }
-    return clamp((FOOT_LIFE - age) / FOOT_FADE_S, 0.0, 1.0);
+    return smoothstep(0.0, 1.0, (FOOT_LIFE - age) / FOOT_FADE_S);   // eases off the hold, and settles to nothing
 }
 vec4 cTreeP (sampler2D c, int k) { return texelFetch(c, ivec2(TREE_P_X + k, 3), 0); }
 int  treeCols(vec2 res) { return min(int(ceil(res.x / res.y / TREE_CELL)), TREE_COLS_MAX); }

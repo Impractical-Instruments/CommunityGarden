@@ -205,6 +205,11 @@ jobs:
         with:
           submodules: true
 
+      # The instruments' samples are Git LFS files; validate decodes them. Only these, not
+      # every LFS file in the repo.
+      - name: Fetch the Playing the Pipes samples
+        run: git lfs pull --include "ShowControl/PlayingThePipes/Lamplight2026/media/*"
+
       # cpal (reuben's audio I/O) links ALSA on Linux.
       - name: Install ALSA headers
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev

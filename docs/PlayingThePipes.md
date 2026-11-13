@@ -38,6 +38,12 @@ Get-Content C:\logs\pipes-health.log -Tail 50
 
 ---
 
+## Virtual encoder surface (reuben version)
+
+The Dashboard's Playing the Pipes page can turn the knobs without the Picos: it posts encoder lines to the encoder bridge (`encoder_bridge.py`), which treats them like Pico turns, mixed with any real ones. Arm it on the page first; it disarms when the tab is hidden or loses focus, and after 5 min idle. `/health` shows virtual turns apart (`last_virtual_age_s`, `last_source`), so they never make the Picos look connected. On a laptop, `make pipes-surface` runs reuben, the bridge and the Dashboard and prints the page's URL. Details: `ShowControl/PlayingThePipes/README.md`.
+
+---
+
 ## Max patch
 
 `ShowControl\PlayingThePipes\Lamplight2026\patchers\Lamplight2026.maxpat`, part of the Max 9 project `Lamplight2026\Lamplight2026.maxproj`.

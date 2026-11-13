@@ -125,6 +125,18 @@ void daisy(inout vec4 acc, vec2 q, float fr, float e, vec3 pc, vec3 hc, float se
     over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.15 * rad.x) * smoothstep(0.0, -0.4 * rad.x, q.x) * e);
 }
 
+// A daisy's pop as it opens (o 0–1): .x its size, easing out past 1 (POP_BACK), .y its stretch along the
+// stem (POP_STRETCH): out while it shoots open, squashed while it overshoots, 1 open and closed.
+vec2 pop(float o) {
+    float u = o - 1.0;
+    return vec2(1.0 + (POP_BACK + 1.0) * u * u * u + POP_BACK * u * u, 1.0 + POP_STRETCH * sin(TAU * o));
+}
+// Where to draw an unstretched shape so it shows stretched st along unit direction d, and 1 / st across.
+vec2 stretchQ(vec2 q, vec2 d, float st) {
+    float a = dot(q, d);
+    return (a / st) * d + (q - a * d) * st;
+}
+
 // ── The tree ─────────────────────────────────────────────────────────────────
 
 // A cell's node, in screen heights, swaying a little more the further it is along the tree (u 0–1).
@@ -150,7 +162,7 @@ vec4 tree(vec2 fc) {
     float aspect = iResolution.x / iResolution.y;
     ivec2 c0 = ivec2(floor(p / TREE_CELL));
     float wood = 1e3;
-    float slack = 2.5 * TREE_CELL + FLOWER_R * (1.0 + PETAL_R) + INK_W;   // a node's drawing reaches at most this far
+    float slack = 2.5 * TREE_CELL + REACH * POP_REACH + INK_W;   // a node's drawing reaches at most this far
     int   nt = 0;
     vec4  tipA[MAX_TIPS], tipB[MAX_TIPS];                              // pos, dir · tips: scale, u, open, sat
     float tipS[MAX_TIPS];                                              // seed
@@ -202,7 +214,7 @@ vec4 tree(vec2 fc) {
             bool tip = t.y - (treeSeed(cell) ? 1.0 : 0.0) < 0.5;     // no seed above: the branch ends here
             if (tip && pa != 0) wood = smin(wood, woodSeg(p, M1, P, s1, t.x, 0.5 * (rP + rQ), rP, front), TREE_FILLET);
             float k = smoothstep(t.x - TREE_CELL, t.x + 0.5 * TREE_CELL, front);   // a seed's sprig grows in as growth reaches it
-            if (treeSeed(cell) && k > 0.0 && nt < MAX_TIPS && length(p - P) < FLOWER_R * (1.0 + PETAL_R) + SPRIG_LEN + INK_W) {
+            if (treeSeed(cell) && k > 0.0 && nt < MAX_TIPS && length(p - P) < REACH * POP_REACH + SPRIG_LEN + INK_W) {
                 tipA[nt] = vec4(P, normalize(P - Q + vec2(0.0, 1e-4)));
                 tipB[nt] = vec4(k, u, smoothstep(0.0, TREE_OPEN_D, front - t.x), mix(SAT_MIN, SAT_MAX, tp.z));
                 tipS[nt] = hash12(vec2(cell) + 0.37);
@@ -219,9 +231,11 @@ vec4 tree(vec2 fc) {
         if (n >= nt) break;
         if (tipS[n] >= TWIG_FLOWER_FRAC || tipB[n].z <= 0.0) continue;
         float u  = tipB[n].y, open = tipB[n].z;
-        float fr = mix(TWIG_FLOWER_R_MIN, FLOWER_R, u * u) * open;
+        vec2  pp = pop(open);
+        float fr = mix(TWIG_FLOWER_R_MIN, FLOWER_R, u * u) * pp.x;
         vec2  q  = p - tipA[n].xy;
-        if (length(q) > fr * (1.0 + PETAL_R) + INK_W + 2.0 * AA) continue;
+        if (length(q) > fr * (1.0 + PETAL_R) * max(pp.y, 1.0 / pp.y) + INK_W + 2.0 * AA) continue;
+        q = stretchQ(q, tipA[n].zw, pp.y);
         float bold = mix(BOLD_MIN, 1.0, u * u), seed = tipS[n] * 97.0;
         daisy(acc, q, fr, smoothstep(0.0, 0.4, open), tint(flowerColour(seed), tipB[n].w, bold),
               tint(heartColour(seed), tipB[n].w, bold), seed);
@@ -240,14 +254,17 @@ void footprint(inout vec4 acc, vec2 p, vec2 at, float g, float seed) {
     float wd   = 1e3;
     vec2  tips[FOOT_SPROUTS], twigs[FOOT_SPROUTS], dirs[FOOT_SPROUTS];
     float ks[FOOT_SPROUTS];
+    // The stems pop up as the daisies do (and, fading, swell a little before they sink away): height eases out
+    // past full and back, tall and thin while they shoot up, short and stout while they overshoot.
+    vec2  pp = pop(g);
     for (int s = 0; s < FOOT_SPROUTS; s++) {                          // the wood: stems and twigs, one shape
         float h  = hash12(vec2(seed, float(s) + 0.5));
         float x  = at.x + FOOT_SPREAD * (2.0 * (float(s) + 0.5) / float(FOOT_SPROUTS) - 1.0 + 0.4 * (h - 0.5));
-        float ht = FOOT_H * (0.6 + 0.4 * hash12(vec2(seed, float(s) + 3.5))) * g;
+        float ht = FOOT_H * (0.6 + 0.4 * hash12(vec2(seed, float(s) + 3.5))) * pp.x * pp.y;
         float lean = FOOT_LEAN * (2.0 * hash12(vec2(seed, float(s) + 6.5)) - 1.0);
         vec2  o  = vec2(x, at.y);
         tips[s]  = o + vec2(lean * ht, ht);
-        float tw = 0.5 * STEM_W * min(1.0, 3.0 * g), tip = 0.5 * STEM_TIP_W * g, thin = (1.0 - min(1.0, 3.0 * g)) * 2.0 * INK_W;
+        float tw = 0.5 * STEM_W * min(1.0, 3.0 * g) / pp.y, tip = 0.5 * STEM_TIP_W * g / pp.y, thin = (1.0 - min(1.0, 3.0 * g)) * 2.0 * INK_W;
         wd = smin(wd, sdTaper(p, o, tips[s], tw, tip) + thin, WOOD_FILLET);
         // One twig, halfway up, on alternating sides.
         float side = mod(float(s), 2.0) < 0.5 ? 1.0 : -1.0;
@@ -263,8 +280,9 @@ void footprint(inout vec4 acc, vec2 p, vec2 at, float g, float seed) {
         if (ks[s] > 0.0) sprig(acc, p, twigs[s], dirs[s], ks[s], sd, PAPER);
         if (s == FOOT_SPROUTS / 2) {
             float open = smoothstep(FOOT_FLOWER_FROM, 1.0, g);
-            if (open > 0.0 && length(p - tips[s]) < FOOT_FLOWER_R * (1.0 + PETAL_R) + INK_W + 2.0 * AA)
-                daisy(acc, p - tips[s], FOOT_FLOWER_R * open, smoothstep(0.0, 0.25, open),
+            vec2  pp   = pop(open);
+            if (open > 0.0 && length(p - tips[s]) < FOOT_FLOWER_R * (1.0 + PETAL_R) * POP_REACH + INK_W + 2.0 * AA)
+                daisy(acc, stretchQ(p - tips[s], vec2(0.0, 1.0), pp.y), FOOT_FLOWER_R * pp.x, smoothstep(0.0, 0.25, open),
                       tint(flowerColour(seed), sat, 1.0), tint(heartColour(seed), sat, 1.0), sd);
         } else sprig(acc, p, tips[s], vec2(0.0, 1.0), g, sd + 0.5, PAPER);
     }

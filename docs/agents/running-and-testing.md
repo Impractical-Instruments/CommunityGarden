@@ -42,6 +42,9 @@ Shader tests run on software Mesa in CI, where fragment shading is the whole cos
 - **Prerequisites:** Rust via [rustup](https://rustup.rs), and on Linux the ALSA headers (`sudo apt-get install libasound2-dev`). `vendor/reuben/rust-toolchain.toml` pins the Rust version; rustup installs it on the first build.
 - **`make reuben`** builds `vendor/reuben/target/release/reuben`.
 - **`make validate-instruments`** runs `reuben validate` on every `ShowControl/PlayingThePipes/reuben/*.json` except device profiles (`*.profile.json`). A warning fails it as well as an error, because reuben only warns about a missing sample or voice file.
+- **`make pipes`** plays the Playing the Pipes instrument on this machine, driven by the encoder bridge's fake encoders; see `ShowControl/PlayingThePipes/README.md`.
+- **`make pipes-surface`** is the same with no fake encoders, plus the Dashboard: it prints the URL of the Dashboard's virtual encoder surface, where you turn the knobs yourself.
+- **Editing an instrument** goes through reuben's MCP document verbs, never by hand: `.mcp.json` at the repo root starts reuben's MCP server (`vendor/reuben/scripts/reuben-mcp.sh`) in Claude Code sessions here. Read reuben's `docs/agents/authoring.md` first.
 - **Changing reuben:** work in `vendor/reuben` on a branch there (its own `AGENTS.md` applies), push it to the reuben repo, and commit the new submodule commit here. You can deploy and test from any reuben commit, but CI's `reuben-pin` check blocks merging until that commit is on reuben's `dev` branch (its integration branch; `main` there is the release branch). `.github/scripts/check-reuben-pin.sh` runs the same check locally.
 
 ## Run FlowerBeds show control
