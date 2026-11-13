@@ -7,13 +7,9 @@ import numpy as np
 import pytest
 
 from IIVision import MockCamera, StabilizerConfig, build_calibration, run_pipeline
-from IIVision.blob_tracker import (
-    BlobTracker,
-    Calibrator,
-    CameraIntrinsics,
-    DetectionConfig,
-    FramePacket,
-)
+from IIVision.calibration import Calibrator
+from IIVision.detector import BlobDetector
+from IIVision.types import CameraIntrinsics, DetectionConfig, FramePacket
 from IIVision.transforms import Rotator, Transform, orbbec_to_world
 
 W, H = 64, 48
@@ -94,13 +90,13 @@ def test_calibrator_ignores_frames_of_another_size():
 # --- detect -----------------------------------------------------------------
 
 def test_detect_empty_scene_has_no_blobs():
-    result = BlobTracker(_calibration(), CFG).detect(_frame(_scene()))
+    result = BlobDetector(_calibration(), CFG).detect(_frame(_scene()))
     assert result.screen_blobs == [] and result.world_blobs == []
 
 
 def test_detect_planted_body_gives_one_blob_with_its_bounds():
     body = (slice(22, 38), slice(40, 56))
-    result = BlobTracker(_calibration(), CFG).detect(_frame(_scene(body)))
+    result = BlobDetector(_calibration(), CFG).detect(_frame(_scene(body)))
     assert len(result.screen_blobs) == 1
     blob = result.screen_blobs[0]
     assert (blob.min_x, blob.max_x, blob.min_y, blob.max_y) == (40, 55, 22, 37)
@@ -113,18 +109,18 @@ def test_detect_planted_body_gives_one_blob_with_its_bounds():
 def test_detect_two_bodies_gives_two_blobs():
     left = (slice(10, 26), slice(4, 20))
     right = (slice(24, 40), slice(40, 56))
-    result = BlobTracker(_calibration(), CFG).detect(_frame(_scene(left, right)))
+    result = BlobDetector(_calibration(), CFG).detect(_frame(_scene(left, right)))
     assert sorted(b.min_x for b in result.screen_blobs) == [4, 40]
 
 
 def test_detect_drops_blob_smaller_than_min_blob_pixels():
     speck = (slice(20, 23), slice(20, 23))
-    assert BlobTracker(_calibration(), CFG).detect(_frame(_scene(speck))).screen_blobs == []
+    assert BlobDetector(_calibration(), CFG).detect(_frame(_scene(speck))).screen_blobs == []
 
 
 def test_detect_rejects_frame_of_another_size():
     with pytest.raises(ValueError):
-        BlobTracker(_calibration(), CFG).detect(_frame(np.full((10, 10), BG_MM), 10, 10))
+        BlobDetector(_calibration(), CFG).detect(_frame(np.full((10, 10), BG_MM), 10, 10))
 
 
 # --- the 2D -> 3D step ------------------------------------------------------
@@ -132,7 +128,7 @@ def test_detect_rejects_frame_of_another_size():
 def test_3d_step_unprojects_known_pixel_and_depth_to_camera_space():
     # Body bounding box is centred on pixel (47.5, 29.5) at 1.5 m.
     body = (slice(22, 38), slice(40, 56))
-    result = BlobTracker(_calibration(), CFG).detect(_frame(_scene(body)))
+    result = BlobDetector(_calibration(), CFG).detect(_frame(_scene(body)))
     blob = result.world_blobs[0]
     assert blob.valid
     expected_x = (47.5 - INTRINSICS.cx) * 1.5 / INTRINSICS.fx    # right of the optical axis
@@ -144,7 +140,7 @@ def test_3d_step_skips_blob_with_too_few_depth_samples():
     cfg = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50,
                           min_blob_pixels=20, stride_pixels=1, min_samples=10_000)
     body = (slice(22, 38), slice(40, 56))
-    result = BlobTracker(_calibration(), cfg).detect(_frame(_scene(body)))
+    result = BlobDetector(_calibration(), cfg).detect(_frame(_scene(body)))
     assert len(result.screen_blobs) == 1 and result.world_blobs == []
 
 
@@ -184,3 +180,8 @@ def test_run_pipeline_with_mock_camera_tracks_blobs_in_world_space():
         assert 150.0 <= y <= 250.0
         assert abs(x) < 300.0 and abs(z) < 300.0
     assert len({t.stable_id for t in confirmed}) == len(confirmed)
+
+
+def test_blobtracker_is_an_alias_of_blobdetector():
+    import IIVision
+    assert IIVision.BlobTracker is IIVision.BlobDetector is BlobDetector

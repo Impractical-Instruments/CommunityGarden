@@ -4,13 +4,9 @@ from __future__ import annotations
 import numpy as np
 
 from IIVision.adaptive_background import AdaptiveBackground, AdaptiveBackgroundConfig
-from IIVision.blob_tracker import (
-    BlobTracker,
-    Calibration,
-    CameraIntrinsics,
-    DetectionConfig,
-    FramePacket,
-)
+from IIVision.calibration import Calibration
+from IIVision.detector import BlobDetector
+from IIVision.types import CameraIntrinsics, DetectionConfig, FramePacket
 
 W, H = 40, 30
 FPS = 15.0
@@ -53,7 +49,7 @@ class Rig:
         cfg.setdefault("warmup_s", 0)
         self.model = AdaptiveBackground(
             AdaptiveBackgroundConfig(depth_delta_mm=DELTA, **cfg), clock=self.clock)
-        self.tracker = BlobTracker(self.model, DET)
+        self.tracker = BlobDetector(self.model, DET)
 
     def step(self, depth: np.ndarray, n: int = 1) -> np.ndarray:
         """Push n frames of depth; return the last frame's foreground mask (H, W)."""
@@ -216,7 +212,7 @@ def test_gaussian_noise_on_empty_scene_has_under_0_1_percent_foreground():
     clock = Clock()
     model = AdaptiveBackground(AdaptiveBackgroundConfig(depth_delta_mm=DELTA, stats_log_s=0,
                                                         warmup_s=0), clock=clock)
-    tracker = BlobTracker(model, DET)
+    tracker = BlobDetector(model, DET)
 
     def noisy() -> FramePacket:
         d = rng.normal(FLOOR, sigma, (h, w)).round().clip(0, 65535)

@@ -133,7 +133,7 @@ class CameraConfig:
     width: int = 640
     height: int = 400
     framerate: int = 30
-    # False = un-mirrored depth (correct for BlobTracker's pinhole unproject).
+    # False = un-mirrored depth (correct for BlobDetector's pinhole unproject).
     # Set True only if the device delivers a non-mirrored image by default.
     mirror: bool = False
 

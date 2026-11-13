@@ -8,7 +8,7 @@ Servo-driven flowers at the entrance Element. Mirrors at flower centres track Vi
 
 ## Architecture summary
 
-A depth camera (Orbbec, USB) feeds the IIVision pipeline: background subtraction → blob detection → cross-frame stabilisation (`BlobTracker` with EMA smoothing). Stabilised Blob Tracks are passed to the `Coordinator`, which holds one `FlowerCluster` per servo motor. Each FlowerCluster runs the **Attraction** policy each frame — a weighted sum of proximity, dwell, and inertia — to pick the Visitor it should look at, and produces a `MotorCommand`.
+A depth camera (Orbbec, USB) feeds the IIVision pipeline: background subtraction → blob detection → cross-frame stabilisation (`BlobStabilizer` with EMA smoothing). Stabilised Blob Tracks are passed to the `Coordinator`, which holds one `FlowerCluster` per servo motor. Each FlowerCluster runs the **Attraction** policy each frame — a weighted sum of proximity, dwell, and inertia — to pick the Visitor it should look at, and produces a `MotorCommand`.
 
 `MotorCommand`s are sent via OSC (`/cg/ff/rot [motor_id, yaw_deg]`) to **OpenRB-150** Dynamixel controllers on the show LAN (`192.168.1.50` / `.51`). The controllers fan out RS-485 to the servos themselves.
 
@@ -33,7 +33,7 @@ Attraction tuning — `coordinator.attraction`:
 - `inertia_weight` — bonus for the previous frame's target (anti-jitter)
 - `exclusion_radius_cm` — Visitors closer than this are ignored (anti-self-detection)
 
-Pipeline — `stabilizer` (BlobTracker EMA, match distance, confirm/miss frames), `calibration_frames` (default 60 — the BG model length), `cameras[]` (Orbbec pose: `pos_cm`, `rotation`, `width/height/framerate`), `activity_max_blobs` (normaliser for `/flowerbeds/activity`).
+Pipeline — `stabilizer` (BlobStabilizer EMA, match distance, confirm/miss frames), `calibration_frames` (default 60 — the BG model length), `cameras[]` (Orbbec pose: `pos_cm`, `rotation`, `width/height/framerate`), `activity_max_blobs` (normaliser for `/flowerbeds/activity`).
 
 Persisted background calibration: `settings.calibration.npz` (path = `<settings>.calibration.npz`). Loaded on start unless `--recalibrate` or missing/corrupt.
 
