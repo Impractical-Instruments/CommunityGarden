@@ -2,38 +2,31 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # headless: no real display
-
-import pygame
-
 import plugins
+from levels import Levels
 
-# Games size themselves against the live display surface at construction time.
-pygame.init()
-pygame.display.set_mode((640, 480))
+SIZE = (640, 480)
 
 SETTINGS = json.loads((Path(plugins.__file__).parent / "captcha-settings.json").read_text())
 
 
 def test_load_games_applies_levels_override(tmp_path: Path) -> None:
-    """load_games must set the override on the module it actually loaded —
-    importlib gives each load a distinct module object."""
+    """load_games hands the Levels it was given to the game it loaded."""
     p = tmp_path / "private-levels.json"
     p.write_text(json.dumps(
         [{"prompt": "PRIVATE", "grid": [2, 2], "valid_cells": [[0, 0]], "difficulty": 1}]
     ))
 
-    games = plugins.load_games(SETTINGS, levels_path=p)
+    games = plugins.load_games(SETTINGS, SIZE, Levels(p))
 
     assert games, "expected bodycaptcha to load"
     assert [lv.get("prompt") for lv in games[0]._all_levels] == ["PRIVATE"]
 
 
 def test_load_games_without_override_uses_default() -> None:
-    games = plugins.load_games(SETTINGS)
+    games = plugins.load_games(SETTINGS, SIZE, Levels())
 
     assert [type(g).__name__ for g in games] == ["BodyCaptchaGame"]
     prompts = [lv.get("prompt") for lv in games[0]._all_levels]

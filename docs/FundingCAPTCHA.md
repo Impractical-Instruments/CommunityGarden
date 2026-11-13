@@ -20,6 +20,7 @@ The 7-foot CRT-styled kiosk Element. Players activate a projected grid using the
 | `monitor.py` | `MonitoringServer`: the port the Dashboard talks to (`/health`, `/logs`, `/api/restart`) |
 | `paint_input.py` | `PaintInput`: `--test-input`, the mouse-painted foreground |
 | `plugins.py` | Loads Games and screensavers from disk |
+| `levels.py` | `Levels`: one levels file and its image directory — read, write, the default level, loading and cropping photos. The game and the editor are each handed one |
 | `arc.py` | Runs Games as an Arc |
 
 State machine (no calibration screen — the depth background is learned continuously from the first frame, with people in view; ADR-0023):
@@ -43,7 +44,7 @@ Key references:
 - ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
 - ADR-0022 — shader player blob records (`blobs` channel source)
 - ADR-0023 — self-learning depth background (no boot-time standback)
-- `app.py`, `kiosk.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
+- `app.py`, `kiosk.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `levels.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
 
@@ -140,6 +141,8 @@ picks which part survives the crop — one of `top-left`, `top`, `top-right`,
 the show will render.
 
 Run the level editor with `python3 bodycaptcha_editor.py`, or on macOS double-click `BodyCaptchaEditor.command`. Level edits come back as commits on a branch.
+
+The editor is split by concern; each module can be read on its own. `bodycaptcha_editor.py` is the window, the event loop and `--levels`; `editor/level_model.py` the level list and every edit to it (no drawing); `editor/views.py` the three screens (cell grid, image picker, sidebar); `editor/widgets.py` the sidebar controls; `editor/theme.py` colours, layout and fonts. Level-file reading and writing, the default level and photo loading are not the editor's: they are `levels.py`, shared with the game.
 
 ---
 
