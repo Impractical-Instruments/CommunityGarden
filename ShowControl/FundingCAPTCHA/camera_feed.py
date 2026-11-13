@@ -122,6 +122,7 @@ class CameraFeed:
         self._reseed   = threading.Event()
         self.queue: queue.Queue = queue.Queue(maxsize=QUEUE_FRAMES)
         self.error: str | None  = None      # the camera thread's crash message, once drained
+        self._restarting = threading.Lock() # one restart at a time, or a thread is orphaned
 
     def start(self) -> None:
         """Begin a fresh run: a new queue, and a new camera thread if there is a camera."""
@@ -149,12 +150,14 @@ class CameraFeed:
         """Stop the camera thread, wait for it (up to 5 s), start a fresh one.
 
         The background relearns from the first frame. Touches no settings file:
-        captcha-settings.local.json is the operator's.
+        captcha-settings.local.json is the operator's. Safe to call from
+        several threads at once: restarts queue up rather than orphan a camera.
         """
-        self.stop()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=5.0)
-        self.start()
+        with self._restarting:
+            self.stop()
+            if self._thread and self._thread.is_alive():
+                self._thread.join(timeout=5.0)
+            self.start()
         log.info("Camera restarted — background relearning from the first frame")
 
     def reseed(self) -> None:

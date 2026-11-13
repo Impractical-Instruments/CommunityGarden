@@ -107,6 +107,9 @@ def main() -> None:
         cam_w, cam_h = cam_cfg["width"], cam_cfg["height"]
         if args.test_depth is not None:
             depth_mm = args.test_depth
+        elif not slabs_cfg:
+            sys.exit("ERROR: --test-input paints at the first depth slab, and depth_slabs is "
+                     "empty — add a slab or pass --test-depth MM")
         else:                                   # the middle of the first slab
             depth_mm = (slabs_cfg[0]["near_mm"] + slabs_cfg[0]["far_mm"]) // 2
         test_handler = PaintInput(cam_w, cam_h, depth_mm)

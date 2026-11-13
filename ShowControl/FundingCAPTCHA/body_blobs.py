@@ -5,7 +5,7 @@ box always lines up with the silhouette it belongs to, whatever reprojection
 and ROI crop made that Body. IDs come from IIVision's BlobStabilizer, run in
 Body pixels rather than world cm.
 
-  blobs = BodyBlobs(BlobConfig.from_dict(settings["shader_app"].get("blobs", {})))
+  blobs = BodyBlobs(BlobConfig.from_dict(settings["shader_app"]["blobs"]))
   blobs.update(presence, nearness)   # per camera frame; arrays row 0 = bottom
   renderer.upload_blobs(blobs.records())   # per render frame
 

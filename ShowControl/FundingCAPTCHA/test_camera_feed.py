@@ -84,6 +84,32 @@ def test_restart_stops_the_running_thread_and_starts_a_fresh_one(fake_camera):
     feed.stop()
 
 
+def test_overlapping_restarts_leave_exactly_one_camera_running(fake_camera, monkeypatch):
+    """Two POSTs to /api/restart land while the first restart is still joining the old thread."""
+    record = camera_feed._read_camera
+
+    def _slow_to_stop(camera, settings, out, stop, reseed):
+        record(camera, settings, out, stop, reseed)
+        threading.Event().wait(0.3)             # an Orbbec takes a moment to close
+
+    monkeypatch.setattr(camera_feed, "_read_camera", _slow_to_stop)
+    feed = CameraFeed({}, "mock")
+    feed.start()
+    _wait_for(fake_camera, 1)
+
+    restarts = [threading.Thread(target=feed.restart) for _ in range(2)]
+    for t in restarts:
+        t.start()
+    for t in restarts:
+        t.join(timeout=10.0)
+    _wait_for(fake_camera, 3)
+
+    running = [run for run in fake_camera if not run["stop"].is_set()]
+    assert len(running) == 1, "every camera but the last must be told to stop"
+    assert running[0]["out"] is feed.queue
+    feed.stop()
+
+
 def test_reseed_reaches_the_running_thread(fake_camera):
     feed = CameraFeed({}, "mock")
     feed.start()

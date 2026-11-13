@@ -17,7 +17,6 @@ Rules for a new Game:
 - Player input comes from the Body Grid (`../body_grid.py`), not from this directory.
 - Level data lives beside `app.py` (`bodycaptcha-levels.json`, `taunts.json`), not here.
 - Add its name to `GAMES` in `../plugins.py`.
-
 - Give its settings block in `captcha-settings.json` the same keys in `DEFAULTS` in `../settings.py`, and read them with no fallback of your own.
 
 **Tests:** `../test_bodycaptcha_*.py`, `../test_plugins.py`.
