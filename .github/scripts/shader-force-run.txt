@@ -16,7 +16,10 @@
 # dir. Blank lines and lines starting with # are ignored.
 
 # Data the shader tests read.
-ShowControl/FundingCAPTCHA/shaders/*
+# Not shaders/*: a Setup's folder also holds its test_*.py, which testmon tracks like any test.
+ShowControl/FundingCAPTCHA/shaders/*.glsl
+ShowControl/FundingCAPTCHA/shaders/*.json
+ShowControl/FundingCAPTCHA/shaders/*/images/*
 ShowControl/FundingCAPTCHA/images/*
 ShowControl/FundingCAPTCHA/videos/*
 ShowControl/FundingCAPTCHA/*.json
