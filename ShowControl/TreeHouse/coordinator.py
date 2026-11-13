@@ -10,7 +10,7 @@ from controllables import (
     ShowMode,
 )
 from branches import BranchController, BranchDriver
-from config import TreehouseConfig
+from config import OSCConfig, TreehouseConfig
 from garden_state import SignalIntake
 
 log = logging.getLogger("treehouse")
@@ -43,7 +43,7 @@ class Coordinator:
         self._looking_glass: LookingGlassControllable | None = next(
             (c for c in controllables if isinstance(c, LookingGlassControllable)), None
         )
-        self.intake = intake or SignalIntake()
+        self.intake = intake or SignalIntake(OSCConfig().heartbeat_interval_s)
         self.mode = ShowMode.ACTIVE
         self._dim_level = dim_level
         self._last_state = GardenState()

@@ -17,7 +17,7 @@ class SignalIntake:
     sent is not stale: an Element that is not running is not a dead sender.
     """
 
-    def __init__(self, heartbeat_interval_s: float = 5.0, clock=None) -> None:
+    def __init__(self, heartbeat_interval_s: float, clock=None) -> None:
         self._heartbeat_interval = heartbeat_interval_s
         self._clock = clock or time.monotonic
         self._flowerbeds_activity = 0.0
