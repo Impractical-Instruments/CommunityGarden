@@ -42,4 +42,3 @@ def test_glsl_state_values_match_the_contract(prefix):
             assert _assigned(src, f"{prefix}{state}") == [float(value)], f"{path.relative_to(SHADERS)} {prefix}{state}"
         checked += 1
     assert checked >= (4 if prefix else 1)
-
