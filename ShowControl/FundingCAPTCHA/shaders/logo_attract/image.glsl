@@ -1,4 +1,4 @@
-// Image — the logo on black, leaning into its motion. Drawn in screen heights on both
+// Image — the logo on black, leaning into its motion and stretching slightly along it. Drawn in screen heights on both
 // axes, so it stays round whatever the screen's aspect.
 // iChannel0 = Buffer B, iChannel1 = image (the logo; images/logo.png).
 
@@ -29,6 +29,10 @@ void mainImage(out vec4 o, in vec2 fc) {
     vec2  at  = g.xy + vec2(0.0, BOB * sin(iTime * 1.3));
     float ang = clamp(-g.z * TILT, -TILT_MAX, TILT_MAX);
     mat2  R   = rot(-ang);
+    // Squash and stretch: long along the velocity, narrow across it, same area.
+    float spd = length(g.zw);
+    float st  = 1.0 + min(STRETCH * spd, STRETCH_MAX);
+    vec2  dir = spd > 1e-4 ? g.zw / spd : vec2(1.0, 0.0);
 
     vec3 col = BG;
 
@@ -37,7 +41,10 @@ void mainImage(out vec4 o, in vec2 fc) {
     vec4 lg = vec4(0.0);
     for (int i = 0; i < 4; i++) {
         vec2 off = (vec2(i & 1, i >> 1) - 0.5) * 0.5 * px;
-        vec4 t = logoAt(R * ((p - at) / RADIUS) + off);
+        vec2 v = (p - at) / RADIUS;
+        float a = dot(v, dir);
+        v = dir * (a / st) + (v - dir * a) * st;     // undo the stretch
+        vec4 t = logoAt(R * v + off);
         lg += vec4(t.rgb * t.a, t.a);
     }
     lg *= 0.25;
