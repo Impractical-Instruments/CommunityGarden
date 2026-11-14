@@ -21,10 +21,12 @@ const float SPRING   = 7.0;              // 1/s²
 const float DAMPING  = 3.2;              // 1/s; below 2·sqrt(SPRING) it overshoots a little
 const float SPEED_MAX = 1.5;             // heights/s
 // look
-const float RADIUS   = 0.3;              // logo radius
+const float RADIUS   = 0.2;              // logo radius
 const float EDGE_IN  = 0.85;             // the logo's centre stays this many radii inside the screen
 const float TILT     = 0.35;             // rad of lean per height/s of sideways speed
 const float TILT_MAX = 0.3;              // rad
+const float STRETCH  = 0.4;              // stretch along the motion per height/s of speed (area kept); drifting toward someone is ~0.25 h/s
+const float STRETCH_MAX = 0.1;           // cap (1.1 long × 1/1.1 wide); the faster return home sits here
 const float BOB      = 0.012;            // idle bob amplitude
 const vec3  BG       = vec3(0.0);
 

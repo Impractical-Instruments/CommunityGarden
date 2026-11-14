@@ -101,7 +101,7 @@ def test_logo_is_round_at_any_aspect(ctx, size, real):
         rig.run(1.0)
         w, h = _white_extent(rig.image())
         assert w == pytest.approx(h, abs=2)
-        assert h == pytest.approx(2 * 0.3 * size[1], abs=3)    # diameter: 2 · RADIUS screen heights
+        assert h == pytest.approx(2 * 0.2 * size[1], abs=3)    # diameter: 2 · RADIUS screen heights
     finally:
         rig.release()
 
@@ -123,7 +123,7 @@ def test_stays_on_screen(rig):
     rig.run(8.0, [(0, 1, 1.0, 0.0)])
     x, y = rig.logo()
     assert 0.5 < x < 1.0 and 0.0 < y < 0.5
-    assert y > 0.3 * 0.8 - 0.01                    # a radius-ish inside the bottom edge
+    assert y > 0.2 * 0.8 - 0.01                    # a radius-ish inside the bottom edge
 
 
 def test_longer_visitor_wins_the_average(rig):
@@ -169,3 +169,17 @@ def test_deferred_image_is_exact(ctx):
     finally:
         for r in rs:
             r.release()
+
+
+def test_stretches_along_its_motion_and_settles_round(ctx):
+    rig = Rig(ctx, size=(320, 180))
+    try:
+        rig.run(1.5, [(0, 1, 0.9, 0.5)])                  # mid-drift to the right
+        w, h = _white_extent(rig.image())
+        assert w > h + 3                                  # long along the motion, narrow across
+        assert w < 1.1 * 1.1 * h + 2                     # but only slightly (STRETCH_MAX)
+        rig.run(8.0, [(0, 1, 0.9, 0.5)])                  # arrived and settled
+        w, h = _white_extent(rig.image())
+        assert w == pytest.approx(h, abs=2)
+    finally:
+        rig.release()
