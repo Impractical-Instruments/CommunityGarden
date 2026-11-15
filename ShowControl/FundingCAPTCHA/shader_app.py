@@ -12,6 +12,8 @@ there is no standback or calibration wait.
   python3 shader_app.py --test-input --setup ripples   # pin one Setup
 
 Keys: N / → next Setup · R reload current Setup from disk · Esc quit.
+HTTP (network.json captcha.http_port): GET /health · WS /logs ·
+POST /api/reseed relearns the depth background — the Dashboard's Reset button.
 
 While the current Setup reads the "blobs" source (ADR-0022), blobs are tracked
 in the Body at camera rate — in --test-input, in the painted Body read back
@@ -39,6 +41,7 @@ import pygame
 from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
 from body_blobs import BlobConfig, BodyBlobs
+from monitor import MonitoringServer, monitor_port
 from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, decode_image, js_keycode,
                        load_setup, pack_body)
 
@@ -210,6 +213,8 @@ def add_mode_args(ap: argparse.ArgumentParser) -> None:
     mode.add_argument("--test-input",  action="store_true",
                       help="Mouse paints the Body with shaders/body_painter.glsl, as in Shadertoy")
     ap.add_argument("--windowed", action="store_true", help="1280×720 window instead of fullscreen")
+    ap.add_argument("--port", type=int, default=None,
+                    help="Monitoring port (default: network.json captcha.http_port)")
     ap.add_argument("--display", type=int, metavar="N",
                     help="Display to go fullscreen on (0 = first); overrides shader_app.display")
 
@@ -246,10 +251,12 @@ def open_display(windowed: bool, caption: str, mouse_visible: bool, display: int
     return ctx, win
 
 
-def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
+def start_camera(args, settings: dict,
+                 reseed: threading.Event | None = None) -> tuple[queue.Queue, threading.Event]:
     """Start the camera thread for --camera / --mock-camera (else an idle queue).
 
-    The thread blocks once the queue is full: drain it every frame.
+    The thread blocks once the queue is full: drain it every frame. Setting
+    `reseed` makes the background relearn from the next camera frame.
     """
     cam_q = queue.Queue(maxsize=32)
     stop  = threading.Event()
@@ -263,10 +270,29 @@ def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
     camera = (MockCamera(**cam_args) if args.mock_camera
               else OrbbecCamera(serial=cam_cfg.get("serial") or None, **cam_args))
     threading.Thread(target=_camera_thread,
-                     args=(camera, settings, cam_q, stop), daemon=True).start()
+                     args=(camera, settings, cam_q, stop, reseed), daemon=True).start()
     log.info("Camera started (%s) — background learns from the first frame",
              "mock" if args.mock_camera else "Orbbec")
     return cam_q, stop
+
+
+def start_monitor(args) -> tuple[MonitoringServer, threading.Event]:
+    """Serve /health, /logs and POST /api/reseed; → (server, reseed event).
+
+    Pass the event to start_camera: the camera thread clears it when it reseeds.
+    """
+    reseed  = threading.Event()
+    monitor = MonitoringServer(monitor_port(args.port), {"/api/reseed": reseed})
+    monitor.start()
+    return monitor, reseed
+
+
+def foreground_status(state: str, item: object, fg) -> dict:
+    """The /health payload for the shader and playlist players."""
+    status = {"state": state, "item": str(item) if item is not None else None}
+    if fg is not None:
+        status["fg_pixels"] = int(np.count_nonzero(fg))
+    return status
 
 
 def drain_camera(cam_q: queue.Queue):
@@ -382,7 +408,8 @@ def main() -> None:
                         on_load=stage.blobs.reset,
                         image_max=win, image_max_side=stage.max_texture_side)
     rotation.next()
-    cam_q, stop = start_camera(args, settings)
+    monitor, reseed = start_monitor(args)
+    cam_q, stop = start_camera(args, settings, reseed)
 
     # ── Loop ──────────────────────────────────────────────────────────────────
     clock     = pygame.time.Clock()
@@ -408,7 +435,11 @@ def main() -> None:
                 stage.handle_key(ev)
 
         rotation.tick()
-        failure = stage.frame(dt, drain_camera(cam_q))
+        fg = drain_camera(cam_q)
+        if fg is not None:
+            monitor.set_status(foreground_status(
+                "shader", stage.renderer.setup.name if stage.renderer.setup else None, fg))
+        failure = stage.frame(dt, fg)
         if failure is not None:
             rotation.failed(failure)
         pygame.display.flip()

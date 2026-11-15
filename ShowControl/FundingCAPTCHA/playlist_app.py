@@ -16,6 +16,8 @@ and Setups find the Body live whenever they come round.
   python3 playlist_app.py --test-input --windowed  # mouse paints the Body
 
 Keys: N / → next item · R reload current Setup from disk · Esc quit.
+HTTP (network.json captcha.http_port): GET /health · WS /logs ·
+POST /api/reseed relearns the depth background — the Dashboard's Reset button.
 """
 from __future__ import annotations
 
@@ -35,7 +37,8 @@ import numpy as np
 from app import DIR, load_settings
 from arc import ShuffleBag
 from shader_app import (SHADER_DIR, SetupImages, ShaderStage, add_mode_args, display_index,
-                        drain_camera, open_display, start_camera)
+                        drain_camera, foreground_status, open_display, start_camera,
+                        start_monitor)
 from shadertoy import Renderer, load_setup
 
 log = logging.getLogger("playlist_app")
@@ -417,7 +420,8 @@ def main() -> None:
                         interstitial_s=playlist_cfg.interstitial_s,
                         image_max=win, image_max_side=stage.max_texture_side)
     playlist.next()
-    cam_q, stop = start_camera(args, settings)
+    monitor, reseed = start_monitor(args)
+    cam_q, stop = start_camera(args, settings, reseed)
 
     import pygame
     clock     = pygame.time.Clock()
@@ -445,6 +449,8 @@ def main() -> None:
 
         playlist.tick()
         fg = drain_camera(cam_q)                  # always drain: the camera thread blocks when full
+        if fg is not None:
+            monitor.set_status(foreground_status("playlist", playlist.current, fg))
 
         if playlist.video is not showing:
             screen.clear()

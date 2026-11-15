@@ -316,6 +316,54 @@ body {
     color: #ff6b6b;
 }
 
+/* ── Big controls (thumb-sized, for a phone) ─────────────────────────────── */
+
+.ctrl-section.tall { max-height: none; }
+
+.big-ctrls {
+    padding: .8em;
+    display: flex;
+    flex-direction: column;
+    gap: .5em;
+    max-width: 480px;
+}
+
+.big-btn {
+    width: 100%;
+    min-height: 3.2em;
+    background: #0d2035;
+    border: 1px solid #4dabf7;
+    border-radius: 4px;
+    color: #74c0fc;
+    font-family: inherit;
+    font-size: 1em;
+    letter-spacing: .04em;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.big-btn:active   { background: #163a5c; }
+.big-btn:disabled { opacity: .45; cursor: default; }
+
+.big-btn.secondary {
+    background: #161616;
+    border-color: #444;
+    color: #aaa;
+    min-height: 2.6em;
+    font-size: .85em;
+}
+
+.big-hint {
+    font-size: .7em;
+    color: #777;
+    line-height: 1.4;
+    margin-bottom: .4em;
+}
+
+.big-result      { font-size: .75em; color: #777; min-height: 1.2em; }
+.big-result.ok   { color: #51cf66; }
+.big-result.err  { color: #ff6b6b; }
+
 /* ── Coming soon ──────────────────────────────────────────────────────────── */
 
 .coming-soon {

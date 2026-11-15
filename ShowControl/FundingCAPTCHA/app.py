@@ -3,7 +3,7 @@
 FundingCAPTCHA unified pygame app (ADR-0012, ADR-0013, ADR-0016, ADR-0023).
 
 Usage:
-  python3 app.py [--camera | --mock-camera | --test-input [--test-depth N]] [--port 8080]
+  python3 app.py [--camera | --mock-camera | --test-input [--test-depth N]] [--port N]
 
 States:
   SCREENSAVER → idle; detects player and counts down attract dwell
@@ -22,7 +22,6 @@ Keys:
 from __future__ import annotations
 
 import argparse
-import asyncio
 import importlib.util
 import json
 import logging
@@ -44,6 +43,7 @@ SETTINGS_LOCAL = DIR / "captcha-settings.local.json"
 
 from silhouette import build_cam_transform, apply_cam_transform, render_silhouette
 from arc import Arc, Game, ShuffleBag
+from monitor import MonitoringServer, monitor_port
 
 # ── Optional imports ──────────────────────────────────────────────────────────
 try:
@@ -99,95 +99,6 @@ def restart_camera(cam: dict, start_camera) -> None:
 class AppState(Enum):
     SCREENSAVER = auto()
     GAME        = auto()
-
-
-# ── Monitoring server ─────────────────────────────────────────────────────────
-
-_log_clients: set  = set()
-_mon_loop:    asyncio.AbstractEventLoop | None = None
-_app_status:  dict[str, Any] = {"state": "starting"}
-_http_restart = threading.Event()
-
-
-class _LogHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        if _mon_loop is None or not _log_clients:
-            return
-        msg = json.dumps({
-            "ts":    time.strftime("%H:%M:%S", time.localtime(record.created)),
-            "level": record.levelname,
-            "msg":   record.getMessage(),
-        })
-        asyncio.run_coroutine_threadsafe(_send_log(msg), _mon_loop)
-
-
-async def _send_log(msg: str) -> None:
-    dead = set()
-    for ws in list(_log_clients):
-        try:
-            await ws.send(msg)
-        except Exception:
-            dead.add(ws)
-    _log_clients.difference_update(dead)
-
-
-def set_status(payload: dict) -> None:
-    """Record the status GET /health reports."""
-    global _app_status
-    _app_status = payload
-
-
-async def _ws_handler(ws: Any) -> None:
-    if ws.request.path == "/logs":
-        _log_clients.add(ws)
-        try:
-            await ws.wait_closed()
-        finally:
-            _log_clients.discard(ws)
-
-
-async def _process_request(connection: Any, request: Any) -> Any:
-    from websockets.http11 import Response
-    from websockets.datastructures import Headers
-
-    path = request.path
-
-    if path == "/logs":
-        return None
-
-    if path == "/api/restart":
-        _http_restart.set()
-        body = b'{"ok":true}'
-        return Response(200, "OK",
-                        Headers([("Content-Type", "application/json"),
-                                  ("Content-Length", str(len(body)))]),
-                        body)
-
-    if path in ("/", "/health"):
-        body = json.dumps(_app_status).encode()
-        return Response(200, "OK",
-                        Headers([("Content-Type", "application/json"),
-                                  ("Content-Length", str(len(body)))]),
-                        body)
-
-    return Response(404, "Not Found", Headers([("Content-Length", "0")]), b"")
-
-
-def _run_monitoring(port: int) -> None:
-    global _mon_loop
-    from websockets.asyncio.server import serve as ws_serve
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    _mon_loop = loop
-
-    async def _serve() -> None:
-        async with ws_serve(_ws_handler, "0.0.0.0", port,
-                            process_request=_process_request):
-            log.info("Monitoring on 0.0.0.0:%d  (WS /logs  GET /health  POST /api/restart)", port)
-            await asyncio.Future()
-
-    loop.run_until_complete(_serve())
 
 
 # ── Camera thread ─────────────────────────────────────────────────────────────
@@ -381,7 +292,8 @@ def main() -> None:
                       help="Camera-free dev mode: mouse-paint foreground canvas (ADR-0016)")
     ap.add_argument("--test-depth",    type=int, default=None,
                     help="Depth value (mm) painted by left-drag in --test-input mode")
-    ap.add_argument("--port",          type=int, default=8080)
+    ap.add_argument("--port",          type=int, default=None,
+                    help="Monitoring port (default: network.json captcha.http_port)")
     ap.add_argument("--levels", type=Path, default=None, metavar="PATH",
                     help="Alternate BodyCaptcha levels JSON (default: bodycaptcha-levels.json). "
                          "A missing or malformed file falls back to the default set.")
@@ -389,7 +301,6 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    logging.getLogger().addHandler(_LogHandler())
 
     settings = load_settings()
     cam_cfg  = settings.get("camera", {})
@@ -448,7 +359,11 @@ def main() -> None:
                             fps=cam_cfg.get("fps", 10))
 
     # ── Monitoring server ─────────────────────────────────────────────────────
-    threading.Thread(target=_run_monitoring, args=(args.port,), daemon=True).start()
+    http_restart = threading.Event()
+    http_reseed  = threading.Event()
+    monitor = MonitoringServer(monitor_port(args.port),
+                               {"/api/restart": http_restart, "/api/reseed": http_reseed})
+    monitor.start()
 
     # ── Pygame ────────────────────────────────────────────────────────────────
     pygame.init()
@@ -508,7 +423,7 @@ def main() -> None:
     t_last_osc         = time.monotonic()
 
     _start_camera()
-    set_status({"state": "screensaver"})
+    monitor.set_status({"state": "screensaver"})
 
     # ── Main loop ─────────────────────────────────────────────────────────────
     while True:
@@ -527,9 +442,15 @@ def main() -> None:
                 elif event.key == pygame.K_c and test_handler:
                     test_handler.clear()
 
+        # HTTP reseed: relearn the background without dropping the camera
+        if http_reseed.is_set():
+            http_reseed.clear()
+            cam["reseed"].set()
+            log.info("HTTP: reseeding the depth background from the next frame")
+
         # HTTP restart
-        if _http_restart.is_set():
-            _http_restart.clear()
+        if http_restart.is_set():
+            http_restart.clear()
             if state == AppState.GAME:
                 cur_saver     = saver_bag.next() or no_saver
                 saver_elapsed = 0.0
@@ -556,12 +477,12 @@ def main() -> None:
                     current_foreground = msg["frame"]
                     fg_new             = True
                     fg_pixel_count     = int(np.count_nonzero(current_foreground))
-                    set_status({"state": state.name.lower(),
+                    monitor.set_status({"state": state.name.lower(),
                                "fg_pixels": fg_pixel_count})
 
                 elif mtype == "error":
                     log.error("Camera: %s", msg["msg"])
-                    set_status({"state": "error", "error": msg["msg"]})
+                    monitor.set_status({"state": "error", "error": msg["msg"]})
 
         except queue.Empty:
             pass
@@ -603,7 +524,7 @@ def main() -> None:
                     attract_elapsed = 0.0
                     game_name       = arc.start()
                     log.info("Player detected — starting Arc (%s)", game_name)
-                    set_status({"state": "game"})
+                    monitor.set_status({"state": "game"})
             else:
                 attract_elapsed = 0.0
 
@@ -618,7 +539,7 @@ def main() -> None:
                 state         = AppState.SCREENSAVER
                 cur_saver     = saver_bag.next() or no_saver
                 saver_elapsed = 0.0
-                set_status({"state": "screensaver"})
+                monitor.set_status({"state": "screensaver"})
 
             now = time.monotonic()
             if now - t_last_osc >= 0.1 and fabric:

@@ -12,10 +12,14 @@ FastAPI + Uvicorn (`serve.py`). Static HTML pages per Element and a health endpo
 
 Per-Element pages (`flowerbeds.html`, `treehouse.html`, `fundingcaptcha.html`, `playingthepipes.html`) ping each Element's own monitoring port (visualizer or health endpoint) and reflect status.
 
-The Dashboard server never talks to Elements: everything is browser → Element directly. Two Elements have controls:
+The Dashboard server never talks to Elements: everything is browser → Element directly. Three Elements have controls:
 
 - **TreeHouse:** the page posts to the TreeHouse visualizer's `/control/*` routes (show mode, Looking Glass scene, Blow-Up trigger).
 - **Playing the Pipes:** a virtual encoder surface posts `/enc BOARD ENC DELTA` lines to the encoder bridge's `/control/enc`, turning the knobs the way the Picos do, and draws the bridge's `/state` (knob levels and positions, loop levels, mix state). It loads **disarmed**; arm it on the page. It disarms itself when the tab is hidden or loses focus, and after 5 min without a turn. Add `?pipes=host:port` to the URL to reach a bridge other than the one in `network.json` (a laptop running `make pipes-surface`).
+
+- **Funding CAPTCHA:** **Reset background** posts `/api/reseed`: the depth background relearns from the next camera frame, for when a big scene change heals too slowly on its own. Works under `app.py`, `shader_app.py` and `playlist_app.py`. **Restart camera** posts `/api/restart` (`app.py` only). The page also shows `/health` (state, current item, foreground pixels). Sized for a phone.
+
+Pages reach each Element at its `ip:http_port` from `network.json` (`elementBase()` in `network.js`); `?<element>=host:port` in the page URL overrides it, e.g. for an app on a laptop.
 
 The other pages are status and logs only.
 

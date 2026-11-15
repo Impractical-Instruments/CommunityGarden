@@ -12,8 +12,46 @@
   <h1>Funding CAPTCHA</h1>
 </nav>
 <div class="detail-body">
-  <iframe id="frame" class="content-frame" src=""></iframe>
-  <div class="log-section">
+
+  <!-- Status panel: GET /health, polled -->
+  <div class="th-status">
+    <div class="th-row">
+      <div class="th-field">
+        <label>State</label>
+        <span id="fc-state">—</span>
+      </div>
+      <div class="th-field">
+        <label>Playing</label>
+        <span id="fc-item">—</span>
+      </div>
+      <div class="th-field">
+        <label>Foreground px</label>
+        <span id="fc-fg">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="ctrl-section tall">
+    <div class="ctrl-header"><span>Controls</span></div>
+    <div class="big-ctrls">
+      <button class="big-btn" id="btn-reseed" onclick="sendCommand('/api/reseed', this)">
+        Reset background
+      </button>
+      <p class="big-hint">
+        Relearns the depth background from the next camera frame. Use it after the
+        scene changes (moved props, lighting rig, a bumped camera). Anyone standing
+        in view is learned as background until they move away.
+      </p>
+      <button class="big-btn secondary" id="btn-restart" onclick="sendCommand('/api/restart', this)">
+        Restart camera
+      </button>
+      <p class="big-hint">Game kiosk (app.py) only: reopens the camera and returns to the screensaver.</p>
+      <div class="big-result" id="cmd-result"></div>
+    </div>
+  </div>
+
+  <div class="log-section log-section-fill">
     <div class="log-header">
       <span>Logs</span>
       <span class="log-conn" id="log-conn">connecting…</span>
@@ -25,8 +63,51 @@
 </div>
 <script src="network.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
-let PORT;   // from network.json; set below before anything connects
+let BASE;   // http://ip:port from network.json; set below before anything connects
+
+// ── Commands ─────────────────────────────────────────────────────────────────
+
+const result = document.getElementById('cmd-result');
+
+// No body and no Content-Type: a "simple" request, so no CORS preflight, and
+// the Element's server rejects any request body anyway.
+async function sendCommand(path, btn) {
+  btn.disabled = true;
+  result.className = 'big-result';
+  result.textContent = 'sending…';
+  try {
+    const resp = await fetch(`${BASE}${path}`, {
+      method: 'POST', signal: AbortSignal.timeout(3000),
+    });
+    if (resp.status === 404) throw new Error('not supported by the running app');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    result.className = 'big-result ok';
+    result.textContent = `${btn.textContent.trim()}: sent ${new Date().toLocaleTimeString()}`;
+  } catch (e) {
+    result.className = 'big-result err';
+    result.textContent = `${btn.textContent.trim()} failed: ${e.message}`;
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 1500);
+  }
+}
+
+// ── Status ───────────────────────────────────────────────────────────────────
+
+async function pollHealth() {
+  const state = document.getElementById('fc-state');
+  try {
+    const resp = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) });
+    const s = await resp.json();
+    state.textContent = s.state || '—';
+    document.getElementById('fc-item').textContent = s.item || '—';
+    document.getElementById('fc-fg').textContent =
+      s.fg_pixels != null ? s.fg_pixels.toLocaleString() : '—';
+  } catch (_) {
+    state.textContent = 'offline';
+  }
+}
+
+// ── Logs ─────────────────────────────────────────────────────────────────────
 
 const logPanel = document.getElementById('log-panel');
 const logLines = document.getElementById('log-lines');
@@ -44,17 +125,17 @@ function appendLog(entry) {
 }
 
 function connectLogs() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${HOST}:${PORT}/logs`);
+  const ws = new WebSocket(BASE.replace(/^http/, 'ws') + '/logs');
   ws.onopen  = () => { logConn.textContent = 'connected';     logConn.className = 'log-conn connected'; };
   ws.onclose = () => { logConn.textContent = 'reconnecting…'; logConn.className = 'log-conn disconnected'; setTimeout(connectLogs, 2000); };
   ws.onerror = () => ws.close();
   ws.onmessage = ev => { try { appendLog(JSON.parse(ev.data)); } catch (_) {} };
 }
 
-elementPort('captcha').then(port => {
-  PORT = port;
-  document.getElementById('frame').src = `http://${HOST}:${PORT}/touch-test.html`;
+elementBase('captcha').then(base => {
+  BASE = base;
+  pollHealth();
+  setInterval(pollHealth, 2000);
   connectLogs();
 }).catch(e => console.error(e));
 </script>

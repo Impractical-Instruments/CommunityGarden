@@ -159,13 +159,16 @@ FundingCAPTCHA sends to the TreeHouse Hub each frame:
 
 ## Monitoring server
 
-`http://<host>:8080/` — small HTML page with state + live log stream over WebSocket. Includes:
-- Current `AppState` (SCREENSAVER / GAME)
-- Current Game + Level
-- Live `intensity` value
-- Last 100 log lines
+`monitor.py`, shared by `app.py`, `shader_app.py` and `playlist_app.py`. Port: `--port`, else `network.json` `elements.captcha.http_port`. Every response carries `Access-Control-Allow-Origin: *` so the Dashboard (another host) can read it.
 
-Logs stream over a separate WebSocket; `_LogHandler` in `app.py` pumps records to connected clients.
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/health` | Status JSON: `state`, `fg_pixels`; plus `item` under the shader/playlist players |
+| `WS` | `/logs` | Every log record as `{ts, level, msg}` |
+| `POST` | `/api/reseed` | Relearn the depth background from the next camera frame (same as **R** in `app.py`). All three apps |
+| `POST` | `/api/restart` | Reopen the camera and return to the screensaver. `app.py` only |
+
+Commands are POST only, with no body; a GET returns 405. The Dashboard's Funding CAPTCHA page has buttons for both — use it from a phone on the show WiFi to reset the background without touching the machine.
 
 ---
 
