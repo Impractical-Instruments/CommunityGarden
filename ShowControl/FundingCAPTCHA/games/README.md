@@ -3,7 +3,9 @@
 One module per Game. `../plugins.py` (`load_games`) loads each by name and calls its `create(settings, size, levels)`: the settings, the screen's `(width, height)`, and the `Levels` (`../levels.py`) to play.
 
 - **`bodycaptcha.py`** — BodyCaptcha, the only Game loaded today (ADR-0013, ADR-0019).
-- **`grid.py`** — the shared grid overlay and Game-UI helpers (ADR-0019). Not a Game.
+- **`grid.py`** — `Grid`, the letterboxed square-cell geometry (ADR-0019). Not a Game.
+- **`shell.py`** — the Game-UI shell renderers: top bar, hold ring, centred text, and the colour constants (ADR-0019). Not a Game.
+- **`blowup.py`** — the confetti blow-up a Game plays on timer expiry: `start(grid)`, `update(dt)`, `draw(surf)`, `done`. Not a Game.
 
 **Interface** (`Game` in `../arc.py`):
 
@@ -19,4 +21,4 @@ Rules for a new Game:
 - Add its name to `GAMES` in `../plugins.py`.
 - Give its settings block in `captcha-settings.json` the same keys in `DEFAULTS` in `../settings.py`, and read them with no fallback of your own.
 
-**Tests:** `../test_bodycaptcha_*.py`, `../test_plugins.py`.
+**Tests:** `../test_bodycaptcha_*.py`, `../test_grid.py`, `../test_shell_text.py`, `../test_plugins.py`.
