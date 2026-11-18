@@ -28,7 +28,6 @@ CommunityGarden/
 ├── docs/
 │   ├── adr/                                Architecture Decision Records
 │   ├── agents/                             Agent guidance, indexed from AGENTS.md
-│   ├── audit/                              The 2026-11-09 codebase audit and its backlog
 │   ├── fabrication/                        Build notes for physical pieces
 │   ├── bootstrap.md, showtime.md           Operator docs: first install; running a show
 │   └── <Element>.md                        One operator reference per Element
