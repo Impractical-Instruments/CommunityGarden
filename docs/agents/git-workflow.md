@@ -11,6 +11,19 @@ git push -u origin <branch-name>
 gh pr create --title "..." --body "..."
 ```
 
+## Issues
+
+Issues and PRDs are GitHub Issues on `Impractical-Instruments/CommunityGarden`. Use the `gh` CLI. Where a skill says "publish to the issue tracker", create an issue; where it says "fetch the ticket", view one.
+
+- **Create:** `gh issue create --title "..." --body "..." --label "..."`
+- **Read:** `gh issue view <number>` (add `--json title,body,labels,state` for parseable output)
+- **List:** `gh issue list --state open --label needs-triage`
+- **Comment:** `gh issue comment <number> --body "..."`
+- **Label:** `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
+- **Close:** `gh issue close <number> --comment "..."`
+
+Pass a multi-line body through a heredoc, `--body "$(cat <<'EOF'` … `EOF` `)"`, so its formatting survives.
+
 ## Triage labels
 
 | Label | Meaning |

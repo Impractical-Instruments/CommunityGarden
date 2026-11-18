@@ -14,4 +14,4 @@ One directory per microcontroller program. All four are live.
 - **Tests:** only `TreeHouse_Controllers` has them (`make test-firmware`); CI runs them and compiles that project.
 - **Bringing up an ESP32-S3:** the `signsoflife-*` environments in `TreeHouse_Controllers`.
 
-Each directory's README has the board, libraries, protocol and how to flash. Agent notes: `docs/agents/firmware.md`.
+Each directory's README has the board, libraries, protocol and how to flash. Rules for agents: `docs/agents/firmware.md`.
