@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Protocol, runtime_checkable
 
+from .gate import SignalGate
+
 _log = logging.getLogger("osc_fabric")
 
 
@@ -18,8 +20,12 @@ class FabricClient:
     - report() sends immediately on first call and whenever the value
       changes by more than change_epsilon; otherwise suppresses.
     - send_event() always sends with no args (one-shot events).
-    - tick(dt) accumulates elapsed time and re-sends all tracked signals
-      once per heartbeat_interval_s, even if unchanged.
+    - tick(dt) accumulates elapsed time and re-sends each tracked signal
+      once per heartbeat_interval_s since it was last sent (by report() or
+      by an earlier heartbeat), even if unchanged.
+
+    The rule itself lives in SignalGate; this class owns the addresses and
+    the transport.
 
     Inject a Transport for testing; omit it to build a real OSC UDP client
     targeting the TreeHouse address in network_config.
@@ -32,29 +38,31 @@ class FabricClient:
         transport: Transport | None = None,
     ) -> None:
         self._element = element
-        self._heartbeat_interval: float = float(config.get("heartbeat_interval_s", 5.0))
-        self._epsilon: float = float(config.get("change_epsilon", 0.01))
         self._transport: Transport = transport if transport is not None else _build_osc_transport(config)
+        self._now: float = 0.0
+        self._gate = SignalGate(
+            float(config.get("heartbeat_interval_s", 5.0)),
+            float(config.get("change_epsilon", 0.01)),
+            clock=lambda: self._now,
+        )
         self._last_sent: dict[str, float] = {}
-        self._elapsed: float = 0.0
 
     def report(self, signal: str, value: float) -> None:
-        last = self._last_sent.get(signal)
-        if last is None or abs(value - last) > self._epsilon:
+        if self._gate.due(signal, value):
             self._send(signal, value)
 
     def send_event(self, event: str) -> None:
         self._transport.send(f"/{self._element}/{event}")
 
     def tick(self, dt: float) -> None:
-        self._elapsed += dt
-        if self._elapsed >= self._heartbeat_interval:
-            for signal, value in self._last_sent.items():
-                self._transport.send(f"/{self._element}/{signal}", value)
-            self._elapsed = 0.0
+        self._now += dt
+        for signal, value in list(self._last_sent.items()):
+            if self._gate.due(signal, value):
+                self._send(signal, value)
 
     def _send(self, signal: str, value: float) -> None:
         self._transport.send(f"/{self._element}/{signal}", value)
+        self._gate.mark(signal, value)
         self._last_sent[signal] = value
 
 
