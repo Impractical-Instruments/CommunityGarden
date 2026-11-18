@@ -13,7 +13,7 @@ import pytest
 
 from body_blobs import BlobConfig
 from shader_test_rig import DT, EMPTY, Rig, flailing, flickering, pack_frame, rect, standing, walking
-from shadertoy import BLOB_ROWS, BLOB_SLOTS
+from blobs_contract import BLOB_ROWS, BLOB_SLOTS
 
 SETUP = Path(__file__).parent
 SIZE  = (128, 72)                         # render; ≥ 96 wide for the PRINT row
