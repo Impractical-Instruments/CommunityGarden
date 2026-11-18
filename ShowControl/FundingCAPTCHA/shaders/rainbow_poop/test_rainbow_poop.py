@@ -6,78 +6,53 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import re
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from body_blobs import BlobConfig, BodyBlobs
-from shadertoy import Renderer, load_setup, pack_body
+import shader_test_rig as rigs
+from shader_test_rig import BODY, EMPTY, Rig, rect
 
-SETUP = Path(__file__).parent / "shaders" / "rainbow_poop"
+SETUP = Path(__file__).parent
 SIZE  = (128, 72)                         # render; ≥ 64 wide for the SPLAT row
-BODY  = (64, 40)                          # camera ROI (w, h)
-SLABS = [{"near_mm": 1000, "far_mm": 4000}]
-DT    = 1 / 30
-BLOBS = BlobConfig(min_blob_pixels=20)    # the shipped defaults, but for the small test Body
 
-
-def const(name: str) -> float:
-    """A float constant from common.glsl, so tests follow retuning."""
-    src = (SETUP / "common.glsl").read_text()
-    m = re.search(rf"\b{name}\s*=\s*([0-9.]+)", src)
-    assert m, name
-    return float(m.group(1))
-
-
-SPLAT_LIFE_S  = const("SPLAT_LIFE_S")
-GROUND_LIFE_S = const("GROUND_LIFE_S")
-FIRST_BOMB_S, FIRST_JITTER = const("FIRST_BOMB_S"), const("FIRST_JITTER")
-BOMB_EVERY_S, BOMB_JITTER_S = const("BOMB_EVERY_S"), const("BOMB_JITTER_S")
-SPAWN_Y, FALL_SPEED = const("SPAWN_Y"), const("FALL_SPEED")
+K = rigs.glsl_consts(SETUP)           # so tests follow retuning
+SPLAT_LIFE_S  = float(K["SPLAT_LIFE_S"])
+GROUND_LIFE_S = float(K["GROUND_LIFE_S"])
+FIRST_BOMB_S, FIRST_JITTER = float(K["FIRST_BOMB_S"]), float(K["FIRST_JITTER"])
+BOMB_EVERY_S, BOMB_JITTER_S = float(K["BOMB_EVERY_S"]), float(K["BOMB_JITTER_S"])
+SPAWN_Y, FALL_SPEED = float(K["SPAWN_Y"]), float(K["FALL_SPEED"])
 HEAD = 1 - 8 / 40                         # UV y of the test people's heads
 FALL_S = (SPAWN_Y - HEAD) / FALL_SPEED     # seconds a poop takes to reach them
 
+standing = partial(rigs.standing, x=27)   # the test people stand at x = 27 unless told otherwise
+flickering = partial(rigs.flickering, x=27)
 
-class Rig:
-    """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at 30 Hz."""
+
+class RainbowRig(Rig):
+    """Buffer B layout: see common.glsl. Watches for splats landing, as they do only for a frame."""
 
     def __init__(self, ctx, size=SIZE):
-        self.size = size
-        self.r = Renderer(ctx, size, body_mode="camera")
-        self.r.defer_image = True                         # image() draws the Image on demand
-        self.r.load(load_setup(SETUP))
-        self.blobs = BodyBlobs(BLOBS)
-        self.t = 0.0
+        super().__init__(ctx, SETUP, size)
         self.hits: list[tuple[float, int]] = []          # (time, slot) of every new splat
         self.misses: list[float] = []                     # time of every new ground splat
+        self._watching = True
 
     def run(self, masks, frames_per_camera=3, watch=True):
-        for m in masks:                                   # one mask per camera frame, row 0 = top
-            fg = np.where(m, 2000, 0).astype(np.uint16)
-            body = pack_body(fg, {"x": 0, "y": 0, "w": BODY[0], "h": BODY[1]}, SLABS)
-            self.r.upload_body(body)
-            self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
-            for _ in range(frames_per_camera):
-                self.r.upload_blobs(self.blobs.records(now=self.t))
-                self.r.render(DT, (0, 0, 0, 0))
-                self.t += DT
-                if watch:
-                    self._watch()
+        self._watching = watch
+        super().run(masks, frames_per_camera)
 
-    def _watch(self):
+    def after_render(self):
+        if not self._watching:
+            return
         b = self.b()
         for k in range(8):
             if b[4, k * 8, 2] == 0:                       # age 0: landed this frame
                 self.hits.append((self.t, k))
         if b[5, 0, 2] == 0:
             self.misses.append(self.t)
-
-    def b(self) -> np.ndarray:
-        """Buffer B as float32 (h, w, 4), row 0 = texel y 0."""
-        t = self.r._buffers["buffer_b"].read_tex
-        return np.frombuffer(t.read(), dtype=np.float16).astype(np.float32).reshape(t.size[1], t.size[0], 4)
 
     def slot(self, k):    return self.b()[0, k]          # id, due s, presence
     def anchor(self, k):  return self.b()[1, k]           # top-centre x, y, height
@@ -91,42 +66,11 @@ class Rig:
         s = self.splats(k)
         return s[s[:, 2] < SPLAT_LIFE_S]
 
-    def image(self) -> np.ndarray:
-        """The Image as uint8 (h, w, 4), row 0 = bottom."""
-        self.r.draw_deferred_image()
-        return np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(self.size[1], self.size[0], 4)
-
-
-def rect(x0, y0, x1, y1):
-    m = np.zeros(BODY[::-1], dtype=bool)
-    m[y0:y1, x0:x1] = True
-    return m
-
-
-EMPTY = np.zeros(BODY[::-1], dtype=bool)
-
-
-def standing(n, x=27):
-    return [rect(x, 8, x + 10, 36)] * n
-
-
-def flickering(n, x=27, seed=0):
-    """A still person whose 1-px border toggles randomly each camera frame."""
-    rng = np.random.default_rng(seed)
-    base = rect(x, 8, x + 10, 36)
-    edge = rect(x - 1, 7, x + 11, 37) & ~rect(x + 1, 9, x + 9, 35)
-    out = []
-    for _ in range(n):
-        m = base.copy()
-        m[edge] = rng.random(edge.sum()) < 0.5
-        out.append(m)
-    return out
-
 
 # ── The empty room ────────────────────────────────────────────────────────────
 
 def test_empty_room_drops_nothing(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     for _ in range(40):                                   # 12 s
         rig.run([EMPTY] * 3)
         assert not rig.falling()
@@ -136,7 +80,7 @@ def test_empty_room_drops_nothing(ctx):
 # ── Bombing a standing person ─────────────────────────────────────────────────
 
 def test_standing_person_is_hit_soon_after_appearing(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(flickering(60))                               # 6 s
     assert rig.hits, "never hit"
     first = rig.hits[0]
@@ -153,7 +97,7 @@ def splat_uv(rig, k, s):
 
 
 def test_splat_lands_on_the_head(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(flickering(60))                               # rect(27, 8, 37, 36): UV x 0.42–0.58, y 0.1–0.8
     s = rig.live_splats(0)
     assert len(s) >= 1
@@ -163,7 +107,7 @@ def test_splat_lands_on_the_head(ctx):
 
 
 def test_cadence_is_about_every_five_seconds(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(flickering(260))                              # 26 s
     t = [h[0] for h in rig.hits if h[1] == 0]
     assert len(t) >= 4, t
@@ -175,7 +119,7 @@ def test_cadence_is_about_every_five_seconds(ctx):
 
 @pytest.mark.skip(reason="#214: fails on a real GPU, passes on llvmpipe; disabled until fixed")
 def test_poop_falls_slowly_from_the_top(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     seen, ys = 0.0, []
     for k in range(60):
         rig.run(flickering(1, seed=k))                    # a fresh flicker each camera frame
@@ -191,7 +135,7 @@ def test_poop_falls_slowly_from_the_top(ctx):
 
 
 def test_two_people_both_get_hit(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     two = [a | b for a, b in zip(flickering(80, x=8), flickering(80, x=46, seed=1))]
     rig.run(two)
     hit = {k for _, k in rig.hits}
@@ -201,7 +145,7 @@ def test_two_people_both_get_hit(ctx):
 # ── Sticking, fading, leaving ─────────────────────────────────────────────────
 
 def test_splats_fade_after_their_life(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45))
     first = rig.live_splats(0)
     assert len(first) == 1
@@ -213,7 +157,7 @@ def test_splats_fade_after_their_life(ctx):
 
 
 def test_splats_stay_put_on_the_body(ctx):                 # raised arms, arms out, walking
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45, x=10))
     seed = rig.live_splats(0)[0, 3]
     def where():                                          # the splat, relative to the torso's centre
@@ -249,7 +193,7 @@ def person(cx, arm, rng):
 
 
 def test_fidgeting_person_is_always_hit(ctx):               # missed 3 of 8 before homing (so did seed 3)
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rng = np.random.default_rng(0)
     x, v = 30.0, 0.0
     for k in range(400):                                  # 40 s: a slow random walk, an arm in and out
@@ -260,7 +204,7 @@ def test_fidgeting_person_is_always_hit(ctx):               # missed 3 of 8 befo
 
 
 def test_ages_keep_time_in_half_floats(ctx):               # f16 adds of 1/30 above 8 s drift ~6%
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45))
     t0, age0 = rig.t, rig.live_splats(0)[-1, 2]
     rig.run(standing(150))                                # 15 s more
@@ -269,7 +213,7 @@ def test_ages_keep_time_in_half_floats(ctx):               # f16 adds of 1/30 ab
 
 
 def test_leaving_fades_then_clears(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45))
     assert rig.live_splats(0).size
     rig.run([EMPTY] * 9)                                  # coasting, then lost: presence falls
@@ -279,7 +223,7 @@ def test_leaving_fades_then_clears(ctx):
 
 
 def test_new_person_in_a_reused_slot_starts_clean(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45))
     assert rig.live_splats(0).size
     rig.run([EMPTY] * 30)
@@ -307,7 +251,7 @@ def dodge(rig):
 
 
 def test_steady_walker_is_hit(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     x, v = 4, 1
     for _ in range(120):
         x += v
@@ -331,7 +275,7 @@ def colourful(img) -> np.ndarray:
 
 @pytest.mark.skip(reason="#243: hangs intermittently on llvmpipe in CI; disabled until fixed")
 def test_splats_drawn_only_on_the_silhouette(ctx):
-    rig = Rig(ctx, BIG)
+    rig = RainbowRig(ctx, BIG)
     rig.run(standing(60))
     assert rig.live_splats(0).size
     img = rig.image()
@@ -346,7 +290,7 @@ def test_splats_drawn_only_on_the_silhouette(ctx):
 
 
 def test_empty_room_is_paper_and_clouds(ctx):
-    rig = Rig(ctx, BIG)
+    rig = RainbowRig(ctx, BIG)
     rig.run([EMPTY] * 10)
     img = rig.image()
     low = img[:int(BIG[1] * 0.6)]                         # below the clouds: plain paper
@@ -355,7 +299,7 @@ def test_empty_room_is_paper_and_clouds(ctx):
 
 
 def test_falling_poop_is_drawn(ctx):
-    rig = Rig(ctx, BIG)
+    rig = RainbowRig(ctx, BIG)
     for k in range(60):
         rig.run(flickering(1, seed=k))                    # a fresh flicker each camera frame
         if rig.falling() and rig.drop(0)[3] > 0.4:
@@ -368,7 +312,7 @@ def test_falling_poop_is_drawn(ctx):
 
 @pytest.mark.skip(reason="#214: fails on a real GPU, passes on llvmpipe; disabled until fixed")
 def test_ground_puddle_is_drawn_at_the_feet(ctx):
-    rig = Rig(ctx, BIG)
+    rig = RainbowRig(ctx, BIG)
     dodge(rig)
     assert rig.misses and not rig.hits                    # reversing after the release dodges ...
     rig.run([EMPTY] * 5)                                  # past the splat-in
@@ -380,7 +324,7 @@ def test_ground_puddle_is_drawn_at_the_feet(ctx):
 # ── Robustness ────────────────────────────────────────────────────────────────
 
 def test_state_stays_bounded_with_huge_steps(ctx):
-    rig = Rig(ctx)
+    rig = RainbowRig(ctx)
     rig.run(standing(45))
     rig.r.render(200.0, (0, 0, 0, 0))
     rig.run(standing(3))
