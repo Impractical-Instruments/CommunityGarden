@@ -10,12 +10,24 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 
 | Machine | Host | OS | Element(s) | Hardware attached |
 |---|---|---|---|---|
-| `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays |
+| `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays, 5× location controllers (WiFi, below) |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
 | `pipes` | 192.168.1.13 | Windows 11 | Playing the Pipes | 2× Pi Pico (USB COM), Max audio I/O |
 
 OpenRB-150 servo controllers (FlowerBeds firmware) sit on the show LAN at 192.168.1.50 / .51 — separate from the show computers.
+
+TreeHouse location controllers: five ESP32-S3 boards that drive every LED in the TreeHouse. They join the show LAN over WiFi with static addresses. Provisioning: [TreeHouse location controllers](#treehouse-location-controllers).
+
+| Controller | Address | PlatformIO environment |
+|---|---|---|
+| Swannatopia | 192.168.1.60 | `swannatopia` |
+| Julia | 192.168.1.61 | `julia` |
+| Jess | 192.168.1.62 | `jess` |
+| Dormer | 192.168.1.63 | `dormer` |
+| Garage | 192.168.1.64 | `garage` |
+
+Every address here comes from `ShowControl/network.json`; if the two disagree, that file is right.
 
 ---
 
@@ -120,9 +132,40 @@ SUBSYSTEM=="tty", ATTRS{serial}=="<branch-serial>", SYMLINK+="treehouse-branches
 sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Record the serials in `ShowControl/network.json` under `"firmware"` so they're not lost.
+That rule file is the only record of the serial, and it lives on the Pi, not in the repo. A replacement Pi or branch controller needs the steps above again.
 
-`settings.json` references the symlinks, never `/dev/ttyACMx` directly.
+`settings.json` references the symlink, never `/dev/ttyACMx` directly.
+
+### TreeHouse location controllers
+
+Five ESP32-S3 boards, flashed from a laptop, not from the Pi. Board, wiring, flashing and bench tests are in [`Firmware/TreeHouse_Controllers/README.md`](../Firmware/TreeHouse_Controllers/README.md); this is the part about getting them on the network.
+
+**The network.** The controllers join the WiFi network `TCG-Show-5`. Each takes the static address in the [hardware inventory](#hardware-inventory), with the gateway and netmask from `lan` in `network.json`, so that WiFi network must be part of the show LAN (192.168.1.0/24): the TreeHouse Pi sends to the controllers by IP.
+
+**Credentials.** They are compiled into the firmware from `include/secrets.h`, which is gitignored. Never put the password in a tracked file.
+
+```bash
+cd Firmware/TreeHouse_Controllers
+cp include/secrets.h.example include/secrets.h     # the SSID is already TCG-Show-5; fill in the password
+uv run python ../../scripts/hooks/firmware_config_gen.py   # refresh include/net_config.h from network.json
+pio run -e jess -t upload                          # one environment per controller; see the table above
+```
+
+`pio` is PlatformIO's CLI. The VSCode PlatformIO extension provides it (see the firmware README); without it, `uvx --from platformio==6.2.0 pio` is the same tool, as the Makefile runs it.
+
+A changed password or SSID means editing `secrets.h` and reflashing all five.
+
+**Confirm a controller joined.** With the board on USB:
+
+```bash
+pio device monitor -b 115200
+```
+
+- `[net] connecting to "TCG-Show-5"`, then `[net] up as <hostname> on 192.168.1.6x:9000`: joined.
+- The status line every 5 s starts `[<Location>] ok`. `no-wifi` there means it has not joined: check the password in `secrets.h` and that the access point is on.
+- From the `treehouse` Pi, `ping 192.168.1.62` (Jess) answers.
+
+The controllers light up whether or not they have joined: for now they animate on their own and ignore what the Pi sends (ADR-0021). A lit TreeHouse does not prove the WiFi works.
 
 ### FundingCAPTCHA host
 
