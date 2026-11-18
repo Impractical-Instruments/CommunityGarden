@@ -1,0 +1,28 @@
+[Unit]
+Description=Playing the Pipes audio engine (reuben)
+Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/PlayingThePipes.md
+# Placeholders (@...@) are filled in by deploy/install.sh.
+# The box runs Ubuntu Desktop, where PipeWire owns the audio interface and runs
+# in the service user's own systemd session. install.sh enables lingering, so
+# that session (and PipeWire) starts at boot with nobody logged in; this unit
+# waits for it and reaches it through XDG_RUNTIME_DIR.
+After=sound.target user@@SERVICE_UID@.service
+Wants=user@@SERVICE_UID@.service
+
+[Service]
+WorkingDirectory=@REPO_ROOT@/ShowControl/PlayingThePipes
+# reuben/pipes.profile.json is the device profile for this box's audio interface.
+ExecStart="@REPO_ROOT@/vendor/reuben/target/release/reuben" play reuben/pipes.json --io-map reuben/pipes.profile.json
+# reuben exits at startup when there is no input device. The restart loop covers
+# a USB interface that enumerates late, or PipeWire not being ready yet.
+Restart=always
+RestartSec=5
+User=@SERVICE_USER@
+Environment=XDG_RUNTIME_DIR=/run/user/@SERVICE_UID@
+SupplementaryGroups=audio
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pipes-reuben
+
+[Install]
+WantedBy=multi-user.target

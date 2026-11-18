@@ -16,10 +16,10 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-ALL_ELEMENTS=(FlowerBeds TreeHouse Dashboard FundingCAPTCHA)
+ALL_ELEMENTS=(FlowerBeds TreeHouse Dashboard FundingCAPTCHA PlayingThePipes)
 
 if [ "$#" -eq 0 ]; then
-    echo "Error: specify which element(s) to install. Each Pi runs one element."
+    echo "Error: specify which element(s) to install. Each show machine runs one element."
     echo ""
     echo "Usage: sudo bash $0 <element> [element ...]"
     echo "Available: ${ALL_ELEMENTS[*]}"
@@ -50,7 +50,7 @@ done
 echo "=== All done ==="
 echo ""
 echo "Service status:"
-for svc in flowerbeds treehouse cg-dashboard captcha; do
+for svc in flowerbeds treehouse cg-dashboard captcha pipes-reuben pipes-bridge; do
     if systemctl list-unit-files "$svc.service" &>/dev/null; then
         state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "inactive")
         printf "  %-20s %s\n" "$svc" "$state"

@@ -1,8 +1,10 @@
 # Playing the Pipes
 
-The show-control side of Playing the Pipes. It runs on the Windows `pipes` host. Operator docs: `docs/PlayingThePipes.md`.
+The show-control side of Playing the Pipes. It runs on the `pipes` host (Linux). Operator docs: `docs/PlayingThePipes.md`.
 
-The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). Both live here until reuben has run a live show; the box runs Max until #239 switches its services.
+The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The Max patch stays here as the reference for the A/B until the reuben version is signed off; Max does not run on the box.
+
+**On the box:** `deploy/install.sh` builds reuben from `vendor/reuben` and installs two systemd services, `pipes-reuben` (the instrument, with the device profile `reuben/pipes.profile.json`) and `pipes-bridge`. `scripts/deploy.sh pipes PlayingThePipes` pushes this repo and the pinned reuben commit, then runs it. What a deploy without internet cannot carry is listed at the top of `install.sh`.
 
 ## reuben version
 
@@ -42,7 +44,7 @@ The two sides change together; `test_pipes_control.py` fails if the bridge sends
 - Values Max never saved, and so ran at defaults, are starting guesses to settle at the A/B: reverb room 0.85, damping 0.5, fully wet (the grains have no dry path); the limiter at −1 dB, 20:1, 0.1 ms attack.
 - Everything starts at launch; Max waited for someone to click its toggle.
 
-## Max version (the fallback until reuben has run a show)
+## Max version (the A/B reference)
 
 | Path | What it is |
 |---|---|
@@ -51,10 +53,9 @@ The two sides change together; `test_pipes_control.py` fails if the bridge sends
 | `Lamplight2026/patchers/fake_encoder.maxpat` | On-screen stand-ins for the encoders, for running without hardware |
 | `Lamplight2026/media/` | Samples (Git LFS); the reuben instrument reads them from here too |
 | `EncoderTester.maxpat` | Checks one encoder Pico without the audio engine |
-| `health_server.py` | `GET /health` on port 8767 so the Dashboard can see the host; runs under NSSM until #239 |
 
 **Max externals the patch needs:** the Grainflow package (`grainflow~`, `grainflow.util.stereopan~`) and Max 9's ABL device objects (`abl.device.reverb~`, `abl.device.spectraltime~`). Everything else is stock Max.
 
 **Encoder input:** `/enc BOARD ENC DELTA` lines from `Firmware/PlayingThePipes_EncoderPico/` (ADR-0014).
 
-**Python:** `pip install -e ".[pipes]"` from the repo root covers `health_server.py`, `encoder_bridge.py` and `pipes_control.py`.
+**Python:** `pip install -e ".[pipes]"` from the repo root covers `encoder_bridge.py` and `pipes_control.py`.

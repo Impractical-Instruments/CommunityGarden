@@ -8,13 +8,18 @@
 #   scripts/deploy.sh <target> <element>
 #
 # Targets are ssh host aliases from ~/.ssh/config on the laptop:
-#   flowerbeds   FlowerBeds   FundingCAPTCHA   TreeHouse   Dashboard
+#   flowerbeds   treehouse   captcha   pipes
 #
 # Examples:
 #   scripts/deploy.sh flowerbeds FlowerBeds
 #   scripts/deploy.sh treehouse  TreeHouse
 #   scripts/deploy.sh treehouse  Dashboard       # same machine, other element
 #   scripts/deploy.sh captcha    FundingCAPTCHA
+#   scripts/deploy.sh pipes      PlayingThePipes
+#
+# PlayingThePipes also carries the reuben submodule: its pinned commit is pushed
+# to the box's vendor/reuben over ssh, so the box never fetches it from GitHub
+# and a deploy can carry reuben commits that are not on GitHub yet.
 #
 # The repo on the show machine is ~/CommunityGarden. If it is cloned somewhere
 # else, set CG_REMOTE_REPO to that path (absolute, or relative to the remote
@@ -34,13 +39,14 @@ if [ -z "$target" ] || [ -z "$element" ]; then
 Usage: scripts/deploy.sh <target> <element>
 
   target   ssh host alias (flowerbeds | treehouse | captcha | pipes)
-  element  repo dir name (FlowerBeds | TreeHouse | Dashboard | FundingCAPTCHA)
+  element  repo dir name (FlowerBeds | TreeHouse | Dashboard | FundingCAPTCHA | PlayingThePipes)
 
 Examples:
   scripts/deploy.sh flowerbeds FlowerBeds
   scripts/deploy.sh treehouse  TreeHouse
   scripts/deploy.sh treehouse  Dashboard
   scripts/deploy.sh captcha    FundingCAPTCHA
+  scripts/deploy.sh pipes      PlayingThePipes
 USAGE
     exit 1
 fi
@@ -76,11 +82,32 @@ else
     git push --force-with-lease="$branch:$remote_sha" "$url" "$branch":"$branch"
 fi
 
+# Playing the Pipes builds reuben from the vendor/reuben submodule. Push the
+# commit this branch pins into the box's submodule checkout, under a branch
+# nothing has checked out, and let the box check it out without fetching.
+submodule_step=""
+if [ "$element" = "PlayingThePipes" ]; then
+    pin=$(git rev-parse "HEAD:vendor/reuben")
+    if ! git -C vendor/reuben cat-file -e "$pin^{commit}" 2>/dev/null; then
+        echo "Error: vendor/reuben does not have the pinned commit $pin." >&2
+        echo "Run: git submodule update --init" >&2
+        exit 1
+    fi
+    if [ "$(git -C vendor/reuben rev-parse HEAD)" != "$pin" ]; then
+        echo "Warning: vendor/reuben is not at the commit $branch pins. Deploying the pinned $pin;" >&2
+        echo "commit the submodule change first if you meant to deploy what is checked out." >&2
+    fi
+    echo "→ pushing reuben $pin to $target"
+    git -C vendor/reuben push --force "$url/vendor/reuben" "$pin:refs/heads/cg-deploy"
+    submodule_step="git submodule update --no-fetch vendor/reuben"
+fi
+
 echo "→ checking out $branch and running install.sh on $target"
 ssh -t "$target" "
   set -e
   cd '$remote_repo'
   git checkout '$branch'
+  $submodule_step
   # Absolute path: the sudoers rule from bootstrap-deploy.sh matches on it.
   sudo bash \"\$(pwd)/ShowControl/$element/deploy/install.sh\"
 "

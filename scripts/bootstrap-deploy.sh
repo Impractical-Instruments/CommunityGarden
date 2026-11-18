@@ -15,8 +15,6 @@
 #   2. Installs /etc/sudoers.d/cg-deploy granting NOPASSWD on the per-element
 #      install.sh scripts, so deploy.sh on the laptop can run them over ssh
 #      without prompting for a password mid-script.
-#
-# Pipes (Windows) is bootstrapped manually — see docs/bootstrap.md.
 set -e
 
 if [ "$EUID" -eq 0 ]; then

@@ -4,7 +4,7 @@ Deploy, install and repo tooling. Nothing here is imported by show code.
 
 | File | Run where | What it does |
 |---|---|---|
-| `deploy.sh <target> <Element>` | operator laptop | Pushes the current branch to a show machine over the LAN and runs that Element's installer |
+| `deploy.sh <target> <Element>` | operator laptop | Pushes the current branch to a show machine over the LAN and runs that Element's installer; for PlayingThePipes, also pushes the pinned reuben commit |
 | `bootstrap-deploy.sh` | each show machine, once | Lets the machine accept `deploy.sh` pushes; adds the sudoers rule for the installers |
 | `install-services.sh <Element>...` | each show machine | Runs `ShowControl/<Element>/deploy/install.sh` for each Element named |
 | `lib/install-element.sh` | sourced by the installers | The shared install steps: pip, systemd unit, enable, restart |
