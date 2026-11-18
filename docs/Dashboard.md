@@ -19,6 +19,8 @@ The Dashboard server never talks to Elements: everything is browser → Element 
 
 The other pages are status and logs only.
 
+The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`.
+
 Key references:
 - ADR-0007 — OSC Fabric schema (defines the `network.json` schema; mode control is TreeHouse-only)
 - `serve.py`, `index.html`, per-element HTML pages

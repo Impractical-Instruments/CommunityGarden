@@ -74,6 +74,7 @@ def test_firmware_a_test_reads_runs_the_fast_job(path):
     "ShowControl/FlowerBeds/main.py",
     "ShowControl/TreeHouse/settings.json",
     "ShowControl/Dashboard/serve.py",
+    "ShowControl/ShowWeb/live.py",
     "ShowControl/PlayingThePipes/main.py",
     "ShowControl/PlayingThePipes/Lamplight2026/patchers/Lamplight2026.maxpat",
 ])

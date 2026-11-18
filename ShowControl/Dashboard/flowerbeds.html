@@ -24,38 +24,15 @@
   </div>
 </div>
 <script src="network.js"></script>
+<script src="log-panel.js"></script>
 <script>
 const HOST = window.location.hostname || 'localhost';
 let PORT;   // from network.json; set below before anything connects
 
-const logPanel = document.getElementById('log-panel');
-const logLines = document.getElementById('log-lines');
-const logConn  = document.getElementById('log-conn');
-
-function appendLog(entry) {
-  const div = document.createElement('div');
-  div.className = 'log-line log-' + entry.level.toLowerCase();
-  div.textContent = `[${entry.ts}] ${entry.level.padEnd(8)} ${entry.msg}`;
-  logLines.appendChild(div);
-  if (logPanel.scrollTop + logPanel.clientHeight >= logPanel.scrollHeight - 40)
-    logPanel.scrollTop = logPanel.scrollHeight;
-  while (logLines.children.length > 500)
-    logLines.removeChild(logLines.firstChild);
-}
-
-function connectLogs() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${HOST}:${PORT}/logs`);
-  ws.onopen  = () => { logConn.textContent = 'connected';     logConn.className = 'log-conn connected'; };
-  ws.onclose = () => { logConn.textContent = 'reconnecting…'; logConn.className = 'log-conn disconnected'; setTimeout(connectLogs, 2000); };
-  ws.onerror = () => ws.close();
-  ws.onmessage = ev => { try { appendLog(JSON.parse(ev.data)); } catch (_) {} };
-}
-
 elementPort('flowerbeds').then(port => {
   PORT = port;
   document.getElementById('frame').src = `http://${HOST}:${PORT}/`;
-  connectLogs();
+  connectLogs(HOST, PORT);
 }).catch(e => console.error(e));
 </script>
 </body>

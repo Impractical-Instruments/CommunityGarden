@@ -64,7 +64,7 @@ while IFS= read -r path; do
             reuben=true
             ;;
         # Elements FundingCAPTCHA does not import. Their own tests are in the fast job.
-        ShowControl/FlowerBeds/*|ShowControl/TreeHouse/*|ShowControl/Dashboard/*|ShowControl/PlayingThePipes/*)
+        ShowControl/FlowerBeds/*|ShowControl/TreeHouse/*|ShowControl/Dashboard/*|ShowControl/PlayingThePipes/*|ShowControl/ShowWeb/*)
             code=true
             ;;
         # The rest of the Python: FundingCAPTCHA itself, the packages it imports

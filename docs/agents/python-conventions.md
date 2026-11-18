@@ -6,7 +6,8 @@
 |---|---|
 | `ShowControl/FlowerBeds/main.py` | Argument parsing, config loading, main frame loop, wiring IIVision + Coordinator + OSC + visualizer |
 | `ShowControl/FlowerBeds/flower_beds.py` | `Coordinator`, `FlowerModule`, `FlowerCluster`, `Attraction` — cluster assignment and yaw calculation |
-| `ShowControl/FlowerBeds/visualizer.py` | FastAPI WebSocket server; `broadcast(state)` called each frame |
+| `ShowControl/FlowerBeds/visualizer.py` | The FlowerBeds `LiveServer` (page: `visualizer_static/index.html`); `broadcast(state)` called each frame |
+| `ShowControl/ShowWeb/live.py` | `LiveServer`: `/health`, `/ws` state socket, `/logs` socket and log handler shared by the Element visualizers |
 | `ShowControl/FlowerBeds/layout_tool.py` | Browser GUI for placing modules and aiming clusters (ADR-0015) — run on operator laptop, not the show Pi |
 
 Blob detection, stabilisation, camera abstraction, and coordinate transforms all live in `IIVision/`. See [architecture](architecture.md).
