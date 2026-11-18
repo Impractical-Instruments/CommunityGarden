@@ -16,7 +16,9 @@ For element-specific detail, see: [FlowerBeds](FlowerBeds.md) · [TreeHouse](Tre
 | FundingCAPTCHA | 192.168.1.12 | http://192.168.1.12:8080 (monitor) |
 | Playing the Pipes | 192.168.1.13 | http://192.168.1.13:8767/health |
 
-OpenRB-150 servo controllers: 192.168.1.50 / .51 (FlowerBeds firmware).
+OpenRB-150 servo controllers: 192.168.1.50 / .51 (FlowerBeds firmware, Ethernet).
+
+TreeHouse location controllers (ESP32-S3, WiFi `TCG-Show-5`): Swannatopia .60, Julia .61, Jess .62, Dormer .63, Garage .64.
 
 ---
 
@@ -40,8 +42,15 @@ Power-on order is independent — services retry until hardware comes up.
 
 1. **Network.** Show switch on first. Connect all show computers + OpenRB-150 boards to switch via Ethernet **before powering them on** (OpenRB boards fail to init network if switch is absent at boot — [issue #56](https://github.com/Impractical-Instruments/CommunityGarden/issues/56)).
 2. **Power on.** Any order. Services auto-start.
-3. **Hide.** Get out of view of the Flower Beds and Funding CAPTCHA cameras. Tell other staff, animals, robots to hide as well.
-4. **Wait ~60 s.** FlowerBeds and Funding CAPTCHA are slowest — they build a 60-frame background depth model before tracking.
+3. **Rebuild the FlowerBeds background.** FlowerBeds keeps its background depth model in `ShowControl/FlowerBeds/settings.calibration.npz` and reuses it on every start, so at a new venue it still holds the last venue's room. Get everyone out of the FlowerBeds camera's view (staff, animals, robots), then on the `flowerbeds` host:
+   ```bash
+   sudo systemctl stop flowerbeds
+   rm ~/CommunityGarden/ShowControl/FlowerBeds/settings.calibration.npz
+   sudo systemctl start flowerbeds
+   journalctl -u flowerbeds -f     # stay hidden until "Calibration saved to …"
+   ```
+   It takes 60 frames, well under a minute. Do it again if the camera or anything large in its view moves. Funding CAPTCHA needs none of this: it learns its background continuously, with people in view (ADR-0023).
+4. **Check the TreeHouse lights.** All five locations should be lit. A dark one: see [TreeHouse.md → Troubleshooting](TreeHouse.md#troubleshooting).
 5. **Verify Dashboard.** Open http://192.168.1.10:9000. All elements should be green. Red → see [troubleshooting](#troubleshooting).
 6. **Run FlowerBeds layout tool** on the operator laptop if modules moved since last venue. See [FlowerBeds.md](FlowerBeds.md#layout-tool).
 7. Done.
@@ -50,11 +59,10 @@ Power-on order is independent — services retry until hardware comes up.
 
 ## Daily startup
 
-1. Power everything on (any order).
-3. Hide.
-4. Wait ~60 s.
-5. Open Dashboard, verify green across the board.
-6. If anything is red, see [troubleshooting](#troubleshooting).
+1. Power everything on (any order). Nobody needs to hide: FlowerBeds loads its saved background, and Funding CAPTCHA learns its own.
+2. Wait about a minute for the services to come up.
+3. Open Dashboard, verify green across the board.
+4. If anything is red, see [troubleshooting](#troubleshooting).
 
 Services restart automatically on crash. No babysitting needed.
 
@@ -153,19 +161,22 @@ sudo bash ShowControl/<Element>/deploy/install.sh
 
 ## Running without hardware (dev)
 
-Every element has dev flags so you can run anywhere — no camera, no LEDs, no servos.
+Every element has dev flags so you can run anywhere — no camera, no LEDs, no servos. Run each from the element's own directory. In a dev clone use `uv run python`; on a show machine, `python3`.
 
 ```bash
 # TreeHouse, no hardware or displays
-python3 main.py --no-locations --no-branch --no-renderer --no-club-screen
+cd ShowControl/TreeHouse
+uv run python main.py --no-locations --no-branch --no-renderer --no-club-screen
 
 # FlowerBeds, no camera, no servo OSC
-python3 main.py --mock-camera --no-osc
+cd ShowControl/FlowerBeds
+uv run python main.py --mock-camera --no-osc
 
 # FundingCAPTCHA, synthetic depth frames
-python3 app.py --mock-camera
+cd ShowControl/FundingCAPTCHA
+uv run python app.py --mock-camera
 # FundingCAPTCHA, mouse-paint depth (ADR-0016)
-python3 app.py --test-input
+uv run python app.py --test-input
 ```
 
 See each element doc for full flag reference.
@@ -214,7 +225,6 @@ journalctl -u captcha -f
 Both displays are driven by a single `weston` compositor (ADR-0018). If only one shows up, check:
 
 - `dmesg | grep -i hdmi` for connection state.
-- `wlr-randr` from a shell in the weston session lists active outputs.
 - `weston.ini` (in `ShowControl/TreeHouse/deploy/`) declares the two outputs at fixed resolutions; a screen at a different resolution falls back to index 0 with a warning in the journal.
 
 The Looking Glass renderer + Club screen run as child processes of `treehouse`. To restart just the renderers without restarting the coordinator:
