@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+*Note, 2026-11-18: `pico_driver.py` was removed with the Pico LED path on 2026-11-11 (#192). The branch controller still takes JSON lines over USB serial, from `BranchDriver` in `ShowControl/TreeHouse/branches.py`.*
+
 ## Context
 
 The TreeHouse branch motors are driven by an OpenRB-150 running Dynamixel servos. The rest of the system (FlowerBeds) connects to its OpenRB-150 over Ethernet+OSC. The TreeHouse show-control computer (Raspberry Pi) sits physically 1–2 feet from the branch controller inside the structure.

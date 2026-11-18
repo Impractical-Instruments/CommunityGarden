@@ -1,5 +1,9 @@
 # FundingCAPTCHA `--test-input` mode for camera-free game development
 
+**Status:** Accepted and amended by [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md)
+
+*Note, 2026-11-18: `TestInputHandler` was built as `PaintInput` in `paint_input.py`. There is no BG_CAL to skip (ADR-0023). `body_grid_tester.py` was deleted on 2026-11-11 (#258).*
+
 ## Context
 
 FundingCAPTCHA games are difficult to develop and iterate on without a real Orbbec depth camera attached. `--mock-camera` exists but uses IIVision's `MockCamera`, which generates synthetic noise — the game runs but receives random foreground data, making it impossible to test Level completion, Blow-Up timing, silhouette UX, or multi-slab behaviour.

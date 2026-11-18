@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 
+*Note, 2026-11-18: the Picos and the `/enc` line are unchanged. In the reuben port (#177), `ShowControl/PlayingThePipes/encoder_bridge.py` reads the Picos in place of Max; the show box runs Max until #239.*
+
 ## Context
 
 Playing the Pipes has 12 rotary encoders distributed across the physical pipe structure. The original hardware path (resolved 2026-05-07, issue #49) assumed direct Pi GPIO reading via a Python bridge. Physical construction places encoders in two sections; running 24+ signal wires back to the Pi would be mechanically fragile and cable-intensive.

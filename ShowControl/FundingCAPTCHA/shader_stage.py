@@ -1,4 +1,4 @@
-"""Shader stage — the shared kit for playing Shadertoy Setups on the kiosk screen (ADR-0021).
+"""Shader stage — the shared kit for playing Shadertoy Setups on the kiosk screen (ADR-0025).
 
 A library, not an entry point (playlist_app.py is the program). ShaderStage
 takes the Orbbec silhouette in as Buffer A (the Body), renders the current

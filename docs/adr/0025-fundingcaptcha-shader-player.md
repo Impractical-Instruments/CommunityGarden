@@ -1,6 +1,8 @@
-# FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera
+# ADR 0025 — FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera
 
-**Amended by:** [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle), [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) (no calibration wait at startup), [ADR-0024](0024-shader-player-image-channel.md) (an `image` channel source: one shuffled image per load)
+**Status:** Accepted and amended by [ADR-0022](0022-shader-player-blob-records.md) (a `blobs` channel source: boxes, stable IDs, lifecycle), [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) (no calibration wait at startup), [ADR-0024](0024-shader-player-image-channel.md) (an `image` channel source: one shuffled image per load)
+
+*Note, 2026-11-18: this ADR was numbered 0021 until today; the TreeHouse ADR had the same number and keeps it. `shader_app.py` and `shaders/setups.json` are gone (#274): `playlist_app.py` is the one entry point (`--setup NAME` plays a single Setup), `shader_stage.py` is the library under it, and `playlist.json` lists what plays. The settings block is still named `shader_app`.*
 
 ## Context
 

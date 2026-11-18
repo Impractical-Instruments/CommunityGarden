@@ -1,5 +1,7 @@
 # All FundingCAPTCHA games must self-terminate on inactivity
 
+**Status:** Accepted
+
 Every FundingCAPTCHA game type must guarantee a loss if Players stop interacting — either through a literal countdown timer, or through mechanics that ensure failure without input (e.g. defenders eventually catching the ball carrier in Keepaway).
 
 ## Consequences

@@ -1,11 +1,13 @@
 # ADR 0024 — Shader player image channel: one shuffled image per load
 
 **Status:** Accepted
-**Amends:** [ADR-0021](0021-fundingcaptcha-shader-player.md)
+**Amends:** [ADR-0025](0025-fundingcaptcha-shader-player.md)
+
+*Note, 2026-11-18: `SetupImages` is now in `shader_stage.py`, and `playlist_app.Playlist` is its only user: `shader_app.py`, its `Rotation` and `setups.json` are gone (#274).*
 
 ## Context
 
-ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't take uploaded media." The Watercolor Smudge Setup (issue #164) smears and heals a watercolor painting. Painted watercolors look far better than procedural watercolor-ification. They get wet edges, blooms and granulation for free, while a filter reads as a photo-app effect. The artist will supply a set of paintings, and each time the Setup plays it should show a different one.
+ADR-0025 lets Setups use only procedural content and the Body: "Shadertoy can't take uploaded media." The Watercolor Smudge Setup (issue #164) smears and heals a watercolor painting. Painted watercolors look far better than procedural watercolor-ification. They get wet edges, blooms and granulation for free, while a filter reads as a photo-app effect. The artist will supply a set of paintings, and each time the Setup plays it should show a different one.
 
 ## Decision
 
@@ -13,7 +15,7 @@ ADR-0021 lets Setups use only procedural content and the Body: "Shadertoy can't 
 
 2. **One image per load, shuffled.** `shader_app.SetupImages` (used by both `shader_app.Rotation` and `playlist_app.Playlist`) keeps one `arc.ShuffleBag` of image paths per Setup for the whole run. It draws the next one on every real load, so no image repeats until all have shown.
    - **R** (hot reload) is a real load and advances the bag.
-   - A Setup that's the only one playing (`--setup NAME`, or a one-entry `setups.json`) isn't reloaded when its `duration_s` runs out (ADR-0021), so it keeps its image.
+   - A Setup that's the only one playing (`--setup NAME`, or a one-entry `setups.json`) isn't reloaded when its `duration_s` runs out (ADR-0025), so it keeps its image.
    - If the folder's file list changes, the bag is rebuilt on the next load.
 
 3. **Decoding.** Images are decoded on load with Pillow into RGBA with row 0 at the bottom (GL, matching the Body), turned upright per their EXIF orientation (phone photos). Before upload, an image is downscaled, keeping aspect and never upscaled, to the smallest size that still *covers* the window, since Setups cover-fit it. No side may exceed `GL_MAX_TEXTURE_SIZE`.

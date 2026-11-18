@@ -1,11 +1,13 @@
 # ADR 0022 — Shader player blob records: boxes, stable IDs, lifecycle
 
 **Status:** Accepted
-**Amends:** [ADR-0021](0021-fundingcaptcha-shader-player.md)
+**Amends:** [ADR-0025](0025-fundingcaptcha-shader-player.md)
+
+*Note, 2026-11-18: `shader_app.py` is now `shader_stage.py` (#274). The settings key is still `shader_app.blobs`.*
 
 ## Context
 
-ADR-0021 gives Setups the Body (Buffer A: `.r` presence, `.g` nearness) and nothing else about the people in it. Some Setups want to draw *the tracker itself*: a box per person, a stable number that follows them, and whether the tracker is unsure, sure, guessing, or has given up on them. The first is a debug view of the tracker, styled as a bird hunting visitors (the `hunter_bird` Setup). A shader can't recover identity across frames from a mask. Faking it in a buffer would show tracking bugs the real tracker doesn't have, and would hide the ones it does.
+ADR-0025 gives Setups the Body (Buffer A: `.r` presence, `.g` nearness) and nothing else about the people in it. Some Setups want to draw *the tracker itself*: a box per person, a stable number that follows them, and whether the tracker is unsure, sure, guessing, or has given up on them. The first is a debug view of the tracker, styled as a bird hunting visitors (the `hunter_bird` Setup). A shader can't recover identity across frames from a mask. Faking it in a buffer would show tracking bugs the real tracker doesn't have, and would hide the ones it does.
 
 ## Decision
 

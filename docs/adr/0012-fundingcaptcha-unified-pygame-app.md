@@ -1,5 +1,9 @@
 # FundingCAPTCHA runs as a unified pygame app
 
+**Status:** Accepted and amended by [ADR-0013](0013-fundingcaptcha-silhouette-body-interaction.md) and [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md)
+
+*Note, 2026-11-18: the single process stands; these details below do not. The games UpsideDown, Rhythm and Keepaway and the files `pairs.json`, `rhythm-images.json` and `keepaway-images.json` do not exist: the one Game is BodyCaptcha (`games/bodycaptcha.py`, ADR-0013). The states are Screensaver and Game (`kiosk.py`); BG_CAL and CORNER_CAL are gone. The monitoring server (`monitor.py`) serves `/`, `/health`, `/logs` and `/api/restart`, and has no `/ws`.*
+
 The FundingCAPTCHA show computer runs a single Python process (`app.py`) that owns the projector display, the camera pipeline, and a lightweight monitoring server. There is no browser, no kiosk service, and no separate calibration tool.
 
 ## Context

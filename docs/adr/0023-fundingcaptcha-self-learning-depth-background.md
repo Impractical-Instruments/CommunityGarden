@@ -1,7 +1,10 @@
 # FundingCAPTCHA learns its depth background continuously — no boot-time standback
 
+**Status:** Accepted
 **Supersedes:** the BG_CAL section of [ADR-0013](0013-fundingcaptcha-silhouette-body-interaction.md)
-**Amends:** [ADR-0021](0021-fundingcaptcha-shader-player.md) (startup consequence)
+**Amends:** [ADR-0025](0025-fundingcaptcha-shader-player.md) (startup consequence)
+
+*Note, 2026-11-18: of the programs named below, `shader_app.py` is now the library `shader_stage.py` under `playlist_app.py` (#274), and `body_grid_tester.py` was deleted (#258).*
 
 ## Context
 
