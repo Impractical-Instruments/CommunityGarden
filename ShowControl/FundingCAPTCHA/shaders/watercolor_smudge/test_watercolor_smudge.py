@@ -11,32 +11,18 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shadertoy import Renderer, load_setup
+from shader_test_rig import DT, load_renderer, read_image
+from shadertoy import Renderer
 
-SETUP = Path(__file__).parent / "shaders" / "watercolor_smudge"
+SETUP = Path(__file__).parent
 SIZE  = (96, 54)
-DT    = 1 / 30
 ABSENT, PRESENT = (0.0, 0.0, -1.0, -1.0), (48.0, 27.0, 48.0, 27.0)
 
 
 def _rig(ctx, image: np.ndarray | None = None) -> Renderer:
-    r = Renderer(ctx, SIZE, body_mode="camera")
-    r.load(load_setup(SETUP), image=image)
-    r.defer_image = True                         # _out() draws the Image on demand
+    r = load_renderer(ctx, SETUP, SIZE, image=image)
     r.upload_body(np.zeros((SIZE[1], SIZE[0], 4), dtype=np.uint8))
     return r
-
-
-def _buf(r: Renderer, name: str) -> np.ndarray:
-    tex = r._buffers[name].read_tex
-    data = np.frombuffer(tex.read(), dtype=np.float16)
-    return data.reshape(tex.size[1], tex.size[0], 4).astype(np.float32)
-
-
-def _out(r: Renderer) -> np.ndarray:
-    r.draw_deferred_image()
-    data = np.frombuffer(r.output.read(components=4), dtype=np.uint8)
-    return data.reshape(SIZE[1], SIZE[0], 4)
 
 
 def _frames(r: Renderer, n: int, mouse=ABSENT) -> None:
@@ -56,7 +42,7 @@ def _halves(left: tuple, right: tuple) -> np.ndarray:
 def test_without_image_paints_procedural_sunset(ctx):
     r = _rig(ctx)
     _frames(r, 3)
-    o = _out(r).astype(int)
+    o = read_image(r).astype(int)
     top = o[48, 48, :3]                                   # GL row 48 is near the top
     assert top[2] > top[0]                                # sky top is blue-violet
     assert o.std() > 10                                   # not flat
@@ -67,7 +53,7 @@ def test_without_image_paints_procedural_sunset(ctx):
 def test_canvas_starts_equal_to_original(ctx):
     r = _rig(ctx)
     _frames(r, 2)
-    diff = np.abs(_buf(r, "buffer_d")[..., :3] - _buf(r, "buffer_b")[..., :3])
+    diff = np.abs(r.read_buffer("buffer_d")[..., :3] - r.read_buffer("buffer_b")[..., :3])
     assert diff.max() < 1 / 255
     r.release()
 
@@ -75,7 +61,7 @@ def test_canvas_starts_equal_to_original(ctx):
 def test_image_shows_unchanged_when_undisturbed(ctx):
     r = _rig(ctx, image=_halves((255, 0, 0, 255), (0, 0, 255, 255)))
     _frames(r, 3)
-    o = _out(r).astype(int)
+    o = read_image(r).astype(int)
     assert np.abs(o[27, 20, :3] - (255, 0, 0)).max() <= 2
     assert np.abs(o[27, 76, :3] - (0, 0, 255)).max() <= 2
     r.release()
@@ -89,7 +75,7 @@ def test_image_covers_screen_keeping_aspect(ctx):
     img[:32] = (0, 0, 255, 255)
     r = _rig(ctx, image=img)
     _frames(r, 3)
-    o = _out(r).astype(int)
+    o = read_image(r).astype(int)
     assert (o[..., 0] > 200).all()                        # cover crops top and bottom: all red
     assert (o[..., 1] < 30).all() and (o[..., 2] < 30).all()
     r.release()
@@ -113,7 +99,7 @@ def _bar(w_frac: float, x_frac: float, extra: np.ndarray | None = None,
 
 def _diff(r: Renderer) -> np.ndarray:
     """|canvas − original| per texel, max over rgb."""
-    return np.abs(_buf(r, "buffer_d")[..., :3] - _buf(r, "buffer_b")[..., :3]).max(axis=2)
+    return np.abs(r.read_buffer("buffer_d")[..., :3] - r.read_buffer("buffer_b")[..., :3]).max(axis=2)
 
 
 def _sweep(r: Renderer, w_frac: float, x0: float, x1: float, seconds: float = 1.0) -> None:
@@ -135,7 +121,7 @@ def test_extremity_scores_thin_high_and_broad_low(ctx):
     body[..., 0] |= _bar(0.25, 0.7)[..., 0]
     r.upload_body(body)
     _frames(r, 3, PRESENT)
-    ext = _buf(r, "buffer_c")[..., 2]
+    ext = r.read_buffer("buffer_c")[..., 2]
     assert ext[27, int(0.3 * SIZE[0])] > 0.8
     assert ext[27, int(0.7 * SIZE[0])] < 0.2
     r.release()
@@ -264,7 +250,7 @@ def test_paper_border_never_smears(ctx):
     r = _rig(ctx)
     _frames(r, 2)
     _sweep(r, 0.02, 0.0, 0.2)
-    border = _buf(r, "buffer_b")[..., 3] < 0.01
+    border = r.read_buffer("buffer_b")[..., 3] < 0.01
     assert border.any()
     assert _diff(r)[border].max() < 1 / 255
     r.release()
@@ -273,10 +259,10 @@ def test_paper_border_never_smears(ctx):
 def test_state_stays_bounded_when_idle(ctx):
     r = _rig(ctx)
     _frames(r, 4000)
-    c = _buf(r, "buffer_c")
+    c = r.read_buffer("buffer_c")
     assert c[0, 0, 3] == pytest.approx(10.0, abs=0.1)     # EMPTY_CLAMP_S
     for name in ("buffer_b", "buffer_c", "buffer_d"):
-        assert np.isfinite(_buf(r, name)).all()
+        assert np.isfinite(r.read_buffer(name)).all()
     assert _diff(r).max() < 1 / 255
     r.release()
 
@@ -290,7 +276,7 @@ def test_image_stays_sharp_outside_smear(ctx):
     r = _rig(ctx, image=img)
     _frames(r, 2)
     _sweep(r, 0.02, 0.2, 0.4)
-    o = _out(r).astype(int)
+    o = read_image(r).astype(int)
     far = _cols(0.75, 0.95)
     assert np.abs(o[:, far, :3] - img[:, far, :3].astype(int)).max() <= 2
     assert np.abs(o[:, _cols(0.2, 0.4), :3] - img[:, _cols(0.2, 0.4), :3].astype(int)).max() > 25
@@ -302,9 +288,9 @@ def test_wet_smear_reads_darker_than_dry(ctx):
     _frames(r, 2)
     _sweep(r, 0.02, 0.2, 0.6)
     swept = (slice(None), _cols(0.25, 0.55))
-    wet = _out(r)[swept][..., :3].astype(float).mean()
-    wetness = _buf(r, "buffer_d")[..., 3][swept].max()
+    wet = read_image(r)[swept][..., :3].astype(float).mean()
+    wetness = r.read_buffer("buffer_d")[..., 3][swept].max()
     _frames(r, 120, PRESENT)                               # 4 s, present: no heal
     assert wetness > 0.5
-    assert wet < _out(r)[swept][..., :3].astype(float).mean()
+    assert wet < read_image(r)[swept][..., :3].astype(float).mean()
     r.release()
