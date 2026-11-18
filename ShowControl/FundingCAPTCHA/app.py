@@ -39,6 +39,7 @@ import pygame
 from arc import Arc
 from camera_feed import CameraFeed, source_from_args
 from kiosk import Kiosk
+from levels import Levels
 from monitor import MonitoringServer
 from paint_input import PaintInput
 from plugins import load_games, load_screensavers
@@ -92,7 +93,7 @@ def main() -> None:
 
     kiosk = Kiosk(settings, feed=feed, monitor=monitor, screen=screen, fabric=fabric,
                   paint=paint, restart_requested=restart_requested,
-                  arc=Arc(load_games(settings, levels_path=args.levels)),
+                  arc=Arc(load_games(settings, screen.get_size(), Levels(args.levels))),
                   savers=load_screensavers(settings))
     feed.start()
     kiosk.run()

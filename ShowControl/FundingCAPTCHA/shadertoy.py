@@ -24,7 +24,7 @@ A slot keeps its track for the track's whole life. In Shadertoy the source is
 shaders/blob_painter.glsl in a spare buffer.
 
 Source "image" is one image from <setup>/images/, chosen per load by
-shader_app.SetupImages (ADR-0024); unbound (reads 0, resolution 0) without one.
+shader_stage.SetupImages (ADR-0024); unbound (reads 0, resolution 0) without one.
 
 Channel sources: "A" "B" "C" "D" "keyboard" "blobs" "image" or null. Buffers are linear-
 filtered and clamped like Shadertoy's, but RGBA16F where Shadertoy's are
@@ -45,7 +45,7 @@ from pathlib import Path
 
 import numpy as np
 
-log = logging.getLogger("shader_app")
+log = logging.getLogger("shadertoy")
 
 BUFFERS  = ("buffer_b", "buffer_c", "buffer_d")      # render order, before image
 SOURCES  = {"A", "B", "C", "D", "keyboard", "blobs", "image"}

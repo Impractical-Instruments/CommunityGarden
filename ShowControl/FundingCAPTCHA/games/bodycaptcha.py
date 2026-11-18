@@ -22,29 +22,10 @@ from games.grid import (
 from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivations
 from silhouette import render_silhouette
 from arc import blend_intensity
-from crop import crop_scale
+from levels import Levels, new_default_level
 from settings import slab_color, with_defaults
 
-_DIR    = Path(__file__).parent.parent
-_IMAGES = _DIR / "images"
-_LEVELS_DEFAULT = _DIR / "bodycaptcha-levels.json"
-_levels_path: Path = _LEVELS_DEFAULT
-_TAUNTS = _DIR / "taunts.json"
-
-
-def set_levels_path(path: Path | str | None) -> None:
-    """Point the game at an alternate levels file, or None to restore the default.
-
-    Module-level on purpose: _reload_data() re-reads levels at every arc start,
-    so an instance-level override would revert the show to the default set at
-    the first arc boundary.
-    """
-    global _levels_path
-    _levels_path = _LEVELS_DEFAULT if path is None else Path(path)
-
-
-def get_levels_path() -> Path:
-    return _levels_path
+_TAUNTS = Path(__file__).parent.parent / "taunts.json"
 
 
 HINT_COLOR   = (100, 180, 255)
@@ -107,29 +88,7 @@ class _LevelBag:
         return self._bag.pop()
 
 
-_DEFAULT_LEVEL = {"prompt": "Cover the center", "image": None, "difficulty": 1,
-                  "grid": [3, 3], "valid_cells": [[1, 1]]}
 _DEFAULT_TAUNT = "Too Slow! You're not a robot."
-
-
-def _read_levels(path: Path | None = None) -> list[dict] | None:
-    """Read the levels file. Returns None on ANY failure — missing, bad JSON,
-    empty, or not a non-empty list — so callers choose fallback vs keep-last-good.
-
-    `path` defaults to whatever set_levels_path() last selected, resolved per
-    call rather than bound as a default argument, because _reload_data() calls
-    this with no argument at every arc start.
-
-    Reloaded at every arc start (BodyCaptchaGame.reset), so a malformed or
-    half-pulled file must never silently collapse the show to a default level.
-    """
-    if path is None:
-        path = get_levels_path()
-    try:
-        data = json.loads(path.read_text())
-    except Exception:
-        return None
-    return data if isinstance(data, list) and data else None
 
 
 def _read_taunts(path: Path = _TAUNTS) -> list[str] | None:
@@ -138,39 +97,6 @@ def _read_taunts(path: Path = _TAUNTS) -> list[str] | None:
     except Exception:
         return None
     return data if isinstance(data, list) and data else None
-
-
-def _img_load(path: Path) -> pygame.Surface:
-    """Load image via pygame, falling back to Pillow for unsupported formats (e.g. JPEG on Pi)."""
-    with open(path, "rb") as f:
-        if f.read(20).startswith(b"version https://git-"):
-            raise RuntimeError(
-                f"Git LFS pointer at {path} — run `git lfs pull` in the repo root"
-            )
-    try:
-        return pygame.image.load(str(path)).convert()
-    except Exception:
-        pass
-    from PIL import Image as _PILImage
-    pil = _PILImage.open(str(path)).convert("RGB")
-    raw = pil.tobytes()
-    return pygame.image.frombuffer(raw, pil.size, "RGB").convert()
-
-
-def _load_bg(image_name: str | None, w: int, h: int,
-             align: object = None) -> pygame.Surface | None:
-    if not image_name:
-        return None
-    path = _IMAGES / image_name
-    if not path.exists():
-        log.warning("Background image not found: %s", path)
-        return None
-    try:
-        img = _img_load(path)
-        return crop_scale(img, w, h, align)
-    except Exception as exc:
-        log.warning("Failed to load background image %s: %s", path, exc)
-        return None
 
 
 def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
@@ -185,14 +111,17 @@ def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
 
 
 class BodyCaptchaGame:
-    def __init__(self, settings: dict) -> None:
+    def __init__(self, settings: dict, size: tuple[int, int],
+                 levels: Levels) -> None:
+        """`size` is the (width, height) of the surface draw() will be given."""
         self._settings   = settings = with_defaults(settings)
+        self._levels     = levels
         self._defaults   = settings["bodycaptcha"]      # a Level may override any of these
-        self._all_levels = _read_levels()
+        self._all_levels = self._levels.read()
         if self._all_levels is None:
             log.warning("%s missing/invalid — falling back to default level",
-                        get_levels_path())
-            self._all_levels = [_DEFAULT_LEVEL]
+                        self._levels.path)
+            self._all_levels = [new_default_level()]
         self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
         self._w_diff     = self._defaults["intensity_weights"]["difficulty"]
@@ -200,9 +129,7 @@ class BodyCaptchaGame:
         self._slabs_cfg  = settings["depth_slabs"]
         self._roi        = settings["camera_roi"]
         self._slab_color = slab_color(settings)
-        WW, WH           = pygame.display.get_surface().get_size()
-        self._WW         = WW
-        self._WH         = WH
+        self._WW, self._WH = size
 
         # Live state (set by _load_level)
         self._level:       dict             = {}
@@ -229,8 +156,8 @@ class BodyCaptchaGame:
         cols, rows       = level.get("grid", [4, 4])
         self._grid       = Grid(self._WW, self._WH, cols, rows)
         bounds           = self._grid.bounds_rect
-        self._bg_img     = _load_bg(level.get("image"), bounds.width, bounds.height,
-                                    level.get("crop_align"))
+        self._bg_img     = self._levels.background(
+            level.get("image"), bounds.width, bounds.height, level.get("crop_align"))
         self._activator  = _make_activator(level, self._settings)
         self._valid_set  = {tuple(c) for c in level.get("valid_cells", [])}
         self._elapsed    = 0.0
@@ -275,13 +202,13 @@ class BodyCaptchaGame:
         arc with no service restart. A missing/malformed/empty file keeps the
         last-known-good set in memory so a bad pull never degrades a live show.
         """
-        levels = _read_levels()
+        levels = self._levels.read()
         if levels is not None:
             self._all_levels = levels
             self._bag        = _LevelBag(levels)
         else:
             log.warning("%s missing/invalid — keeping %d loaded levels",
-                        get_levels_path(), len(self._all_levels))
+                        self._levels.path, len(self._all_levels))
 
         taunts = _read_taunts()
         if taunts is not None:
@@ -472,5 +399,5 @@ class BodyCaptchaGame:
             surf.blit(tile, (int(p.x) - s, int(p.y) - s))
 
 
-def create(settings: dict) -> BodyCaptchaGame:
-    return BodyCaptchaGame(settings)
+def create(settings: dict, size: tuple[int, int], levels: Levels) -> BodyCaptchaGame:
+    return BodyCaptchaGame(settings, size, levels)
