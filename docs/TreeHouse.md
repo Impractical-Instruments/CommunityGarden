@@ -11,11 +11,11 @@ The Hub Element. A 9.5-foot structure with dioramas, branch motors, and dual scr
 `main.py` runs an asyncio loop that ticks every `Controllable` once per frame (the Looking Glass and the Branches, which send their motor commands over USB serial) and sends Garden State to the location controllers over WiFi. Each frame, `Coordinator.update()` takes `SignalIntake.snapshot()` (the OSC signals, with silent senders zeroed), adds show mode and brightness, and hands the resulting Garden State to every `Controllable` alike.
 
 Hardware:
-- 5× ESP32-S3 location controllers (WiFi/OSC) — Swannatopia, Julia, Jess, Dormer, Garage (ADR-0020, ADR-0021). They drive every LED in the TreeHouse. The Pi sends them Garden State, not pixels; they animate themselves.
+- 5× ESP32-S3 location controllers (WiFi/OSC) — Swannatopia, Julia, Jess, Dormer, Garage (ADR-0020, ADR-0021). They drive every LED in the TreeHouse. The Pi sends them Garden State, not pixels; they animate themselves, and for now ignore what the Pi sends (see [Location controllers](#location-controllers)).
 - 1× branch controller (USB serial) — Dynamixel servos via lead screws for the 4–6 motorised roof Branches (ADR-0005)
 - 2× HDMI displays — Looking Glass renderer (1024×600) and Club diorama screen (800×480) (ADR-0017, ADR-0018)
 
-The TreeHouse is the **Hub** of the OSC Fabric. It listens for `/captcha/intensity`, `/captcha/blowup`, `/flowerbeds/activity`, `/pipes/activity`, `/treehouse/mode`, `/treehouse/brightness` and folds them into `GardenState`, which is passed to every Controllable each frame (ADR-0006, ADR-0007, ADR-0008).
+The TreeHouse is the **Hub** of the OSC Fabric: `osc_server.py` receives the Elements' signals and `SignalIntake` folds them into `GardenState`, which is passed to every Controllable each frame (ADR-0006, ADR-0007, ADR-0008). The addresses are under [OSC interface](#osc-interface).
 
 Display rendering — both screens run under a single `weston` compositor started by `main.py` (ADR-0018). Each screen is a child asyncio subprocess with exponential backoff. The renderers use `pygame + moderngl` against SDL2 with `SDL_VIDEODRIVER=wayland`. Output assignment is by resolution match against `pygame.display.get_desktop_sizes()`.
 
@@ -27,7 +27,23 @@ Key references:
 - ADR-0017 — Club diorama rave screen
 - ADR-0018 — pygame/weston dual-display
 - ADR-0020 — ESP32-S3 location controllers (supersedes ADR-0010)
-- `treehouse_config.py` (settings.json + network.json → typed config), `garden_state.py` (`SignalIntake`: OSC signals, stale-sender expiry, `snapshot()`), `branches.py` (`branch_positions()` maths, `BranchDriver` serial driver, `BranchController` as a `Controllable`), `coordinator.py` (intake → GardenState → every `Controllable`), `controllables/`, `looking_glass/`, `club_screen.py`, `location_sender.py`
+
+Files in `ShowControl/TreeHouse/`:
+
+| File | What it holds |
+|---|---|
+| `main.py` | Flags, weston, the renderer subprocesses and the frame loop |
+| `treehouse_config.py` | `settings.json` + `network.json` → `TreehouseConfig` |
+| `osc_server.py` | The Fabric listener |
+| `garden_state.py` | `SignalIntake`: the OSC signals, stale-sender expiry, `snapshot()` |
+| `coordinator.py` | `Coordinator`: intake → `GardenState` → every `Controllable`; show mode and dim level |
+| `controllables/base.py` | `GardenState`, `ShowMode`, `Controllable`, `ControllableState` |
+| `controllables/video.py` | `LookingGlassControllable` |
+| `branches.py` | `branch_positions()` maths, `BranchDriver` serial driver, `BranchController` (a `Controllable`) |
+| `location_sender.py` | `LocationSender`: Garden State to the location controllers |
+| `looking_glass/renderer.py`, `looking_glass/*.glsl` | The Looking Glass renderer subprocess and its scenes |
+| `club_screen.py`, `club_messages.txt` | The Club screen subprocess and its messages |
+| `visualizer.py` | State snapshot and the `/control/*` routes the Dashboard page posts to, on a `ShowWeb.LiveServer` |
 
 ---
 
@@ -52,7 +68,7 @@ If both `--no-renderer` and `--no-club-screen` are given, weston is not started.
 ## Service unit notes
 
 `treehouse.service` sets:
-- `XDG_RUNTIME_DIR=/run/user/1000` + `ExecStartPre` creates it (weston needs a runtime dir)
+- `XDG_RUNTIME_DIR=/run/user/<uid of the service user>` + `ExecStartPre` creates it (weston needs a runtime dir); `install.sh` fills in the uid
 - `LIBSEAT_BACKEND=seatd` (weston needs seat management — `seatd.service` is enabled by `install.sh`)
 - `MESA_GL_VERSION_OVERRIDE=3.3` + `MESA_GLSL_VERSION_OVERRIDE=330` (moderngl needs GL3.3 core)
 - `SupplementaryGroups=dialout` (branch controller USB)
@@ -87,7 +103,7 @@ mode=800x480
 
 If only one screen is connected, weston still starts. The renderer that can't match its resolution falls back to index 0 with a warning in the journal.
 
-List outputs from inside the weston session: `wlr-randr`. Or `dmesg | grep -i hdmi`.
+To see which outputs the kernel found: `dmesg | grep -i hdmi`.
 
 ---
 
@@ -170,23 +186,21 @@ USB devices appear as `/dev/ttyACMx` in plug order, so a udev symlink pins the b
 
 ## Controllable model
 
-Every output the Pi drives itself is a `Controllable` (ADR-0006) with `update(dt, state: GardenState)` + `get_state()`. Today that is the Looking Glass (`controllables/video.py`). The LEDs are not Controllables: each location's ESP32-S3 controller receives Garden State from `location_sender.py` and animates itself.
+Every output the Pi drives itself is a `Controllable` (ADR-0006) with `update(dt, state: GardenState)` + `get_state()`. `build_controllables()` in `coordinator.py` makes two: the Looking Glass (`LookingGlassControllable`) and the Branches (`BranchController`). The LEDs are not Controllables: each location's ESP32-S3 controller receives Garden State from `location_sender.py` and animates itself.
 
-`GardenState` fields:
-- `flowerbeds_activity` (0–1)
-- `captcha_intensity` (0–1)
-- `captcha_blowup` (bool, one-shot — drives the attic-spike Blow-Up Reaction)
-- `pipes_activity` (0–1)
-- `show_mode` (`active` / `dim` / `inactive`)
-- `brightness` (0–1)
+`GardenState` and its fields are defined in `controllables/base.py`. Each Controllable decides which fields it reads — see ADR-0008:
 
-Each Controllable decides which fields it reads — see ADR-0008.
+- **Looking Glass:** intensity is the mean of the three Element signals, times `brightness`.
+- **Branches:** each motor blends the three signals by its `weights` between `min_pos` and `max_pos`; on a frame with `captcha_blowup` set it goes to `recoil_pos`.
+- **Location controllers:** a Blow-Up adds a spike that decays on the controller. Not live while the controllers ignore Garden State (below).
 
 ---
 
 ## Location controllers
 
-Four ESP32-S3 controllers (ADR-0020) light Swannatopia, Julia, Jess and the Dormer. `location_sender.py` broadcasts Garden State to them each frame at `locations.send_hz`, following the ADR-0007 change/heartbeat rules: a value goes out when it moves past `change_epsilon`, and everything repeats at least once per `heartbeat_interval_s`. Blow-Ups are never rate-limited.
+Five ESP32-S3 controllers (ADR-0020) light Swannatopia, Julia, Jess, the Dormer and the Garage. `location_sender.py` sends Garden State to all of them, `locations.send_hz` times a second, under the Fabric send rule ([`osc-fabric.md`](osc-fabric.md#when-a-signal-is-sent)). Blow-Ups are never rate-limited.
+
+**The controllers currently ignore Garden State** (ADR-0021): `kFollowGardenState` in `Firmware/TreeHouse_Controllers/src/main.cpp` is `false`, so each animates as if every Element were at full, whatever the Pi sends, and the 10 s no-signal fallback is off. Setting it to `true` and reflashing puts the Pi back in charge.
 
 Addresses come from the `firmware` block of `network.json`; `settings.json` names the controllers but never their addresses.
 
@@ -196,8 +210,9 @@ Addresses come from the `firmware` block of `network.json`; `settings.json` name
 | Julia | 1× PWM MOSFET (12 V filaments) | 192.168.1.61 |
 | Jess | 2× SK6812 RGBW + 1× PWM MOSFET flash | 192.168.1.62 |
 | Dormer | 1× PWM MOSFET (12 V) | 192.168.1.63 |
+| Garage | 1× cap-discharge arc trigger + 16× SK6812 RGBW | 192.168.1.64 |
 
-Firmware and bench-testing recipes: `Firmware/TreeHouse_Controllers/README.md`.
+Firmware, each location's look and bench-testing recipes: `Firmware/TreeHouse_Controllers/README.md`.
 
 ---
 
@@ -214,8 +229,8 @@ The TreeHouse is the only Fabric listener (`osc_server.py`, on `elements.treehou
 | Both screens off | weston didn't start or both HDMI unplugged | `journalctl -u treehouse -b` — look for `weston exited`; check cables; `dmesg | grep -i hdmi` |
 | One screen blank | renderer crash-looping | `journalctl -u treehouse -f` and look for `Renderer crashed` lines; check shader compile errors |
 | Wrong content on each screen | both screens at the same resolution (no resolution match) | Fix `weston.ini` modes, or change one display's resolution |
-| A location slowly breathing, ignoring the show | Controller has heard no Garden State for 10 s | That is the ADR-0020 fallback, not a fault. Check the Pi is running without `--no-locations`, then `ping` the controller's IP from `network.json` |
-| A location dark, others fine | That controller is off, unflashed, or `show_mode` is `inactive` | Watch its serial heartbeat: `pio device monitor -b 115200` from `Firmware/TreeHouse_Controllers` |
+| A location ignoring show mode and activity | Expected for now: the controllers ignore Garden State (ADR-0021) | Nothing to fix. With `kFollowGardenState` on, a location that slowly breathes has heard nothing for 10 s: check the Pi is running without `--no-locations`, then `ping` the controller's IP from `network.json` |
+| A location dark, others fine | That controller is off or unflashed | Watch its serial heartbeat: `pio device monitor -b 115200` from `Firmware/TreeHouse_Controllers` |
 | Branches not moving | branch controller serial port closed | Check `/dev/treehouse-branches`; restart service |
-| OSC Fabric silent | network.json missing | Service falls back gracefully but logs `network.json — OSC disabled` |
-| Renderer stuck on old scene | shader compile failure on last `/lookingglass/scene` | journal logs the GLSL error; fix shader, send the address again — hot reload re-tries |
+| OSC Fabric silent | `network.json` missing | The service keeps running and logs `network.json not found at … — running without show-network addresses` |
+| Renderer stuck on old scene | shader compile failure on the last scene change | The journal has `Shader swap failed` with the GLSL error; fix the shader and select the scene again |
