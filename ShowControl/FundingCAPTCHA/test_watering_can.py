@@ -663,7 +663,7 @@ def sun_offset(size):
 
 def sun_region(size):
     """Pixels the sun (Task 4) may draw on: its outline and as far as its rays reach."""
-    return np.hypot(*sun_offset(size)) <= SUN_R * (1 + K["SUN_EDGE_WOBBLE"]) + max(RAY_LEN, K["SUN_STROKE_W"])
+    return np.hypot(*sun_offset(size)) <= K["SUN_REACH"]
 
 
 def off_paper(img):
@@ -1108,22 +1108,46 @@ def test_walker_leaves_footprints_that_grow_then_rewind_away(ctx):
     rig.release()
 
 
-# ── Task 4: the crayon sun (Image) ────────────────────────────────────────────
+# ── Task 4: the sun (Image) ───────────────────────────────────────────────────
+
+SUN_RGB = np.round(np.array(K["SUN_COL"]) * 255).astype(int)
+
+
+def luma(img):
+    return img[..., :3].astype(float) @ np.array([0.299, 0.587, 0.114])
+
+
+def sunny(img):
+    """Pixels within 30 per channel of the sun's yellow."""
+    return (np.abs(img[..., :3].astype(int) - SUN_RGB) <= 30).all(axis=-1)
+
+
+def inky(img):
+    """Pixels with ink on them, on the paper or on the sun: darker than both by a margin."""
+    return luma(img) < min(PAPER @ [0.299, 0.587, 0.114], SUN_RGB @ [0.299, 0.587, 0.114]) - 25
+
 
 def sun_patch(img):
-    """(inside, stroke, ring) masks: pixels well inside the sun's disc, in the band its outline wobbles in, and in the
-    ring where its rays reach."""
-    r = np.hypot(*sun_offset((img.shape[1], img.shape[0])))
-    band = K["SUN_EDGE_WOBBLE"] * SUN_R + 0.5 * K["SUN_STROKE_W"]
-    return r <= 0.85 * SUN_R, np.abs(r - SUN_R) <= band, (r >= K["SUN_RAY_FROM"] * SUN_R) & (r <= SUN_R + RAY_LEN)
+    """(inside, rim, shade, ring) masks: pixels well inside the disc, clear of its hatching; the band its outline
+    wanders in; the band just inside the rim on the side away from the light, where it's hatched; and the ring
+    its rays reach."""
+    dx, dy = sun_offset((img.shape[1], img.shape[0]))
+    r = np.hypot(dx, dy)
+    band = K["SUN_EDGE_WOBBLE"] * SUN_R + K["SUN_INK_W"] + 1.0 / img.shape[0]
+    away = -(dx + dy) / np.sqrt(2) / np.maximum(r, 1e-9)
+    shade = (r > SUN_R - 0.5 * K["SUN_SHADE_W"] * SUN_R) & (r < SUN_R - band) & (away > 0.8)
+    return (r <= (1 - 1.2 * K["SUN_SHADE_W"]) * SUN_R, np.abs(r - SUN_R) <= band, shade,
+            (r >= K["SUN_RAY_FROM"] * SUN_R) & (r <= SUN_R + RAY_LEN))
 
 
-def assert_sun_is_an_outline(img):
-    inside, stroke, _ = sun_patch(img)
-    d = off_paper(img)
-    assert (d & inside).sum() == 0, (d & inside).sum()                 # never filled
-    assert (d & stroke).sum() > 0.2 * stroke.sum(), ((d & stroke).sum(), stroke.sum())   # a crayon stroke: grainy
-    assert saturation(img[..., :3][d & stroke]).mean() > 0.5           # in the sun's colour, not ink
+def assert_sun_is_drawn_as_a_flower(img, hatched=True):
+    """hatched: check the hatching too. Its lines are as fine as a daisy's, so they need a big render to show."""
+    inside, rim, shade, _ = sun_patch(img)
+    assert sunny(img)[inside].mean() > 0.98, sunny(img)[inside].mean()          # a flat yellow fill
+    assert inky(img)[rim].mean() > 0.15, inky(img)[rim].mean()                   # in an ink outline
+    if hatched:
+        assert inky(img)[shade].mean() > 0.15, inky(img)[shade].mean()           # hatched away from the light
+        assert sunny(img)[shade].mean() > 0.3, sunny(img)[shade].mean()          # lightly: still mostly yellow
 
 
 def test_sun_peeks_out_of_the_corner():
@@ -1134,21 +1158,22 @@ def test_sun_peeks_out_of_the_corner():
     assert abs(shown - 1 / 3) < 0.02, shown
 
 
-def test_sun_is_an_outline_without_rays_when_empty(ctx):
-    rig = Rig(ctx, size=IMG)
+def test_sun_is_drawn_as_a_flower_without_rays_when_empty(ctx):
+    rig = Rig(ctx, size=(1024, 576))
     rig.run([EMPTY] * 30)
     img = rig.image()
-    assert_sun_is_an_outline(img)
-    assert (off_paper(img) & sun_patch(img)[2]).sum() == 0             # no rays
+    assert_sun_is_drawn_as_a_flower(img)
+    assert (sunny(img) & sun_patch(img)[3]).sum() == 0                 # no rays
     rig.release()
 
 
-def test_sun_stays_an_outline_and_grows_rays_with_bloom(shared_rig):
+def test_sun_grows_inked_rays_with_bloom(shared_rig):
     rig = shared_rig(220)
     img = rig.image()
-    assert_sun_is_an_outline(img)
-    ring = sun_patch(img)[2]
-    assert (off_paper(img) & ring).sum() > 0.08 * ring.sum(), ((off_paper(img) & ring).sum(), ring.sum())
+    assert_sun_is_drawn_as_a_flower(img, hatched=False)
+    ring = sun_patch(img)[3]
+    assert (sunny(img) & ring).sum() > 0.05 * ring.sum(), ((sunny(img) & ring).sum(), ring.sum())
+    assert (inky(img) & ring).sum() > 0.03 * ring.sum(), ((inky(img) & ring).sum(), ring.sum())
 
 
 def seam_extents(img):
@@ -1158,7 +1183,7 @@ def seam_extents(img):
     dx, dy = sun_offset(size)
     r = np.hypot(dx, dy)
     ray = (dx < 0) & (r > 1.3 * SUN_R) & (r < SUN_R + RAY_LEN + 0.02)
-    d = off_paper(img)
+    d = (np.abs(img[..., :3].astype(int) - empty_scene(size)) > 12).any(axis=-1)   # the empty scene has no rays
     row = 1.0 / size[1]
     far = lambda m: r[m].max(initial=0.0)
     return far(ray & d & (dy > 0) & (dy < row)), far(ray & d & (dy <= 0) & (dy > -row))
@@ -1177,4 +1202,26 @@ def test_sun_ray_has_no_seam_at_the_atan_cut(ctx):
             straddled += 1
             assert abs(up - down) < 0.0025, (up, down, rig.r.time)      # 0.0025 = 1.4 px of this render
     assert straddled >= 4, straddled                                      # the ray did sit on the cut
+    rig.release()
+
+
+# ── The paper's grit (Image) ──────────────────────────────────────────────────
+
+def test_paper_has_sparse_static_ink_grit(ctx):
+    # The sky between the far hills and the sun: nothing but paper and its grit. Sparse flecks of ink, not a wash,
+    # fainter than the backdrop's lines, and they hold still. Big enough that they're drawn at full strength.
+    size = (1024, 576)
+    rig = Rig(ctx, size=size)
+    rig.run([EMPTY] * 3)
+    first = rig.image()
+    rig.run([EMPTY] * 30)
+    img = rig.image()
+    _, y = screen_xy(size)
+    sky = (y > K["HORIZON_Y"] + K["HORIZON_WOBBLE"] + max(K["HILL_A"][2], K["HILL_B"][2]) + 0.02) & ~sun_region(size)
+    flecks = off_paper(img) & sky
+    assert 0.005 < flecks[sky].mean() < 0.1, flecks[sky].mean()
+    assert (off_ink_line(img)[sky] < 6).all()                          # ink on paper: no colour of its own
+    darkest = luma(img)[sky].min()
+    assert darkest > PAPER @ [0.299, 0.587, 0.114] * (1 - K["BACKDROP_INK"]), darkest   # fainter than the backdrop
+    assert np.array_equal(first[sky], img[sky])                        # static
     rig.release()
