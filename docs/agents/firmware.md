@@ -4,7 +4,7 @@
 
 `Firmware/FlowerBeds_Follow_ServoController/FlowerBeds_Follow_ServoController.ino` — deploy to each OpenRB-150 (SAMD21) board.
 
-- Listens on OSC address `/cg/ff/rot` with args `[int motor_id, float rotation_deg]`
+- Listens on OSC address `/cg/ff/rot`; arguments and the other `/cg/ff/*` addresses are in [`docs/osc-fabric.md`](../osc-fabric.md#flowerbeds-servo-controllers)
 - Calls `setRotDeg()` on the target Dynamixel servo
 - MAC, IP and port come from `config.h` beside the sketch, generated from `ShowControl/network.json` by `scripts/hooks/firmware_config_gen.py` — do not hardcode them. Re-run the script after editing `network.json`.
 - **Before flashing, set `FLOWERBEDS_BOARD` near the top of the `.ino`** to the board's number: board `<N>` is `firmware.flowerbeds_controller_<N>` in `network.json`. It is committed as `0`, which does not compile, so a board cannot be flashed with another board's MAC and IP by leaving a default in place. Do not commit the number you set. With `arduino-cli`, pass it instead: `--build-property "compiler.cpp.extra_flags=-DFLOWERBEDS_BOARD=1"`.
@@ -23,7 +23,7 @@ Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT
 - One project, five location environments: `swannatopia`, `julia`, `jess`, `dormer`, `garage`. Everything specific to a location is in `src/targets/<location>.h`.
 - **Controllers currently ignore Garden State** ([ADR-0021](../adr/0021-treehouse-controllers-standalone-and-garage-welder.md)): they animate from `cg::fullyActive()`, so every channel holds its `max_level`. `kFollowGardenState` in `src/main.cpp` switches the Pi back on.
 - The Garage arc is a `ChannelKind::Trigger` (cap-discharge flash, pulsed not dimmed) driven by `lib/Weld`'s `Welder`; every tap `strike()`s the `Weld` glow strip.
-- The Pi sends **Garden State**, not pixels — the Fabric addresses (`/flowerbeds/activity`, `/captcha/intensity`, `/captcha/blowup`, `/pipes/activity`, `/treehouse/mode`, `/treehouse/brightness`) over UDP. Each controller animates locally, so a dropped packet costs nothing.
+- The Pi sends **Garden State**, not pixels — six Fabric addresses over UDP ([`docs/osc-fabric.md`](../osc-fabric.md#garden-state-the-treehouse-to-its-location-controllers)). Each controller animates locally, so a dropped packet costs nothing.
 - IPs come from `ShowControl/network.json` via a generated `include/net_config.h` — do not hardcode them. Run `scripts/hooks/firmware_config_gen.py` after editing network.json.
 - WiFi credentials live in a gitignored `include/secrets.h`; copy `include/secrets.h.example`.
 - Host tests: `pio test -e native` (or `make test-firmware` from the repo root). Everything in `lib/` is Arduino-free so it can be tested without hardware; `src/` is the hardware binding. CI runs them, and compiles one environment of each kind (`make build-firmware`), on any PR that touches this directory.

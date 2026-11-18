@@ -49,16 +49,8 @@ group.
 
 The Pi broadcasts **Garden State** to each controller over UDP/OSC. It does not send pixels.
 The addresses are exactly the Fabric addresses the TreeHouse already consumes (ADR-0007), so
-a controller can be bench-tested by pointing any Fabric sender at it:
-
-| Address | Args | Meaning |
-|---|---|---|
-| `/flowerbeds/activity` | `f` | 0–1 |
-| `/captcha/intensity` | `f` | 0–1 |
-| `/captcha/blowup` | — | one-shot |
-| `/pipes/activity` | `f` | 0–1 |
-| `/treehouse/mode` | `s` | `active` / `dim` / `inactive` |
-| `/treehouse/brightness` | `f` | 0–1 |
+a controller can be bench-tested by pointing any Fabric sender at it. The six addresses are
+listed in [`docs/osc-fabric.md`](../osc-fabric.md#garden-state-the-treehouse-to-its-location-controllers).
 
 ### Animation runs on the controller
 

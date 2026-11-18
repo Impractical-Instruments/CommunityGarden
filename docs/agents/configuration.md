@@ -93,21 +93,6 @@ The tool writes only `coordinator.modules[]` and backs up `settings.json.bak` be
 
 `ShowControl/network.json` holds every IP, MAC, and port for the entire installation. No source file or firmware may hardcode a network address.
 
-```json
-{
-  "heartbeat_interval_s": 5,
-  "elements": {
-    "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
-    "flowerbeds": { "ip": "192.168.1.11", "osc_port": 9002, "http_port": 8765 },
-    "captcha":    { "ip": "192.168.1.12", "osc_port": 9003, "http_port": 8080 },
-    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767 }
-  },
-  "firmware": {
-    "flowerbeds_controller_1": { "ip": "192.168.1.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000 },
-    "flowerbeds_controller_2": { "ip": "192.168.1.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000 },
-    "treehouse_branch":        { "ip": null, "mac": null, "osc_port": null }
-  }
-}
-```
+Its keys are listed in [`docs/osc-fabric.md`](../osc-fabric.md#networkjson).
 
 `scripts/hooks/firmware_config_gen.py` generates the firmware headers from this file: `Firmware/TreeHouse_Controllers/include/net_config.h` for the location controllers and `Firmware/FlowerBeds_Follow_ServoController/config.h` for the FlowerBeds servo controllers. Run it after editing this file and before flashing. The TreeHouse branch controller uses USB serial and has no IP/MAC (see ADR-0005).

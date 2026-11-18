@@ -4,7 +4,7 @@ The directory tree is in [the repo map](../repo-map.md). The shared vision libra
 
 ## OSCFabric — cross-element messaging
 
-`ShowControl/OSCFabric/` wraps `python-osc` and reads addresses from `network.json`. Use `FabricClient` for any outbound OSC that crosses Element boundaries (e.g. FlowerBeds → TreeHouse). The full address schema is in `docs/adr/0007-osc-fabric-schema.md`.
+`ShowControl/OSCFabric/` wraps `python-osc` and reads addresses from `network.json`. Use `FabricClient` for any outbound OSC that crosses Element boundaries (e.g. FlowerBeds → TreeHouse). Every address is in [`docs/osc-fabric.md`](../osc-fabric.md).
 
 ## FlowerBeds pipeline (per frame)
 

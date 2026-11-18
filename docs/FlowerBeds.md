@@ -105,12 +105,7 @@ Motor calibration is a separate tool, `calibrate_motors.py` (no camera):
 
 ## OSC interface
 
-| Address | Direction | Args | Notes |
-|---|---|---|---|
-| `/cg/ff/rot` | out (to controllers) | `[motor_id:int, yaw_deg:float]` | Per-motor command, sent every frame to **every** configured controller (controllers ignore IDs they don't own) |
-| `/cg/ff/ping` | out | — | Boot-time diagnostic (`diag.py`, `controllers.py`) |
-| `/cg/ff/pong` | in | (controller status) | Reports scanned servo IDs + rx/drop counters |
-| `/flowerbeds/activity` | out (Fabric) | `float 0–1` | `min(1, len(tracked)/activity_max_blobs)`, every frame |
+FlowerBeds sends `/cg/ff/rot` and `/cg/ff/ping` to its servo controllers, reads `/cg/ff/pong` back, and reports `/flowerbeds/activity` to the TreeHouse. It receives nothing else. Arguments and the send rule: [`osc-fabric.md`](osc-fabric.md).
 
 ---
 

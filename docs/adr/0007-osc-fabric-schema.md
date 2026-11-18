@@ -10,30 +10,13 @@ The TreeHouse OSC receive side had four addresses sketched in `osc_server.py`; t
 
 ## Decision
 
-### Address schema
+### Address schema, fire semantics and dead-sender policy
 
-| Address | Direction | Type | Semantics |
-|---|---|---|---|
-| `/flowerbeds/activity` | FlowerBeds → TreeHouse | float 0.0–1.0 | EMA(blob\_count / configured\_max), clamped 0–1 |
-| `/captcha/intensity` | CAPTCHA → TreeHouse | float 0.0–1.0 | `level / total_levels`; 0.0 when idle; resets to 0.0 immediately after blowup |
-| `/captcha/blowup` | CAPTCHA → TreeHouse | (no args) | One-shot when player loses at max intensity (reward event, not failure) |
-| `/pipes/activity` | Pipes → TreeHouse | float 0.0–1.0 | Input activity normalised (expected to shift to smoothed output activity once music system is ready) |
-| `/treehouse/mode` | Operator → TreeHouse | string | `"active"` \| `"dim"` \| `"inactive"` |
-| `/treehouse/brightness` | TouchOSC → TreeHouse | float 0.0–1.0 | Debug/operator override only; not part of the mode system |
+The address table and the send rules are kept current in [`docs/osc-fabric.md`](../osc-fabric.md). What this ADR decided:
 
-### Fire semantics for continuous signals
-
-Continuous float signals (`*/activity`, `/captcha/intensity`) are sent:
-- **On change** — whenever the value changes meaningfully (sender-side epsilon filtering to avoid noise)
-- **On heartbeat** — unconditionally every `heartbeat_interval_s` seconds even if unchanged
-
-The heartbeat serves as a liveness signal. The global heartbeat interval lives in `network.json` (default: 5s).
-
-One-shot events (`/captcha/blowup`) are sent exactly once per occurrence with no heartbeat.
-
-### Dead-sender policy
-
-If the TreeHouse has not received a message from a sender in `2 × heartbeat_interval_s`, it treats that sender's contribution as 0.0. This prevents a crashed element from freezing the TreeHouse at a stale activity value.
+- One address per signal, `/<element>/<signal>`, all sent to the TreeHouse.
+- Continuous signals are sent on change (past a sender-side epsilon) and again on a heartbeat every `heartbeat_interval_s`, which doubles as a liveness signal. One-shot events are sent once, with no heartbeat.
+- A sender silent for `2 × heartbeat_interval_s` has its contribution treated as 0.0, so a crashed Element cannot freeze the TreeHouse at a stale value.
 
 ### Mode vocabulary
 
@@ -51,22 +34,7 @@ Each element defines what `"dim"` means for its own outputs. The dashboard compo
 
 All network addressing (element IPs, OSC listen ports, HTTP ports, firmware IPs/MACs) lives in a single shared file: `ShowControl/network.json`. No element hardcodes an IP, port, or MAC address.
 
-```json
-{
-  "heartbeat_interval_s": 5,
-  "elements": {
-    "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
-    "flowerbeds": { "ip": "192.168.1.11", "osc_port": 9002, "http_port": 8765 },
-    "captcha":    { "ip": "192.168.1.12", "osc_port": 9003, "http_port": 8080 },
-    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767 }
-  },
-  "firmware": {
-    "flowerbeds_controller_1": { "ip": "192.168.1.50", "mac": "DE:AD:BE:EF:15:00", "osc_port": 9000 },
-    "flowerbeds_controller_2": { "ip": "192.168.1.51", "mac": "DE:AD:BE:EF:15:01", "osc_port": 9000 },
-    "treehouse_branch":        { "ip": null, "mac": null, "osc_port": null }
-  }
-}
-```
+The keys are listed in [`docs/osc-fabric.md`](../osc-fabric.md#networkjson).
 
 Firmware targets read their config via a generated header produced by `scripts/hooks/firmware_config_gen.py` before flashing. (It generates `Firmware/TreeHouse_Controllers/include/net_config.h` and `Firmware/FlowerBeds_Follow_ServoController/config.h`.) The branch controller uses USB serial (ADR-0005) and has no IP/MAC.
 
