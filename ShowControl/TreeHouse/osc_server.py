@@ -37,17 +37,17 @@ def _build_dispatcher(coordinator: "Coordinator") -> Dispatcher:
         coordinator.set_dim_level(float(level))
 
     def on_flowerbeds_activity(address: str, value: float) -> None:
-        coordinator.set_flowerbeds_activity(float(value))
+        coordinator.intake.set_flowerbeds_activity(float(value))
 
     def on_captcha_intensity(address: str, value: float) -> None:
-        coordinator.set_captcha_intensity(float(value))
+        coordinator.intake.set_captcha_intensity(float(value))
 
     def on_captcha_blowup(address: str, *args) -> None:
         log.info("OSC %s — captcha blowup", address)
-        coordinator.trigger_captcha_blowup()
+        coordinator.intake.trigger_captcha_blowup()
 
     def on_pipes_activity(address: str, value: float) -> None:
-        coordinator.set_pipes_activity(float(value))
+        coordinator.intake.set_pipes_activity(float(value))
 
     def on_lookingglass_scene(address: str, scene: str) -> None:
         log.info("OSC %s → %r", address, scene)

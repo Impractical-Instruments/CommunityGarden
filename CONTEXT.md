@@ -23,7 +23,7 @@ The TreeHouse's role in the installation — it receives state signals from all 
 _Avoid_: "controller", "master", "server"
 
 **Garden State**:
-The complete set of live signals from all Elements and show-control inputs, collected by the TreeHouse Coordinator from incoming OSC messages and passed to every Controllable each frame. Contains raw per-Element values — not a pre-computed aggregate. Each Controllable reads whichever fields it cares about and applies its own weighting/response logic internally.
+The complete set of live signals from all Elements and show-control inputs, collected by the TreeHouse `SignalIntake` from incoming OSC messages, snapshotted by the Coordinator each frame, and passed to every Controllable each frame. Contains raw per-Element values — not a pre-computed aggregate. Each Controllable reads whichever fields it cares about and applies its own weighting/response logic internally.
 
 Fields:
 - `flowerbeds_activity` (float 0–1) — normalised visitor activity from FlowerBeds
@@ -146,6 +146,7 @@ One or two physical lamp props (floor or table lamps) mounted upside-down in the
 
 **Branch**:
 One of 4–6 motorised branches mounted on the TreeHouse roof. Each Branch extends (blooms) or retracts (withers) independently via a Dynamixel servo driving a lead screw that pushes a wire with leaves/blooms through a PVC housing dressed as a tree branch. The aggregate extension state follows a 0.0–1.0 Bloom value: 0.0 = fully retracted/dead, 1.0 = fully extended/bloomed.
+In code, all Branches are one `BranchController`, a `Controllable` (`ShowControl/TreeHouse/branches.py`) that maps Garden State to per-motor positions.
 _Avoid_: "arm", "limb", "antenna"
 
 **Bloom**:

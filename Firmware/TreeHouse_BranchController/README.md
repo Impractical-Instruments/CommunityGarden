@@ -7,7 +7,7 @@ Arduino sketch for the OpenRB-150 (SAMD21) that drives the TreeHouse Branch serv
 - **Protocol** (JSON lines over USB serial, 115200 baud):
   - In: `{"id": 1, "pos": 90.0}` — move servo `id` to `pos` degrees.
   - Out: `{"id": 1, "ok": true}` — acknowledges each command.
-- **Host side:** `ShowControl/TreeHouse/branch_controller.py`. Motor IDs and positions belong in `ShowControl/TreeHouse/settings.json`, not here.
+- **Host side:** `ShowControl/TreeHouse/branches.py` (`BranchDriver` is the serial driver, `BranchController` the Controllable). Motor IDs and positions belong in `ShowControl/TreeHouse/settings.json`, not here.
 
 ## Flashing
 
