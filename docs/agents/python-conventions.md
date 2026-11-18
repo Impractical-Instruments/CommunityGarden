@@ -10,7 +10,7 @@
 | `ShowControl/ShowWeb/live.py` | `LiveServer`: `/health`, `/ws` state socket, `/logs` socket and log handler shared by the Element visualizers |
 | `ShowControl/FlowerBeds/layout_tool.py` | Browser GUI for placing modules and aiming clusters (ADR-0015) — run on operator laptop, not the show Pi |
 
-Blob detection, stabilisation, camera abstraction, and coordinate transforms all live in `IIVision/`. See [architecture](architecture.md).
+Blob detection, stabilisation, camera abstraction, and coordinate transforms all live in `IIVision/`. See [`IIVision/README.md`](../../IIVision/README.md).
 
 ## Coordinate system
 

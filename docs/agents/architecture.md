@@ -1,47 +1,6 @@
 # Architecture & Pipeline
 
-## Repository layout
-
-```
-CommunityGarden/
-├── IIVision/                               # Shared computer-vision library
-├── ShowControl/
-│   ├── FlowerBeds/                         # FlowerBeds Element show control
-│   ├── FundingCAPTCHA/                     # FundingCAPTCHA Element show control
-│   ├── TreeHouse/                          # TreeHouse Element show control
-│   ├── Dashboard/                          # Show-operator browser dashboard (FastAPI)
-│   ├── OSCFabric/                          # Shared OSC client for cross-element messaging
-│   ├── ShowWeb/                            # Shared live-view server (LiveServer) behind the Element visualizers
-│   └── network.json                        # Single source of truth: all IPs, MACs, ports
-├── Firmware/
-│   ├── FlowerBeds_Follow_ServoController/  # OpenRB-150 Arduino — drives Dynamixel servos
-│   ├── PlayingThePipes_EncoderPico/        # Pi Pico MicroPython — reads the rotary encoders
-│   ├── TreeHouse_BranchController/         # Branch motor Arduino sketch
-│   └── TreeHouse_Controllers/              # ESP32-S3 location controllers — every TreeHouse LED
-├── docs/
-│   ├── adr/                                # Architecture Decision Records
-│   └── agents/                             # Agent guidance (this directory)
-├── scripts/                                # Deploy, install and repo tooling — see scripts/README.md
-├── Makefile                                # `make test` — runs all tests
-├── pyproject.toml                          # IIVision + OSCFabric + ShowWeb packages, one extra per Element, pytest config
-└── CONTEXT.md                              # Domain glossary — read before naming anything
-```
-
-## IIVision — shared CV library
-
-`IIVision/` is a standalone Python package used by FlowerBeds and FundingCAPTCHA.
-
-| Module | Contents |
-|---|---|
-| `types.py` | `FramePacket`, `CameraIntrinsics`, `DetectionConfig`, `Blob2D`, `Blob3D`, `DetectionResult` — data types |
-| `calibration.py` | `Calibration`, `Calibrator` — fixed background model |
-| `detector.py` | `BlobDetector` — per-frame detection (`BlobTracker` is a legacy alias) |
-| `blob_stabilizer.py` | `BlobStabilizer`, `StabilizerConfig` — cross-frame tracking + EMA smoothing |
-| `camera.py` | `OrbbecCamera`, `MockCamera` — frame iterator abstraction |
-| `transforms.py` | `Transform`, `Rotator`, coordinate helpers |
-| `pipeline.py` | `run_pipeline`, `build_calibration` — wires the above together |
-
-Import from the `IIVision` package directly, not from its internal modules.
+The directory tree is in [the repo map](../repo-map.md). The shared vision library's modules are in [`IIVision/README.md`](../../IIVision/README.md).
 
 ## OSCFabric — cross-element messaging
 
