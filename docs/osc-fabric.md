@@ -52,7 +52,7 @@ Between `ShowControl/FlowerBeds` and each `firmware.flowerbeds_controller_<N>` (
 
 ## When a signal is sent
 
-The rule is `SignalGate` in `ShowControl/OSCFabric/gate.py`. `FabricClient` and `location_sender.py` both use it.
+The rule is `SignalGate` in `ShowControl/OSCFabric/gate.py`. `FabricClient` and `location_sender.py` both use it. Send any OSC that crosses from one Element to another through `FabricClient` (`ShowControl/OSCFabric/`), which reads its addresses from `network.json`.
 
 - **On change:** a float is sent when it moves by more than `change_epsilon`; a string when it differs.
 - **Heartbeat:** every signal is sent again once `heartbeat_interval_s` has passed since it was last sent. A `FabricClient` only does this if its owner calls `tick(dt)`: FlowerBeds does; FundingCAPTCHA does not, so `/captcha/intensity` is sent on change only.

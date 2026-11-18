@@ -12,6 +12,6 @@ Arduino sketch for the OpenRB-150 (SAMD21) boards that drive the FlowerBeds Dyna
 
 ## Flashing
 
-1. Set `FLOWERBEDS_BOARD` near the top of the `.ino` to the board's number. It is committed as `0`, which does not compile, so two boards cannot end up with one MAC and IP. Do not commit the number.
+1. Set `FLOWERBEDS_BOARD` near the top of the `.ino` to the board's number. It is committed as `0`, which does not compile, so two boards cannot end up with one MAC and IP. Do not commit the number. Board `<N>` is `firmware.flowerbeds_controller_<N>` in `network.json`; a new board is a new entry there, and the generator picks it up. With `arduino-cli`, pass the number instead of editing: `--build-property "compiler.cpp.extra_flags=-DFLOWERBEDS_BOARD=1"`.
 2. Build and upload from the Arduino IDE with the OpenRB-150 board selected.
 3. Check it: the layout tool (`ShowControl/FlowerBeds/layout_tool.py`) shows each controller's status, and its Aim mode moves one servo.

@@ -47,6 +47,8 @@ Shader tests run on software Mesa in CI, where fragment shading is the whole cos
 - **Editing an instrument** goes through reuben's MCP document verbs, never by hand: `.mcp.json` at the repo root starts reuben's MCP server (`vendor/reuben/scripts/reuben-mcp.sh`) in Claude Code sessions here. Read reuben's `docs/agents/authoring.md` first.
 - **Changing reuben:** work in `vendor/reuben` on a branch there (its own `AGENTS.md` applies), push it to the reuben repo, and commit the new submodule commit here. You can deploy and test from any reuben commit, but CI's `reuben-pin` check blocks merging until that commit is on reuben's `dev` branch (its integration branch; `main` there is the release branch). `.github/scripts/check-reuben-pin.sh` runs the same check locally.
 
-## Running an Element
+## Verifying changes
 
-Each Element's doc (`docs/<Element>.md`) has its commands and flags. The one to know for testing a logic change without hardware, from `ShowControl/FlowerBeds/`: `uv run python main.py --config settings.json --mock-camera --no-osc`.
+- **Logic:** run the tests above. `make test-fast` covers everything but FundingCAPTCHA in seconds.
+- **An Element without hardware:** each Element's doc (`docs/<Element>.md`) has its commands and flags. For FlowerBeds, from `ShowControl/FlowerBeds/`: `uv run python main.py --config settings.json --mock-camera --no-osc`.
+- **Hardware:** no test covers servos, LEDs or cameras. The Element's doc says how to check them by hand.

@@ -29,10 +29,8 @@ These apply to every task in this repo:
 ## Docs
 
 - [Repo map](docs/repo-map.md)
-- [Architecture & pipeline](docs/agents/architecture.md)
-- [Python conventions](docs/agents/python-conventions.md)
-- [Configuration reference](docs/agents/configuration.md)
+- [OSC addresses](docs/osc-fabric.md)
+- [Conventions: coordinates, rotation, logging](docs/agents/conventions.md)
 - [Running & testing](docs/agents/running-and-testing.md)
 - [Firmware](docs/agents/firmware.md)
-- [Git workflow](docs/agents/git-workflow.md)
-- [Issue tracker](docs/agents/issue-tracker.md)
+- [Git workflow and issues](docs/agents/git-workflow.md)

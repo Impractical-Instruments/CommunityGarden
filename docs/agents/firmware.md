@@ -1,33 +1,15 @@
 # Firmware
 
-## FlowerBeds servo controller
+One directory per microcontroller program under `Firmware/`. Each README has the board, libraries, protocol and how to flash. [`Firmware/README.md`](../../Firmware/README.md) compares them in one table.
 
-`Firmware/FlowerBeds_Follow_ServoController/FlowerBeds_Follow_ServoController.ino` — deploy to each OpenRB-150 (SAMD21) board.
+- [`FlowerBeds_Follow_ServoController/`](../../Firmware/FlowerBeds_Follow_ServoController/README.md): the OpenRB-150 boards that aim the FlowerBeds servos, over OSC on Ethernet.
+- [`TreeHouse_Controllers/`](../../Firmware/TreeHouse_Controllers/README.md): one ESP32-S3 per TreeHouse location, driving its LEDs. The only firmware with tests.
+- [`TreeHouse_BranchController/`](../../Firmware/TreeHouse_BranchController/README.md): the OpenRB-150 that drives the Branch servos, over USB serial.
+- [`PlayingThePipes_EncoderPico/`](../../Firmware/PlayingThePipes_EncoderPico/README.md): the two Picos that read the Playing the Pipes encoders.
 
-- Listens on OSC address `/cg/ff/rot`; arguments and the other `/cg/ff/*` addresses are in [`docs/osc-fabric.md`](../osc-fabric.md#flowerbeds-servo-controllers)
-- Calls `setRotDeg()` on the target Dynamixel servo
-- MAC, IP and port come from `config.h` beside the sketch, generated from `ShowControl/network.json` by `scripts/hooks/firmware_config_gen.py` — do not hardcode them. Re-run the script after editing `network.json`.
-- **Before flashing, set `FLOWERBEDS_BOARD` near the top of the `.ino`** to the board's number: board `<N>` is `firmware.flowerbeds_controller_<N>` in `network.json`. It is committed as `0`, which does not compile, so a board cannot be flashed with another board's MAC and IP by leaving a default in place. Do not commit the number you set. With `arduino-cli`, pass it instead: `--build-property "compiler.cpp.extra_flags=-DFLOWERBEDS_BOARD=1"`.
-- A new board is a new `flowerbeds_controller_<N>` entry in `network.json`; the generator picks it up.
+Rules that hold for all of them:
 
-Required Arduino libraries: `Dynamixel2Arduino`, `Ethernet`, `OSCMessage` (CNMAT).
-
-## TreeHouse branch controller
-
-`Firmware/TreeHouse_BranchController/` — communicates over USB serial, not Ethernet (see ADR-0005).
-
-## TreeHouse location controllers
-
-`Firmware/TreeHouse_Controllers/` — PlatformIO / Arduino C++ on ESP32-S3, one controller per location (see [ADR-0020](../adr/0020-treehouse-esp32s3-location-controllers.md)).
-
-- One project, five location environments: `swannatopia`, `julia`, `jess`, `dormer`, `garage`. Everything specific to a location is in `src/targets/<location>.h`.
-- **Controllers currently ignore Garden State** ([ADR-0021](../adr/0021-treehouse-controllers-standalone-and-garage-welder.md)): they animate from `cg::fullyActive()`, so every channel holds its `max_level`. `kFollowGardenState` in `src/main.cpp` switches the Pi back on.
-- The Garage arc is a `ChannelKind::Trigger` (cap-discharge flash, pulsed not dimmed) driven by `lib/Weld`'s `Welder`; every tap `strike()`s the `Weld` glow strip.
-- The Pi sends **Garden State**, not pixels — six Fabric addresses over UDP ([`docs/osc-fabric.md`](../osc-fabric.md#garden-state-the-treehouse-to-its-location-controllers)). Each controller animates locally, so a dropped packet costs nothing.
-- IPs come from `ShowControl/network.json` via a generated `include/net_config.h` — do not hardcode them. Run `scripts/hooks/firmware_config_gen.py` after editing network.json.
-- WiFi credentials live in a gitignored `include/secrets.h`; copy `include/secrets.h.example`.
-- Host tests: `pio test -e native` (or `make test-firmware` from the repo root). Everything in `lib/` is Arduino-free so it can be tested without hardware; `src/` is the hardware binding. CI runs them, and compiles one environment of each kind (`make build-firmware`), on any PR that touches this directory.
-- Board misbehaving? Flash `signsoflife-uart` or `signsoflife-usb` first: one file (`src/signsoflife/main.cpp`), no networking, no config headers. See "Bring-up" in the README.
-- Sender side on the Pi: `ShowControl/TreeHouse/location_sender.py`, configured by the `locations` block in `settings.json`.
-
-Full details in `Firmware/TreeHouse_Controllers/README.md`.
+- **No network address is written in firmware.** `scripts/hooks/firmware_config_gen.py` generates `TreeHouse_Controllers/include/net_config.h` and `FlowerBeds_Follow_ServoController/config.h` from `ShowControl/network.json`. Re-run it after editing that file; a test fails if a committed header is stale.
+- **`/cg/ff/rot` is a cross-layer contract** between the FlowerBeds firmware and `ShowControl/FlowerBeds`. Change both together. Every OSC address is in [`docs/osc-fabric.md`](../osc-fabric.md).
+- **Flashing a FlowerBeds board:** set `FLOWERBEDS_BOARD` first, and do not commit the number. Its README has the steps.
+- **Tests and builds:** `make test-firmware` and `make build-firmware`; see [Running & testing](running-and-testing.md#tests).
