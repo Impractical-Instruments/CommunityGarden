@@ -64,7 +64,7 @@ Keys at runtime:
 
 ## Playlist player — `playlist_app.py`
 
-Alternative show mode: instead of the Game Arc, plays Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0025), and full-screen videos, in one shuffle bag. Same camera, background model and settings as `app.py`. `playlist_app.py` is the one program that plays Setups; `shader_stage.py` is the library under it (`ShaderStage`, `SetupImages`, display and camera helpers) and `video_player.py` holds the video player.
+An alternative to the Game Arc: it plays Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0025), and full-screen videos, in one shuffle bag. Same camera, background model and settings as `app.py`. `playlist_app.py` is the one program that plays Setups; `shader_stage.py` is the library under it (`ShaderStage`, `SetupImages`, display and camera helpers) and `video_player.py` holds the video player.
 
 Setups in `shaders/`: `watering_can`, `endless_sunset`, `barn_dancers`, `rainbow_poop` (the shipped playlist), `logo_attract` (its interstitial), `watercolor_smudge`, `hunter_bird`, `ripples` (the example to copy) and `blob_debug` (reference reader for the tracker's **blob records**, ADR-0022). Each one's `setup.json` `_comment` says what it does; its tunables are at the top of its `common.glsl` where it has one. Writing a Setup and the channel sources: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
