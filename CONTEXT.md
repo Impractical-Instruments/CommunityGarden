@@ -2,215 +2,184 @@
 
 A touring interactive installation that puts visitors inside a world of systems — natural, technological, bureaucratic, and social — and lets them feel those systems respond to their presence.
 
-## Language
+This file is the glossary: what each word means, so code and docs use one name per thing. Addresses, settings and field lists live with the code and in `docs/`.
 
-### The Installation
+## The installation
 
 **The Community Garden**:
 The name of the full interactive experience. Contains four Elements that can operate independently or together in a shared physical space.
 _Avoid_: "the show", "the project", "the system"
 
 **Element**:
-One of the four self-contained interactive components of The Community Garden. Each Element has its own show-control software, hardware, and thematic intent, but can send and receive OSC messages from other Elements.
-_Avoid_: "system", "module", "component", "installation" (when referring to a single element)
+One of the four self-contained interactive components: FlowerBeds, TreeHouse, Playing the Pipes, FundingCAPTCHA. Each has its own show-control software, hardware and thematic intent, and can exchange OSC messages with the others.
+_Avoid_: "system", "module", "component", "installation" (for a single Element)
 
 **Visitor**:
-A person experiencing The Community Garden. Not a user, not an audience member — they interact physically with the space and the Elements within it.
-_Avoid_: "user", "audience", "player" (except within FundingCAPTCHA context)
+A person experiencing The Community Garden. They interact physically with the space and the Elements in it.
+_Avoid_: "user", "audience", "player" (except within FundingCAPTCHA)
 
 **Hub**:
-The TreeHouse's role in the installation — it receives state signals from all other Elements and reflects the aggregate activity of the garden through its displays and animations.
+The TreeHouse's role: it receives signals from the other Elements and reflects the garden's aggregate activity.
 _Avoid_: "controller", "master", "server"
 
 **Garden State**:
-The complete set of live signals from all Elements and show-control inputs, collected by the TreeHouse `SignalIntake` from incoming OSC messages, snapshotted by the Coordinator each frame, and passed to every Controllable each frame. Contains raw per-Element values — not a pre-computed aggregate. Each Controllable reads whichever fields it cares about and applies its own weighting/response logic internally.
-
-Fields:
-- `flowerbeds_activity` (float 0–1) — normalised visitor activity from FlowerBeds
-- `captcha_intensity` (float 0–1) — Arc progress toward Blow-Up from FundingCAPTCHA
-- `captcha_blowup` (bool) — one-shot flag, true on the frame a Blow-Up fires
-- `pipes_activity` (float 0–1) — normalised music engagement from Playing the Pipes
-- `show_mode` (enum: active/dim/inactive) — global show control state (per ADR-0007)
-- `brightness` (float 0–1) — global brightness override
-
-### Elements
-
-**FlowerBeds**:
-The Element at the entrance. Servo-driven flowers with mirrors at their centres track visitors using depth-camera blob detection. Thematic intent: surveillance and self-image — the flowers follow you, and show you yourself being followed.
-
-**TreeHouse**:
-The centrepiece Element. A 9.5-foot physical structure (3-foot base + house) that looks hyper-realistic on the outside and otherworldly inside. Visitors peer in through plexiglass windows; one front door is operable and lets visitors reach in to interact with a diorama. Branches on the roof grow and wither in response to Garden State. The Hub of the installation.
-
-**Playing the Pipes**:
-The Element growing out of the base of the TreeHouse — a Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with valves and switches. Visitors steer a music system (granulators, loop players) by operating the controls. Thematic intent: the literal flow of utilities through infrastructure, and the figurative flow of money and influence through society.
-_Avoid_: "playing music", "triggering notes" — visitors *steer* the music, they do not play it directly
-
-**FundingCAPTCHA**:
-The Element on the opposite side of the TreeHouse from Playing the Pipes. A 7-foot-tall kiosk styled as a CRT monitor. A short-throw laser projector projects the game interface onto the Screen; an Orbbec depth camera mounted on the kiosk facing toward Players captures their silhouettes at configured depth ranges. Players interact by making shapes with their bodies — their silhouettes activate cells on a projected grid. Thematic intent: the frustration and irony of humans proving their humanity to robots; the fear of relinquishing control to systems that may malfunction with no recourse.
-
-**Screen** (FundingCAPTCHA):
-The vertical projection surface on the front of the FundingCAPTCHA kiosk. Displays game content and live Player silhouettes so Players can see their own shapes and how they map to the grid. Players interact by standing in front of the kiosk — not by touching the Screen.
-_Avoid_: "touch screen" (implies contact input), "canvas", "display"
-
-**Player** (FundingCAPTCHA):
-A Visitor standing in the Play Zone in front of the FundingCAPTCHA kiosk. FundingCAPTCHA is the only Element where "Player" is appropriate; elsewhere use Visitor. Play is drop-in/drop-out — there is no formal join or leave event.
-
-**Arc**:
-The lifecycle of a single game in FundingCAPTCHA. Difficulty ramps from easy to unmanageable as Players succeed; the Arc always ends in a spectacular inevitable failure (the Blow-Up) rather than a clean win. Winning a round only advances the difficulty — there is no overall victory condition. Every game type must guarantee a loss after sustained inactivity — either through a literal countdown timer, or through mechanics that ensure failure without Player input.
-_Avoid_: "session", "run", "level" (a level is one stage within an Arc, not the Arc itself)
-
-**Blow-Up**:
-The spectacular end-of-Arc failure state when difficulty has ramped beyond what Players can manage. Intentionally rewarding — lots of visual and audio fanfare — so that failing after a long Arc feels like a payoff, not a punishment. After a Blow-Up the kiosk cycles to the next game.
+The live signals from all Elements plus the operator's Show Mode and brightness. The TreeHouse's `SignalIntake` collects them from OSC, and the Coordinator passes a snapshot to every Controllable each frame and sends it to the location controllers. It holds raw per-Element values, not an aggregate; each receiver weighs them itself. In code it is the `GardenState` dataclass in `ShowControl/TreeHouse/controllables/base.py`, which is the list of fields.
 
 **Show Mode**:
-The operational mode for live installation. Game selection is automated: the kiosk cycles through game types as each Arc ends using a shuffle-bag algorithm (all game types are played in random order before any repeats). The game selection screen is hidden.
-_Avoid_: "production mode", "performance mode"
+The operator's setting for the TreeHouse: `active`, `dim` or `inactive` (`ShowMode` in `controllables/base.py`). A Garden State field.
+_Avoid_: using "show mode" for anything in FundingCAPTCHA
+
+## Elements
+
+**FlowerBeds**:
+The Element at the entrance. Servo-driven flowers with mirrors at their centres track Visitors using depth-camera blob detection. Thematic intent: surveillance and self-image — the flowers follow you, and show you yourself being followed.
+
+**TreeHouse**:
+The centrepiece Element and the Hub. A 9.5-foot structure (3-foot base + house), hyper-realistic outside and otherworldly inside. Visitors peer in through plexiglass windows; one front door opens so they can reach into a diorama. Branches on the roof grow and wither with Garden State.
+
+**Playing the Pipes**:
+The Element growing out of the base of the TreeHouse — a Dr. Seuss/Rube Goldberg tangle of water pipes and electrical conduit fitted with controls. Visitors steer a music system (granulators, loop players) by operating them. Thematic intent: the literal flow of utilities through infrastructure, and the figurative flow of money and influence through society.
+_Avoid_: "playing music", "triggering notes" — Visitors *steer* the music
+
+**FundingCAPTCHA**:
+The Element opposite Playing the Pipes. A 7-foot kiosk styled as a CRT monitor. A short-throw projector lights the Screen; a depth camera on the kiosk faces the Players and captures their silhouettes, which activate cells on a projected grid. Thematic intent: the frustration and irony of humans proving their humanity to robots, and the fear of handing control to systems that may malfunction with no recourse.
+
+## FundingCAPTCHA
+
+**Screen**:
+The vertical projection surface on the front of the kiosk. Shows game content and the Players' live silhouettes. Players stand in front of it; they do not touch it.
+_Avoid_: "touch screen", "canvas", "display"
+
+**Player**:
+A Visitor standing in the Play Zone. FundingCAPTCHA is the only Element where "Player" is right; elsewhere use Visitor. Play is drop-in/drop-out.
+
+**Arc**:
+One Player run of one Game. Difficulty ramps as Players succeed, and the Arc always ends in a Blow-Up; beating a Level only raises the difficulty. Every Game must guarantee a loss when Players stop interacting (ADR-0003).
+_Avoid_: "session", "run", "level" (a Level is one stage within an Arc)
+
+**Blow-Up**:
+The spectacular end-of-Arc failure. Deliberately rewarding, so that failing after a long Arc feels like a payoff. After it the kiosk returns to the Screensaver.
 
 **Screensaver**:
-The idle state displayed when no Players are in the Play Zone after an Arc has ended. Because every Arc is guaranteed to end in a loss on its own, the Screensaver only needs to monitor the between-Arc state — it never interrupts an active Arc. A Player entering the Play Zone and remaining for `attract_dwell_s` exits the Screensaver and starts a new Arc. Multiple screensavers available, inspired by classic procedural screensavers (e.g. the Windows pipes screensaver).
+What the kiosk shows between Arcs, drawn by a module in `ScreenSavers/`. It never interrupts an Arc. A Player who stays in the Play Zone for `attract_dwell_s` starts a new Arc.
 _Avoid_: "attract screen", "idle animation", "lobby"
 
-### FundingCAPTCHA Domain
-
-**Game** (FundingCAPTCHA):
-A defined set of mechanics (code in `games/`) paired with a Level set (data in a config file). Today the only Game is BodyCaptcha. `app.py` loads all Games and plays them in shuffle-bag order. Each Arc plays exactly one Game from start through Blow-Up.
+**Game**:
+A set of mechanics (code in `games/`) paired with a Level set. Today the only Game is BodyCaptcha. Each Arc plays one Game, picked by shuffle bag.
 _Avoid_: "game type", "mode"
 
 **Level**:
-One authored puzzle definition within a Game. For BodyCaptcha: specifies a prompt string, a background image, a grid size, a set of `valid_cells` (col/row pairs the Player must cover), a designer-assigned difficulty (1–5), and optional per-level overrides for timer duration, hold dwell, and hint opacity. An Arc picks Levels by shuffle-bag from those at equal or one step harder difficulty than the last Level beaten — there is no fixed ordering. Timer expiry triggers a Blow-Up; beating a Level only escalates difficulty.
+One authored puzzle within a Game. For BodyCaptcha: a prompt, an image, a grid size, the `valid_cells` the Player must cover, and a designer-assigned difficulty of 1–5. An Arc draws Levels by shuffle bag from those at the same difficulty as the last one beaten or one step harder.
 _Avoid_: "round", "stage", "difficulty step"
 
-**Body Grid** (FundingCAPTCHA):
-The depth-camera input layer that maps a Player's silhouette to a grid of boolean cell states. Implemented by `BodyGridActivator`, which activates a cell when ≥ `cell_activation_threshold` of its pixels are covered by foreground pixels within any configured Depth Slab. Body Grid is independent of any specific Game — it can be exercised in isolation via `body_grid_tester.py`. A reusable grid overlay abstraction renders cell boundaries on screen; Games and the tester apply their own visual treatment on top.
-_Avoid_: conflating Body Grid with BodyCaptcha — Body Grid is the input layer; BodyCaptcha is the Game that uses it
+**Body Grid**:
+The input layer that maps Players' silhouettes to a grid of on/off cells. `BodyGridActivator` (`body_grid.py`) turns a cell on when at least `cell_activation_threshold` of its pixels are foreground inside a Depth Slab. It belongs to no one Game.
+_Avoid_: conflating Body Grid with BodyCaptcha — Body Grid is the input layer; BodyCaptcha is a Game that uses it
 
 **Play Zone**:
-The set of depth ranges in front of the FundingCAPTCHA camera where Player pixels contribute to the silhouette. Defined as one or more Depth Slabs. Pixels outside all slabs appear as holes in the silhouette. A "too close" implicit exclusion zone (below the `near_mm` of the nearest slab) prevents Players from blocking the camera entirely.
+The depth ranges in front of the camera where a Player's pixels count, given as one or more Depth Slabs. Pixels outside every slab are holes in the silhouette, including anything nearer than the nearest slab.
 _Avoid_: "detection zone", "active area"
 
 **Depth Slab**:
-A single depth band `[near_mm, far_mm]` with an associated `slab_id`. Pixels within a Depth Slab render with that slab's configured color and carry its game-defined role. Two slabs may share a `slab_id` (non-contiguous bands, identical behavior). Configured as `depth_slabs` in `captcha-settings.json`.
-_Avoid_: "depth layer", "depth band" (use Depth Slab)
+One depth band, `near_mm` to `far_mm`, with a `slab_id`. Set in `depth_slabs` in `captcha-settings.json`.
+_Avoid_: "depth layer", "depth band"
 
 **Intensity**:
-A continuous 0.0–1.0 value sent over the OSC Fabric to the TreeHouse each frame, representing how far the current Arc has progressed toward its Blow-Up. Computed as a configurable weighted sum of current difficulty (normalised 0–1 over max difficulty 5) and time pressure (elapsed / timer_s for the current Level). Weights live in `captcha-settings.json`. Resets to 0.0 at the start of each new Arc.
+A 0–1 value FundingCAPTCHA reports to the TreeHouse while a Game runs: how far the Arc has got toward its Blow-Up. A weighted sum of difficulty and time pressure (`intensity_weights`).
 _Avoid_: "difficulty", "score", "engagement level"
 
 **Blow-Up Signal**:
-A one-shot OSC message sent to the TreeHouse when a Blow-Up occurs, triggering a reactive moment in the TreeHouse displays and animations. Distinct from Intensity — it is an event, not a continuous value. The TreeHouse reacts with a **Blow-Up Reaction**: attic lights spike to full brightness then decay along an exponential curve back to the Garden-State-driven level. Decay shape (time constant, optional tail flicker) is configurable.
+The one-shot message FundingCAPTCHA sends the TreeHouse when a Blow-Up happens. An event, not a value.
 
-### FlowerBeds Domain
+**Blow-Up Reaction**:
+What the TreeHouse does on a Blow-Up Signal. The Branches recoil. In the location controller firmware, a channel spikes to full and decays; that part is off while the controllers ignore Garden State (ADR-0021).
 
-**Attraction**:
-The policy that governs which Visitor a FlowerCluster looks at. Combines three weighted scores — proximity, dwell time, and inertia — to pick the best target each frame. Both the tuning parameters and the scoring computation live here.
-_Avoid_: AttractionConfig, attraction config, scoring weights
+**Setup**:
+One Shadertoy-style shader piece for the Screen: a folder in `shaders/` holding its GLSL tabs and a `setup.json`.
+_Avoid_: "shader" (a Setup is several), "scene" (that is a Looking Glass term)
+
+**Body**:
+What a Setup sees of the people in front of the kiosk: a texture where red is presence and green is nearness. On the kiosk it comes from the depth camera; in Shadertoy, from `body_painter.glsl` and the mouse.
+_Avoid_: "silhouette" for the shader input, "mask"
+
+**Playlist**:
+What `playlist_app.py` plays in place of the Game Arc: Setups and videos in one shuffle bag, listed in `playlist.json`.
+
+## FlowerBeds
 
 **FlowerCluster**:
-A single servo motor at a fixed world position. Each frame it consults its Attraction policy to select a target Visitor and returns a motor command pointing toward them.
+One servo motor at a fixed world position, turning a group of flowers. Each frame it picks a Visitor to look at and returns a motor command.
+
+**Attraction**:
+The policy that decides which Visitor a FlowerCluster looks at: a weighted score of proximity, Dwell and Inertia. The tuning values and the scoring live together in it.
+_Avoid_: "AttractionConfig", "attraction config", "scoring weights"
 
 **Dwell**:
-The number of consecutive frames a Visitor has been within a FlowerCluster's influence radius. Higher dwell increases that Visitor's attraction score, causing flowers to prefer lingering visitors over passing ones.
+How many consecutive frames a Visitor has been within one FlowerCluster's influence radius. Counted per cluster (ADR-0002).
 
 **Inertia**:
-The bonus score applied to the Visitor a FlowerCluster targeted last frame. Prevents jittery switching between nearby visitors of similar distance.
+The bonus for the Visitor a FlowerCluster looked at last frame. Stops it flicking between Visitors at similar distances.
 
-### TreeHouse Domain
+## TreeHouse
+
+**Location**:
+A part of the TreeHouse lit by its own ESP32-S3 location controller (ADR-0020). There are five. Each controller animates its own lights; the Pi sends it Garden State, which it ignores for now (ADR-0021).
+_Avoid_: naming lights by Pico or channel
+
+The five Locations:
+- **Swannatopia**: a fireplace, an overhead light and a chandelier.
+- **Julia**: a string of 12 V LED filaments, dimmed on a slow random walk.
+- **Jess**: two colour strips with the rave look, plus a very bright strobe.
+- **Dormer**: the dormer at the top of the structure; one slowly breathing glow.
+- **Garage**: the welding effect, an arc flash and glowing pixels behind the garage's frosted windows.
 
 **Diorama**:
-A self-contained miniature room visible through a TreeHouse window. Four dioramas exist: House Swarming (ground floor), Club (second floor), Mycelium (second floor), and Forge & Flora. Each is lit by an ESP32-S3 location controller with its own Garden-State-reactive animation (ADR-0020).
-
-**House Swarming**:
-Ground floor diorama. Lit with SK6812 RGBW strips using an incandescent-style pattern.
+A self-contained miniature room seen through a TreeHouse window.
 
 **Club**:
-Second floor diorama. Lit with SK6812 strips using a chase/strobe pattern.
+The rave diorama. Holds the Club screen, a small display showing rotating messages (`club_screen.py`, ADR-0017).
 
-**Mycelium**:
-Second floor diorama. Contains clay mushrooms and edge-lit acrylic panels masked so the glow traces mycelium network patterns. LED light enters through acrylic edges and illuminates the masked paths. 224 LEDs total on one SK6812 channel. Animation logic pulses or propagates along the mycelium paths in response to Garden State rather than applying uniform brightness.
-
-**Attic**:
-The interior space at the top of the TreeHouse, behind the dormer. Functionally houses branch motors, wiring, and rigging. Visually dressed as an upside-down TV den — furniture and lamps mounted to the ceiling, a TV mounted so it faces the floor (ceiling from the visitor's perspective). Visitors see only ambient glow from the TV and lamps. The TV is not directly visible from the front.
-
-**Attic TV**:
-A prop television mounted upside-down inside the Attic. Contains LED strips (not a real screen) that cast a cool blue-white flicker glow onto the ceiling and walls — the sickly ambience of late-night TV watching. "TV glow" is a flicker pattern in a cool blue-white color. Reactive to Garden State (brightness/intensity of flicker). Shares an SK6812 channel with the Attic Lamps (8 LEDs total).
+**Looking Glass**:
+The TreeHouse's shader display, drawn by `looking_glass/renderer.py`. It shows one scene at a time: `bloom`, `fractal`, `mycelium` or `cosmos`.
 
 **Controllable**:
-The base abstraction for everything the TreeHouse controls. Two methods: `update(dt, state)` advances internal state by `dt` seconds given the current `GardenState`; `get_state()` returns a serialisable snapshot for monitoring. Today the Looking Glass is the only one; the LEDs belong to the location controllers, which receive `GardenState` over OSC instead.
+The base class for everything the TreeHouse Pi drives: `update(dt, state)` and `get_state()`. Two exist: the Looking Glass and `BranchController`. The LEDs are not Controllables; the location controllers own them.
 _Avoid_: "Display"
 
-**GardenState**:
-A dataclass passed to every `Controllable.update()` each frame. Fields: `flowerbeds_activity` (float 0–1), `captcha_intensity` (float 0–1), `captcha_blowup` (bool, one-shot), `pipes_activity` (float 0–1), `show_mode` (enum active/dim/inactive), `brightness` (float 0–1). Each Controllable reads only the fields relevant to it and decides how to aggregate them (see ADR-0008).
-
-**Attic Lamps**:
-One or two physical lamp props (floor or table lamps) mounted upside-down in the Attic. Provide warm ambient fill light. Share an SK6812 channel with the Attic TV (8 LEDs total across both TV and lamps).
-
 **Branch**:
-One of 4–6 motorised branches mounted on the TreeHouse roof. Each Branch extends (blooms) or retracts (withers) independently via a Dynamixel servo driving a lead screw that pushes a wire with leaves/blooms through a PVC housing dressed as a tree branch. The aggregate extension state follows a 0.0–1.0 Bloom value: 0.0 = fully retracted/dead, 1.0 = fully extended/bloomed.
-In code, all Branches are one `BranchController`, a `Controllable` (`ShowControl/TreeHouse/branches.py`) that maps Garden State to per-motor positions.
+A motorised branch on the TreeHouse roof. A Dynamixel servo drives a lead screw that pushes a wire of leaves out of a housing dressed as a tree branch, so the Branch extends or withers. How many there are is the `branch_controller.motors` list in the TreeHouse `settings.json`. In code all Branches are one `BranchController` (`branches.py`), which maps Garden State to a position per motor.
 _Avoid_: "arm", "limb", "antenna"
 
-**Bloom**:
-A 0.0–1.0 continuous value representing the aggregate extension state of all Branches. Driven by Garden State. Individual Branches track Bloom with per-branch configurable phase offsets, max-extension speed, and noise — all tunable in `settings.json` — so branches stagger organically rather than moving in lockstep.
-_Avoid_: "position", "extension level", "growth"
+**Signal Bag**:
+A firmware term. In the location controller firmware, each channel's weights over the Garden State fields, reduced to one 0–1 drive level. Inert while the controllers ignore Garden State (ADR-0021).
 
-### Control Model
+## Playing the Pipes
 
 **Tiller Control**:
-The control metaphor for Playing the Pipes. Visitors steer the music like a boat — controls affect the direction and character of the music rather than triggering discrete notes or sounds. Contrast with direct instrument control.
+The control metaphor. Visitors steer the music like a boat: the controls change its direction and character, and do not trigger notes.
 _Avoid_: "playing", "triggering", "note input"
 
-**Blob**:
-A detected human presence in 3D world space, produced by depth-camera background subtraction and connected-component analysis. The fundamental unit of visitor detection in IIVision.
-
-**Blob Track**:
-A stabilised, identity-consistent blob across multiple frames. A raw Blob becomes a Blob Track after surviving confirmation and receiving EMA-smoothed position updates.
-
-### Infrastructure
+## Shared
 
 **IIVision**:
-The shared computer-vision library (depth camera abstraction, background subtraction, blob detection, blob stabilisation, coordinate transforms). Used by FlowerBeds (full pipeline: blob detection + stabilisation) and FundingCAPTCHA (background subtraction + denoising only — blob detection not used). Intended to be general enough for any vision-based interactive installation.
+The shared computer-vision library: depth camera, background models, blob detection, blob stabilisation, coordinate transforms. FlowerBeds uses the whole pipeline. FundingCAPTCHA uses the camera and a background model for silhouettes, and `BlobStabilizer` for the Playlist's blob tracking (`body_blobs.py`).
+
+**Blob**:
+One detected person, found by depth background subtraction and connected regions.
+
+**Blob Track**:
+A Blob followed across frames with a stable identity and a smoothed position.
 
 **OSC Fabric**:
-The UDP/OSC network that connects Elements when co-located. Any Element may send or receive OSC messages from any other Element. The TreeHouse is the primary consumer of cross-element messages, but the fabric is intentionally open.
-
-Established OSC addresses (inbound to TreeHouse):
-
-| Address | Type | Sender | Meaning |
-|---|---|---|---|
-| `/treehouse/mode` | string | operator | `"active"` / `"dim"` / `"inactive"` — show mode override (ADR-0007) |
-| `/treehouse/brightness` | float 0–1 | operator | dim level override |
-| `/captcha/intensity` | float 0–1 | FundingCAPTCHA | Arc progress toward Blow-Up |
-| `/captcha/blowup` | (no args) | FundingCAPTCHA | one-shot Blow-Up event |
-| `/flowerbeds/activity` | float 0–1 | FlowerBeds | normalised visitor activity |
-| `/pipes/activity` | float 0–1 | Playing the Pipes | normalised music engagement |
-
-**Signal Bag**:
-A pattern used inside individual Controllable implementations (not at the Coordinator level) to combine a subset of Garden State fields into a single 0–1 drive value. Each Controllable that uses this pattern holds a configurable dict of `{field_name: weight}` pairs, computes a weighted sum, normalises, and EMA-smooths the result each frame. New fields can be added to the bag via config without code changes. Not all Controllables need a Signal Bag — some may respond to individual fields directly (e.g. `captcha_blowup` triggering a one-shot effect).
+The OSC-over-UDP messages between Elements. Any Element may send to any other; the TreeHouse is the main receiver. Every address is in [`docs/osc-fabric.md`](docs/osc-fabric.md).
 
 **Show Network**:
-The isolated Ethernet LAN that connects all show computers during installation. All OSC communication travels over the Show Network. Internet uplink deliberately omitted to keep the network simple and stable.
+The isolated LAN that joins the show computers and controllers: Ethernet, plus WiFi for the location controllers. It has no internet uplink, by design.
 
 **Show Dashboard**:
-A browser-based monitoring interface accessible on the Show Network. Operator connects their laptop to the Show Network to access it. Custom pages per Element, fed by each Element's FastAPI/WebSocket server (the same `get_state()` snapshots that Controllables already produce). No internet access required.
-
-## Relationships
-
-- **The Community Garden** contains four **Elements**
-- Each **Element** operates independently or participates in the **OSC Fabric**
-- **TreeHouse** is the **Hub** — it aggregates signals from all other Elements to express **Garden State**
-- **Playing the Pipes** physically extends from the base of **TreeHouse**
-- **FundingCAPTCHA** is positioned on the opposite side of **TreeHouse** from **Playing the Pipes**
-- **FlowerBeds** is at the entrance, the first Element a **Visitor** encounters
-- **IIVision** is used by **FlowerBeds** and **FundingCAPTCHA** for **Visitor** detection
-
-## Example dialogue
-
-> **Dev:** "When a Visitor spends a long time at FundingCAPTCHA, does the TreeHouse react?"
-> **Domain expert:** "Yes — FundingCAPTCHA sends activity signals over the OSC Fabric, which the TreeHouse uses to update Garden State. That might mean branches growing, or a diorama changing state. The exact mapping is TBD."
-
-> **Dev:** "Is Playing the Pipes a MIDI instrument?"
-> **Domain expert:** "No — it uses Tiller Control. Visitors steer the music, they don't play notes. The valves and switches affect parameters in the granulators and loop players."
+The browser monitoring pages an operator opens from a laptop on the Show Network, one page per Element (`ShowControl/Dashboard/`).
 
 ## Flagged ambiguities
 
-- "module" has two meanings in this repo: a `FlowerModule` in FlowerBeds code (a physical grouping of flower clusters), and colloquially "one of the four parts of the show." Use **Element** for the latter.
+- "module" has two meanings: a `FlowerModule` in FlowerBeds code (a physical group of FlowerClusters), and loosely "one of the four parts of the show". Use **Element** for the second.
+- "bloom" is a Looking Glass scene. It is not a value for how far the Branches are extended; nothing in the code has one.
