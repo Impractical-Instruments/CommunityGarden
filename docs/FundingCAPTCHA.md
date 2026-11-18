@@ -151,7 +151,9 @@ The editor is split by concern; each module can be read on its own. `bodycaptcha
 | Module | Game | Notes |
 |---|---|---|
 | `bodycaptcha.py` | **BodyCaptcha** | Match the prompt by activating the right grid cells |
-| `grid.py` | shared overlay | Cell boundary drawing, used by all Games |
+| `grid.py` | shared geometry | `Grid`: letterboxed square cells below the top bar |
+| `shell.py` | shared shell | Top bar, hold ring, centred text, colours (ADR-0019) |
+| `blowup.py` | shared effect | Confetti blow-up on timer expiry |
 
 Every Game must guarantee a loss after sustained inactivity (ADR-0003) — either via the Level timer, or via mechanics that ensure failure without Player input.
 

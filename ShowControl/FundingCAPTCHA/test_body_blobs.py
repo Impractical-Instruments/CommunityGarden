@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from body_blobs import BlobConfig, BodyBlobs, display_id, find_blobs
-from shadertoy import (BLOB_COASTING, BLOB_CONFIRMED, BLOB_EMPTY, BLOB_LOST, BLOB_ROWS,
-                       BLOB_SLOTS, BLOB_TENTATIVE)
+from blobs_contract import (BLOB_COASTING, BLOB_CONFIRMED, BLOB_EMPTY, BLOB_LOST, BLOB_ROWS,
+                            BLOB_SLOTS, BLOB_TENTATIVE)
 
 W, H = 64, 40
 CFG = dict(min_blob_pixels=10, min_confirm_frames=3, max_miss_frames=2,
