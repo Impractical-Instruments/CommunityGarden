@@ -1,5 +1,9 @@
 # FundingCAPTCHA Games share a single UI shell — billboard prompt + maximal grid
 
+**Status:** Accepted
+
+*Note, 2026-11-18: the shell is `games/shell.py`. Keepaway (`games/body_keepaway.py`) was deleted on 2026-11-11 (#204), so BodyCaptcha is the only Game using it.*
+
 ## Context
 
 The original BodyCaptcha layout (`games/bodycaptcha.py`, `games/grid.py`) carried over the early prototype's right-hand HUD column: a 220px vertical strip holding TIME, DIFFICULTY, HOLD bar, and prompt text. The Grid letterboxed inside the remaining left area.

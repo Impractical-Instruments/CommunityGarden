@@ -1,5 +1,7 @@
 # Dwell is tracked per-cluster, not exported from BlobStabilizer
 
+**Status:** Accepted
+
 `FlowerCluster` maintains its own `_blob_dwell` counter for each Blob Track within its `influence_radius_cm`. This is intentionally separate from `BlobStabilizer`'s internal `seen_frames` counter.
 
 The two measure different things:

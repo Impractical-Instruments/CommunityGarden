@@ -1,6 +1,8 @@
 # ADR 0006 — Two-tier Controllable hierarchy (Controllable / LEDControllable)
 
-**Status:** Accepted
+**Status:** Accepted and amended by [ADR-0020](0020-treehouse-esp32s3-location-controllers.md)
+
+*Note, 2026-11-18: only the first tier remains. The per-room classes were never built, and `LEDControllable` and `PicoDriver` were removed on 2026-11-11 (#192) when the LEDs moved to the location controllers (ADR-0020). `Controllable` (`ShowControl/TreeHouse/controllables/base.py`) has two subclasses: `BranchController` and `LookingGlassControllable`.*
 
 ## Context
 

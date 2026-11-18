@@ -18,9 +18,9 @@ Add a 5" HDMI LCD (800×480) mounted in the DJ booth of the Club diorama. A stan
 
 ### Software
 
-Standalone pygame app (`treehouse/club_screen.py`):
+Standalone pygame app (`ShowControl/TreeHouse/club_screen.py`):
 
-- Reads messages from `treehouse/club_messages.txt` (versioned in GitHub)
+- Reads messages from `ShowControl/TreeHouse/club_messages.txt` (versioned in GitHub)
 - One message per line-break-delimited block; blank line = message separator
 - Each message fades in, holds, scrolls if it is taller than the screen, holds and fades out; the timings are `settings.json` keys under `club_screen` (`hold_top_seconds`, `scroll_speed_px_per_sec`, `hold_bottom_seconds`, `fade_duration_seconds`), with `font_size_max` / `font_size_min` bounding the fitted font. (Originally a fixed `interval_seconds` timer; that key was never read by the shipped code and was removed 2026-11-11.)
 - Reloads message file on each rotation — no restart needed to update messages
@@ -58,8 +58,8 @@ Launched as a subprocess by `main.py` alongside the LookingGlass renderer subpro
 
 ## Consequences
 
-- `treehouse/club_screen.py` — new pygame app
-- `treehouse/club_messages.txt` — initial message set, versioned
+- `ShowControl/TreeHouse/club_screen.py` — new pygame app
+- `ShowControl/TreeHouse/club_messages.txt` — initial message set, versioned
 - `settings.json` gains a `club_screen` block: the six keys above and `messages_file`
 - `main.py` launches club screen subprocess (mirrors LookingGlass pattern)
 - If 2GB Pi can't run both subprocesses, assign club screen to a spare 8GB Pi and update `docs/TreeHouse.md`

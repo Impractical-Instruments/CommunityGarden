@@ -119,6 +119,8 @@ motors at a fixed angle simultaneously, useful for physically aligning flower ze
 TCP connect to each controller's OSC port (from `network.json`, default 9000), 500 ms
 timeout. Reports `ONLINE` / `OFFLINE` per controller. Does not require firmware changes.
 
+*Note, 2026-11-18: built differently. The tool sends `/cg/ff/ping` over OSC and shows the `/cg/ff/pong` reply (`diag.osc_ping`).*
+
 ### What is removed
 
 | Item | Action |
@@ -136,73 +138,6 @@ timeout. Reports `ONLINE` / `OFFLINE` per controller. Does not require firmware 
 | `marker_id: int \| None` field on `ModuleConfig` | Delete from `flower_beds.py` |
 | `opencv-python-headless` | Remove from `requirements.txt` |
 | ADR-0009 | Status → Superseded |
-
-## Implementation plan
-
-### Phase 1 — Remove ArUco (no behaviour change to show)
-
-1. Delete `ShowControl/FlowerBeds/layout_calibrator.py`.
-2. In `flower_beds.py`:
-   - Remove `marker_id: int | None` from `ModuleConfig`.
-   - Add `name: str = ""` to `ModuleConfig`.
-3. In `main.py`:
-   - Remove `from layout_calibrator import ...` and `OrbbecRGBCamera` imports.
-   - Remove `--layout-calibrate` argparse argument.
-   - Remove `_layout_calibrated_path()`, `run_layout_calibration()`,
-     `run_layout_calibrate_cli()`.
-   - Remove `apply_layout_overrides()` calls; use `raw_settings` directly.
-   - Remove `_layout_calibrate_event`, all `.set()`/`.is_set()`/`.clear()` calls,
-     and the layout-calibrate branch inside the outer loop.
-   - Remove `register_layout_calibrate_callback()` call.
-   - Remove the `elif args.layout_calibrate:` branch from `main()`.
-4. In `visualizer.py`:
-   - Remove `_layout_calibrate_cb` global and `register_layout_calibrate_callback()`.
-   - Remove `POST /layout-calibrate/start` endpoint.
-   - Remove cal-btn `<div>`, button HTML, and `startLayoutCalibrate()` /
-     `updateCalUI()` JS from `_HTML`.
-5. In `settings.json`:
-   - Remove `layout_calibration` top-level block.
-   - Remove `marker_id` from all module entries.
-   - Add `"name": "Module N"` to each module entry.
-6. Remove `opencv-python-headless` from `requirements.txt`.
-
-### Phase 2 — Build `layout_tool.py`
-
-Single file. FastAPI app on port 8764. Embedded HTML/JS (same pattern as `visualizer.py`).
-
-**Python endpoints:**
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Serve HTML client |
-| `GET` | `/api/layout` | Read `settings.json`, return `coordinator.modules` + module count |
-| `POST` | `/api/layout` | Validate, backup `settings.json.bak`, write `coordinator.modules` |
-| `GET` | `/api/network` | Read `network.json`, return controller list (name, ip, osc_port) |
-| `GET` | `/api/controller-status` | TCP-ping all controllers, return `{name, ip, online, checked_at}[]` |
-| `POST` | `/api/aim` | Send OSC `/cg/ff/rot [motor_id, deg]` to controller; body: `{motor_id, deg, controller_ip, osc_port}` |
-
-**JS client sections:**
-- Canvas (same world→screen transform as visualizer; drag modules; rotate handle)
-- Mode toggle (Place/Edit | Aim)
-- Module list sidebar (name, pos X/Y, yaw — all bidirectional with canvas)
-- Cluster sub-list (motor ID, offset X/Y — editable inputs)
-- Test move + Hold-at buttons (call `/api/aim`)
-- Controller status bar (poll `/api/controller-status` every 10 s)
-- Save button (POST `/api/layout`)
-
-**Entry point:**
-```
-python layout_tool.py [--config settings.json] [--network ../../network.json] [--port 8764]
-```
-Prints URL; optionally opens browser automatically (`webbrowser.open`).
-
-### Phase 3 — Update docs
-
-- This ADR (done)
-- ADR-0009 status → Superseded (done)
-- `docs/agents/architecture.md` — remove ArUco references, add layout tool
-- `docs/agents/configuration.md` — update `settings.json` schema example
-- `docs/agents/running-and-testing.md` — add layout tool usage, add `--calibrate-yaw`
 
 ## Consequences
 

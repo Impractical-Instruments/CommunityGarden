@@ -1,4 +1,4 @@
-"""Tests for the Shadertoy-compatible renderer (shadertoy.py, ADR-0021).
+"""Tests for the Shadertoy-compatible renderer (shadertoy.py, ADR-0025).
 
 GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """

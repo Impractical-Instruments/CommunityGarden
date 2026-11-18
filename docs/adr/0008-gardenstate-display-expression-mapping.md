@@ -1,6 +1,8 @@
 # ADR 0008 — GardenState → display expression mapping
 
-**Status:** Accepted
+**Status:** Partially implemented
+
+*Note, 2026-11-18: what exists of this. **Branches:** built as decided (`ShowControl/TreeHouse/branches.py`). **Looking Glass:** the mood mirror and the `overload` scene were not built; `LookingGlassControllable` sends its configured scene and the mean of three signals as intensity. **Every LED section** (Forge & Flora, dioramas, Dormer, Attic, Porch) and `GardenStateResponse`: the Pi no longer drives LEDs. The location controllers do (ADR-0020), and for now they ignore Garden State (ADR-0021).*
 
 ## Context
 

@@ -1,7 +1,9 @@
 # FundingCAPTCHA uses body silhouette interaction, not touch detection
 
+**Status:** Accepted and amended by [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) (BG_CAL is gone; the depth background is learned continuously from the first frame)
 **Supersedes:** ADR-0004 (depth-primary touch detection), ADR-0011 (screen calibration and projection)
-**Partly superseded by:** [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) — BG_CAL is gone; the depth background is learned continuously from the first frame
+
+*Note, 2026-11-18: `body_grid_tester.py`, named below, was deleted on 2026-11-11 (#258). `app.py` is the one camera entry point for Games.*
 
 ## Context
 

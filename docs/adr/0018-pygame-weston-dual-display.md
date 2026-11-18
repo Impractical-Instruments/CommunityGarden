@@ -32,12 +32,18 @@ any renderer subprocess, waits for its Wayland socket, sets `WAYLAND_DISPLAY` in
 environment, then launches both renderers. weston is supervised; if it exits, the whole
 treehouse service crashes and systemd restarts it.
 
-`weston.ini` (in `looking_glass/deploy/`) declares both outputs explicitly:
+`weston.ini` (`ShowControl/TreeHouse/deploy/weston.ini`) declares both outputs explicitly:
 
 ```ini
 [core]
 idle-time=0
-shell=kiosk-shell.so
+shell=desktop-shell.so
+
+[shell]
+panel-location=none
+background-type=color
+background-color=0xff000000
+locking=false
 
 [output]
 name=HDMI-A-1
@@ -68,6 +74,8 @@ SDL2 passes the resolved `wl_output` object to weston via
 `xdg_toplevel.set_fullscreen(output)`. weston kiosk-shell honours this, making assignment
 independent of subprocess startup order or connection timing.
 
+*Note, 2026-11-18: the shipped `weston.ini` uses `desktop-shell.so` with a black, panel-less `[shell]` block, not kiosk-shell. The block above now shows the real file.*
+
 ### No Xwayland
 
 Xwayland is not used. `DISPLAY` is explicitly unset in the treehouse process after weston
@@ -84,7 +92,7 @@ absent skips weston entirely.
 ## Consequences
 
 - Single systemd unit (`treehouse`) manages both displays — `looking_glass.service` is
-  obsolete and must not be installed.
+  obsolete and must not be installed. (It was deleted on 2026-11-11, #208.)
 - `install.sh` installs `weston` (not `cage`); pip deps are `moderngl pygame python-osc`
   (not `pyglet numpy`).
 - GLSL shaders, OSC IPC, and uniform interface are unchanged.

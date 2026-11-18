@@ -1,4 +1,4 @@
-"""Shadertoy-compatible multipass GLSL renderer for the shader player (ADR-0021).
+"""Shadertoy-compatible multipass GLSL renderer for the shader player (ADR-0025).
 
 A Setup is a folder of Shadertoy tabs pasted verbatim:
 
