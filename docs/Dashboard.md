@@ -1,6 +1,6 @@
 # Show Dashboard
 
-Browser-based monitoring + mode control for The Community Garden. Runs on the TreeHouse host alongside the `treehouse` service.
+Browser-based monitoring for The Community Garden, with controls for the TreeHouse and Playing the Pipes. Runs on the TreeHouse host alongside the `treehouse` service.
 
 **URL:** http://192.168.1.10:9000 · **Host:** `treehouse` · **Service:** `cg-dashboard`
 
@@ -12,6 +12,8 @@ FastAPI + Uvicorn (`serve.py`). Static HTML pages per Element and a health endpo
 
 Per-Element pages (`flowerbeds.html`, `treehouse.html`, `fundingcaptcha.html`, `playingthepipes.html`) ping each Element's own monitoring port (visualizer or health endpoint) and reflect status.
 
+**Which host a page asks.** The index and the FlowerBeds, TreeHouse and FundingCAPTCHA pages take only each Element's `http_port` from `network.json` and use the hostname the Dashboard itself was loaded from. Only the Pipes page uses the Element's `ip`. So with the Dashboard on the `treehouse` host, the index can reach the TreeHouse and nothing else by that route.
+
 The Dashboard server never talks to Elements: everything is browser → Element directly. Two Elements have controls:
 
 - **TreeHouse:** the page posts to the TreeHouse visualizer's `/control/*` routes (show mode, Looking Glass scene, Blow-Up trigger).
@@ -21,9 +23,7 @@ The other pages are status and logs only.
 
 The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`.
 
-Key references:
-- ADR-0007 — OSC Fabric schema (mode control is TreeHouse-only); the addresses and `network.json` keys are in [`osc-fabric.md`](osc-fabric.md)
-- `serve.py`, `index.html`, per-element HTML pages
+Files in `ShowControl/Dashboard/`: `serve.py`, `index.html`, the four Element pages, `network.js` (reads `/api/network`), `log-panel.js`, `dashboard.css`.
 
 ---
 
@@ -33,8 +33,7 @@ Key references:
 |---|---|---|
 | `GET` | `/health` | `{"ok": true}` |
 | `GET` | `/api/network` | `{"elements": {...}}` — the `elements` block of `network.json`. The pages read each Element's `http_port` from it (via `network.js`); none holds a port of its own |
-| `GET` | `/` | Static HTML — see `index.html` |
-| `GET` | `/<element>.html` | Per-element status page |
+| `GET` | anything else | Static files from `ShowControl/Dashboard/`; `/` is `index.html` |
 
 ---
 
@@ -46,17 +45,13 @@ python serve.py 9001      # custom port
 python serve.py --verbose # DEBUG logging
 ```
 
-Service unit runs `python3 serve.py 9000`.
+The service unit (`deploy/dashboard.service`, installed as `cg-dashboard`) runs `python3 serve.py 9000`. In a dev clone: `uv run python serve.py`.
 
 ---
 
-## `network.json`
+## Addresses
 
-Single source of truth for show addressing. Same file consumed by every Element via `OSCFabric.load_network_config()`, and by the Dashboard pages via `/api/network`.
-
-Its keys are listed in [`osc-fabric.md`](osc-fabric.md#networkjson).
-
-If venue addressing changes — edit this file (on whichever host you're deploying from) and re-deploy.
+The pages get each Element's monitoring port (and, for Pipes, its IP) from `/api/network`, which serves the `elements` block of `ShowControl/network.json` ([keys](osc-fabric.md#networkjson)). If venue addressing changes, edit that file and re-deploy.
 
 ---
 
@@ -65,6 +60,6 @@ If venue addressing changes — edit this file (on whichever host you're deployi
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Dashboard unreachable | `cg-dashboard` down or host network down | `sudo systemctl status cg-dashboard` on the treehouse host |
-| Element shows offline though running | Element's HTTP port unreachable from the browser, or wrong IP in `network.json` | Curl the element's monitoring URL directly; fix `network.json` if needed |
+| Element shows offline though running | The page asked the Dashboard's host, not the Element's (see "Which host a page asks"), or the Element's port is unreachable from the browser | Open the Element's own monitoring URL directly (`http://<element ip>:<http_port>/health`) |
 | Pipes surface turns nothing | Not armed, or the bridge is unreachable | Arm it on the page (it disarms when the tab loses focus); check the bridge's `/health` and the note beside the arm button |
 | TreeHouse mode buttons do nothing | TreeHouse visualizer unreachable from the browser | The page posts to `http://<dashboard host>:8766/control/show/mode`; check the `treehouse` service is up |
