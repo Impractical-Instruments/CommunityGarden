@@ -26,7 +26,7 @@ from settings import with_defaults
 from silhouette import apply_cam_transform, build_cam_transform
 
 try:
-    from IIVision import (AdaptiveBackground, AdaptiveBackgroundConfig, BlobTracker,
+    from IIVision import (AdaptiveBackground, AdaptiveBackgroundConfig, BlobDetector,
                           DetectionConfig, MockCamera, OrbbecCamera)
     CV_AVAILABLE = True
 except ImportError:
@@ -85,7 +85,7 @@ def _read_camera(camera: Any, settings: dict, out: queue.Queue,
     try:
         detection_config = build_detection_config(settings)
         background       = build_background(settings, detection_config)
-        tracker          = BlobTracker(background, detection_config)
+        tracker          = BlobDetector(background, detection_config)
         cam_transform    = build_cam_transform(settings)
         dilation_px      = int(settings["silhouette_dilation_px"])
 

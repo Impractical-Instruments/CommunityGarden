@@ -74,7 +74,7 @@ def test_roi_crop_and_scale_to_size():
 # much smaller radius. Operator-tunable because the right radius depends on the
 # camera's mounting angle.
 
-from IIVision.blob_tracker import CameraIntrinsics
+from IIVision.types import CameraIntrinsics
 from IIVision import Rotator, Transform
 from silhouette import apply_cam_transform
 
