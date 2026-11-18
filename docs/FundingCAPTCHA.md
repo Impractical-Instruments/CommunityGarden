@@ -10,10 +10,11 @@ The 7-foot CRT-styled kiosk Element. Players activate a projected grid using the
 
 `app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, **Game** rotation, and a lightweight HTTP/WebSocket monitoring server on port 8080.
 
-`app.py` itself is the show loop. Each thing it runs on is one module beside it, and each can be read on its own:
+`app.py` is argument parsing and wiring: it builds the pieces below and hands them to a `Kiosk`. Each is one module beside it and can be read on its own:
 
 | Module | Its one job |
 |---|---|
+| `kiosk.py` | `Kiosk`: the SCREENSAVER ↔ GAME state machine, one tick method per state, and the one `restart()` |
 | `settings.py` | Where the settings files are, the default for every key (`DEFAULTS`), how they merge, unknown-key warnings |
 | `camera_feed.py` | `CameraFeed`: camera thread → foreground frames on a queue; restart; reseed. Shared with the shader and playlist players |
 | `monitor.py` | `MonitoringServer`: the port the Dashboard talks to (`/health`, `/logs`, `/api/restart`) |
@@ -42,7 +43,7 @@ Key references:
 - ADR-0021 — shader player (`shader_app.py`, Shadertoy Setups)
 - ADR-0022 — shader player blob records (`blobs` channel source)
 - ADR-0023 — self-learning depth background (no boot-time standback)
-- `app.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
+- `app.py`, `kiosk.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
 
 ---
 

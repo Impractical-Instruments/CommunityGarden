@@ -11,41 +11,19 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from body_blobs import BlobConfig, BodyBlobs
-from shadertoy import Renderer, ShaderError, decode_image, load_setup, pack_body
+from shader_test_rig import BLOBS, BODY, DT, Rig
+from shadertoy import ShaderError, decode_image, load_setup
 
-SETUP = Path(__file__).parent / "shaders" / "barn_dancers"
+SETUP = Path(__file__).parent
 SIZE  = (192, 108)
-BODY  = (64, 40)                          # camera ROI (w, h)
-SLABS = [{"near_mm": 1000, "far_mm": 4000}]
-DT    = 1 / 30
 CYCLE_S = 1.75                            # common.glsl
-# The shipped defaults, except a smaller min_blob_pixels for the small test Body.
-BLOBS = BlobConfig(min_blob_pixels=20)
 
 
-class Rig:
-    """Renderer + the real BodyBlobs on a fake clock: camera at 10 Hz, render at 30 Hz."""
+class BarnRig(Rig):
+    """Buffer B layout: see common.glsl."""
 
     def __init__(self, ctx, image: np.ndarray | None = None):
-        self.r = Renderer(ctx, SIZE, body_mode="camera")
-        self.r.load(load_setup(SETUP), image=image)
-        self.blobs = BodyBlobs(BLOBS)
-        self.t = 0.0
-
-    def run(self, frames, frames_per_camera=3):
-        for fg in frames:                                 # one uint16 mm depth frame per camera frame, row 0 = top
-            body = pack_body(fg, {"x": 0, "y": 0, "w": BODY[0], "h": BODY[1]}, SLABS)
-            self.r.upload_body(body)
-            self.blobs.update(body[..., 0] > 0, body[..., 1] / 255.0, now=self.t)
-            for _ in range(frames_per_camera):
-                self.r.upload_blobs(self.blobs.records(now=self.t))
-                self.r.render(DT, (0, 0, 0, 0))
-                self.t += DT
-
-    def b(self) -> np.ndarray:
-        t = self.r._buffers["buffer_b"].read_tex
-        return np.frombuffer(t.read(), dtype=np.float16).astype(np.float32).reshape(t.size[1], t.size[0], 4)
+        super().__init__(ctx, SETUP, SIZE, blobs=BLOBS, image=image)
 
     def dancer(self, k): return self.b()[0, k]            # x, nearness, energy, id
     def stage(self, k):  return self.b()[1, k]            # risen, leaving, sideways speed
@@ -54,11 +32,7 @@ class Rig:
 
     def image(self) -> np.ndarray:
         """The Image as int (h, w, 3), row 0 = bottom."""
-        out = np.frombuffer(self.r.output.read(components=4), np.uint8).reshape(SIZE[1], SIZE[0], 4)
-        return out[..., :3].astype(int)
-
-    def release(self):
-        self.r.release()
+        return super().image()[..., :3].astype(int)
 
 
 def barn_red(img: np.ndarray) -> np.ndarray:
@@ -102,7 +76,7 @@ def flickering(n, seed=0):
 # ── Who gets a barn ───────────────────────────────────────────────────────────
 
 def test_empty_room_shows_only_the_field(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run([EMPTY] * 10)
     assert not rig.b()[0, :8, 3].any()                    # no slot holds a barn
     img = rig.image()
@@ -113,14 +87,14 @@ def test_empty_room_shows_only_the_field(ctx):
 
 
 def test_tentative_visitor_gets_no_barn(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(standing(2))                                  # still tentative (min_confirm_frames 4)
     assert rig.dancer(0)[3] == 0
     rig.release()
 
 
 def test_confirmed_visitor_gets_a_barn_that_rises_at_their_position(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(standing(8))
     assert rig.dancer(0)[3] > 0
     partway = rig.stage(0)[0]
@@ -136,7 +110,7 @@ def test_confirmed_visitor_gets_a_barn_that_rises_at_their_position(ctx):
 
 
 def test_barn_follows_its_visitor(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(standing(20, x0=8))
     left = rig.dancer(0)[0]
     rig.run([person(8 + 2 * k) for k in range(20)] + standing(15, x0=46))
@@ -147,7 +121,7 @@ def test_barn_follows_its_visitor(ctx):
 
 
 def test_barn_bows_out_when_its_visitor_leaves(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(standing(20))
     rig.run([EMPTY] * 6)                                  # coasting: the tracker may yet find them
     assert rig.stage(0)[1] == 0
@@ -162,14 +136,14 @@ def test_barn_bows_out_when_its_visitor_leaves(ctx):
 # ── The dance ─────────────────────────────────────────────────────────────────
 
 def test_beat_keeps_time_in_an_empty_room(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run([EMPTY] * 10)                                 # 30 renders: frame 0 only initialises
     assert rig.beat()[0] == pytest.approx((29 * DT / CYCLE_S) % 1, abs=0.01)
     rig.release()
 
 
 def test_moving_visitor_dances_bigger_and_speeds_the_beat(ctx):
-    still, mover = Rig(ctx), Rig(ctx)
+    still, mover = BarnRig(ctx), BarnRig(ctx)
     still.run(standing(40))
     mover.run(flailing(40))
     assert still.dancer(0)[2] < 0.05 and still.beat()[1] < 0.05
@@ -178,14 +152,14 @@ def test_moving_visitor_dances_bigger_and_speeds_the_beat(ctx):
 
 
 def test_flickering_still_visitor_stays_calm(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(flickering(40))
     assert rig.dancer(0)[2] < 0.05
     rig.release()
 
 
 def test_barn_moves_between_beats(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run(standing(30))
     a = barn_red(rig.image())
     rig.run(standing(4))                                  # 0.4 s on: another part of the cycle
@@ -195,7 +169,7 @@ def test_barn_moves_between_beats(ctx):
 
 
 def test_nearer_barns_are_drawn_over_farther_ones(ctx):
-    rig = Rig(ctx)
+    rig = BarnRig(ctx)
     rig.run([person(6, mm=1500) + person(46, mm=3500)] * 20)
     near, far = (0, 1) if rig.dancer(0)[1] > rig.dancer(1)[1] else (1, 0)
     assert rig.dancer(near)[1] > rig.dancer(far)[1] + 0.3
@@ -215,7 +189,7 @@ def test_sheet_barn_stands_where_the_drawn_one_does(ctx):
         sheet = decode_image(sheets[0], (4096, 4096))
     except ShaderError:
         pytest.skip("barn.png is a Git LFS pointer here (git lfs pull)")
-    drawn, sprite = Rig(ctx), Rig(ctx, image=sheet)
+    drawn, sprite = BarnRig(ctx), BarnRig(ctx, image=sheet)
     for rig in (drawn, sprite):
         rig.run(standing(30))
     (ya, xa), (yb, xb) = (np.nonzero(barn_red(rig.image())) for rig in (drawn, sprite))
