@@ -1,5 +1,5 @@
 {
-  "_comment": "Single source of truth for all show-network addressing. See docs/adr/0007-osc-fabric-schema.md.",
+  "_comment": "Single source of truth for all show-network addressing. See docs/osc-fabric.md.",
 
   "lan": { "gateway": "192.168.1.1", "netmask": "255.255.255.0" },
 

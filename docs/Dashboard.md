@@ -22,7 +22,7 @@ The other pages are status and logs only.
 The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`.
 
 Key references:
-- ADR-0007 — OSC Fabric schema (defines the `network.json` schema; mode control is TreeHouse-only)
+- ADR-0007 — OSC Fabric schema (mode control is TreeHouse-only); the addresses and `network.json` keys are in [`osc-fabric.md`](osc-fabric.md)
 - `serve.py`, `index.html`, per-element HTML pages
 
 ---
@@ -54,20 +54,7 @@ Service unit runs `python3 serve.py 9000`.
 
 Single source of truth for show addressing. Same file consumed by every Element via `OSCFabric.load_network_config()`, and by the Dashboard pages via `/api/network`.
 
-```json
-{
-  "elements": {
-    "treehouse":  { "ip": "192.168.1.10", "osc_port": 9001, "http_port": 8766 },
-    "flowerbeds": { "ip": "192.168.1.11", "osc_port": 9002, "http_port": 8765 },
-    "captcha":    { "ip": "192.168.1.12", "osc_port": 9003, "http_port": 8080 },
-    "pipes":      { "ip": "192.168.1.13", "osc_port": 9004, "http_port": 8767 }
-  },
-  "firmware": {
-    "flowerbeds_controller_1": { "ip": "192.168.1.50", "osc_port": 9000 },
-    "flowerbeds_controller_2": { "ip": "192.168.1.51", "osc_port": 9000 }
-  }
-}
-```
+Its keys are listed in [`osc-fabric.md`](osc-fabric.md#networkjson).
 
 If venue addressing changes — edit this file (on whichever host you're deploying from) and re-deploy.
 

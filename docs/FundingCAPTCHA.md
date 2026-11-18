@@ -167,12 +167,12 @@ Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D p
 
 ## OSC Fabric output
 
-FundingCAPTCHA sends to the TreeHouse Hub each frame:
+FundingCAPTCHA sends two signals to the TreeHouse and receives none. Arguments and the send rule: [`osc-fabric.md`](osc-fabric.md).
 
-| Address | Args | Meaning |
-|---|---|---|
-| `/captcha/intensity` | `f 0–1` | Arc progress toward Blow-Up. Configurable weighted sum of difficulty (current Level / 5) and time pressure (elapsed / `timer_s`). Resets to 0 at the start of each Arc. |
-| `/captcha/blowup` | — | One-shot — sent on the frame a Blow-Up fires. TreeHouse responds with the **Blow-Up Reaction** (attic spike + exponential decay). |
+| Address | Meaning |
+|---|---|
+| `/captcha/intensity` | Arc progress toward Blow-Up. Configurable weighted sum of difficulty (current Level / 5) and time pressure (elapsed / `timer_s`). Resets to 0 at the start of each Arc. |
+| `/captcha/blowup` | Sent on the frame a Blow-Up fires. TreeHouse responds with the **Blow-Up Reaction** (attic spike + exponential decay). |
 
 ---
 

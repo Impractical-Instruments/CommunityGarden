@@ -203,17 +203,7 @@ Firmware and bench-testing recipes: `Firmware/TreeHouse_Controllers/README.md`.
 
 ## OSC interface
 
-Inbound (`/cg/...` are internal; rest are Fabric):
-
-| Address | Args | Source |
-|---|---|---|
-| `/treehouse/mode` | `s` | operator OSC tool (the Dashboard page uses `POST /control/show/mode` instead) |
-| `/treehouse/brightness` | `f` | operator override |
-| `/captcha/intensity` | `f` | FundingCAPTCHA Arc |
-| `/captcha/blowup` | — | FundingCAPTCHA Blow-Up event |
-| `/flowerbeds/activity` | `f` | FlowerBeds |
-| `/pipes/activity` | `f` | Playing the Pipes |
-| `/lookingglass/*` | various | renderer OSC server (port 9002) |
+The TreeHouse is the only Fabric listener (`osc_server.py`, on `elements.treehouse.osc_port`). It receives `/flowerbeds/activity`, `/captcha/intensity`, `/captcha/blowup`, `/pipes/activity`, `/treehouse/mode`, `/treehouse/brightness` and `/lookingglass/scene`, sends the first six on to the location controllers, and drives the Looking Glass renderer with `/lookingglass/*` (above). Arguments, senders and the send rule: [`osc-fabric.md`](osc-fabric.md).
 
 ---
 

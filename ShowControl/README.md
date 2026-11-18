@@ -11,7 +11,7 @@ The show-control software: one directory per Element, plus what they share.
 | `Dashboard/` | Browser monitoring pages | `treehouse` Pi | `docs/Dashboard.md` |
 | `ShowWeb/` | Shared package: `LiveServer`, the `/health`, `/ws` and `/logs` server behind the FlowerBeds and TreeHouse visualizers | FlowerBeds, TreeHouse | `ShowWeb/live.py` |
 | `OSCFabric/` | Shared package: sends Element signals to the TreeHouse; reads `network.json` | every Element | its README |
-| `network.json` | Every IP, MAC and port on the Show Network | | `docs/agents/configuration.md` |
+| `network.json` | Every IP, MAC and port on the Show Network | | `docs/osc-fabric.md` |
 
 - Each Element is a flat directory of scripts run from inside it (its systemd unit sets the working directory). `OSCFabric` and `ShowWeb` here and `IIVision` at the repo root are the only installed packages.
 - Each Element's Python dependencies are an extra in the root `pyproject.toml`. A show machine installs its own with pip (`pip install -e ".[flowerbeds]"`, done by its installer). On a dev machine, `uv run` has them all; see `docs/agents/running-and-testing.md`.
