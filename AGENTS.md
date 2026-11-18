@@ -28,6 +28,7 @@ These apply to every task in this repo:
 
 ## Docs
 
+- [Repo map](docs/repo-map.md)
 - [Architecture & pipeline](docs/agents/architecture.md)
 - [Python conventions](docs/agents/python-conventions.md)
 - [Configuration reference](docs/agents/configuration.md)
