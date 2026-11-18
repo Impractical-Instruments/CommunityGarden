@@ -89,7 +89,7 @@ Copy [`ripples/`](ripples/) to `shaders/<your-setup>/` and replace:
 
 Sources: `"A"` (Body), `"B"`, `"C"`, `"D"`, `"keyboard"`, `"blobs"` (blob records, above), `"image"` (images, above), or `null`. List position = iChannel number.
 
-Add the folder name to [`setups.json`](setups.json) to put it in the rotation. `make test` compiles every listed Setup.
+Add the folder name to `setups` in [`playlist.json`](../playlist.json) to put it in the show. `make test` compiles every Setup folder here, listed or not.
 
 For behaviour tests, add `test_<your-setup>.py` inside your Setup's folder, so deleting the Setup deletes its tests. Build on [`shader_test_rig.py`](../shader_test_rig.py) in `ShowControl/FundingCAPTCHA/`: its `Rig` drives a Renderer with the real blob tracker on a fake clock, and it has the mask builders (`rect`, `standing`, `walking`, `flailing`, `flickering`) and `glsl_consts()` to read your `common.glsl` constants, so tests follow retuning. Subclass `Rig` for your own buffer layout, as `watering_can/test_watering_can.py` does. Read the Renderer only through `read_buffer(name)`, `snapshot()` / `restore()` and `draw_deferred_image()`, never its `_`-prefixed state.
 
@@ -98,8 +98,8 @@ For behaviour tests, add `test_<your-setup>.py` inside your Setup's folder, so d
 From `ShowControl/FundingCAPTCHA/`:
 
 ```
-uv run python shader_app.py --test-input --windowed --setup <your-setup>   # mouse paints the Body, same as Shadertoy
-uv run python shader_app.py --mock-camera --windowed                       # fake drifting visitors
+uv run python playlist_app.py --test-input --windowed --setup <your-setup>   # mouse paints the Body, same as Shadertoy
+uv run python playlist_app.py --mock-camera --windowed                       # fake drifting visitors (the whole playlist)
 ```
 
 Keys: **N** / **→** next Setup · **R** reload from disk (edit, save, press R) · **Esc** quit. Compile errors are logged with your tab's line numbers (`0:LINE` = the tab, `1:LINE` = common).
