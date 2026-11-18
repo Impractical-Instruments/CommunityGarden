@@ -1,7 +1,7 @@
 """
 Blob stabilizer: cross-frame ID assignment and position de-jittering.
 
-After each BlobTracker.detect() call, transform raw detections to world space
+After each BlobDetector.detect() call, transform raw detections to world space
 and pass them to BlobStabilizer.update() to get back TrackedBlob objects with
 stable integer IDs and EMA-smoothed positions.
 

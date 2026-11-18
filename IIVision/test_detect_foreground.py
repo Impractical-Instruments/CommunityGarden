@@ -1,15 +1,11 @@
-"""Tests for BlobTracker.detect_foreground()."""
+"""Tests for BlobDetector.detect_foreground()."""
 from __future__ import annotations
 
 import numpy as np
 
-from IIVision.blob_tracker import (
-    BlobTracker,
-    Calibration,
-    CameraIntrinsics,
-    DetectionConfig,
-    FramePacket,
-)
+from IIVision.calibration import Calibration
+from IIVision.detector import BlobDetector
+from IIVision.types import CameraIntrinsics, DetectionConfig, FramePacket
 
 
 def _calibration(width: int, height: int, background_mm: int) -> Calibration:
@@ -41,7 +37,7 @@ def test_matching_background_all_zero():
     W, H = 20, 20
     cal = _calibration(W, H, 2000)
     depth = np.full((H, W), 2000, dtype=np.uint16)
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
     assert result.dtype == np.uint16 and result.shape == (H, W)
     assert (result == 0).all()
 
@@ -52,7 +48,7 @@ def test_background_pixels_remain_zero():
     cal = _calibration(W, H, BG)
     depth = np.full((H, W), BG, dtype=np.uint16)
     depth[10:30, 10:30] = FG
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
     assert (result[:5, :5] == 0).all()
     assert (result[35:, 35:] == 0).all()
 
@@ -63,7 +59,7 @@ def test_foreground_depth_values_match_frame():
     cal = _calibration(W, H, BG)
     depth = np.full((H, W), BG, dtype=np.uint16)
     depth[10:30, 10:30] = FG
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
     fg_values = result[result > 0]
     assert (fg_values == FG).all()
 
@@ -75,7 +71,7 @@ def test_pixels_below_min_depth_not_foreground():
     cal = _calibration(W, H, BG)
     depth = np.full((H, W), BG, dtype=np.uint16)
     depth[10:30, 10:30] = 200  # below min_depth_mm
-    result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, cfg).detect_foreground(_frame(W, H, depth))
     assert (result == 0).all()
 
 
@@ -93,7 +89,7 @@ def test_two_pixel_speckle_cluster_is_removed():
     depth = np.full((H, W), BG, dtype=np.uint16)
     depth[20, 20:22] = 1000  # too few neighbours to reach the majority
 
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
 
     assert (result == 0).all()
 
@@ -105,7 +101,7 @@ def test_solid_body_interior_survives_despeckle():
     depth = np.full((H, W), BG, dtype=np.uint16)
     depth[10:30, 10:30] = FG
 
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
 
     assert (result[12:28, 12:28] == FG).all()
 
@@ -118,7 +114,7 @@ def test_speckle_removed_without_touching_a_nearby_body():
     depth[10:30, 10:30] = FG   # body
     depth[50, 50] = FG         # speckle, well clear of the body
 
-    result = BlobTracker(cal, _CFG).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, _CFG).detect_foreground(_frame(W, H, depth))
 
     assert result[50, 50] == 0, "speckle should be filtered"
     assert (result[12:28, 12:28] == FG).all(), "body must be untouched"
@@ -138,7 +134,7 @@ def test_blob_smaller_than_min_blob_pixels_is_removed():
     depth[45:51, 45:51] = FG   # noise clump: 36 pixels, solid, so the despeckle keeps it
     cfg = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50, min_blob_pixels=100)
 
-    result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, cfg).detect_foreground(_frame(W, H, depth))
 
     assert (result[40:, 40:] == 0).all(), "the clump is below min_blob_pixels"
     assert (result[12:28, 12:28] == FG).all(), "body must be untouched"
@@ -152,6 +148,6 @@ def test_blob_at_least_min_blob_pixels_is_kept():
     depth[45:51, 45:51] = FG   # 36 pixels
     cfg = DetectionConfig(min_depth_mm=100, max_depth_mm=5000, depth_delta_mm=50, min_blob_pixels=20)
 
-    result = BlobTracker(cal, cfg).detect_foreground(_frame(W, H, depth))
+    result = BlobDetector(cal, cfg).detect_foreground(_frame(W, H, depth))
 
     assert (result[46:50, 46:50] == FG).all()

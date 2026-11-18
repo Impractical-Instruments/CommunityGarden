@@ -15,7 +15,9 @@ Public API:
 
 from .pipeline import build_calibration, filter_positions_near_points, run_pipeline
 from .blob_stabilizer import BlobStabilizer, StabilizerConfig, TrackedBlob
-from .blob_tracker import BackgroundModel, BlobTracker, Calibration, Calibrator, DetectionConfig, FramePacket
+from .types import DetectionConfig, FramePacket
+from .calibration import Calibration, Calibrator
+from .detector import BackgroundModel, BlobDetector, BlobTracker
 from .adaptive_background import AdaptiveBackground, AdaptiveBackgroundConfig
 from .camera import MockCamera, OrbbecCamera
 from .transforms import Rotator, Transform, look_yaw_degrees, orbbec_to_world, rotator_to_matrix, transform_position
@@ -31,7 +33,8 @@ __all__ = [
     "AdaptiveBackground",
     "AdaptiveBackgroundConfig",
     "BackgroundModel",
-    "BlobTracker",
+    "BlobDetector",
+    "BlobTracker",   # alias of BlobDetector, kept for old imports
     "Calibration",
     "Calibrator",
     "DetectionConfig",
