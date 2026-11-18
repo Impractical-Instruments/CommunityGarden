@@ -111,7 +111,7 @@ to Aim mode, clicks anywhere on the canvas. The tool computes the yaw from the c
 world position to the clicked world position and sends `/cg/ff/rot [motor_id, yaw_deg]`
 directly to the controller IP from `network.json`. No relay through show computer.
 
-The existing `--calibrate-yaw` CLI flag in `main.py` is retained — it holds **all**
+The `--calibrate-yaw` mode is retained (since #254 it is `calibrate_motors.py --yaw`, no longer a `main.py` flag) — it holds **all**
 motors at a fixed angle simultaneously, useful for physically aligning flower zero points.
 
 ### Controller status

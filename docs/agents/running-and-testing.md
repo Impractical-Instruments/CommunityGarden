@@ -77,8 +77,19 @@ uv run python main.py --config settings.json --no-visualizer
 | `--no-osc` | Disable OSC output to Arduino |
 | `--no-visualizer` | Disable WebSocket visualizer server |
 | `--visualizer-port N` | Visualizer HTTP port (default: 8765) |
-| `--calibrate-yaw DEG` | Hold all motors at DEG degrees (0=forward, 90=right); useful for physically aligning flowers to zero |
 | `--verbose` / `-v` | Enable DEBUG logging |
+
+## Calibrate motors (no camera)
+
+Motor calibration is its own tool, `calibrate_motors.py`; it was the `--calibrate-yaw` and `--calibrate-yaw-sweep` flags of `main.py`.
+
+```bash
+cd ShowControl/FlowerBeds
+uv run python calibrate_motors.py --yaw 0      # hold every motor at 0 deg (0=forward, 90=right) to align flowers to zero
+uv run python calibrate_motors.py --sweep      # every motor through -limit, 0, +limit, 0
+```
+
+Add `--no-osc` for a dry run, `--config PATH` for another settings file.
 
 ## Run the layout tool (pre-show, Windows laptop)
 
@@ -100,4 +111,4 @@ There is no CI gate for hardware-in-the-loop behaviour. After any pipeline chang
 
 1. Run `--mock-camera --no-osc` and confirm the log output is clean.
 2. Open `http://localhost:8765` to verify blobs, clusters, and camera positions render correctly in the visualizer.
-3. If touching OSC or servo logic, connect real hardware and validate with the layout tool's Aim mode (one servo at a time) or `uv run python main.py --calibrate-yaw-sweep` (every servo through its limits).
+3. If touching OSC or servo logic, connect real hardware and validate with the layout tool's Aim mode (one servo at a time) or `uv run python calibrate_motors.py --sweep` (every servo through its limits).

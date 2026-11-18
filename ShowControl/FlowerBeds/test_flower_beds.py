@@ -6,14 +6,8 @@ import pytest
 
 from IIVision.blob_stabilizer import TrackedBlob
 
-from flower_beds import (
-    Attraction,
-    ClusterConfig,
-    Coordinator,
-    CoordinatorConfig,
-    FlowerCluster,
-    ModuleConfig,
-)
+from config import Attraction, ClusterConfig, CoordinatorConfig, ModuleConfig
+from flower_beds import Coordinator, FlowerCluster
 
 
 def _blob(stable_id: int, x: float, y: float) -> TrackedBlob:
