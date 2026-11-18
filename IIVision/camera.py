@@ -10,7 +10,7 @@ Usage:
 
     with cam:
         for frame in cam.frames():
-            ...  # frame is a blob_tracker.FramePacket
+            ...  # frame is a types.FramePacket
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import numpy as np
 log = logging.getLogger(__name__)
 _CAMERA_RETRY_DELAY_S = 5
 
-from .blob_tracker import CameraIntrinsics, FramePacket
+from .types import CameraIntrinsics, FramePacket
 
 
 class BaseCamera(ABC):
@@ -121,7 +121,7 @@ class OrbbecCamera(BaseCamera):
         Force the device's depth-mirror property to a known value.
 
         Orbbec depth streams frequently default to horizontally mirrored. A
-        mirrored image flips the unprojected camera X axis, which BlobTracker's
+        mirrored image flips the unprojected camera X axis, which BlobDetector's
         pinhole math (x3d = (xx - cx) * z / fx) assumes is NOT mirrored — so we
         set the property explicitly rather than trusting the device default.
         """

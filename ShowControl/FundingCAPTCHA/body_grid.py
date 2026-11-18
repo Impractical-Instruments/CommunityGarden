@@ -11,7 +11,7 @@ Usage:
     )
     activator = BodyGridActivator(config)
 
-    # Each frame (foreground: uint16 H×W from BlobTracker.detect_foreground):
+    # Each frame (foreground: uint16 H×W from BlobDetector.detect_foreground):
     activations = activator.activate(foreground_frame)
     # activations: {(col, row): [(slab_id, coverage_fraction), ...]}
 """
@@ -50,7 +50,7 @@ class BodyGridActivator:
 
     def activate(self, foreground: np.ndarray) -> CellActivations:
         """
-        foreground: uint16 (H, W) from BlobTracker.detect_foreground()
+        foreground: uint16 (H, W) from BlobDetector.detect_foreground()
                     0 = background, depth_mm = foreground pixel
 
         Returns active cells with per-slab coverage fractions.
