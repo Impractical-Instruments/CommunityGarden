@@ -220,6 +220,50 @@ journalctl -u captcha -f
 
 `captcha` is a single pygame process (ADR-0012) — no browser, no kiosk. State machine is `SCREENSAVER ↔ GAME` (`kiosk.py`). If the Dashboard shows `state=error` or `fg_pixels` never changes, the camera isn't producing frames.
 
+### FundingCAPTCHA — getting a console on the kiosk
+
+The kiosk is a systemd unit with `Restart=always` / `RestartSec=5`. Quitting the game with **Esc** or **Q** only makes `app.py` exit; systemd relaunches it five seconds later, forever. To get the machine back, stop the *unit*, not the process.
+
+**Over ethernet (easiest).** Plug in a cable, `ssh ii@captcha`, then stop the service.
+
+**On the Pi's own keyboard.** `SDL_VIDEODRIVER=kmsdrm` means pygame renders straight to DRM and holds the tty, so VT switching usually does nothing while the game is up. Use the restart gap:
+
+1. Press **Esc** to quit the game.
+2. Immediately press **Ctrl+Alt+F2** — a login prompt appears on tty2 during the ~5 s `RestartSec` window.
+3. Log in as `ii` and run `sudo systemctl stop captcha`.
+
+**If neither works — SD card.** Mount the boot partition on another machine and append `systemd.mask=captcha.service` to the single line in `cmdline.txt`. The Pi then boots to a clean console every time. Remove it when you're done.
+
+Stop vs. disable:
+
+```bash
+sudo systemctl stop captcha            # down now, back up on next boot
+sudo systemctl disable --now captcha   # down now, stays down across reboots
+sudo systemctl enable  --now captcha   # back to show-ready — do this before load-in
+```
+
+Joining wifi from the console (to pull an update without the laptop):
+
+```bash
+sudo nmtui                                             # menu-driven, easiest at a console
+sudo nmcli device wifi list
+sudo nmcli device wifi connect "SSID" password "..."
+ip addr show wlan0                                     # confirm an address
+```
+
+`sudo raspi-config` → System Options → Wireless LAN also works.
+
+Updating the game from that console:
+
+```bash
+sudo systemctl stop captcha
+cd ~/CommunityGarden && git pull && git lfs pull
+sudo systemctl start captcha
+journalctl -u captcha -f
+```
+
+If the install uses private show content, re-run its sync too: [FundingCAPTCHA.md → Private content sets](FundingCAPTCHA.md#private-content-sets).
+
 ### TreeHouse — displays off or wrong screen
 
 Both displays are driven by a single `weston` compositor (ADR-0018). If only one shows up, check:
