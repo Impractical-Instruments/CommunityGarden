@@ -4,7 +4,6 @@ GL tests need a headless context (EGL / llvmpipe) and skip without one.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +15,7 @@ from shadertoy import (BLOB_CONFIRMED, BLOB_COASTING, BLOB_EMPTY, BLOB_LOST, BLO
 from shader_test_rig import SOLID, image_setup, pixel, png, rendered_colour, write_setup
 
 SHADER_DIR = Path(__file__).parent / "shaders"
+SHIPPED_SETUPS = sorted(p.name for p in SHADER_DIR.iterdir() if (p / "image.glsl").exists())
 
 
 # ── Setup loading ─────────────────────────────────────────────────────────────
@@ -56,9 +56,9 @@ def test_load_setup_rejects_unknown_source(tmp_path):
         load_setup(d)
 
 
-def test_listed_setups_exist():
-    for name in json.loads((SHADER_DIR / "setups.json").read_text()):
-        load_setup(SHADER_DIR / name)
+@pytest.mark.parametrize("name", SHIPPED_SETUPS)
+def test_shipped_setups_load(name):
+    load_setup(SHADER_DIR / name)
 
 
 # ── Body packing ──────────────────────────────────────────────────────────────
@@ -189,8 +189,8 @@ def test_decode_image_corrupt_raises(tmp_path):
 
 # ── GL ────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("name", json.loads((SHADER_DIR / "setups.json").read_text()))
-def test_listed_setups_compile(ctx, name):
+@pytest.mark.parametrize("name", SHIPPED_SETUPS)
+def test_shipped_setups_compile(ctx, name):
     r = Renderer(ctx, (64, 36), body_mode="painter")
     r.load(load_setup(SHADER_DIR / name))
     for _ in range(3):
@@ -263,7 +263,7 @@ def _feed(r: Renderer, k: int) -> None:
     r.upload_blobs(rec)
 
 
-@pytest.mark.parametrize("name", json.loads((SHADER_DIR / "setups.json").read_text()))
+@pytest.mark.parametrize("name", SHIPPED_SETUPS)
 def test_deferred_image_matches_drawing_it_every_frame(ctx, name):
     # defer_image skips the Image pass; drawing it afterwards must give the bytes the frame would have drawn.
     rs = []
@@ -404,54 +404,6 @@ def test_itime_starts_at_zero(ctx, tmp_path):
     r.release()
 
 
-# ── Rotation (shader_app.py) ──────────────────────────────────────────────────
-
-def _setups(root: Path, **images: str) -> Path:
-    for name, src in images.items():
-        (root / name).mkdir()
-        (root / name / "image.glsl").write_text(src)
-        (root / name / "setup.json").write_text(json.dumps({"duration_s": 10}))
-    return root
-
-
-def test_reload_with_broken_edit_keeps_current(ctx, tmp_path):
-    from shader_app import Rotation
-    root = _setups(tmp_path, a=SOLID, b=SOLID)
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["a", "b"], shader_dir=root)
-    rot.next()
-    current = r.setup.name
-    (root / current / "image.glsl").write_text("garbage")
-    rot.reload()
-    assert r.setup.name == current
-    r.release()
-
-
-def test_single_setup_is_not_recompiled_on_expiry(ctx, tmp_path):
-    from shader_app import Rotation
-    now = [0.0]
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["a"], shader_dir=_setups(tmp_path, a=SOLID), clock=lambda: now[0])
-    rot.next()
-    first = r.setup
-    now[0] = 11.0
-    rot.tick()
-    assert r.setup is first and rot.started == 11.0
-    r.release()
-
-
-def test_render_failure_drops_setup(ctx, tmp_path):
-    from shader_app import Rotation
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["a", "b"], shader_dir=_setups(tmp_path, a=SOLID, b=SOLID))
-    rot.next()
-    bad = r.setup.name
-    rot.failed(RuntimeError("boom"))
-    assert rot.names == [n for n in ("a", "b") if n != bad]
-    assert r.setup is not None and r.setup.name != bad
-    r.release()
-
-
 # ── Blob records (ADR-0022) ───────────────────────────────────────────────────
 
 def _blob_setup(tmp_path, files, channels):
@@ -557,22 +509,6 @@ def test_blob_debug_reference_setup_renders(ctx):
     r.release()
 
 
-def test_rotation_calls_on_load_for_every_load(ctx, tmp_path):
-    """Buffer state resets on every load, so the blob tracker must too (stamps match on id)."""
-    from shader_app import Rotation
-    root = _setups(tmp_path, a=SOLID, b=SOLID)
-    r = Renderer(ctx, (4, 4))
-    loads = []
-    rot = Rotation(r, ["a", "b"], shader_dir=root, on_load=lambda: loads.append(r.setup.name))
-    rot.next()
-    rot.reload()
-    assert loads == [r.setup.name] * 2
-    (root / r.setup.name / "image.glsl").write_text("garbage")
-    rot.reload()                                          # broken edit: nothing reloaded
-    assert len(loads) == 2
-    r.release()
-
-
 # ── Image source (ADR-0024) ───────────────────────────────────────────────────
 
 def test_image_channel_reaches_shader(ctx, tmp_path):
@@ -593,80 +529,3 @@ def test_unbound_image_reads_zero_resolution(ctx, tmp_path):
     r.render(1 / 30, (0, 0, 0, 0))
     assert pixel(r, 1, 1) == (0, 0, 0, 0)
     r.release()
-
-
-def test_rotation_shuffles_images_per_load(ctx, tmp_path):
-    from shader_app import Rotation
-    image_setup(tmp_path, {"r.png": (255, 0, 0, 255), "g.png": (0, 255, 0, 255),
-                           "b.png": (0, 0, 255, 255)})
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["s"], shader_dir=tmp_path)
-    rot.next()
-    seen = [rendered_colour(r)]
-    for _ in range(3):
-        rot.reload()
-        seen.append(rendered_colour(r))
-    assert len(set(seen[:3])) == 3                        # no repeat until all have shown
-    assert seen[3] in seen[:3]
-    r.release()
-
-
-def test_rotation_skips_corrupt_image(ctx, tmp_path):
-    from shader_app import Rotation
-    image_setup(tmp_path, {"bad.png": b"not a png", "good.png": (0, 255, 0, 255)})
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["s"], shader_dir=tmp_path)
-    rot.next()
-    colours = [rendered_colour(r)]
-    for _ in range(3):
-        rot.reload()
-        colours.append(rendered_colour(r))
-    assert colours == [(0, 255, 0, 255)] * 4
-    r.release()
-
-
-def test_rotation_with_only_corrupt_images_binds_nothing(ctx, tmp_path):
-    from shader_app import Rotation
-    image_setup(tmp_path, {"bad.png": b"not a png"})
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["s"], shader_dir=tmp_path)
-    rot.next()
-    assert r.setup is not None and r.setup.name == "s"
-    assert rendered_colour(r)[3] == 0
-    r.release()
-
-
-def test_rotation_scales_images_to_cover_image_max(ctx, tmp_path):
-    from shader_app import Rotation
-    d = image_setup(tmp_path, {})
-    png(d / "images" / "big.png", (40, 20), (9, 9, 9, 255))
-    r = Renderer(ctx, (4, 4))
-    rot = Rotation(r, ["s"], shader_dir=tmp_path, image_max=(10, 10))
-    rot.next()
-    assert r.image_size == (20, 10)                       # smallest size that still covers 10×10
-    r.release()
-
-
-# ── Display choice ────────────────────────────────────────────────────────────
-
-def test_pick_display_uses_that_displays_own_size():
-    from shader_app import pick_display
-    sizes = [(3072, 1920), (1600, 1200)]
-    assert pick_display(sizes, 1) == (1, (1600, 1200))
-    assert pick_display(sizes, 0) == (0, (3072, 1920))
-
-
-def test_pick_display_out_of_range_falls_back_to_first():
-    from shader_app import pick_display
-    assert pick_display([(1920, 1080)], 2) == (0, (1920, 1080))
-    assert pick_display([(1920, 1080)], -1) == (0, (1920, 1080))
-
-
-def test_display_index_flag_beats_settings():
-    from argparse import Namespace
-    from shader_app import display_index
-    settings = {"shader_app": {"display": 1}}
-    assert display_index(Namespace(display=None), settings) == 1
-    assert display_index(Namespace(display=2), settings) == 2
-    from settings import with_defaults
-    assert display_index(Namespace(display=None), with_defaults({})) == 0

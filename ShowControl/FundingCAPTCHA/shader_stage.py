@@ -1,18 +1,12 @@
-"""Shader player — Shadertoy Setups driven by the depth camera (ADR-0021).
+"""Shader stage — the shared kit for playing Shadertoy Setups on the kiosk screen (ADR-0021).
 
-Cycles through the Setups listed in shaders/setups.json, each for its
-duration_s, feeding the Orbbec silhouette in as Buffer A (the Body).
-Uses the same camera feed (camera_feed.py, with the self-learning background
-of ADR-0023) and settings (settings.py) as app.py, with an OpenGL loop where
-app.py has its game loop. Bodies show from launch:
-there is no standback or calibration wait.
-
-  python3 shader_app.py --camera                 # show
-  python3 shader_app.py --mock-camera            # drifting fake bodies
-  python3 shader_app.py --test-input --windowed  # mouse paints the Body, as in Shadertoy
-  python3 shader_app.py --test-input --setup ripples   # pin one Setup
-
-Keys: N / → next Setup · R reload current Setup from disk · Esc quit.
+A library, not an entry point (playlist_app.py is the program). ShaderStage
+takes the Orbbec silhouette in as Buffer A (the Body), renders the current
+Setup and upscales it to the window; SetupImages feeds the "image" source
+(ADR-0024); open_display, pick_display, display_index and add_mode_args are
+the display and camera-mode helpers. Uses the camera feed (camera_feed.py,
+with the self-learning background of ADR-0023) and settings (settings.py) as
+app.py does, with an OpenGL loop where app.py has its game loop.
 
 While the current Setup reads the "blobs" source (ADR-0022), blobs are tracked
 in the Body at camera rate — in --test-input, in the painted Body read back
@@ -21,11 +15,9 @@ from the GPU — and their records uploaded every render frame.
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import time
-from pathlib import Path
 
 os.environ.setdefault("MESA_GL_VERSION_OVERRIDE", "3.3")
 os.environ.setdefault("MESA_GLSL_VERSION_OVERRIDE", "330")
@@ -37,11 +29,10 @@ import pygame
 from arc import ShuffleBag
 from body_blobs import BlobConfig, BodyBlobs
 from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, decode_image, js_keycode,
-                       load_setup, pack_body)
-from camera_feed import CameraFeed, source_from_args
-from settings import DIR, load_settings, with_defaults
+                       pack_body)
+from settings import DIR, with_defaults
 
-log = logging.getLogger("shader_app")
+log = logging.getLogger("shader_stage")
 
 SHADER_DIR = DIR / "shaders"
 PAINTER_TRACK_S = 0.1      # --test-input: read the painted Body back at camera rate
@@ -82,7 +73,7 @@ class _TestMouse:
 class SetupImages:
     """The "image" source's pictures (ADR-0024): a shuffle bag per Setup, one image per load.
 
-    Shared by Rotation and playlist_app.Playlist. Images keep enough pixels to
+    Used by playlist_app.Playlist. Images keep enough pixels to
     cover `cover` (the window), with no side beyond `max_side` (the GPU's limit).
     """
 
@@ -113,71 +104,6 @@ class SetupImages:
         return None
 
 
-class Rotation:
-    """Which Setup plays: shuffle-bag order, each for its duration_s.
-
-    A Setup that won't load is skipped; one that fails at render time is
-    dropped from the rotation for the rest of the run.
-    """
-
-    def __init__(self, renderer: Renderer, names: list[str],
-                 shader_dir: Path = SHADER_DIR, clock=time.monotonic, on_load=None,
-                 image_max: tuple[int, int] = (4096, 4096), image_max_side: int = 16384) -> None:
-        self.renderer = renderer
-        self._images  = SetupImages(image_max, image_max_side)
-        self._on_load = on_load                       # called after every successful load
-        self.names    = list(names)
-        self._bag     = ShuffleBag(self.names)
-        self._dir     = shader_dir
-        self._clock   = clock
-        self.started  = clock()
-
-    def next(self) -> None:
-        if len(self.names) == 1 and self.renderer.setup is not None:
-            self.started = self._clock()              # nothing else to play; keep its state
-            return
-        for _ in range(max(1, len(self.names))):
-            n = self._bag.next()
-            if n is None:
-                break
-            if self._load(n):
-                return
-        log.error("No Setup compiled — keeping the current one")
-        self.started = self._clock()
-
-    def reload(self) -> None:
-        """Re-read the current Setup from disk; a broken edit keeps the old one."""
-        if self.renderer.setup is not None:
-            self._load(self.renderer.setup.name)
-
-    def tick(self) -> None:
-        s = self.renderer.setup
-        if s is not None and self._clock() - self.started >= s.duration_s:
-            self.next()
-
-    def failed(self, exc: Exception) -> None:
-        name = self.renderer.setup.name if self.renderer.setup else "?"
-        log.error("Setup %s failed while rendering, dropped: %s", name, exc)
-        self.renderer.unload()
-        if name in self.names:
-            self.names.remove(name)
-            self._bag = ShuffleBag(self.names)
-        self.next()
-
-    def _load(self, name: str) -> bool:
-        try:
-            setup = load_setup(self._dir / name)
-            image = self._images.next(setup) if setup.uses_image else None
-            self.renderer.load(setup, image=image)
-        except Exception as exc:                      # team-authored content: never fatal
-            log.error("Setup %s skipped: %s", name, exc)
-            return False
-        self.started = self._clock()
-        if self._on_load is not None:
-            self._on_load()
-        return True
-
-
 def pick_display(sizes: list[tuple[int, int]], index: int) -> tuple[int, tuple[int, int]]:
     """(display index, its desktop size). An index with no display falls back to the first."""
     if not 0 <= index < len(sizes):
@@ -186,15 +112,7 @@ def pick_display(sizes: list[tuple[int, int]], index: int) -> tuple[int, tuple[i
     return index, tuple(sizes[index])
 
 
-def _setup_names() -> list[str]:
-    try:
-        return json.loads((SHADER_DIR / "setups.json").read_text())
-    except Exception as exc:
-        log.error("shaders/setups.json unreadable: %s", exc)
-        return []
-
-
-# ── Pieces shared with playlist_app.py ────────────────────────────────────────
+# ── Display and camera-mode helpers ───────────────────────────────────────────
 
 def add_mode_args(ap: argparse.ArgumentParser) -> None:
     mode = ap.add_mutually_exclusive_group()
@@ -313,69 +231,3 @@ class ShaderStage:
         self._blit_vao.release()
         self._blit.release()
         self.renderer.release()
-
-
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Shadertoy Setups driven by the depth camera")
-    add_mode_args(ap)
-    ap.add_argument("--setup", metavar="NAME", help="Pin one Setup (no cycling)")
-    args = ap.parse_args()
-
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-
-    settings = load_settings()
-    fps      = int(settings["shader_app"]["fps"])
-    feed     = CameraFeed(settings, source_from_args(args))
-
-    ctx, win = open_display(args.windowed, "Shader player", args.test_input,
-                            display_index(args, settings))
-    stage    = ShaderStage(ctx, win, settings, args.test_input)
-    rotation = Rotation(stage.renderer, [args.setup] if args.setup else _setup_names(),
-                        on_load=stage.blobs.reset,
-                        image_max=win, image_max_side=stage.max_texture_side)
-    rotation.next()
-    feed.start()
-
-    # ── Loop ──────────────────────────────────────────────────────────────────
-    clock     = pygame.time.Clock()
-    fps_t, fps_n = time.monotonic(), 0
-    running   = True
-    while running:
-        # Clamp spikes (Setup compile, stalls) without slowing a Setup that is
-        # merely slow: anything under 4 fps is a stall, not a frame.
-        dt = min(clock.tick(fps) / 1000.0, 0.25)
-
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                running = False
-            elif ev.type == pygame.KEYDOWN:
-                if ev.key == pygame.K_ESCAPE:
-                    running = False
-                elif ev.key in (pygame.K_n, pygame.K_RIGHT):
-                    rotation.next()
-                elif ev.key == pygame.K_r:
-                    rotation.reload()
-                stage.handle_key(ev)
-            elif ev.type == pygame.KEYUP:
-                stage.handle_key(ev)
-
-        rotation.tick()
-        failure = stage.frame(dt, feed.drain())
-        if failure is not None:
-            rotation.failed(failure)
-        pygame.display.flip()
-
-        fps_n += 1
-        if time.monotonic() - fps_t >= 10.0:
-            log.info("%.1f fps · %s", fps_n / (time.monotonic() - fps_t),
-                     stage.renderer.setup.name if stage.renderer.setup else "-")
-            fps_t, fps_n = time.monotonic(), 0
-
-    feed.stop()
-    stage.release()
-    pygame.quit()
-
-
-if __name__ == "__main__":
-    main()
