@@ -18,7 +18,7 @@ apt-get install -y git-lfs 2>/dev/null || true
 git -C "$REPO_ROOT" lfs install
 git -C "$REPO_ROOT" lfs pull
 
-# ── OpenGL for shader_app.py (ADR-0021) ───────────────────────────────────────
+# ── OpenGL for playlist_app.py (ADR-0021) ───────────────────────────────────────
 # moderngl dlopen()s the unversioned libEGL.so / libGL.so; Pi OS ships only .so.1.
 echo "→ Installing Mesa GL/EGL..."
 apt-get install -y libgl1-mesa-dri libegl1 libegl-mesa0 libgl1

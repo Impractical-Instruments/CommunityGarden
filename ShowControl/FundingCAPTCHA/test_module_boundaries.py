@@ -8,7 +8,7 @@ import pytest
 HERE = Path(__file__).resolve().parent
 
 
-@pytest.mark.parametrize("module", ["shader_app", "playlist_app"])
+@pytest.mark.parametrize("module", ["shader_stage", "playlist_app", "video_player"])
 def test_player_does_not_import_the_kiosk(module):
     probe = f"import sys, {module}; sys.exit('app' in sys.modules)"
     result = subprocess.run([sys.executable, "-c", probe], cwd=HERE,

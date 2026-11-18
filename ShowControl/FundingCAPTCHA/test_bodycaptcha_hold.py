@@ -8,20 +8,15 @@ the hold rather than all of it.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")  # headless: no real display
-
 import numpy as np
-import pygame
 import pytest
 
-# Games size themselves against the live display surface at construction time.
-pygame.init()
-pygame.display.set_mode((640, 480))
+from games.bodycaptcha import BodyCaptchaGame, _State
+from levels import Levels
 
-from games.bodycaptcha import BodyCaptchaGame, _State, set_levels_path
+SIZE = (640, 480)
 
 ROI = {"x": 0, "y": 0, "w": 640, "h": 400}
 GRID_COLS, GRID_ROWS = 2, 2
@@ -45,7 +40,7 @@ SETTINGS = {
 
 
 @pytest.fixture
-def game(tmp_path: Path):
+def game(tmp_path: Path) -> BodyCaptchaGame:
     """A BodyCaptchaGame on a deterministic single Level: 2x2 grid, one valid cell."""
     levels = tmp_path / "levels.json"
     levels.write_text(json.dumps([{
@@ -54,11 +49,7 @@ def game(tmp_path: Path):
         "valid_cells": [list(VALID_CELL)],
         "difficulty": 1,
     }]))
-    set_levels_path(levels)
-    try:
-        yield BodyCaptchaGame(SETTINGS)
-    finally:
-        set_levels_path(None)
+    return BodyCaptchaGame(SETTINGS, SIZE, Levels(levels))
 
 
 def foreground(*cells: tuple[int, int]) -> np.ndarray:
@@ -128,15 +119,11 @@ def test_decay_rate_is_configurable_per_level(tmp_path: Path) -> None:
         "difficulty": 1,
         "hold_decay_rate": 0.5,
     }]))
-    set_levels_path(levels)
-    try:
-        settings = dict(SETTINGS)
-        settings["bodycaptcha"] = dict(SETTINGS["bodycaptcha"], hold_decay_rate=9.0)
-        g = BodyCaptchaGame(settings)
+    settings = dict(SETTINGS)
+    settings["bodycaptcha"] = dict(SETTINGS["bodycaptcha"], hold_decay_rate=9.0)
+    g = BodyCaptchaGame(settings, SIZE, Levels(levels))
 
-        assert g._hold_decay_rate == 0.5, "per-level value must beat the default"
-    finally:
-        set_levels_path(None)
+    assert g._hold_decay_rate == 0.5, "per-level value must beat the default"
 
 
 def test_decay_rate_falls_back_to_settings_default(tmp_path: Path) -> None:
@@ -148,10 +135,6 @@ def test_decay_rate_falls_back_to_settings_default(tmp_path: Path) -> None:
         "valid_cells": [list(VALID_CELL)],
         "difficulty": 1,
     }]))
-    set_levels_path(levels)
-    try:
-        settings = dict(SETTINGS)
-        settings["bodycaptcha"] = dict(SETTINGS["bodycaptcha"], hold_decay_rate=7.0)   # not the code's 3.0
-        assert BodyCaptchaGame(settings)._hold_decay_rate == 7.0
-    finally:
-        set_levels_path(None)
+    settings = dict(SETTINGS)
+    settings["bodycaptcha"] = dict(SETTINGS["bodycaptcha"], hold_decay_rate=7.0)   # not the code's 3.0
+    assert BodyCaptchaGame(settings, SIZE, Levels(levels))._hold_decay_rate == 7.0
