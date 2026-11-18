@@ -91,7 +91,7 @@ Sources: `"A"` (Body), `"B"`, `"C"`, `"D"`, `"keyboard"`, `"blobs"` (blob record
 
 Add the folder name to [`setups.json`](setups.json) to put it in the rotation. `make test` compiles every listed Setup.
 
-For behaviour tests, add a `test_<your-setup>.py` beside the others in `ShowControl/FundingCAPTCHA/`, modelled on `test_watering_can.py`.
+For behaviour tests, add `test_<your-setup>.py` inside your Setup's folder, so deleting the Setup deletes its tests. Build on [`shader_test_rig.py`](../shader_test_rig.py) in `ShowControl/FundingCAPTCHA/`: its `Rig` drives a Renderer with the real blob tracker on a fake clock, and it has the mask builders (`rect`, `standing`, `walking`, `flailing`, `flickering`) and `glsl_consts()` to read your `common.glsl` constants, so tests follow retuning. Subclass `Rig` for your own buffer layout, as `watering_can/test_watering_can.py` does. Read the Renderer only through `read_buffer(name)`, `snapshot()` / `restore()` and `draw_deferred_image()`, never its `_`-prefixed state.
 
 ## Run it locally
 
