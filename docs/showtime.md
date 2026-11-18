@@ -24,7 +24,7 @@ TreeHouse location controllers (ESP32-S3, WiFi `TCG-Show-5`): Swannatopia .60, J
 
 ## Services
 
-Linux hosts run systemd units with `Restart=always RestartSec=5`. Pipes (Windows) runs under NSSM.
+Every host runs systemd units with `Restart=always RestartSec=5`.
 
 | Service | Host | Entry | Hardware |
 |---|---|---|---|
@@ -32,7 +32,8 @@ Linux hosts run systemd units with `Restart=always RestartSec=5`. Pipes (Windows
 | `treehouse` | treehouse | `ShowControl/TreeHouse/main.py` | location controllers (WiFi), branch motor, 2× HDMI |
 | `captcha` | captcha | `ShowControl/FundingCAPTCHA/app.py` | Orbbec cam, projector |
 | `cg-dashboard` | treehouse | `ShowControl/Dashboard/serve.py` | none |
-| `pipes-health` | pipes (NSSM) | `ShowControl/PlayingThePipes/health_server.py` | (Max runs separately) |
+| `pipes-reuben` | pipes | `reuben play ShowControl/PlayingThePipes/reuben/pipes.json` | audio interface (speakers + mic) |
+| `pipes-bridge` | pipes | `ShowControl/PlayingThePipes/encoder_bridge.py` | 2× encoder Pico (USB) |
 
 Power-on order is independent — services retry until hardware comes up.
 
@@ -68,7 +69,7 @@ Services restart automatically on crash. No babysitting needed.
 
 ---
 
-## Service management (Linux)
+## Service management
 
 ```bash
 # Status
@@ -76,6 +77,7 @@ sudo systemctl status flowerbeds
 sudo systemctl status treehouse
 sudo systemctl status captcha
 sudo systemctl status cg-dashboard
+sudo systemctl status pipes-reuben pipes-bridge
 
 # Restart
 sudo systemctl restart flowerbeds
@@ -88,14 +90,6 @@ sudo systemctl start flowerbeds
 sudo systemctl disable flowerbeds
 ```
 
-### Pipes (Windows / NSSM)
-
-```powershell
-nssm status pipes-health
-nssm restart pipes-health
-nssm stop pipes-health
-```
-
 ---
 
 ## Logs
@@ -105,17 +99,13 @@ nssm stop pipes-health
 journalctl -u flowerbeds -f
 journalctl -u treehouse -f
 journalctl -u captcha -f
+journalctl -u pipes-reuben -u pipes-bridge -f
 
 # Since boot
 journalctl -u flowerbeds -b
 
 # Combined
 journalctl -u flowerbeds -u treehouse -u captcha -u cg-dashboard -f
-```
-
-Pipes:
-```powershell
-Get-Content C:\logs\pipes-health.log -Tail 50
 ```
 
 ---
@@ -133,21 +123,12 @@ scripts/deploy.sh flowerbeds FlowerBeds
 scripts/deploy.sh treehouse  TreeHouse
 scripts/deploy.sh treehouse  Dashboard       # same host, different element
 scripts/deploy.sh captcha    FundingCAPTCHA
+scripts/deploy.sh pipes      PlayingThePipes
 ```
 
 Behavior — `git push --force-with-lease` (matching branch), ssh checkout, `sudo bash install.sh`. If the show machine has a dirty working tree the checkout refuses; ssh in and `git stash` / `git checkout -- .` first.
 
-### Pipes (Windows) — manual
-
-`deploy.sh` doesn't handle Pipes. Python changes are rare:
-
-```bash
-# From laptop:
-git push --force-with-lease pipes:CommunityGarden $(git branch --show-current):$(git branch --show-current)
-ssh pipes "cd C:/CommunityGarden && git checkout <branch> && nssm restart pipes-health"
-```
-
-Max patch: reload manually.
+**Playing the Pipes** also gets the reuben commit the branch pins, pushed into the box's `vendor/reuben`, and its installer rebuilds reuben before restarting. Three kinds of change need internet on the box once and cannot arrive by LAN deploy: a new Rust crate, a Rust toolchain change, and new or changed samples. The installer stops before restarting anything if one is missing. See [PlayingThePipes.md → Deploying code updates](PlayingThePipes.md#deploying-code-updates).
 
 ### From the show machine pulling GitHub (home / dev with internet)
 
@@ -195,9 +176,7 @@ journalctl -u <service> -f
 sudo systemctl restart <service>
 ```
 
-Service names: `flowerbeds` · `treehouse` · `captcha` · `cg-dashboard`
-
-Pipes (Windows): `nssm status pipes-health` / `nssm restart pipes-health`.
+Service names: `flowerbeds` · `treehouse` · `captcha` · `cg-dashboard` · `pipes-reuben` · `pipes-bridge`
 
 ### FlowerBeds — flowers not moving
 
@@ -279,9 +258,9 @@ sudo pkill -f club_screen.py
 # coordinator relaunches both with exponential backoff
 ```
 
-### Pipes — Max patch silent
+### Pipes — no sound, or encoders dead
 
-Open Max manually, check the `serial` objects connect to the expected COM ports (set in Device Manager — [bootstrap.md → COM port pinning](bootstrap.md#4-com-port-pinning)). Health endpoint can be up without Max running.
+`http://192.168.1.13:8767/health` says which half is down: `reuben_alive` is the audio engine (`pipes-reuben`), `picos_connected` is the encoders (`pipes-bridge`). Then [PlayingThePipes.md → Troubleshooting](PlayingThePipes.md#troubleshooting).
 
 ---
 

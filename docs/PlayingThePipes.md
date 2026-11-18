@@ -1,96 +1,135 @@
 # Playing the Pipes
 
-The Element growing out of the base of the TreeHouse. Pipes and conduit with valves and switches; Visitors operate the controls to **steer** a Max music engine via **Tiller Control** (not direct note triggering).
+The Element growing out of the base of the TreeHouse. Pipes and conduit with valves and switches; Visitors operate the controls to **steer** a music engine via **Tiller Control** (not direct note triggering).
 
-**Host:** `pipes` · 192.168.1.13 (**Windows**) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-health` (NSSM), Max patch (manual or scheduled)
+**Host:** `pipes` · 192.168.1.13 (Ubuntu Desktop) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
+
+> **Not yet run on the box.** The install and deploy path below is built and tested on a dev machine (#239). How reuben reaches the audio interface at boot is still to be confirmed on the box (#235). If #235 changes it, this page and `deploy/pipes-reuben.service` change with it.
 
 ---
 
 ## Architecture summary
 
-Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on physical valves and switches. They enumerate as Windows COM ports and stream encoder deltas as text frames. The Max patch (`Lamplight2026.maxpat`) reads those ports through `serial` objects, maps the deltas to granulator + loop-player parameters, and renders audio.
+Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on the valves and switches and send encoder deltas as text lines over USB serial. Two services on the `pipes` host turn those into sound (ADR-0026):
 
-A separate Python health server (`health_server.py`) runs under NSSM and serves `GET /health` on port 8767 so the Dashboard can confirm the host is up. The Pipes element does not (yet) join the OSC Fabric — `/pipes/activity` is planned but not wired.
+| Service | What it runs | What it does |
+|---|---|---|
+| `pipes-bridge` | `encoder_bridge.py` | Finds the Picos by USB vendor ID on any port, turns their detents into knob and loop values (`pipes_control.py`, tuned by `settings.json`), and sends them to reuben as OSC every 10 ms. Serves `/health` |
+| `pipes-reuben` | `reuben play reuben/pipes.json --io-map reuben/pipes.profile.json` | The audio engine: plays the instrument on the audio interface the device profile names |
+
+[reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder) into a stereo reverb, 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master.
+
+The bridge and reuben talk over OSC on the box itself. Those addresses are not part of the OSC Fabric; they are listed in [osc-fabric.md](osc-fabric.md#playing-the-pipes-the-encoder-bridge-to-reuben). The Element does not yet send `/pipes/activity` to the TreeHouse (see [Open items](#open-items)).
 
 Key references:
-- ADR-0014 — Playing the Pipes encoder Picos
-- `health_server.py` (FastAPI + uvicorn, ~50 lines)
-- `Firmware/PlayingThePipes_EncoderPico/` — Pico-side firmware
+- ADR-0026: Playing the Pipes runs on reuben, on Linux
+- ADR-0014: the encoder Picos and their serial protocol
+- `ShowControl/PlayingThePipes/README.md`: every file, the bridge-to-instrument contract, and where the instrument differs from the old Max patch
+- `Firmware/PlayingThePipes_EncoderPico/`: Pico firmware
 
 ---
 
-## Health server (`health_server.py`)
+## Mic path
 
-```powershell
-python health_server.py           # port 8767
-python health_server.py 8768      # custom
+The instrument opens a stereo input (logical input channels 0 and 1) and echoes it back into the mix:
+
+```
+mic in (L, R) → gain → pre-delay (0.5 s left, 0.75 s right) → feedback echo → master
 ```
 
-Just `GET /health → {"ok": true}`. Run under NSSM (see [bootstrap.md → Install NSSM](bootstrap.md#5-install-nssm--register-health-server-service)).
+- **The pre-delay is what keeps the speakers out of the mic.** By the time the mic's sound leaves the speakers, the original has ended, so it cannot build into feedback howl. Do not shorten it without testing on the real speakers.
+- **Which physical inputs are the mic** is set by the device profile's `input` block, not by the instrument.
+- **reuben exits at startup if there is no input device.** `pipes-reuben` then restarts every 5 s until one appears. Silence plus a restart loop in `journalctl -u pipes-reuben` usually means the audio interface is unplugged or the profile names a device that isn't there.
 
-Service management:
+Everything (grains and reverb, loops, mic echo) is summed into the master: a limiter (about 20:1, fast attack), the master volume (`/volume/in`, default 0.25), then a hard clamp at ±1.
 
-```powershell
-nssm status pipes-health
-nssm restart pipes-health
-Get-Content C:\logs\pipes-health.log -Tail 50
+---
+
+## Device profile
+
+`ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is specific to the box's audio interface and is committed next to the instrument. Format: `vendor/reuben/docs/device-profile.md`.
+
+`pipes-reuben` cannot start without it. `make validate-instruments` skips files named `*.profile.json`.
+
+---
+
+## Health (`/health`)
+
+`GET http://192.168.1.13:8767/health`, served by `pipes-bridge`. The Dashboard's Playing the Pipes page reads it.
+
+| Field | Meaning |
+|---|---|
+| `ok` | Both Pico boards are connected **and** reuben is alive |
+| `picos_connected` | How many Pico serial ports are open |
+| `boards` | Which board IDs have been heard from (`[0, 1]` when both are up) |
+| `last_event_age_s` | Seconds since a Pico last sent a turn; `null` if none yet |
+| `reuben_alive` | reuben's structure channel accepts a connection |
+| `last_virtual_age_s`, `last_source` | Turns from the Dashboard's virtual encoder surface, kept apart so they never make the Picos look connected |
+| `fake_encoders` | The bridge was started with `--fake-encoders` (never on the box) |
+
+It also carries the loop mix state. `GET /state` returns what the virtual encoder surface draws.
+
+---
+
+## Running it on a laptop
+
+```bash
+make pipes            # reuben + the bridge with fake encoders, on the default audio devices (mic included)
+make pipes-surface    # reuben + the bridge + the Dashboard; turn the knobs yourself from the page it prints
 ```
 
----
+`REUBEN_PLAY_ARGS="--io-map <profile>"` picks other devices. Both need Rust to build reuben (`make reuben`).
 
-## Virtual encoder surface (reuben version)
+### Virtual encoder surface
 
-The Dashboard's Playing the Pipes page can turn the knobs without the Picos: it posts encoder lines to the encoder bridge (`encoder_bridge.py`), which treats them like Pico turns, mixed with any real ones. Arm it on the page first; it disarms when the tab is hidden or loses focus, and after 5 min idle. `/health` shows virtual turns apart (`last_virtual_age_s`, `last_source`), so they never make the Picos look connected. On a laptop, `make pipes-surface` runs reuben, the bridge and the Dashboard and prints the page's URL. Details: `ShowControl/PlayingThePipes/README.md`.
-
----
-
-## Max patch
-
-`ShowControl\PlayingThePipes\Lamplight2026\patchers\Lamplight2026.maxpat`, part of the Max 9 project `Lamplight2026\Lamplight2026.maxproj`.
-
-Audio engine. Open manually after boot, or configure Max to auto-launch on login.
-
-It needs two things beyond stock Max:
-
-- **The Grainflow package** (`grainflow~`, `grainflow.util.stereopan~`) — install it from Max's Package Manager.
-- **Max 9's ABL device objects** (`abl.device.reverb~`, `abl.device.spectraltime~`).
-
-If either is missing, Max prints "no such object" in its console when the patch opens and that part of the engine is silent.
-
-`EncoderTester.maxpat` is a side patch for verifying encoder Pico connectivity without the full audio engine. `fake_encoder` objects in the show patch stand in for the encoders when no Pico is attached.
-
-The patch is not running as a service. If audio stops, check Max is open (or auto-launched) — health endpoint can be green while Max is closed.
+The Dashboard's Playing the Pipes page can turn the knobs without the Picos: it posts encoder lines to the bridge, which treats them like Pico turns, mixed with any real ones. Arm it on the page first; it disarms when the tab is hidden or loses focus, and after 5 min idle. It works against the box as well as a laptop.
 
 ---
 
-## COM port assignment
+## Service management
 
-Two Picos, plugged via USB. COM numbers are unstable by default — pin them in Device Manager during [bootstrap](bootstrap.md#4-com-port-pinning).
-
-Max does not name COM ports directly. It gives each serial port a letter, and the patch's `encoderin` object takes the two letters as its arguments: `encoderin c d` in `Lamplight2026.maxpat` opens ports `c` and `d`. To see which letter is which COM port, send the message `print` to a `serial` object; the list appears in the Max console. If the letters differ on this machine, change the two arguments of `encoderin` and save the patch.
-
-Which Pico is on which port does not matter: every line a Pico sends carries its own board ID.
-
-List active COM ports:
-
-```powershell
-[System.IO.Ports.SerialPort]::GetPortNames()
-# or Device Manager → Ports (COM & LPT)
+```bash
+sudo systemctl status pipes-reuben pipes-bridge
+sudo systemctl restart pipes-reuben      # reloads the instrument and the device profile; takes a few seconds to load the samples
+sudo systemctl restart pipes-bridge      # reloads settings.json
+journalctl -u pipes-reuben -u pipes-bridge -f
 ```
+
+Both units are `Restart=always`, `RestartSec=5`.
+
+How `pipes-reuben` reaches the audio interface: on Ubuntu Desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
 
 ---
 
 ## Deploying code updates
 
-`deploy.sh` doesn't handle Pipes. Python changes are rare:
+From the operator laptop on the show LAN:
 
 ```bash
-# From laptop:
-git push --force-with-lease pipes:CommunityGarden $(git branch --show-current):$(git branch --show-current)
-ssh pipes "cd C:/CommunityGarden && git checkout <branch> && nssm restart pipes-health"
+scripts/deploy.sh pipes PlayingThePipes
 ```
 
-Max patch reload — manual; the patch is owned by Max, not by Python.
+This pushes the current branch, pushes the reuben commit that branch pins into the box's `vendor/reuben` (the box never fetches reuben from GitHub), and runs `ShowControl/PlayingThePipes/deploy/install.sh`. The installer rebuilds reuben and restarts both services. If the build fails, nothing is restarted and the box keeps playing the old binary.
+
+A deploy needs no internet on the box, except when it brings:
+
+| Change | What the box needs, once, with internet |
+|---|---|
+| A reuben bump that adds a Rust crate | `cd ~/CommunityGarden/vendor/reuben && cargo fetch` |
+| A reuben bump that changes `rust-toolchain.toml` | Any `cargo` command in `vendor/reuben`; rustup downloads the new toolchain |
+| A new or changed sample in `Lamplight2026/media/` | `cd ~/CommunityGarden && git lfs pull` (samples are Git LFS files; a deploy push does not carry them) |
+
+In each case the installer stops with an error before restarting anything. Do these at home before a show, not at the venue.
+
+Tuning changes (`settings.json`, `reuben/pipes.json`) deploy the same way and need no internet.
+
+---
+
+## The Max patch
+
+`ShowControl/PlayingThePipes/Lamplight2026/` is the Max 9 project the reuben instrument was ported from. Max does not run on the box, so it is **not a fallback**: it is the reference for the by-ear A/B, run on a laptop, until the reuben version is signed off (#177). After that it is deleted and the samples in `Lamplight2026/media/` move next to the instrument. Until then the instrument reads its samples from there.
+
+To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's ABL device objects. The patch's `fake_encoder` objects stand in for the Picos.
 
 ---
 
@@ -98,15 +137,18 @@ Max patch reload — manual; the patch is owned by Max, not by Python.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Dashboard shows Pipes offline | `pipes-health` not running | `nssm status pipes-health` / `nssm restart pipes-health` |
-| Encoders feel dead in Max | Wrong port letters on `encoderin`, or Pico unplugged | List COMs; reseat USB; check the letters (see [COM port assignment](#com-port-assignment)); verify in `EncoderTester.maxpat` |
-| No audio | Max not running, or a missing external | Open `Lamplight2026.maxpat`; audio output device selected; look for "no such object" in the Max console |
-| One Pico works, one doesn't | COM port number changed | Check Device Manager; re-pin COMs; update the `encoderin` arguments |
-| Patch silent after deploy | Patch needs manual reload | Reopen patch in Max |
+| Dashboard shows Pipes offline | `pipes-bridge` not running, or the box is off the network | `sudo systemctl status pipes-bridge`; `journalctl -u pipes-bridge -b` |
+| `/health` has `reuben_alive: false`, no audio | `pipes-reuben` is in a restart loop | `journalctl -u pipes-reuben -b`. No input or output device: check the audio interface is plugged in and matches `pipes.profile.json`. Missing profile: commit it. Missing binary: run the installer |
+| `/health` has `picos_connected` below 2 | A Pico is unplugged | Reseat its USB cable; the bridge reconnects by itself. `ls /dev/ttyACM*` should list two |
+| A Pico is plugged in but never connects | Something else holds the port, usually ModemManager | `sudo apt remove modemmanager`, replug |
+| Audio is fine, encoders do nothing | Bridge is not reaching reuben, or the knobs are asleep | Check `/health`; turn a knob and watch `last_event_age_s` reset; try the virtual encoder surface |
+| Audio stops when someone logs in at the desktop | The login session took the audio interface | Record it on #235; restart `pipes-reuben` |
+| Deploy stops at "still Git LFS pointers" | New samples did not arrive | `git lfs pull` on the box with internet (see [Deploying](#deploying-code-updates)) |
+| Deploy stops in `cargo build` | A new crate or toolchain is not on the box | See [Deploying](#deploying-code-updates) |
 
 ---
 
 ## Open items
 
-- `/pipes/activity` is not implemented — TreeHouse `GardenState.pipes_activity` is currently always 0. Hooking this up requires a Max → OSC bridge that summarises encoder activity each second and emits over the Fabric.
-- Max patch auto-launch on login is not yet configured by default.
+- `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
+- The launch method for `pipes-reuben` is unconfirmed on the box (#235).

@@ -9,7 +9,7 @@ CommunityGarden/
 │   ├── FlowerBeds/                         Depth camera to servo flowers                   → docs/FlowerBeds.md
 │   ├── TreeHouse/                          The Hub: Garden State, Looking Glass, Branches  → docs/TreeHouse.md
 │   ├── FundingCAPTCHA/                     The kiosk game                                  → docs/FundingCAPTCHA.md
-│   ├── PlayingThePipes/                    Music engine (Max, moving to reuben) and bridge → its README.md
+│   ├── PlayingThePipes/                    Music engine (reuben instrument) and its bridge → its README.md
 │   ├── Dashboard/                          Browser monitoring pages                        → docs/Dashboard.md
 │   ├── OSCFabric/                          Shared package: Element signals to the TreeHouse → its README.md
 │   ├── ShowWeb/                            Shared package: LiveServer behind the visualizers

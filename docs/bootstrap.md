@@ -13,7 +13,7 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 | `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays, 5× location controllers (WiFi, below) |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
-| `pipes` | 192.168.1.13 | Windows 11 | Playing the Pipes | 2× Pi Pico (USB COM), Max audio I/O |
+| `pipes` | 192.168.1.13 | Ubuntu Desktop (mini PC) | Playing the Pipes | 2× Pi Pico (USB serial), audio interface (speakers + mic) |
 
 OpenRB-150 servo controllers (FlowerBeds firmware) sit on the show LAN at 192.168.1.50 / .51 — separate from the show computers.
 
@@ -33,7 +33,7 @@ Every address here comes from `ShowControl/network.json`; if the two disagree, t
 
 ## Common Linux Pi setup
 
-Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). Service user is `ii` by default.
+Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). The `pipes` mini PC has its own section: [Playing the Pipes host provisioning](#playing-the-pipes-host-provisioning). Service user is `ii` by default.
 
 ### 1. Image + first boot
 
@@ -179,62 +179,59 @@ Plug projector via HDMI before first start; pygame picks up the active output au
 
 ---
 
-## Playing the Pipes (Windows) provisioning
+## Playing the Pipes host provisioning
 
-Pipes runs on the Windows mini PC at 192.168.1.13. systemd commands do not apply.
+`pipes` is a mini PC running **Ubuntu Desktop**, not a Pi. It builds the reuben audio engine from source, so it needs Rust as well as Python.
 
-### 1. Repo clone
+> These steps have not yet been run on the box. #235 is the first run; it records what had to change.
 
-```powershell
-cd C:\
+### 1. OS + first boot
+
+1. Install Ubuntu Desktop (current LTS). Create the user `ii`.
+2. Set the static IP from the [hardware inventory](#hardware-inventory) on the wired interface (Settings → Network, or `nmcli`).
+3. `sudo apt update && sudo apt upgrade`, then `sudo apt install openssh-server git git-lfs curl`.
+4. Make it behave like a show machine:
+   - Settings → Power: turn off automatic suspend and screen blank.
+   - Software & Updates → Updates: set automatic updates to never, so nothing restarts or changes mid-show.
+   - `sudo apt remove modemmanager`: it grabs the encoder Picos' serial ports.
+
+### 2. Clone repo, with samples and reuben
+
+```bash
+cd /home/ii
 git clone https://github.com/Impractical-Instruments/CommunityGarden.git
-cd C:\CommunityGarden
-git config receive.denyCurrentBranch updateInstead
+cd CommunityGarden
+git lfs install && git lfs pull --include "ShowControl/PlayingThePipes/Lamplight2026/media/*"
+git submodule update --init
 ```
 
-### 2. OpenSSH server
+### 3. Rust
 
-Settings → Apps → Optional Features → install **OpenSSH Server**. Start service. Add laptop public key to `C:\Users\<user>\.ssh\authorized_keys`.
+As `ii` (not root), install rustup, then let it fetch the toolchain and crates reuben pins:
 
-### 3. Python deps
-
-```powershell
-cd C:\CommunityGarden
-pip install -e ".[pipes]"
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. ~/.cargo/env
+cd ~/CommunityGarden/vendor/reuben && cargo fetch
 ```
 
-### 4. COM port pinning
+### 4. Device profile
 
-Both Picos enumerate as COM ports. Numbers are not stable by default — pin them in Device Manager:
+Write the device profile for the box's audio interface and commit it as `ShowControl/PlayingThePipes/reuben/pipes.profile.json` ([PlayingThePipes.md → Device profile](PlayingThePipes.md#device-profile)). `pipes-reuben` restarts in a loop until it exists.
 
-1. Plug each Pico in alone. Note which COM appears.
-2. Device Manager → Ports (COM & LPT) → right-click → Properties → Port Settings → Advanced → COM Port Number → assign fixed.
-3. Match the patch to them: the `encoderin` object in `Lamplight2026.maxpat` takes two Max serial port letters (see [PlayingThePipes.md → COM port assignment](PlayingThePipes.md#com-port-assignment)).
+### 5. Install the services
 
-```powershell
-# List COMs:
-[System.IO.Ports.SerialPort]::GetPortNames()
+```bash
+sudo bash scripts/install-services.sh PlayingThePipes
 ```
 
-### 5. Install NSSM + register health server service
+This installs the build packages (`libasound2-dev`, `build-essential`, `pkg-config`), adds `ii` to the `audio` and `dialout` groups, enables lingering for `ii`, builds reuben, and installs and starts `pipes-reuben` and `pipes-bridge`. The first reuben build is the slow part.
 
-Download NSSM from https://nssm.cc, put `nssm.exe` on PATH, run as admin:
+Then run [LAN deploy bootstrap](#4-lan-deploy-bootstrap) as on the Pis.
 
-```powershell
-nssm install pipes-health python
-nssm set pipes-health AppParameters "C:\CommunityGarden\ShowControl\PlayingThePipes\health_server.py"
-nssm set pipes-health AppDirectory  "C:\CommunityGarden\ShowControl\PlayingThePipes"
-nssm set pipes-health AppStdout     "C:\logs\pipes-health.log"
-nssm set pipes-health AppStderr     "C:\logs\pipes-health.log"
-nssm set pipes-health Start         SERVICE_AUTO_START
-nssm start pipes-health
-```
+### 6. Check
 
-Health endpoint is `http://192.168.1.13:8767/health` — Dashboard pings this to show Pipes online.
-
-### 6. Max
-
-Install Max 9, then the Grainflow package from Max's Package Manager. Open `ShowControl\PlayingThePipes\Lamplight2026\patchers\Lamplight2026.maxpat` once, check the Max console for "no such object" errors, confirm encoder events arrive, save. Configure Max to auto-launch on login if you want hands-off boot.
+Reboot and **do not log in**. Audio should play, and `http://192.168.1.13:8767/health` should show `ok: true` with both Picos plugged in. If not: [PlayingThePipes.md → Troubleshooting](PlayingThePipes.md#troubleshooting).
 
 ---
 
@@ -258,7 +255,7 @@ Host captcha
     User ii
 Host pipes
     HostName 192.168.1.13
-    User charlie
+    User ii
 ```
 
 Copy laptop public key to each host's `~/.ssh/authorized_keys`:
@@ -267,7 +264,7 @@ Copy laptop public key to each host's `~/.ssh/authorized_keys`:
 ssh-copy-id flowerbeds
 ssh-copy-id treehouse
 ssh-copy-id captcha
-# pipes: paste pubkey manually into C:\Users\charlie\.ssh\authorized_keys
+ssh-copy-id pipes
 ```
 
 ### Wired connection to the show LAN
