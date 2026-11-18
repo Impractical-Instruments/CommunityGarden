@@ -33,7 +33,7 @@ Inside the FundingCAPTCHA job, [pytest-testmon](https://testmon.org/) runs only 
 
 A test that runs for 120 s has hung: pytest prints every thread's stack and ends the whole run with exit code 1 (`faulthandler_timeout` in `pyproject.toml`). The stack at the top of that dump names the test and the line it stopped on. The run stops there, so later tests do not run and there is no summary.
 
-Shader tests run on software Mesa in CI, where fragment shading is the whole cost. The test rigs set `Renderer.defer_image = True`: frames skip the Image pass, and the file's image helper calls `draw_deferred_image()` to draw the last frame's Image only when a test reads it. A new rig should do the same and read `output` only through such a helper. To time the tests locally as CI does, force llvmpipe with `LIBGL_ALWAYS_SOFTWARE=1 __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`; without these, EGL may pick a hardware GPU.
+Shader tests run on software Mesa in CI, where fragment shading is the whole cost. `ShowControl/FundingCAPTCHA/shader_test_rig.py` holds the shared rig and sets `Renderer.defer_image = True`: frames skip the Image pass, and `read_image()` (or `Rig.image()`) calls `draw_deferred_image()` to draw the last frame's Image only when a test reads it. Build a Setup's tests on that rig, keep them in the Setup's folder (`shaders/<setup>/test_<setup>.py`), and read the Image only through it. To time the tests locally as CI does, force llvmpipe with `LIBGL_ALWAYS_SOFTWARE=1 __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`; without these, EGL may pick a hardware GPU.
 
 ## reuben (Playing the Pipes audio engine)
 
