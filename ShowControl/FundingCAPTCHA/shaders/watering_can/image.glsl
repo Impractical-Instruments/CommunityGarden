@@ -1,4 +1,4 @@
-// Image — paper, the backdrop, the crayon sun, footprints and each person's tree.  iChannel0 = Buffer B, iChannel1 = Buffer C,
+// Image — paper and its grit, the backdrop, the sun, footprints and each person's tree.  iChannel0 = Buffer B, iChannel1 = Buffer C,
 // iChannel2 = blobs. p is in screen heights, origin bottom left, y up; screen-height y and UV y are the same number.
 //
 // Buffer C grows each person's tree on a grid (see common.glsl, "The tree"): every body cell has a node and a
@@ -340,40 +340,72 @@ float backdrop(vec2 p) {
 
 // ── The sun ───────────────────────────────────────────────────────────────────
 
-// The crayon sun's coverage: the disc's outline, noise-broken and never filled, and rays in the same hand.
-// Its centre is just inside the top-right corner, so a third of the disc shows. Level 0 has no rays; at
-// level 1 they are full length.
-float sun(vec2 fc) {
+// The sun, over transparent, premultiplied: drawn as a flower is, a flat yellow disc in an ink outline, hatched on
+// the side away from the light, with rays as inked petals. Its centre is just inside the top-right corner, so a
+// third of the disc shows. Level 0 has no rays; at level 1 they are full length.
+vec4 sun(vec2 fc) {
+    vec4 acc = vec4(0.0);
     vec2 d = fc / iResolution.y - (vec2(iResolution.x / iResolution.y, 1.0) - SUN_PEEK * SUN_R);
     float r = length(d);
-    if (r > SUN_R * (1.0 + SUN_EDGE_WOBBLE) + max(RAY_LEN, SUN_STROKE_W)) return 0.0;
+    if (r > SUN_REACH + 2.0 * AA) return acc;
     float lv = clamp(cSun(iChannel1).x, 0.0, 1.0);
-    float t = iTime * SUN_WOBBLE_RATE;                                             // a slow wobble; nothing is stored
-    float grain = SUN_GRAIN_A * noise(d * SUN_GRAIN + t) + (1.0 - SUN_GRAIN_A) * noise(vec2(d.x + d.y, d.x - d.y) * SUN_GRAIN * SUN_HATCH);
-    float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * SUN_EDGE_SCALE + t) - 1.0));
-    float cov = (1.0 - smoothstep(0.5 * SUN_STROKE_W - AA, 0.5 * SUN_STROKE_W + AA, abs(r - edge)))
-              * smoothstep(SUN_COVER - SUN_GRAIN_SOFT, SUN_COVER + SUN_GRAIN_SOFT, grain + SUN_STROKE_PRESS);
-    float len = RAY_LEN * lv;
-    float r0 = SUN_R * SUN_RAY_FROM;
-    if (len > SUN_RAY_MIN && r > r0 && r < SUN_R + len) {
-        float a = atan(d.y, d.x) / TAU * float(SUN_RAYS) + SUN_DRIFT * t;
-        float id = mod(floor(a + 0.5), float(SUN_RAYS));   // atan's branch cut splits one ray in two: wrap its id
+    float t = iTime * SUN_WOBBLE_RATE;                                // a slow wobble; nothing is stored
+    // The rays, under the disc. Only the nearest can cover p: they're far apart for their width.
+    float len = RAY_LEN * lv, r0 = SUN_R * SUN_RAY_FROM;
+    if (len > SUN_RAY_MIN && r > r0 - SUN_RAY_W - SUN_INK_W) {
+        float a  = atan(d.y, d.x) / TAU * float(SUN_RAYS) + SUN_DRIFT * t;
+        float k  = floor(a + 0.5);
+        float id = mod(k, float(SUN_RAYS));                           // atan's branch cut splits one ray in two: wrap its id
+        float ang = (k - SUN_RAY_SKEW * (hash12(vec2(id, 7.7)) - 0.5) - SUN_DRIFT * t) * TAU / float(SUN_RAYS);
+        vec2  u  = vec2(cos(ang), sin(ang));
         float rl = (SUN_R + len - r0) * (1.0 - SUN_RAY_LEN_JITTER + SUN_RAY_LEN_JITTER * hash12(vec2(id, 3.1)));
-        float u = (r - r0) / rl;                                       // 0 at the root, 1 at the tip
-        float perp = (a - floor(a + 0.5) + SUN_RAY_SKEW * (hash12(vec2(id, 7.7)) - 0.5)) * TAU * r / float(SUN_RAYS);
-        float w = SUN_RAY_W * (1.0 - SUN_RAY_TAPER * u) * (1.0 - 0.5 * SUN_RAY_W_JITTER + SUN_RAY_W_JITTER * noise(vec2(u * SUN_RAY_W_RATE, id)));
-        if (u < 1.0 && abs(perp) < w) {
-            float rg = smoothstep(SUN_COVER - 2.0 * SUN_RAY_SOFT, SUN_COVER - SUN_RAY_SOFT, SUN_RAY_GRAIN * noise(d * SUN_GRAIN + 9.0) + SUN_RAY_FADE * (1.0 - u) + SUN_RAY_BIAS);
-            cov = max(cov, rg);
-        }
+        float w  = SUN_RAY_W * min(1.0, 2.0 * lv);                    // thin while short, as a petal opens
+        inked(acc, SUN_COL, sdTaper(d, u * r0, u * (r0 + rl), w, w * (1.0 - SUN_RAY_TAPER)), 1.0);
     }
-    return cov;
+    // The disc: its rim wanders a little, by hand.
+    float edge = SUN_R * (1.0 + SUN_EDGE_WOBBLE * (2.0 * noise(d * SUN_EDGE_SCALE + t) - 1.0));
+    float sd = r - edge;
+    if (sd < SUN_INK_W + 2.0 * AA) {
+        over(acc, SUN_COL, fillA(sd));
+        // Shading, as on a daisy's centre: ink hatching in a crescent along the rim away from the light (up and to
+        // the right), parallel to the light. Each line reaches its own way in, so the inner edge is ragged.
+        vec2  L = vec2(0.70710678);
+        float across = dot(d, vec2(-L.y, L.x)), line = floor(across / SUN_HATCH_STEP);
+        float away = dot(d / max(r, 1e-6), -L);                       // 1 facing straight away from the light
+        float reach = SUN_SHADE_W * SUN_R * smoothstep(-0.2, 0.9, away) * (1.0 - SUN_HATCH_JITTER * hash12(vec2(line, 5.3)));
+        float stripe = abs(fract(across / SUN_HATCH_STEP) - 0.5) * SUN_HATCH_STEP;
+        over(acc, INK, lineA(stripe, 0.5 * INK_W) * fillA(sd + 0.4 * SUN_INK_W) * fillA(-sd - reach));
+        over(acc, INK, lineA(sd, SUN_INK_W));
+    }
+    return acc;
+}
+
+// ── Grit ──────────────────────────────────────────────────────────────────────
+
+// The paper's tooth: ink coverage of sparse short flecks and dots, one per cell at most, static. A fleck is shorter
+// than a cell, so only the 3 × 3 cells round p can reach it.
+float grit(vec2 p) {
+    vec2  g = floor(p / GRIT_CELL);
+    float a = 0.0;
+    for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++) {
+            vec2 c = g + vec2(dx, dy);
+            if (hash12(c + 0.71) > GRIT_FRAC) continue;
+            vec2  m  = (c + vec2(hash12(c + 3.3), hash12(c + 6.1))) * GRIT_CELL;
+            float an = TAU * hash12(c + 9.4), h = hash12(c + 12.2);
+            vec2  u  = 0.5 * GRIT_LEN * h * h * vec2(cos(an), sin(an));    // mostly short: dots and specks
+            a = max(a, lineA(sdTaper(p, m - u, m + u, 0.0, 0.0), GRIT_W) * (0.5 + 0.5 * hash12(c + 15.8)));
+        }
+    return a;
 }
 
 void mainImage(out vec4 o, in vec2 fc) {
     AA = 1.0 / iResolution.y;
-    vec3 col = mix(PAPER, INK, BACKDROP_INK * backdrop(fc / iResolution.y));   // the page and its backdrop
-    col = mix(col, SUN_COL, sun(fc));                                 // the sun, under the plants
+    vec2 p = fc / iResolution.y;
+    vec3 col = mix(PAPER, INK, GRIT_INK * grit(p));                   // the page, with its grit
+    col = mix(col, INK, BACKDROP_INK * backdrop(p));                  // the backdrop
+    vec4 sn  = sun(fc);                                               // the sun, under the plants
+    col = sn.rgb + col * (1.0 - sn.a);
     vec4 fp  = footprints(fc);                                        // behind the people
     col = fp.rgb + col * (1.0 - fp.a);
     vec4 pl  = tree(fc);
