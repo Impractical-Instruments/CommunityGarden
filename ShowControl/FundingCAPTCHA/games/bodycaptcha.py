@@ -23,6 +23,7 @@ from body_grid import BodyGridActivator, BodyGridConfig, SlabConfig, CellActivat
 from silhouette import render_silhouette
 from arc import blend_intensity
 from crop import crop_scale
+from settings import slab_color, with_defaults
 
 _DIR    = Path(__file__).parent.parent
 _IMAGES = _DIR / "images"
@@ -174,10 +175,9 @@ def _load_bg(image_name: str | None, w: int, h: int,
 
 def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
     cols, rows = level.get("grid", [4, 4])
-    roi   = settings.get("camera_roi", {"x": 0, "y": 0, "w": 640, "h": 400})
-    slabs = [SlabConfig(**s) for s in settings.get("depth_slabs",
-             [{"near_mm": 800, "far_mm": 2500, "slab_id": 0}])]
-    threshold = settings.get("cell_activation_threshold", 0.30)
+    roi   = settings["camera_roi"]
+    slabs = [SlabConfig(**s) for s in settings["depth_slabs"]]
+    threshold = settings["cell_activation_threshold"]
     return BodyGridActivator(BodyGridConfig(
         cols=cols, rows=rows, camera_roi=roi,
         slabs=slabs, cell_activation_threshold=threshold,
@@ -186,8 +186,8 @@ def _make_activator(level: dict, settings: dict) -> BodyGridActivator:
 
 class BodyCaptchaGame:
     def __init__(self, settings: dict) -> None:
-        self._settings   = settings
-        self._defaults   = settings.get("bodycaptcha", {})
+        self._settings   = settings = with_defaults(settings)
+        self._defaults   = settings["bodycaptcha"]      # a Level may override any of these
         self._all_levels = _read_levels()
         if self._all_levels is None:
             log.warning("%s missing/invalid — falling back to default level",
@@ -195,10 +195,11 @@ class BodyCaptchaGame:
             self._all_levels = [_DEFAULT_LEVEL]
         self._taunts     = _read_taunts() or [_DEFAULT_TAUNT]
         self._bag        = _LevelBag(self._all_levels)
-        self._w_diff     = self._defaults.get("intensity_weights", {}).get("difficulty",     0.4)
-        self._w_time     = self._defaults.get("intensity_weights", {}).get("time_pressure",  0.6)
-        self._slabs_cfg  = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500, "slab_id": 0}])
-        self._roi        = settings.get("camera_roi",  {"x": 0, "y": 0, "w": 640, "h": 400})
+        self._w_diff     = self._defaults["intensity_weights"]["difficulty"]
+        self._w_time     = self._defaults["intensity_weights"]["time_pressure"]
+        self._slabs_cfg  = settings["depth_slabs"]
+        self._roi        = settings["camera_roi"]
+        self._slab_color = slab_color(settings)
         WW, WH           = pygame.display.get_surface().get_size()
         self._WW         = WW
         self._WH         = WH
@@ -242,12 +243,12 @@ class BodyCaptchaGame:
     @property
     def _timer_s(self) -> float:
         return float(self._level.get("timer_s",
-                     self._defaults.get("timer_s", 35.0)))
+                     self._defaults["timer_s"]))
 
     @property
     def _hold_s(self) -> float:
         return float(self._level.get("hold_s",
-                     self._defaults.get("hold_s", 1.0)))
+                     self._defaults["hold_s"]))
 
     @property
     def _hold_decay_rate(self) -> float:
@@ -258,12 +259,12 @@ class BodyCaptchaGame:
         for a frame — see the drain in update().
         """
         return float(self._level.get("hold_decay_rate",
-                     self._defaults.get("hold_decay_rate", 3.0)))
+                     self._defaults["hold_decay_rate"]))
 
     @property
     def _hint_opacity(self) -> float:
         return float(self._level.get("hint_opacity",
-                     self._defaults.get("hint_opacity", 0.1)))
+                     self._defaults["hint_opacity"]))
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -406,10 +407,8 @@ class BodyCaptchaGame:
 
         # Silhouette overlay (faint), scaled to grid bounds
         if self._foreground is not None:
-            slab_color  = tuple(self._settings.get("slab_styles", {})
-                                .get("0", {}).get("color", [0, 220, 100]))
             sil = render_silhouette(self._foreground, self._slabs_cfg,
-                                    self._roi, slab_color,
+                                    self._roi, self._slab_color,
                                     bounds.width, bounds.height)
             sil.set_alpha(60)
             surf.blit(sil, bounds.topleft)

@@ -2,8 +2,9 @@
 
 Cycles through the Setups listed in shaders/setups.json, each for its
 duration_s, feeding the Orbbec silhouette in as Buffer A (the Body).
-Shares the camera, self-learning background (ADR-0023), and settings of
-app.py; replaces its game loop with an OpenGL one. Bodies show from launch:
+Uses the same camera feed (camera_feed.py, with the self-learning background
+of ADR-0023) and settings (settings.py) as app.py, with an OpenGL loop where
+app.py has its game loop. Bodies show from launch:
 there is no standback or calibration wait.
 
   python3 shader_app.py --camera                 # show
@@ -23,9 +24,6 @@ import argparse
 import json
 import logging
 import os
-import queue
-import sys
-import threading
 import time
 from pathlib import Path
 
@@ -36,17 +34,12 @@ import moderngl
 import numpy as np
 import pygame
 
-from app import DIR, _camera_thread, load_settings
 from arc import ShuffleBag
 from body_blobs import BlobConfig, BodyBlobs
 from shadertoy import (BodyMouse, Renderer, ShaderError, VERT, decode_image, js_keycode,
                        load_setup, pack_body)
-
-try:
-    from IIVision import MockCamera, OrbbecCamera
-    _CV_AVAILABLE = True
-except ImportError:
-    _CV_AVAILABLE = False
+from camera_feed import CameraFeed, source_from_args
+from settings import DIR, load_settings, with_defaults
 
 log = logging.getLogger("shader_app")
 
@@ -218,7 +211,7 @@ def display_index(args, settings: dict) -> int:
     """--display N, else shader_app.display, else the first display."""
     if args.display is not None:
         return args.display
-    return int(settings.get("shader_app", {}).get("display", 0))
+    return int(settings["shader_app"]["display"])
 
 
 def open_display(windowed: bool, caption: str, mouse_visible: bool, display: int = 0):
@@ -246,57 +239,18 @@ def open_display(windowed: bool, caption: str, mouse_visible: bool, display: int
     return ctx, win
 
 
-def start_camera(args, settings: dict) -> tuple[queue.Queue, threading.Event]:
-    """Start the camera thread for --camera / --mock-camera (else an idle queue).
-
-    The thread blocks once the queue is full: drain it every frame.
-    """
-    cam_q = queue.Queue(maxsize=32)
-    stop  = threading.Event()
-    if not (args.camera or args.mock_camera):
-        return cam_q, stop
-    if not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
-    cam_cfg  = settings.get("camera", {})
-    cam_args = dict(width=cam_cfg.get("width", 640), height=cam_cfg.get("height", 400),
-                    fps=cam_cfg.get("fps", 10))
-    camera = (MockCamera(**cam_args) if args.mock_camera
-              else OrbbecCamera(serial=cam_cfg.get("serial") or None, **cam_args))
-    threading.Thread(target=_camera_thread,
-                     args=(camera, settings, cam_q, stop), daemon=True).start()
-    log.info("Camera started (%s) — background learns from the first frame",
-             "mock" if args.mock_camera else "Orbbec")
-    return cam_q, stop
-
-
-def drain_camera(cam_q: queue.Queue):
-    """Empty the camera queue; return the newest foreground frame, or None."""
-    fg = None
-    while True:
-        try:
-            msg = cam_q.get_nowait()
-        except queue.Empty:
-            return fg
-        if msg["type"] == "foreground":
-            fg = msg["frame"]
-        elif msg["type"] == "error":
-            log.error("Camera: %s", msg["msg"])
-
-
 class ShaderStage:
     """Body in, current Setup rendered, upscaled to the screen."""
 
     def __init__(self, ctx, win: tuple[int, int], settings: dict, test_input: bool) -> None:
-        cfg   = settings.get("shader_app", {})
-        cam_cfg = settings.get("camera", {})
-        scale = float(cfg.get("render_scale", 0.5))
+        settings = with_defaults(settings)
+        cfg   = settings["shader_app"]
+        scale = float(cfg["render_scale"])
         self.ctx, self.win = ctx, win
         self.max_texture_side = int(ctx.info["GL_MAX_TEXTURE_SIZE"])
         self.res   = (max(1, int(win[0] * scale)), max(1, int(win[1] * scale)))
-        self.slabs = settings.get("depth_slabs", [{"near_mm": 800, "far_mm": 2500}])
-        self.roi   = settings.get("camera_roi",
-                                  {"x": 0, "y": 0, "w": cam_cfg.get("width", 640),
-                                                    "h": cam_cfg.get("height", 400)})
+        self.slabs = settings["depth_slabs"]
+        self.roi   = settings["camera_roi"]
         self.test_input = test_input
         log.info("OpenGL %s · window %dx%d · render %dx%d", ctx.version_code, *win, *self.res)
 
@@ -308,8 +262,8 @@ class ShaderStage:
 
         # A load (or R reload) restarts the Setup's buffers, so the tracker restarts
         # with them: Setups that remember people by id must not meet ids from before.
-        self.blobs       = BodyBlobs(BlobConfig.from_dict(cfg.get("blobs", {})))
-        self._body_mouse = BodyMouse(int(settings.get("min_foreground_pixels", 1)))
+        self.blobs       = BodyBlobs(BlobConfig.from_dict(cfg["blobs"]))
+        self._body_mouse = BodyMouse(int(settings["min_foreground_pixels"]))
         self._test_mouse = _TestMouse()
         self._painter_read_t = 0.0
         self._mouse = (0.0, 0.0, 0.0, 0.0)
@@ -371,9 +325,8 @@ def main() -> None:
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     settings = load_settings()
-    fps      = int(settings.get("shader_app", {}).get("fps", 30))
-    if (args.camera or args.mock_camera) and not _CV_AVAILABLE:
-        sys.exit("ERROR: CV libraries not available — from the repo root: pip install -e \".[fundingcaptcha,camera]\"")
+    fps      = int(settings["shader_app"]["fps"])
+    feed     = CameraFeed(settings, source_from_args(args))
 
     ctx, win = open_display(args.windowed, "Shader player", args.test_input,
                             display_index(args, settings))
@@ -382,7 +335,7 @@ def main() -> None:
                         on_load=stage.blobs.reset,
                         image_max=win, image_max_side=stage.max_texture_side)
     rotation.next()
-    cam_q, stop = start_camera(args, settings)
+    feed.start()
 
     # ── Loop ──────────────────────────────────────────────────────────────────
     clock     = pygame.time.Clock()
@@ -408,7 +361,7 @@ def main() -> None:
                 stage.handle_key(ev)
 
         rotation.tick()
-        failure = stage.frame(dt, drain_camera(cam_q))
+        failure = stage.frame(dt, feed.drain())
         if failure is not None:
             rotation.failed(failure)
         pygame.display.flip()
@@ -419,7 +372,7 @@ def main() -> None:
                      stage.renderer.setup.name if stage.renderer.setup else "-")
             fps_t, fps_n = time.monotonic(), 0
 
-    stop.set()
+    feed.stop()
     stage.release()
     pygame.quit()
 
