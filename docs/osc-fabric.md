@@ -55,7 +55,7 @@ Between `ShowControl/FlowerBeds` and each `firmware.flowerbeds_controller_<N>` (
 The rule is `SignalGate` in `ShowControl/OSCFabric/gate.py`. `FabricClient` and `location_sender.py` both use it.
 
 - **On change:** a float is sent when it moves by more than `change_epsilon`; a string when it differs.
-- **Heartbeat:** every signal is sent again once `heartbeat_interval_s` has passed since it was last sent.
+- **Heartbeat:** every signal is sent again once `heartbeat_interval_s` has passed since it was last sent. A `FabricClient` only does this if its owner calls `tick(dt)`: FlowerBeds does; FundingCAPTCHA does not, so `/captcha/intensity` is sent on change only.
 - **Events** (`/captcha/blowup`) are sent once, straight away, and never repeated.
 - **Dead sender, TreeHouse:** an Element silent for more than 2 × `heartbeat_interval_s` has its signals set to 0 (`garden_state.py`). An Element that has never sent is not dead.
 - **Dead sender, location controller:** after 10 s without a message, a controller falls back to an idle breathe (`GardenState.h`).

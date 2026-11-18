@@ -4,24 +4,27 @@ The 7-foot CRT-styled kiosk Element. Players activate a projected grid using the
 
 **Host:** `captcha` · 192.168.1.12 · **Monitor:** http://192.168.1.12:8080 · **Service:** `captcha`
 
+Operating the kiosk (getting a console, stopping the service, updating on the Pi) is in [showtime.md](showtime.md#fundingcaptcha--getting-a-console-on-the-kiosk).
+
 ---
 
 ## Architecture summary
 
-`app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, **Game** rotation, and a lightweight HTTP/WebSocket monitoring server on port 8080.
+`app.py` is a single pygame process (ADR-0012) — no browser, no kiosk service. It owns the projector display, depth camera pipeline, **Game** rotation, and a monitoring server on port 8080.
 
 `app.py` is argument parsing and wiring: it builds the pieces below and hands them to a `Kiosk`. Each is one module beside it and can be read on its own:
 
 | Module | Its one job |
 |---|---|
-| `kiosk.py` | `Kiosk`: the SCREENSAVER ↔ GAME state machine, one tick method per state, and the one `restart()` |
+| `kiosk.py` | `Kiosk`: the SCREENSAVER ↔ GAME state machine (`AppState`), one tick method per state, and the one `restart()` |
 | `settings.py` | Where the settings files are, the default for every key (`DEFAULTS`), how they merge, unknown-key warnings |
-| `camera_feed.py` | `CameraFeed`: camera thread → foreground frames on a queue; restart; reseed. Shared with the shader and playlist players |
+| `camera_feed.py` | `CameraFeed`: camera thread → foreground frames on a queue; restart; reseed. Shared with the playlist player |
 | `monitor.py` | `MonitoringServer`: the port the Dashboard talks to (`/health`, `/logs`, `/api/restart`) |
 | `paint_input.py` | `PaintInput`: `--test-input`, the mouse-painted foreground |
-| `plugins.py` | Loads Games and screensavers from disk |
+| `plugins.py` | Loads Games (`GAMES`) and screensavers from disk |
 | `levels.py` | `Levels`: one levels file and its image directory — read, write, the default level, loading and cropping photos. The game and the editor are each handed one |
-| `arc.py` | Runs Games as an Arc |
+| `arc.py` | Runs Games as an Arc; the `Game` interface |
+| `body_grid.py`, `silhouette.py` | The Body Grid activator and the silhouette drawn over the game |
 
 State machine (no calibration screen — the depth background is learned continuously from the first frame, with people in view; ADR-0023):
 - **SCREENSAVER** — idle animation; detects a Player and counts down `attract_dwell_s`
@@ -31,20 +34,11 @@ Pipeline — Orbbec depth camera → IIVision self-learning background (`Adaptiv
 
 Display: pygame `FULLSCREEN | NOFRAME`. Direct DRM (`SDL_VIDEODRIVER=kmsdrm`) — Pi OS Lite, no compositor (ADR-0011).
 
-Games are loaded from `games/` (one module each). Game scheduling is a shuffle bag — every Game plays in random order before any repeats. Per-game **Levels** come from JSON files alongside `app.py`. The Arc ends on timer expiry or Game-defined Blow-Up condition (ADR-0003 — every Game must guarantee a loss).
+**Games** are in `games/`; [`games/README.md`](../ShowControl/FundingCAPTCHA/games/README.md) has the modules, the `Game` interface and the rules for adding one. BodyCaptcha is the only Game loaded today. Every Game must end in a loss on its own (ADR-0003).
 
-Key references:
-- ADR-0003 — Games must self-terminate
-- ADR-0004 — depth-only touch detection
-- ADR-0011 — screen calibration + projection
-- ADR-0012 — unified pygame app
-- ADR-0013 — silhouette body interaction
-- ADR-0016 — `--test-input` mouse-paint dev mode
-- ADR-0019 — game UI shell
-- ADR-0021 — shader player (`shader_stage.py`, Shadertoy Setups; played by `playlist_app.py`)
-- ADR-0022 — shader player blob records (`blobs` channel source)
-- ADR-0023 — self-learning depth background (no boot-time standback)
-- `app.py`, `kiosk.py`, `settings.py`, `camera_feed.py`, `monitor.py`, `paint_input.py`, `plugins.py`, `levels.py`, `body_grid.py`, `silhouette.py`, `games/`, `ScreenSavers/`
+**Screensavers** are listed in `screensavers.json`. Today that is `ScreenSavers/pipes_3d.py`: garden-themed 3D vines. `plugins.py` (`load_screensavers`) loads them.
+
+ADRs: 0003 (Games must self-terminate), 0004 (depth-only touch detection), 0011 (screen calibration + projection), 0012 (unified pygame app), 0013 (silhouette body interaction), 0016 (`--test-input`), 0019 (game UI shell), 0021 (shader player), 0022 (blob records), 0023 (self-learning background).
 
 ---
 
@@ -52,212 +46,124 @@ Key references:
 
 | Flag | Effect |
 |---|---|
-| `--camera` | Real Orbbec depth camera (default for service) |
+| `--camera` | Real Orbbec depth camera (what the service runs) |
 | `--mock-camera` | Synthetic depth frames — no hardware |
 | `--test-input` | Mouse-paint depth frames (ADR-0016) for camera-free dev |
 | `--test-depth MM` | Depth value (mm) painted by left-drag in `--test-input` mode |
-| `--port N` | Monitoring HTTP/WebSocket port (default 8080) |
+| `--port N` | Monitoring port (default 8080) |
+| `--levels PATH` | Another BodyCaptcha levels file (default `bodycaptcha-levels.json`) |
 
-The first three are mutually exclusive.
+The first three are mutually exclusive. In a dev clone: `uv run python app.py --test-input`, from `ShowControl/FundingCAPTCHA`.
 
 Keys at runtime:
 - `R` — reseed the depth background from the next frame (e.g. after moving furniture)
-- `Q` / Escape — quit
+- `Q` / Escape — quit. Under the service, systemd starts it again 5 s later
 - `C` — clear paint canvas (`--test-input` only)
 
 ---
 
-## Shader player — `playlist_app.py --setup`
+## Playlist player — `playlist_app.py`
 
-Alternative show mode: instead of the Game Arc, plays Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021). Same camera, background model, and settings as `app.py`. `playlist_app.py` is the one program that plays Setups; `shader_stage.py` is the library under it (`ShaderStage`, `SetupImages`, display and camera helpers) and `video_player.py` holds the video player. Prototyping guide: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
+Alternative show mode: instead of the Game Arc, plays Shadertoy **Setups** from `shaders/` with the depth silhouette as Buffer A (ADR-0021), and full-screen videos, in one shuffle bag. Same camera, background model and settings as `app.py`. `playlist_app.py` is the one program that plays Setups; `shader_stage.py` is the library under it (`ShaderStage`, `SetupImages`, display and camera helpers) and `video_player.py` holds the video player.
 
-Setups in the shipped playlist (`playlist.json`) and the rest of `shaders/`: `ripples` (example), `endless_sunset` (tunables at the top of its `common.glsl`), `hunter_bird` (a bird's-eye debug view of the blob tracker — tunables, including the motion noise floor, at the top of its `common.glsl`), `watering_can` (a visitor standing still grows vines, leaves and flowers over their silhouette in ~20 s, and stepping sideways rewinds them — tunables, including `WALK_DIST`, `GROW_S` and `REWIND_S`, at the top of its `common.glsl`), `rainbow_poop` (about every 5 s a rainbow poop drifts down from the sky on to each visitor, and the splats stick to their silhouette, drip and fade over 20 s — step back the other way after it appears and it lands on the floor; tunables, including `BOMB_EVERY_S`, `FALL_SPEED`, `SPLAT_R` and `SPLAT_LIFE_S`, at the top of its `common.glsl`), `barn_dancers` (a barn on hairy legs rises out of a field for each visitor, stands at their left–right position and dances a kick line on a beat the whole troupe shares; the more a visitor moves, the bigger their barn dances and the faster the beat, and when they leave it bows and sinks back — tunables, including `CYCLE_S`, `AMP_MIN` and `BARN_H`, at the top of its `common.glsl`; its art is one sprite sheet, `images/barn.png`, rebuilt from `source/barn.psd` by `pack_atlas.py`).
+Setups in `shaders/`: `watering_can`, `endless_sunset`, `barn_dancers`, `rainbow_poop` (the shipped playlist), `logo_attract` (its interstitial), `watercolor_smudge`, `hunter_bird`, `ripples` (the example to copy) and `blob_debug` (reference reader for the tracker's **blob records**, ADR-0022). Each one's `setup.json` `_comment` says what it does; its tunables are at the top of its `common.glsl` where it has one. Writing a Setup and the channel sources: [`shaders/README.md`](../ShowControl/FundingCAPTCHA/shaders/README.md).
 
-Setups can also read the tracker's **blob records** (boxes, stable IDs, lifecycle) through the `blobs` channel source (ADR-0022). `blob_debug` is the reference reader, outside the playlist: `python3 playlist_app.py --mock-camera --windowed --setup blob_debug`.
+`playlist.json` defines the bag; every item plays once before any repeats:
+
+- `setups`: Setup folder names from `shaders/`. Each plays for `setup_duration_s`, which overrides the Setup's own `duration_s`.
+- `setup_copies`: how many times each Setup goes in the bag, so videos come round less often. Default 1.
+- `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show machine. Decoding uses PyAV (`av`, in the `fundingcaptcha` extra of `pyproject.toml`).
+- `interstitial`, `interstitial_s`: a Setup played for that long between every two items.
+
+A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
 
 | Flag | Effect |
 |---|---|
 | `--camera` / `--mock-camera` | As `app.py` |
 | `--test-input` | Mouse paints the Body via `shaders/body_painter.glsl`, as in Shadertoy |
 | `--setup NAME` | Play one Setup alone: a one-item playlist, no cycling, no interstitial |
+| `--playlist PATH` | Another playlist file (default `playlist.json`) |
 | `--windowed` | 1280×720 window |
+| `--display N` | Which monitor to go fullscreen on; overrides `shader_app.display` |
 
-Keys: `N` / `→` next Setup · `R` reload Setup from disk · Escape quit.
+Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
 
 To run it as the show, point `deploy/captcha.service`'s `ExecStart` at `playlist_app.py --camera`. `deploy/install.sh` installs the Mesa GL/EGL libraries moderngl needs. Not yet verified on the Pi 5 under `kmsdrm`; if the GL context fails to start, that is the first place to look.
 
 ---
 
-## Playlist player — `playlist_app.py`
-
-Shader Setups and full-screen videos in one shuffle bag: every item plays once before any repeats. `playlist.json` defines the list:
-
-- `setups`: Setup folder names from `shaders/`. Each plays for `setup_duration_s` (150 s), which overrides the Setup's own `duration_s`.
-- `setup_copies`: how many times each Setup goes in the bag (2), so videos come round less often. Default 1.
-- `videos`: file names in `ShowControl/FundingCAPTCHA/videos/`. Each plays to the end of its file, silent and letterboxed. The folder is gitignored, so copy the files onto the show PC. Decoding uses PyAV (`av`, in the `fundingcaptcha` extra of `pyproject.toml`).
-
-A missing or unreadable item is logged and skipped. The camera runs throughout, so the background keeps learning across items.
-
-Flags: `--camera` / `--mock-camera` / `--test-input` / `--windowed` / `--display N` as above, `--setup NAME` to play one Setup alone, and `--playlist PATH` to use another playlist file. Keys: `N` / `→` next item · `R` reload the current Setup from disk · Escape quit.
-
----
-
 ## Settings — `captcha-settings.json`
 
-Per-machine overrides go in `captcha-settings.local.json` (loaded second, merged on top — gitignored, per-host). Blocks merge key by key, so a local file that sets only `camera.serial` keeps the rest of `camera`; a list (`depth_slabs`) is replaced whole.
+Every key and its default is in `settings.py` (`DEFAULTS`), which equals the committed `captcha-settings.json`; a test keeps the two together, so change both. No other code carries a fallback value.
 
-Every key has its default in `settings.py` (`DEFAULTS`), which equals the committed `captcha-settings.json`; a test keeps the two together, so change both. No other code carries a fallback value. A key that `DEFAULTS` does not have — a typo, or a setting nothing reads — is logged as a warning at startup, with its file and dotted path. Keys starting with `_` are comments.
+Per-machine overrides go in `captcha-settings.local.json` (gitignored), merged on top. Blocks merge key by key, so a local file that sets only `camera.serial` keeps the rest of `camera`; a list (`depth_slabs`) is replaced whole. A key that `DEFAULTS` does not have — a typo, or a setting nothing reads — is logged as a warning at startup. Keys starting with `_` are comments.
 
-Top-level fields:
-- `shader_app` — shader player: `render_scale` (fraction of display resolution, default 0.5), `display` (which monitor to go fullscreen on, 0 = first; `--display N` overrides), `fps` (default 30), `blobs` (blob-record tracking for the `blobs` source, ADR-0022: `min_blob_pixels`, `min_confirm_frames`, `max_miss_frames`, `max_match_dist_px`, `smoothing_alpha`, `lost_hold_s`, `ease_s`; Body pixels and camera frames)
-- `camera` — Orbbec config (`serial`, `width`, `height`, `fps`, `pos_cm`, `rotation`)
-- `detection` — `depth_delta_mm`, `min_depth_mm`, `max_depth_mm`, `min_blob_pixels` (connected foreground regions smaller than this many camera pixels are dropped as camera noise, default 500)
-- `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`; two slabs may share `slab_id`
-- `slab_styles[<slab_id>]` — `{color}` for silhouette render
-- `cell_activation_threshold` — fraction of cell coverage required (default 0.25)
-- `camera_roi` — `{x, y, w, h}` in camera pixel coords
-- `attract_dwell_s` — seconds a Player must dwell to exit Screensaver
-- `min_foreground_pixels` — anti-noise threshold for Player presence
-- `silhouette_opacity` — 0–1, silhouette overlay opacity in-game
-- `silhouette_dilation_px` — closes the scatter holes reprojection leaves in the silhouette (default 1). Raise if the silhouette looks holey at this camera angle; each step also fattens it by a pixel, shifting which Body Grid cells activate at the edges.
-- `background` — self-learning depth background (ADR-0023): `warmup_s` (ignore the camera's first, too-far frames), `min_valid_frames`, `reveal_frames`, `noise_k`, `bg_alpha`, `noise_alpha`, `absorb_s` (keep > 120 for Watering can), `reseed_fg_fraction`, `reseed_after_s`, `stats_log_s` (how often per-frame update time is logged). `detection.depth_delta_mm` is the lower bound on its threshold.
-- Per-game block: `bodycaptcha` (`timer_s`, `hold_s`, `hold_decay_rate`, `hint_opacity`, `intensity_weights` for the **Intensity** computation); a Level may override any of the first four
+The keys an operator tunes:
+
+- `depth_slabs[]` — `[{near_mm, far_mm, slab_id}, …]`: the depth range of each Play Zone. `slab_styles[<slab_id>].color` is its silhouette colour
+- `camera_roi` — `{x, y, w, h}` in camera pixels: the part of the frame that maps to the screen
+- `cell_activation_threshold` — fraction of a cell that must be covered to activate it
+- `attract_dwell_s` — seconds a Player must dwell to leave the Screensaver
+- `min_foreground_pixels` — foreground needed to count as a Player
+- `silhouette_opacity`, `silhouette_dilation_px` — the silhouette overlay. Raise dilation if it looks holey; each step also fattens it by a pixel
+- `detection` — `depth_delta_mm` (lower bound on the background threshold), `min_depth_mm`, `max_depth_mm`, `min_blob_pixels` (smaller regions are dropped as noise)
+- `background` — the self-learning background (ADR-0023). `absorb_s` is how long before something that stopped moving becomes background; keep it above 120 for the Watering can Setup
+- `bodycaptcha` — `timer_s`, `hold_s`, `hold_decay_rate`, `hint_opacity` (a Level may override any of these), and `intensity_weights`
+- `camera` — `serial` (empty opens the first Orbbec found), `width`, `height`, `fps`, `pos_cm`, `rotation`
+- `shader_app` — playlist player: `render_scale`, `display`, `fps`, and `blobs` (blob-record tracking, ADR-0022)
 
 ---
 
-## Level assets (per-game JSON)
+## Level assets
 
-Files live alongside `app.py`:
+Files beside `app.py`:
 - `bodycaptcha-levels.json` — BodyCaptcha Levels (prompt, background, `grid`, `valid_cells`, `difficulty`, optional `timer_s`/`hold_s`/`hold_decay_rate`/`hint_opacity`/`crop_align`)
 - `taunts.json` — per-Arc taunt strings
-- `screensavers.json` — list of screensaver modules to load
-- `images/` — Level background photos
+- `images/` — Level background photos (`.jpg` and `.png` are Git LFS)
 
-Level photos are drawn into the grid bounds, whose aspect is `cols/rows`. A photo
-of any other aspect is **cropped** to fit, never squashed. Optional `crop_align`
-picks which part survives the crop — one of `top-left`, `top`, `top-right`,
-`left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`; omitted means
-`center`. The level editor's CROP ALIGN pad sets it, previewing the exact framing
-the show will render.
+Level photos are drawn into the grid bounds, whose aspect is `cols/rows`. A photo of any other aspect is **cropped** to fit, never squashed. Optional `crop_align` picks which part survives the crop — one of `top-left`, `top`, `top-right`, `left`, `center`, `right`, `bottom-left`, `bottom`, `bottom-right`; omitted means `center`.
 
-Run the level editor with `python3 bodycaptcha_editor.py`, or on macOS double-click `BodyCaptchaEditor.command`. Level edits come back as commits on a branch.
+A missing or malformed levels file at startup logs a warning and the game runs one built-in default level. A bad file found on a later reload keeps the levels already loaded.
 
-The editor is split by concern; each module can be read on its own. `bodycaptcha_editor.py` is the window, the event loop and `--levels`; `editor/level_model.py` the level list and every edit to it (no drawing); `editor/views.py` the three screens (cell grid, image picker, sidebar); `editor/widgets.py` the sidebar controls; `editor/theme.py` colours, layout and fonts. Level-file reading and writing, the default level and photo loading are not the editor's: they are `levels.py`, shared with the game.
-
----
-
-## Games (`games/`)
-
-| Module | Game | Notes |
-|---|---|---|
-| `bodycaptcha.py` | **BodyCaptcha** | Match the prompt by activating the right grid cells |
-| `grid.py` | shared geometry | `Grid`: letterboxed square cells below the top bar |
-| `shell.py` | shared shell | Top bar, hold ring, centred text, colours (ADR-0019) |
-| `blowup.py` | shared effect | Confetti blow-up on timer expiry |
-
-Every Game must guarantee a loss after sustained inactivity (ADR-0003) — either via the Level timer, or via mechanics that ensure failure without Player input.
-
----
-
-## Screensavers (`ScreenSavers/`)
-
-Loaded from `screensavers.json`. Currently — `pipes_3d.py` (Windows-style 3D pipes screensaver). Add new ones by dropping a module exposing `create(settings) -> Screensaver` and listing it in `screensavers.json`.
+**Level editor.** `python3 bodycaptcha_editor.py` (`uv run python …` in a dev clone), or on macOS double-click `BodyCaptchaEditor.command`. `--levels PATH` edits another file; the window title always shows which. Its CROP ALIGN pad previews the framing the show will render. The code is `bodycaptcha_editor.py` (window, event loop) and `editor/` (`level_model.py`, `views.py`, `widgets.py`, `theme.py`); file reading and writing is `levels.py`, shared with the game.
 
 ---
 
 ## OSC Fabric output
 
-FundingCAPTCHA sends two signals to the TreeHouse and receives none. Arguments and the send rule: [`osc-fabric.md`](osc-fabric.md).
+FundingCAPTCHA sends two signals to the TreeHouse and receives none. Arguments: [`osc-fabric.md`](osc-fabric.md).
 
 | Address | Meaning |
 |---|---|
-| `/captcha/intensity` | Arc progress toward Blow-Up. Configurable weighted sum of difficulty (current Level / 5) and time pressure (elapsed / `timer_s`). Resets to 0 at the start of each Arc. |
-| `/captcha/blowup` | Sent on the frame a Blow-Up fires. TreeHouse responds with the **Blow-Up Reaction** (attic spike + exponential decay). |
+| `/captcha/intensity` | Arc progress toward Blow-Up: a weighted sum (`bodycaptcha.intensity_weights`) of difficulty and time pressure. Sent during a Game only, when it changes, at most every 0.1 s (`OSC_INTERVAL_S` in `kiosk.py`) |
+| `/captcha/blowup` | Sent once when an Arc ends in a Blow-Up |
+
+The kiosk never calls `FabricClient.tick()`, so intensity has no heartbeat: nothing is sent in the Screensaver, and after an Arc the TreeHouse holds the last value until its dead-sender timeout sets it to 0.
 
 ---
 
 ## Monitoring server
 
-`http://<host>:8080/` — small HTML page with state + live log stream over WebSocket. Includes:
-- Current `AppState` (SCREENSAVER / GAME)
-- Current Game + Level
-- Live `intensity` value
-- Last 100 log lines
+`monitor.py`, on `--port` (8080). It serves JSON and a log socket; there is no HTML page. The Dashboard's FundingCAPTCHA page is the reader.
 
-Logs stream over a separate WebSocket; `MonitoringServer.log_handler()` in `monitor.py` pumps records to connected clients.
+| Path | What it does |
+|---|---|
+| `GET /health` (or `/`) | The last status: `{"state": "screensaver" \| "game", "fg_pixels": N}`, or `{"state": "error", "error": …}` when the camera has failed |
+| `WS /logs` | Every log record as `{"ts", "level", "msg"}` |
+| `/api/restart` | Back to a clean Screensaver; the camera restarts and relearns its background |
 
 ---
 
 ## Service unit notes
 
-`captcha.service`:
+`deploy/captcha.service` (placeholders filled in by `deploy/install.sh`):
+- `ExecStart=/usr/bin/python3 app.py --camera --port 8080`, `Restart=always`, `RestartSec=5`
 - `Environment=SDL_VIDEODRIVER=kmsdrm` (Pi OS Lite, no compositor — direct DRM)
-- `Environment=XDG_RUNTIME_DIR=/run/user/1000`
+- `Environment=XDG_RUNTIME_DIR=/run/user/<uid of the service user>`
 - `SupplementaryGroups=video plugdev render` (camera + DRM)
-- `After=network-online.target graphical.target` (graphical.target so DRM is available)
+- `After=network-online.target graphical.target`
 
-`install.sh` writes the Orbbec udev rule itself — no manual rule needed.
-
----
-
-## Maintenance mode — getting a console on the Pi
-
-The kiosk is a systemd unit with `Restart=always` / `RestartSec=5`. Quitting the
-game with **Esc** or **Q** only makes `app.py` exit; systemd relaunches it five
-seconds later, forever. To actually get the machine back you have to stop the
-*unit*, not the process.
-
-### Getting a shell
-
-**Over ethernet (easiest).** Plug in a cable, `ssh ii@captcha`, then stop the
-service. No console fighting.
-
-**On the Pi's own keyboard.** `SDL_VIDEODRIVER=kmsdrm` means pygame renders
-straight to DRM and holds the tty, so VT switching usually does nothing while
-the game is up. Use the restart gap instead:
-
-1. Press **Esc** to quit the game.
-2. Immediately press **Ctrl+Alt+F2** — a login prompt appears on tty2 during the
-   ~5s `RestartSec` window.
-3. Log in as `ii` and run `sudo systemctl stop captcha`.
-
-**If neither works — SD card.** Mount the boot partition on another machine and
-append `systemd.mask=captcha.service` to the single line in `cmdline.txt`. The
-Pi then boots to a clean console every time. Remove it when you're done.
-
-### Stop vs. disable
-
-```bash
-sudo systemctl stop captcha            # down now, back up on next boot
-sudo systemctl disable --now captcha   # down now, stays down across reboots
-sudo systemctl enable  --now captcha   # back to show-ready — do this before load-in
-```
-
-`stop` deactivates the unit, so `Restart=always` no longer respawns it — but the
-unit is `enable`d, so a reboot brings the show straight back.
-
-### Joining wifi from the console
-
-```bash
-sudo nmtui                                             # menu-driven, easiest at a console
-sudo nmcli device wifi list
-sudo nmcli device wifi connect "SSID" password "..."
-ip addr show wlan0                                     # confirm an address
-```
-
-`sudo raspi-config` → System Options → Wireless LAN also works.
-
-### Updating the game
-
-```bash
-sudo systemctl stop captcha
-cd ~/CommunityGarden && git pull && git lfs pull
-sudo systemctl start captcha
-journalctl -u captcha -f
-```
-
-If the install uses private show content, also re-run the sync — see
-[Private content sets](#private-content-sets).
+`install.sh` also writes the Orbbec udev rule and pulls the Git LFS images.
 
 ---
 
@@ -272,108 +178,38 @@ If the install uses private show content, also re-run the sync — see
 | Game never escalates | Level set thin or shuffle bag favoring easy | Add Levels at higher `difficulty`; check `intensity_weights` |
 | Game refuses to end | Game lacks self-termination | Audit Game code against ADR-0003 |
 | Projector misaligned | Calibration drift | Re-do screen calibration per ADR-0011 |
-| Game relaunches after Esc, can't get a console | `Restart=always` in `captcha.service` | Stop the unit, not the process — see [Maintenance mode](#maintenance-mode--getting-a-console-on-the-pi) |
-| Need to dev away from hardware | — | `python3 app.py --test-input` — mouse paints depth (ADR-0016) |
+| Game relaunches after Esc, can't get a console | `Restart=always` in `captcha.service` | Stop the unit, not the process — see [showtime.md](showtime.md#fundingcaptcha--getting-a-console-on-the-kiosk) |
+| Need to dev away from hardware | — | `uv run python app.py --test-input` — mouse paints depth (ADR-0016) |
 
 ---
 
 ## Private content sets
 
-Some shows use artwork that cannot be published. That content lives in a
-separate **private** repository, never in this one.
+Some shows use artwork that cannot be published. It lives in a separate **private** repository, cloned into `ShowControl/FundingCAPTCHA/images/private/`, with one directory per show holding a `levels.json` and its images. A level there references a background as `private/<show-name>/<file>.jpg`.
 
-**Layout.** The private repo tracks its background images in Git LFS and holds
-one directory per show:
+**The rule (AGENTS.md constraint 6):** never commit anything under `images/private/`, and never write a show, artist or album name into any file in this repo. `.gitignore` excludes the directory and the pre-commit hook (installed by `make setup`) refuses a commit that stages a path under it. The private repo's own remote is that content's only backup: push it.
 
-```
-<show-name>/levels.json
-<show-name>/<background images>
-```
-
-It is cloned into `ShowControl/FundingCAPTCHA/images/private/`, which
-`.gitignore` excludes. Because the clone lands inside the existing image root,
-level entries reference backgrounds exactly as public levels do:
-
-```json
-{ "image": "private/<show-name>/<file>.jpg" }
-```
-
-Push the private repo to its own remote. This repo's `.gitignore` means the
-public repo never contains this content, so that remote — not this one — is
-the only backup and version history it gets. Images and their level
-definitions are versioned together there, so a restore is a single clone and
-the two can never drift apart. Skipping the push isn't optional
-housekeeping: content that exists only in the working copy at
-`images/private/` is content with no backup at all.
-
-**Running a private set.**
+**Run or edit a private set:**
 
 ```bash
 cd ShowControl/FundingCAPTCHA
 python3 app.py --camera --levels images/private/<show-name>/levels.json
-```
-
-Authoring works the same way:
-
-```bash
-cd ShowControl/FundingCAPTCHA
 python3 bodycaptcha_editor.py --levels images/private/<show-name>/levels.json
 ```
 
-Without `--levels`, both use `bodycaptcha-levels.json` as before. In `app.py`,
-a missing or malformed file logs a warning (visible in the monitoring page's
-log stream) and falls back to a single built-in default level rather than
-refusing to start; a bad file discovered on a later Arc's reload logs a
-warning too but keeps whatever levels are already loaded, so a half-pulled
-clone mid-run does not blank the show out. The editor (`bodycaptcha_editor.py`)
-falls back the same way on a bad path — a single default level, no crash — but
-does not log a warning to a terminal that may not be watched. Instead, the
-window title always shows the active levels path (e.g.
-`BodyCaptcha Level Editor — images/private/<show-name>/levels.json`), so a
-typoed `--levels` argument is visible at a glance rather than only surfacing
-when a save looks wrong.
+**On the show Pi,** `deploy/install.sh` clones or pulls the private repo when two environment variables are set (`deploy/private-assets.example.env` documents them):
 
-**On the show Pi.** `deploy/install.sh` can sync the private repo into
-`images/private/` during install. It's entirely optional and controlled by two
-environment variables, documented in `deploy/private-assets.example.env`:
-
-- `PRIVATE_ASSETS_REPO` — SSH clone URL of the private repo.
-- `PRIVATE_ASSETS_KEY` — read-only deploy key for it. Defaults to
-  `<service user's home>/.ssh/private_assets_ed25519` — **not** `$HOME`,
-  because `install.sh` runs under `sudo` and `$HOME` there is root's home, not
-  the service user's.
-
-To use it, copy the example file, fill in both variables, and source it before
-running the installer:
+- `PRIVATE_ASSETS_REPO` — SSH clone URL of the private repo. Unset: the sync is skipped.
+- `PRIVATE_ASSETS_KEY` — read-only deploy key. Defaults to `.ssh/private_assets_ed25519` in the service user's home, not root's.
 
 ```bash
 cd ShowControl/FundingCAPTCHA/deploy
-cp private-assets.example.env private-assets.env
-# edit private-assets.env with the repo URL and key path
+cp private-assets.example.env private-assets.env     # fill in both; never commit the copy
 set -a; . ./private-assets.env; set +a
 sudo -E bash install.sh
 ```
 
-Leaving both variables unset skips the sync entirely and installs the default
-public set — a plain `sudo bash install.sh` with no env file still works.
-
-The sync is **non-fatal**. If the key is missing, unreadable by the service
-user, or the clone/pull fails for any reason (network down, diverged history,
-bad key), `install.sh` prints a loud warning and continues — it still installs
-and starts the systemd unit either way. That does not mean the show comes up
-on the default level set: if the systemd drop-in below already points
-`--levels` at `images/private/<show-name>/levels.json`, a failed sync leaves
-that path missing, and the game falls back to a single built-in placeholder
-level, not `bodycaptcha-levels.json`. Check the install output (or re-run
-`install.sh`) if the show is supposed to have private content but came up
-looking wrong.
-
-Once the content is on disk, point the running service at it with a systemd
-drop-in rather than editing the committed unit, which stays on the default set:
-
-```bash
-sudo systemctl edit captcha
-```
+A failed sync prints a warning and the install carries on. Then point the service at the set with a drop-in (`sudo systemctl edit captcha`), not by editing the committed unit. The empty `ExecStart=` line is required, or systemd appends instead of replacing:
 
 ```ini
 [Service]
@@ -381,25 +217,4 @@ ExecStart=
 ExecStart=/usr/bin/python3 app.py --camera --port 8080 --levels images/private/<show-name>/levels.json
 ```
 
-**The empty `ExecStart=` line is required.** Without it, systemd appends this
-line to the committed `ExecStart=` instead of replacing it, and the unit fails
-to start with both sets of arguments on one command line.
-
-**Keeping it private.** LFS objects, once pushed, are effectively permanent —
-a mistaken commit of private content into this repo cannot be undone by
-amending. Two guards stop that from happening:
-
-1. `.gitignore` excludes `ShowControl/FundingCAPTCHA/images/private/`.
-2. `scripts/git-hooks/pre-commit` refuses any commit that stages a path under
-   that prefix (the backstop for `git add -f`, or for a future edit that drops
-   the `.gitignore` rule).
-
-The hook is tracked in the repo but not installed by default — install it once
-per clone:
-
-```bash
-bash scripts/install-git-hooks.sh
-```
-
-This symlinks the tracked hooks into `.git/hooks` (rather than setting
-`core.hooksPath`, which would disable Git LFS's own hooks there).
+If the show comes up on a single placeholder level, the drop-in points at a file the sync did not deliver: read the install output and run it again.
