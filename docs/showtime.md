@@ -207,7 +207,7 @@ sudo systemctl restart captcha
 journalctl -u captcha -f
 ```
 
-`captcha` is a single pygame process (ADR-0012) — no browser, no kiosk. State machine is `BG_CAL → SCREENSAVER → GAME`. If stuck in BG_CAL the camera isn't producing frames.
+`captcha` is a single pygame process (ADR-0012) — no browser, no kiosk. State machine is `SCREENSAVER ↔ GAME` (`kiosk.py`). If the Dashboard shows `state=error` or `fg_pixels` never changes, the camera isn't producing frames.
 
 ### TreeHouse — displays off or wrong screen
 
