@@ -26,7 +26,7 @@ A dated note (*Note, 2026-11-18: …*) corrects a name or fact that changed afte
 | [0011](0011-fundingcaptcha-screen-calibration-and-projection.md) | FundingCAPTCHA uses three-corner orthographic projection for Screen mapping | Superseded by [ADR-0013](0013-fundingcaptcha-silhouette-body-interaction.md) |
 | [0012](0012-fundingcaptcha-unified-pygame-app.md) | FundingCAPTCHA runs as a unified pygame app | Accepted and amended by [ADR-0013](0013-fundingcaptcha-silhouette-body-interaction.md) and [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) |
 | [0013](0013-fundingcaptcha-silhouette-body-interaction.md) | FundingCAPTCHA uses body silhouette interaction, not touch detection | Accepted and amended by [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) |
-| [0014](0014-playingthepipes-encoder-picos.md) | Playing the Pipes uses Pi Pico encoder boards, not direct Pi GPIO | Accepted |
+| [0014](0014-playingthepipes-encoder-picos.md) | Playing the Pipes uses Pi Pico encoder boards, not direct Pi GPIO | Accepted and amended by [ADR-0026](0026-playingthepipes-on-reuben-on-linux.md) |
 | [0015](0015-flowerbeds-gui-layout-tool.md) | FlowerBeds GUI Layout Tool | Accepted |
 | [0016](0016-fundingcaptcha-test-input-mode.md) | FundingCAPTCHA `--test-input` mode for camera-free game development | Accepted and amended by [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md) |
 | [0017](0017-club-diorama-rave-screen.md) | Club Diorama Rave Screen | Accepted |
@@ -38,3 +38,4 @@ A dated note (*Note, 2026-11-18: …*) corrects a name or fact that changed afte
 | [0023](0023-fundingcaptcha-self-learning-depth-background.md) | FundingCAPTCHA learns its depth background continuously — no boot-time standback | Accepted |
 | [0024](0024-shader-player-image-channel.md) | Shader player image channel: one shuffled image per load | Accepted |
 | [0025](0025-fundingcaptcha-shader-player.md) | FundingCAPTCHA shader player — Shadertoy Setups driven by the depth camera | Accepted and amended by [ADR-0022](0022-shader-player-blob-records.md), [ADR-0023](0023-fundingcaptcha-self-learning-depth-background.md), [ADR-0024](0024-shader-player-image-channel.md) |
+| [0026](0026-playingthepipes-on-reuben-on-linux.md) | Playing the Pipes runs on reuben, on Linux | Accepted |

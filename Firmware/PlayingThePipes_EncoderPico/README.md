@@ -5,7 +5,7 @@ MicroPython program for the two Raspberry Pi Picos that read the rotary encoders
 - **Libraries:** none beyond MicroPython.
 - **Wiring:** encoder `n` (0–5) has A on `GP(2n)` and B on `GP(2n+1)`, with internal pull-ups; encoder common to ground.
 - **Protocol** (text lines over USB serial): `/enc BOARD ENC DELTA`, for example `/enc 0 3 -2` — board 0, encoder 3, two ticks counter-clockwise. Sent only when an encoder has moved.
-- **Reader:** the Max patch `ShowControl/PlayingThePipes/Lamplight2026/patchers/encoderin.maxpat`; `EncoderTester.maxpat` beside it checks a Pico on its own.
+- **Reader:** `ShowControl/PlayingThePipes/encoder_bridge.py` on the `pipes` host; its `/health` shows which boards it hears.
 
 ## Flashing
 

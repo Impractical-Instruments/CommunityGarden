@@ -19,7 +19,7 @@ uv brings the right Python and packages; there is nothing else to install. More 
 
 ## Docs
 
-- **[bootstrap.md](docs/bootstrap.md)** — one-time hardware provisioning (fresh Pis, Windows host, operator laptop)
+- **[bootstrap.md](docs/bootstrap.md)** — one-time hardware provisioning (fresh Pis, the Playing the Pipes mini PC, operator laptop)
 - **[showtime.md](docs/showtime.md)** — install, start, debug, maintain — daily + venue ops, deploy, troubleshooting
 - Per-Element detail: [FlowerBeds](docs/FlowerBeds.md) · [TreeHouse](docs/TreeHouse.md) · [FundingCAPTCHA](docs/FundingCAPTCHA.md) · [PlayingThePipes](docs/PlayingThePipes.md) · [Dashboard](docs/Dashboard.md)
 
