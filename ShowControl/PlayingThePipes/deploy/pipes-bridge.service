@@ -1,0 +1,21 @@
+[Unit]
+Description=Playing the Pipes encoder bridge (Picos to reuben, plus /health)
+After=network-online.target
+Wants=network-online.target
+Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/PlayingThePipes.md
+# Placeholders (@...@) are filled in by deploy/install.sh.
+
+[Service]
+WorkingDirectory=@REPO_ROOT@/ShowControl/PlayingThePipes
+ExecStart=/usr/bin/python3 encoder_bridge.py
+Restart=always
+RestartSec=5
+User=@SERVICE_USER@
+# The encoder Picos appear as /dev/ttyACM*; dialout gives unprivileged access.
+SupplementaryGroups=dialout
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pipes-bridge
+
+[Install]
+WantedBy=multi-user.target
