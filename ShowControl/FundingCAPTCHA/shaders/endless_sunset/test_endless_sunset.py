@@ -9,51 +9,23 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shadertoy import Renderer, load_setup, pack_body
+from shader_test_rig import BODY, DT, load_renderer, pack_frame, read_image, rect
+from shadertoy import Renderer
 
-SETUP = Path(__file__).parent / "shaders" / "endless_sunset"
+SETUP = Path(__file__).parent
 SIZE  = (96, 54)                         # render size
-BODY  = (64, 40)                         # camera ROI size (w, h)
-SLABS = [{"near_mm": 1000, "far_mm": 4000}]
-DT    = 1 / 30
 
 
 def make(ctx, size=SIZE) -> Renderer:
-    r = Renderer(ctx, size, body_mode="camera")
-    r.load(load_setup(SETUP))
-    r.defer_image = True                         # image() draws the Image on demand
-    return r
-
-
-def body(mask: np.ndarray) -> np.ndarray:
-    """mask: bool (h, w), row 0 = top → packed Body."""
-    fg = np.where(mask, 2000, 0).astype(np.uint16)
-    return pack_body(fg, {"x": 0, "y": 0, "w": mask.shape[1], "h": mask.shape[0]}, SLABS)
-
-
-def rect(x0, y0, x1, y1) -> np.ndarray:
-    m = np.zeros(BODY[::-1], dtype=bool)
-    m[y0:y1, x0:x1] = True
-    return m
+    return load_renderer(ctx, SETUP, size)
 
 
 def run(r, masks, frames_per_camera=3):
     """Upload each mask, then render frames_per_camera frames (camera 10 fps, render 30)."""
     for m in masks:
-        r.upload_body(body(m))
+        r.upload_body(pack_frame(m))
         for _ in range(frames_per_camera):
             r.render(DT, (0, 0, 0, 0))
-
-
-def buf(r, name) -> np.ndarray:
-    """float32 (h, w, 4), row 0 = GL bottom."""
-    t = r._buffers[name].read_tex
-    return np.frombuffer(t.read(), dtype=np.float16).astype(np.float32).reshape(t.size[1], t.size[0], 4)
-
-
-def image(r) -> np.ndarray:
-    r.draw_deferred_image()
-    return np.frombuffer(r.output.read(components=4), dtype=np.uint8).reshape(r.size[1], r.size[0], 4)
 
 
 def standing(n):
@@ -84,7 +56,7 @@ def flickering(n, seed=0):
 def test_soft_presence_follows_body(ctx):
     r = make(ctx)
     run(r, standing(5))
-    b = buf(r, "buffer_b")
+    b = r.read_buffer("buffer_b")
     assert b[27, 63, 0] > 0.9
     assert b[27, 10, 0] < 0.05
 
@@ -92,20 +64,20 @@ def test_soft_presence_follows_body(ctx):
 def test_ripple_field_decays_with_distance(ctx):
     r = make(ctx)
     run(r, standing(20))
-    f = buf(r, "buffer_b")[27, :, 2]
+    f = r.read_buffer("buffer_b")[27, :, 2]
     assert f[63] > 0.9 and f[50] > f[40] > f[25] >= 0.0
 
 
 def test_walking_leaves_movement_trail(ctx):
     r = make(ctx)
     run(r, walking(15))
-    assert buf(r, "buffer_b")[..., 1].max() > 0.5
+    assert r.read_buffer("buffer_b")[..., 1].max() > 0.5
 
 
 def test_edge_flicker_is_not_flailing(ctx):
     r = make(ctx)
     run(r, flickering(30))
-    assert buf(r, "buffer_b")[..., 1].max() < 0.15
+    assert r.read_buffer("buffer_b")[..., 1].max() < 0.15
 
 
 # ── State (Buffer C) ──────────────────────────────────────────────────────────
@@ -114,7 +86,7 @@ EMPTY = rect(0, 0, 0, 0)
 
 
 def state(r) -> np.ndarray:
-    return buf(r, "buffer_c")[0, 0]
+    return r.read_buffer("buffer_c")[0, 0]
 
 
 def test_empty_room_sleeps(ctx):
@@ -147,7 +119,7 @@ def test_flail_is_steady_between_camera_frames(ctx):
     run(r, walking(20, step=3))
     vals = []
     for m in walking(6, step=3):
-        r.upload_body(body(m))
+        r.upload_body(pack_frame(m))
         for _ in range(3):
             r.render(DT, (0, 0, 0, 0))
             vals.append(state(r)[1])
@@ -167,7 +139,7 @@ def test_clock_runs_slower_when_empty(ctx):
 
 def test_clock_stays_bounded_and_split(ctx):
     r = make(ctx)
-    r.upload_body(body(standing(1)[0]))
+    r.upload_body(pack_frame(standing(1)[0]))
     for _ in range(3700):                           # 370 s at rate ~1 → wrapped once
         r.render(0.1, (0, 0, 0, 0))
     s = state(r)
@@ -188,7 +160,7 @@ def test_empty_room_is_dimmer(ctx):
     def mean(masks):
         r = make(ctx)
         run(r, masks)
-        return image(r)[..., :3].mean()
+        return read_image(r)[..., :3].mean()
     assert mean([EMPTY] * 40) < 0.8 * mean([CORNER] * 40)
 
 
@@ -213,7 +185,7 @@ def test_outline_contrasts_with_the_scene_by_default(ctx, tmp_path):
     size = (384, 216)
     def render(r):
         run(r, [CORNER | standing(1)[0]] * 30)
-        return image(r)[..., :3].astype(int)
+        return read_image(r)[..., :3].astype(int)
     default = render(make(ctx, size))
     yellow  = render(make_with(ctx, tmp_path, size, OUTLINE_COL="YELLOW"))
     outline = np.abs(default - yellow).max(axis=2) > 100
@@ -228,7 +200,7 @@ def test_flailing_squiggles_the_outline(ctx, tmp_path):
     def ink_in_band(masks):
         r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so the outline is easy to find
         run(r, masks)
-        img = image(r)[..., :3].astype(int).sum(axis=2)
+        img = read_image(r)[..., :3].astype(int).sum(axis=2)
         m = to_render(masks[-1], size)
         band = grow(m, 5) & ~grow(m, 2)             # 3–5 px outside the true edge
         return int(((img < 200) & band).sum())
@@ -249,11 +221,10 @@ def test_small_blob_is_tinted_and_see_through(ctx):
         if with_speck:
             m[40:43, 560:563] = True                # camera-noise speck over the sky, far away
         r = make(ctx, size)
-        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                                {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+        r.upload_body(pack_frame(m))
         for _ in range(60):
             r.render(DT, (0, 0, 0, 0))
-        return image(r)[..., :3].astype(int)
+        return read_image(r)[..., :3].astype(int)
     a, b = render(True), render(False)
     c = (size[1] - 1 - int(41.5 * size[1] / cam[0]), int(561.5 * size[0] / cam[1]))
     assert np.abs(a[c] - b[c]).max() > 15                           # it shows up
@@ -267,17 +238,14 @@ def make_with(ctx, tmp_path, size=SIZE, **consts) -> Renderer:
     import shutil
     d = tmp_path / "endless_sunset"
     shutil.rmtree(d, ignore_errors=True)
-    shutil.copytree(SETUP, d)
+    shutil.copytree(SETUP, d, ignore=shutil.ignore_patterns("test_*.py", "__pycache__"))
     c = d / "common.glsl"
     src = c.read_text()
     for k, v in consts.items():
         src, n = re.subn(rf"(const (?:float|vec3) {k}\s*=\s*)[^;]+;", rf"\g<1>{v};", src)
         assert n == 1, f"{k} not found in common.glsl"
     c.write_text(src)
-    r = Renderer(ctx, size, body_mode="camera")
-    r.load(load_setup(d))
-    r.defer_image = True
-    return r
+    return load_renderer(ctx, d, size)
 
 
 def test_people_stir_the_background(ctx, tmp_path):
@@ -285,7 +253,7 @@ def test_people_stir_the_background(ctx, tmp_path):
     m = CORNER | rect(40, 4, 46, 24)                # standing in the sky, right of the sun
     def render(r):
         run(r, [m] * 30)
-        return image(r)[..., :3].astype(float)
+        return read_image(r)[..., :3].astype(float)
     stirred = render(make(ctx, size))
     still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
     rm   = to_render(m, size)
@@ -308,7 +276,7 @@ def test_liquid_is_calm_under_people(ctx, tmp_path):
         frames.append(f)
     def render(r):
         run(r, frames)
-        return image(r)[..., :3].astype(float)
+        return read_image(r)[..., :3].astype(float)
     stirred = render(make(ctx, size))
     still   = render(make_with(ctx, tmp_path, size, LIQUID_AMP="0.0"))
     inside  = ~grow(~to_render(rect(30, 6, 50, 38), size), 30)   # well inside the silhouette
@@ -318,7 +286,7 @@ def test_liquid_is_calm_under_people(ctx, tmp_path):
 def test_horizon_low_and_sun_big(ctx):
     r = make(ctx)
     run(r, [CORNER] * 60)
-    img = image(r)
+    img = read_image(r)
     yellow = lambda c: np.abs(c - [255, 242, 0]).max() < 40
     assert yellow(px(img, 0.5, 0.26))               # just above a horizon at 20%
     assert yellow(px(img, 0.5, 0.32))               # a sun of radius 60/360 reaches up to ~0.37
@@ -338,11 +306,10 @@ def test_outline_skips_tiny_holes(ctx, tmp_path):
         r = make_with(ctx, tmp_path, size, OUTLINE_COL="INK")   # ink, so stray outline is easy to find
         for _ in range(30):
             m = solid & ~(rng.random(cam) < 0.08) if holes else solid
-            r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                                    {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+            r.upload_body(pack_frame(m))
             for _ in range(3):
                 r.render(DT, (0, 0, 0, 0))
-        dark = image(r)[..., :3].astype(int).sum(axis=2) < 200
+        dark = read_image(r)[..., :3].astype(int).sum(axis=2) < 200
         ys = ((np.arange(size[1]) + 0.5) * cam[0] / size[1]).astype(int)
         xs = ((np.arange(size[0]) + 0.5) * cam[1] / size[0]).astype(int)
         inside = ~grow(~solid[::-1][ys][:, xs], 12)
@@ -356,11 +323,10 @@ def test_ripple_field_reaches_its_documented_falloff(ctx):
     m = np.zeros(cam, dtype=bool)
     m[100:400, 300:340] = True                      # a person; their right edge at camera x = 340
     r = make(ctx, size)
-    r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                            {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+    r.upload_body(pack_frame(m))
     for _ in range(90):                             # 3 s: plenty to settle at 4 px per frame
         r.render(DT, (0, 0, 0, 0))
-    row = buf(r, "buffer_b")[300, :, 2]             # GL row 300 crosses the body
+    row = r.read_buffer("buffer_b")[300, :, 2]             # GL row 300 crosses the body
     edge_px = int(340 * size[0] / cam[1])
     falloff_px = int(70 / 360 * size[1])            # RIPPLE_FALLOFF in render px
     assert 0.2 < row[edge_px + falloff_px] < 0.55
@@ -372,7 +338,7 @@ def test_clock_wrap_is_seamless_everywhere(ctx, tmp_path):
     # one full loop later (CLOCK_SHIFT = LOOP_S) must look identical.
     def frame(r):
         run(r, [CORNER] * 20)
-        return image(r)[..., :3].astype(int)
+        return read_image(r)[..., :3].astype(int)
     now   = frame(make(ctx))
     later = frame(make_with(ctx, tmp_path, CLOCK_SHIFT="360.0"))
     assert np.abs(now - later).max() <= 2
@@ -384,7 +350,7 @@ def test_water_lines_are_all_on_screen_and_clear_the_horizon(ctx, tmp_path):
     size = (960, 540)
     r = make_with(ctx, tmp_path, size, LIQUID_AMP="0.0", RIPPLE_AMP="0.0")
     run(r, [CORNER] * 40)
-    img = image(r)[..., :3].astype(int)                               # row 0 = bottom
+    img = read_image(r)[..., :3].astype(int)                               # row 0 = bottom
     dark = (img.sum(axis=2) < 450) | (np.abs(img - [32, 118, 163]).max(axis=2) < 40)
     line = dark[:, int(0.15 * size[0])]
     assert line[5:15].any()                         # 8th line
@@ -414,11 +380,10 @@ def test_skipping_work_away_from_people_changes_nothing(ctx, tmp_path):
         frames.append(m)
     def render(r):
         for m in frames:
-            r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                                    {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+            r.upload_body(pack_frame(m))
             for _ in range(3):
                 r.render(DT, (0, 0, 0, 0))
-        return image(r)[..., :3].astype(int)
+        return read_image(r)[..., :3].astype(int)
     gated   = render(make(ctx, size))
     ungated = render(make_with(ctx, tmp_path, size, PERSON_GATE="-1.0", FIELD_GATE="-1.0"))
     # Excluding a 2 px border: there the disc's taps clamp to the screen edge, so a ~0 centre no
@@ -434,11 +399,10 @@ def test_field_spreads_at_the_same_speed_at_any_resolution(ctx):
         m = np.zeros(cam, dtype=bool)
         m[:, 300:340] = True
         r = make(ctx, size)
-        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                                {"x": 0, "y": 0, "w": cam[1], "h": cam[0]}, SLABS))
+        r.upload_body(pack_frame(m))
         for _ in range(6):                          # 0.2 s: the front is still moving
             r.render(DT, (0, 0, 0, 0))
-        row = buf(r, "buffer_b")[size[1] // 2, :, 2]
+        row = r.read_buffer("buffer_b")[size[1] // 2, :, 2]
         edge = int(340 * size[0] / cam[1]) + 2          # just right of the body
         return np.argmax(row[edge:] < 0.05) / size[1]   # how far the front got, in screen heights
     assert front((480, 270)) == pytest.approx(front((960, 540)), abs=0.02)
@@ -467,8 +431,7 @@ def pi_frames(n, holes=0.0, seed=3):
 def pi_run(r, masks, after=None):
     """Upload each camera mask, render 3 frames each; after(r) is called after every frame."""
     for m in masks:
-        r.upload_body(pack_body(np.where(m, 2000, 0).astype(np.uint16),
-                                {"x": 0, "y": 0, "w": PI_CAM[1], "h": PI_CAM[0]}, SLABS))
+        r.upload_body(pack_frame(m))
         for _ in range(3):
             r.render(DT, (0, 0, 0, 0))
             if after:
@@ -497,7 +460,7 @@ def test_person_is_filled_with_concentric_lines_that_crawl(ctx, tmp_path):
     # Replaces the old flat 80% warm-white fill: the sun now shows between the lines.
     r = calm(ctx, tmp_path)
     pi_run(r, pi_frames(40))
-    img = image(r)
+    img = read_image(r)
     row, red = sun_row(img), sun_row(img, channel=0)
     starts = runs(row)
     assert len(starts) >= 4, row                    # several lines …
@@ -506,7 +469,7 @@ def test_person_is_filled_with_concentric_lines_that_crawl(ctx, tmp_path):
     gap = np.median(np.diff(starts)) / PI_SIZE[1]
     assert 7 / 360 < gap < 14 / 360                 # about 10/360 screen heights apart
     pi_run(r, pi_frames(5))                         # half a second later, body unchanged:
-    assert np.abs(row - sun_row(image(r))).mean() > 20   # the lines have crawled
+    assert np.abs(row - sun_row(read_image(r))).mean() > 20   # the lines have crawled
 
 
 def test_concentric_lines_ignore_depth_dropouts(ctx, tmp_path):
@@ -516,13 +479,13 @@ def test_concentric_lines_ignore_depth_dropouts(ctx, tmp_path):
     pi_run(solid, pi_frames(40))
     r = calm(ctx, tmp_path)
     pi_run(r, pi_frames(40, holes=0.08))
-    a, b = sun_row(image(solid)), sun_row(image(r))
+    a, b = sun_row(read_image(solid)), sun_row(read_image(r))
     assert (np.abs(a - b) > 90).mean() < 0.08
     assert abs(len(runs(a)) - len(runs(b))) <= 1
     # Nor do they tear between camera frames: rendering at 30 fps from a 10 fps camera, from one
     # render frame to the next the lines only crawl a little, even with flickering holes.
     rows = []
-    pi_run(r, pi_frames(4, holes=0.08, seed=9), after=lambda r: rows.append(sun_row(image(r))))
+    pi_run(r, pi_frames(4, holes=0.08, seed=9), after=lambda r: rows.append(sun_row(read_image(r))))
     steps = [(np.abs(a - b) > 120).mean() for a, b in zip(rows, rows[1:])]
     assert max(steps) < 0.25, steps
 
@@ -535,4 +498,4 @@ def test_concentric_lines_fill_a_body_that_just_arrived(ctx, tmp_path):
     corner[340:400, 0:60] = True                    # someone else keeps the scene awake
     r = calm(ctx, tmp_path)
     pi_run(r, [corner] * 60 + [corner | m for m in pi_frames(6)])
-    assert len(runs(sun_row(image(r)))) >= 4
+    assert len(runs(sun_row(read_image(r)))) >= 4
