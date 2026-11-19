@@ -13,7 +13,7 @@ The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The
 | `encoder_bridge.py` | Reads the encoder Picos (found by USB vendor ID, any port), feeds their detents to `pipes_control`, and sends its values to reuben as OSC every 10 ms. Serves `GET /health` (Picos, reuben, loop state), and `POST /control/enc` + `GET /state` for the Dashboard's virtual encoder surface. `--fake-encoders` runs it without hardware |
 | `pipes_control.py` | What the Max patch's `knobgrain`/`knobvelocity`/`wakemove`/`ComputeState` did: per-knob velocity, wake/sleep, grain parameters and level; the loop mix state and its preset crossfades |
 | `settings.json` | All of `pipes_control`'s tuning, from the Max patch: velocity smoothing, timeouts, each grain voice's ranges, the 13 loop presets |
-| `reuben/pipes.json` | The reuben instrument: 12 grain voices, 13 stereo loops, the mic echo, and a master of volume, then limiter. Edit it only through reuben's MCP document verbs (`.mcp.json` at the repo root starts that server) |
+| `reuben/pipes.json` | The reuben instrument: 12 grain voices, 13 stereo loops, the mic echo, and a master of volume, then limiter. Each bus (grains, loops, master) is one reuben `mix` node per side, with each knob's or loop's level wired into that channel's gain. Edit it only through reuben's MCP document verbs (`.mcp.json` at the repo root starts that server) |
 
 **Run it on a laptop:** `make pipes` builds reuben, plays `reuben/pipes.json` on the default audio devices (the mic included), and drives it with fake encoders. `REUBEN_PLAY_ARGS="--io-map <profile>"` picks other devices.
 

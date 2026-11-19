@@ -41,7 +41,7 @@ mic in (L, R) → gain → pre-delay (0.5 s left, 0.75 s right) → feedback ech
 - **Which physical inputs are the mic** is set by the device profile's `input` block, not by the instrument.
 - **reuben exits at startup if there is no input device.** `pipes-reuben` then restarts every 5 s until one appears. Silence plus a restart loop in `journalctl -u pipes-reuben` usually means the audio interface is unplugged or the profile names a device that isn't there.
 
-Everything (grains, loops, mic echo) is summed into the master: the master volume (`/volume/in`, default 0.25), a limiter (about 20:1, fast attack, −1 dB), then a hard clamp at ±1. The volume comes before the limiter so the limiter guards the real output at any volume.
+Everything (grains, loops, mic echo) is summed into the master: the master volume (`/volume/in`, default 0.25, applied as the gains of the master `mix` nodes), a limiter (about 20:1, fast attack, −1 dB), then a hard clamp at ±1. The volume comes before the limiter so the limiter guards the real output at any volume.
 
 ---
 

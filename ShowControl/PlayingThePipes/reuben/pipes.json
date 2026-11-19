@@ -25,14 +25,6 @@
   },
   "interface": {
     "inputs": {
-      "mic_l": {
-        "type": "f32_buffer",
-        "channel": 0
-      },
-      "mic_r": {
-        "type": "f32_buffer",
-        "channel": 1
-      },
       "knob0_density": {
         "type": "f32",
         "default": 1.5,
@@ -61,40 +53,6 @@
         "max": 1.0
       },
       "knob0_spray": {
-        "type": "f32",
-        "default": 0.0,
-        "min": 0.0,
-        "max": 1000.0,
-        "unit": "ms"
-      },
-      "knob1_density": {
-        "type": "f32",
-        "default": 1.25,
-        "min": 1.0,
-        "max": 200.0,
-        "curve": "exp",
-        "unit": "Hz"
-      },
-      "knob1_grain_size": {
-        "type": "f32",
-        "default": 400.0,
-        "min": 5.0,
-        "max": 500.0,
-        "unit": "ms"
-      },
-      "knob1_level": {
-        "type": "f32",
-        "default": 0.0,
-        "min": 0.0,
-        "max": 1.0
-      },
-      "knob1_position": {
-        "type": "f32",
-        "default": 0.25,
-        "min": 0.0,
-        "max": 1.0
-      },
-      "knob1_spray": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
@@ -165,6 +123,40 @@
       "knob11_spray": {
         "type": "f32",
         "default": 300.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      },
+      "knob1_density": {
+        "type": "f32",
+        "default": 1.25,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "knob1_grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "knob1_level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "knob1_position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "knob1_spray": {
+        "type": "f32",
+        "default": 0.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
@@ -441,12 +433,6 @@
         "max": 1000.0,
         "unit": "ms"
       },
-      "loop1_level": {
-        "type": "f32",
-        "default": 1.0,
-        "min": 0.0,
-        "max": 1.0
-      },
       "loop10_level": {
         "type": "f32",
         "default": 0.0,
@@ -468,6 +454,12 @@
       "loop13_level": {
         "type": "f32",
         "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "loop1_level": {
+        "type": "f32",
+        "default": 1.0,
         "min": 0.0,
         "max": 1.0
       },
@@ -518,6 +510,14 @@
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
+      },
+      "mic_l": {
+        "type": "f32_buffer",
+        "channel": 0
+      },
+      "mic_r": {
+        "type": "f32_buffer",
+        "channel": 1
       },
       "volume": {
         "type": "f32",
@@ -571,23 +571,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k0_amp",
-      "inputs": {
-        "a": {
-          "from": "/k0_grain"
-        },
-        "b": {
-          "from": "/k0_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k0_pan",
       "inputs": {
         "audio": {
-          "from": "/k0_amp"
+          "from": "/k0_grain"
         },
         "pan": -0.75
       }
@@ -625,23 +613,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k1_amp",
-      "inputs": {
-        "a": {
-          "from": "/k1_grain"
-        },
-        "b": {
-          "from": "/k1_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k1_pan",
       "inputs": {
         "audio": {
-          "from": "/k1_amp"
+          "from": "/k1_grain"
         },
         "pan": -0.614
       }
@@ -679,23 +655,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k2_amp",
-      "inputs": {
-        "a": {
-          "from": "/k2_grain"
-        },
-        "b": {
-          "from": "/k2_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k2_pan",
       "inputs": {
         "audio": {
-          "from": "/k2_amp"
+          "from": "/k2_grain"
         },
         "pan": -0.477
       }
@@ -733,23 +697,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k3_amp",
-      "inputs": {
-        "a": {
-          "from": "/k3_grain"
-        },
-        "b": {
-          "from": "/k3_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k3_pan",
       "inputs": {
         "audio": {
-          "from": "/k3_amp"
+          "from": "/k3_grain"
         },
         "pan": -0.341
       }
@@ -787,23 +739,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k4_amp",
-      "inputs": {
-        "a": {
-          "from": "/k4_grain"
-        },
-        "b": {
-          "from": "/k4_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k4_pan",
       "inputs": {
         "audio": {
-          "from": "/k4_amp"
+          "from": "/k4_grain"
         },
         "pan": -0.205
       }
@@ -841,23 +781,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k5_amp",
-      "inputs": {
-        "a": {
-          "from": "/k5_grain"
-        },
-        "b": {
-          "from": "/k5_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k5_pan",
       "inputs": {
         "audio": {
-          "from": "/k5_amp"
+          "from": "/k5_grain"
         },
         "pan": -0.068
       }
@@ -895,23 +823,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k6_amp",
-      "inputs": {
-        "a": {
-          "from": "/k6_grain"
-        },
-        "b": {
-          "from": "/k6_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k6_pan",
       "inputs": {
         "audio": {
-          "from": "/k6_amp"
+          "from": "/k6_grain"
         },
         "pan": 0.068
       }
@@ -949,23 +865,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k7_amp",
-      "inputs": {
-        "a": {
-          "from": "/k7_grain"
-        },
-        "b": {
-          "from": "/k7_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k7_pan",
       "inputs": {
         "audio": {
-          "from": "/k7_amp"
+          "from": "/k7_grain"
         },
         "pan": 0.205
       }
@@ -1003,23 +907,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k8_amp",
-      "inputs": {
-        "a": {
-          "from": "/k8_grain"
-        },
-        "b": {
-          "from": "/k8_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k8_pan",
       "inputs": {
         "audio": {
-          "from": "/k8_amp"
+          "from": "/k8_grain"
         },
         "pan": 0.341
       }
@@ -1057,23 +949,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k9_amp",
-      "inputs": {
-        "a": {
-          "from": "/k9_grain"
-        },
-        "b": {
-          "from": "/k9_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k9_pan",
       "inputs": {
         "audio": {
-          "from": "/k9_amp"
+          "from": "/k9_grain"
         },
         "pan": 0.477
       }
@@ -1111,23 +991,11 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k10_amp",
-      "inputs": {
-        "a": {
-          "from": "/k10_grain"
-        },
-        "b": {
-          "from": "/k10_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k10_pan",
       "inputs": {
         "audio": {
-          "from": "/k10_amp"
+          "from": "/k10_grain"
         },
         "pan": 0.614
       }
@@ -1165,289 +1033,13 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/k11_amp",
-      "inputs": {
-        "a": {
-          "from": "/k11_grain"
-        },
-        "b": {
-          "from": "/k11_level"
-        }
-      }
-    },
-    {
       "type": "pan",
       "address": "/k11_pan",
       "inputs": {
         "audio": {
-          "from": "/k11_amp"
+          "from": "/k11_grain"
         },
         "pan": 0.75
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l1",
-      "inputs": {
-        "a": {
-          "from": "/k0_pan.left"
-        },
-        "b": {
-          "from": "/k1_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l2",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l1"
-        },
-        "b": {
-          "from": "/k2_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l3",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l2"
-        },
-        "b": {
-          "from": "/k3_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l4",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l3"
-        },
-        "b": {
-          "from": "/k4_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l5",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l4"
-        },
-        "b": {
-          "from": "/k5_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l6",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l5"
-        },
-        "b": {
-          "from": "/k6_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l7",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l6"
-        },
-        "b": {
-          "from": "/k7_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l8",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l7"
-        },
-        "b": {
-          "from": "/k8_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l9",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l8"
-        },
-        "b": {
-          "from": "/k9_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l10",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l9"
-        },
-        "b": {
-          "from": "/k10_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_l11",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l10"
-        },
-        "b": {
-          "from": "/k11_pan.left"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r1",
-      "inputs": {
-        "a": {
-          "from": "/k0_pan.right"
-        },
-        "b": {
-          "from": "/k1_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r2",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r1"
-        },
-        "b": {
-          "from": "/k2_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r3",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r2"
-        },
-        "b": {
-          "from": "/k3_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r4",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r3"
-        },
-        "b": {
-          "from": "/k4_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r5",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r4"
-        },
-        "b": {
-          "from": "/k5_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r6",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r5"
-        },
-        "b": {
-          "from": "/k6_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r7",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r6"
-        },
-        "b": {
-          "from": "/k7_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r8",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r7"
-        },
-        "b": {
-          "from": "/k8_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r9",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r8"
-        },
-        "b": {
-          "from": "/k9_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r10",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r9"
-        },
-        "b": {
-          "from": "/k10_pan.right"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/fx_sum_r11",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r10"
-        },
-        "b": {
-          "from": "/k11_pan.right"
-        }
       }
     },
     {
@@ -1455,7 +1047,7 @@
       "address": "/fx_verb_l",
       "inputs": {
         "audio": {
-          "from": "/fx_sum_l11"
+          "from": "/grains_l"
         },
         "damp": 0.5,
         "mix": 0.0,
@@ -1467,7 +1059,7 @@
       "address": "/fx_verb_r",
       "inputs": {
         "audio": {
-          "from": "/fx_sum_r11"
+          "from": "/grains_r"
         },
         "damp": 0.5,
         "mix": 0.0,
@@ -1508,30 +1100,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l1_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l1_play_l"
-        },
-        "b": {
-          "from": "/l1_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l1_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l1_play_r"
-        },
-        "b": {
-          "from": "/l1_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l2_play_l",
       "inputs": {
@@ -1562,30 +1130,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l2_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l2_play_l"
-        },
-        "b": {
-          "from": "/l2_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l2_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l2_play_r"
-        },
-        "b": {
-          "from": "/l2_level"
-        }
       }
     },
     {
@@ -1622,30 +1166,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l3_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l3_play_l"
-        },
-        "b": {
-          "from": "/l3_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l3_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l3_play_r"
-        },
-        "b": {
-          "from": "/l3_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l4_play_l",
       "inputs": {
@@ -1676,30 +1196,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l4_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l4_play_l"
-        },
-        "b": {
-          "from": "/l4_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l4_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l4_play_r"
-        },
-        "b": {
-          "from": "/l4_level"
-        }
       }
     },
     {
@@ -1736,30 +1232,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l5_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l5_play_l"
-        },
-        "b": {
-          "from": "/l5_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l5_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l5_play_r"
-        },
-        "b": {
-          "from": "/l5_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l6_play_l",
       "inputs": {
@@ -1790,30 +1262,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l6_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l6_play_l"
-        },
-        "b": {
-          "from": "/l6_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l6_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l6_play_r"
-        },
-        "b": {
-          "from": "/l6_level"
-        }
       }
     },
     {
@@ -1850,30 +1298,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l7_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l7_play_l"
-        },
-        "b": {
-          "from": "/l7_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l7_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l7_play_r"
-        },
-        "b": {
-          "from": "/l7_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l8_play_l",
       "inputs": {
@@ -1904,30 +1328,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l8_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l8_play_l"
-        },
-        "b": {
-          "from": "/l8_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l8_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l8_play_r"
-        },
-        "b": {
-          "from": "/l8_level"
-        }
       }
     },
     {
@@ -1964,30 +1364,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l9_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l9_play_l"
-        },
-        "b": {
-          "from": "/l9_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l9_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l9_play_r"
-        },
-        "b": {
-          "from": "/l9_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l10_play_l",
       "inputs": {
@@ -2018,30 +1394,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l10_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l10_play_l"
-        },
-        "b": {
-          "from": "/l10_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l10_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l10_play_r"
-        },
-        "b": {
-          "from": "/l10_level"
-        }
       }
     },
     {
@@ -2078,30 +1430,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l11_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l11_play_l"
-        },
-        "b": {
-          "from": "/l11_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l11_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l11_play_r"
-        },
-        "b": {
-          "from": "/l11_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l12_play_l",
       "inputs": {
@@ -2135,30 +1463,6 @@
       }
     },
     {
-      "type": "mul_f32_signal",
-      "address": "/l12_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l12_play_l"
-        },
-        "b": {
-          "from": "/l12_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l12_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l12_play_r"
-        },
-        "b": {
-          "from": "/l12_level"
-        }
-      }
-    },
-    {
       "type": "sample",
       "address": "/l13_play_l",
       "inputs": {
@@ -2189,318 +1493,6 @@
         },
         "mode": "Smooth",
         "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l13_amp_l",
-      "inputs": {
-        "a": {
-          "from": "/l13_play_l"
-        },
-        "b": {
-          "from": "/l13_level"
-        }
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/l13_amp_r",
-      "inputs": {
-        "a": {
-          "from": "/l13_play_r"
-        },
-        "b": {
-          "from": "/l13_level"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l1",
-      "inputs": {
-        "a": {
-          "from": "/l1_amp_l"
-        },
-        "b": {
-          "from": "/l2_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l2",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l1"
-        },
-        "b": {
-          "from": "/l3_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l3",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l2"
-        },
-        "b": {
-          "from": "/l4_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l4",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l3"
-        },
-        "b": {
-          "from": "/l5_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l5",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l4"
-        },
-        "b": {
-          "from": "/l6_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l6",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l5"
-        },
-        "b": {
-          "from": "/l7_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l7",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l6"
-        },
-        "b": {
-          "from": "/l8_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l8",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l7"
-        },
-        "b": {
-          "from": "/l9_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l9",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l8"
-        },
-        "b": {
-          "from": "/l10_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l10",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l9"
-        },
-        "b": {
-          "from": "/l11_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l11",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l10"
-        },
-        "b": {
-          "from": "/l12_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_l12",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l11"
-        },
-        "b": {
-          "from": "/l13_amp_l"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r1",
-      "inputs": {
-        "a": {
-          "from": "/l1_amp_r"
-        },
-        "b": {
-          "from": "/l2_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r2",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r1"
-        },
-        "b": {
-          "from": "/l3_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r3",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r2"
-        },
-        "b": {
-          "from": "/l4_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r4",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r3"
-        },
-        "b": {
-          "from": "/l5_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r5",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r4"
-        },
-        "b": {
-          "from": "/l6_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r6",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r5"
-        },
-        "b": {
-          "from": "/l7_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r7",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r6"
-        },
-        "b": {
-          "from": "/l8_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r8",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r7"
-        },
-        "b": {
-          "from": "/l9_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r9",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r8"
-        },
-        "b": {
-          "from": "/l10_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r10",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r9"
-        },
-        "b": {
-          "from": "/l11_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r11",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r10"
-        },
-        "b": {
-          "from": "/l12_amp_r"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/loops_sum_r12",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r11"
-        },
-        "b": {
-          "from": "/l13_amp_r"
-        }
       }
     },
     {
@@ -2572,52 +1564,16 @@
       }
     },
     {
-      "type": "add_f32_signal",
-      "address": "/master_sum1_l",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_l11.out"
-        },
-        "b": {
-          "from": "/loops_sum_l12"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/master_sum2_l",
-      "inputs": {
-        "a": {
-          "from": "/master_sum1_l"
-        },
-        "b": {
-          "from": "/mic_echo_l"
-        }
-      }
-    },
-    {
       "type": "compressor",
       "address": "/master_limit_l",
       "inputs": {
         "attack": 0.1,
         "audio": {
-          "from": "/master_volume_l"
+          "from": "/master_l"
         },
         "ratio": 20.0,
         "release": 50.0,
         "threshold": -1.0
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/master_volume_l",
-      "inputs": {
-        "a": {
-          "from": "/master_sum2_l"
-        },
-        "b": {
-          "from": "/volume"
-        }
       }
     },
     {
@@ -2632,52 +1588,16 @@
       }
     },
     {
-      "type": "add_f32_signal",
-      "address": "/master_sum1_r",
-      "inputs": {
-        "a": {
-          "from": "/fx_sum_r11.out"
-        },
-        "b": {
-          "from": "/loops_sum_r12"
-        }
-      }
-    },
-    {
-      "type": "add_f32_signal",
-      "address": "/master_sum2_r",
-      "inputs": {
-        "a": {
-          "from": "/master_sum1_r"
-        },
-        "b": {
-          "from": "/mic_echo_r"
-        }
-      }
-    },
-    {
       "type": "compressor",
       "address": "/master_limit_r",
       "inputs": {
         "attack": 0.1,
         "audio": {
-          "from": "/master_volume_r"
+          "from": "/master_r"
         },
         "ratio": 20.0,
         "release": 50.0,
         "threshold": -1.0
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/master_volume_r",
-      "inputs": {
-        "a": {
-          "from": "/master_sum2_r"
-        },
-        "b": {
-          "from": "/volume"
-        }
       }
     },
     {
@@ -2688,6 +1608,384 @@
         "lo": -1.0,
         "x": {
           "from": "/master_limit_r"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/grains_l",
+      "doc": "Grain bus, left: the 12 voices, each at its knob level",
+      "inputs": {
+        "gain1": {
+          "from": "/k0_level"
+        },
+        "gain10": {
+          "from": "/k9_level"
+        },
+        "gain11": {
+          "from": "/k10_level"
+        },
+        "gain12": {
+          "from": "/k11_level"
+        },
+        "gain2": {
+          "from": "/k1_level"
+        },
+        "gain3": {
+          "from": "/k2_level"
+        },
+        "gain4": {
+          "from": "/k3_level"
+        },
+        "gain5": {
+          "from": "/k4_level"
+        },
+        "gain6": {
+          "from": "/k5_level"
+        },
+        "gain7": {
+          "from": "/k6_level"
+        },
+        "gain8": {
+          "from": "/k7_level"
+        },
+        "gain9": {
+          "from": "/k8_level"
+        },
+        "in1": {
+          "from": "/k0_pan.left"
+        },
+        "in10": {
+          "from": "/k9_pan.left"
+        },
+        "in11": {
+          "from": "/k10_pan.left"
+        },
+        "in12": {
+          "from": "/k11_pan.left"
+        },
+        "in2": {
+          "from": "/k1_pan.left"
+        },
+        "in3": {
+          "from": "/k2_pan.left"
+        },
+        "in4": {
+          "from": "/k3_pan.left"
+        },
+        "in5": {
+          "from": "/k4_pan.left"
+        },
+        "in6": {
+          "from": "/k5_pan.left"
+        },
+        "in7": {
+          "from": "/k6_pan.left"
+        },
+        "in8": {
+          "from": "/k7_pan.left"
+        },
+        "in9": {
+          "from": "/k8_pan.left"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/grains_r",
+      "doc": "Grain bus, right: the 12 voices, each at its knob level",
+      "inputs": {
+        "gain1": {
+          "from": "/k0_level"
+        },
+        "gain10": {
+          "from": "/k9_level"
+        },
+        "gain11": {
+          "from": "/k10_level"
+        },
+        "gain12": {
+          "from": "/k11_level"
+        },
+        "gain2": {
+          "from": "/k1_level"
+        },
+        "gain3": {
+          "from": "/k2_level"
+        },
+        "gain4": {
+          "from": "/k3_level"
+        },
+        "gain5": {
+          "from": "/k4_level"
+        },
+        "gain6": {
+          "from": "/k5_level"
+        },
+        "gain7": {
+          "from": "/k6_level"
+        },
+        "gain8": {
+          "from": "/k7_level"
+        },
+        "gain9": {
+          "from": "/k8_level"
+        },
+        "in1": {
+          "from": "/k0_pan.right"
+        },
+        "in10": {
+          "from": "/k9_pan.right"
+        },
+        "in11": {
+          "from": "/k10_pan.right"
+        },
+        "in12": {
+          "from": "/k11_pan.right"
+        },
+        "in2": {
+          "from": "/k1_pan.right"
+        },
+        "in3": {
+          "from": "/k2_pan.right"
+        },
+        "in4": {
+          "from": "/k3_pan.right"
+        },
+        "in5": {
+          "from": "/k4_pan.right"
+        },
+        "in6": {
+          "from": "/k5_pan.right"
+        },
+        "in7": {
+          "from": "/k6_pan.right"
+        },
+        "in8": {
+          "from": "/k7_pan.right"
+        },
+        "in9": {
+          "from": "/k8_pan.right"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/loops_l",
+      "doc": "Loop bus, left: the 13 loops, each at its busyness level",
+      "inputs": {
+        "gain1": {
+          "from": "/l1_level"
+        },
+        "gain10": {
+          "from": "/l10_level"
+        },
+        "gain11": {
+          "from": "/l11_level"
+        },
+        "gain12": {
+          "from": "/l12_level"
+        },
+        "gain13": {
+          "from": "/l13_level"
+        },
+        "gain2": {
+          "from": "/l2_level"
+        },
+        "gain3": {
+          "from": "/l3_level"
+        },
+        "gain4": {
+          "from": "/l4_level"
+        },
+        "gain5": {
+          "from": "/l5_level"
+        },
+        "gain6": {
+          "from": "/l6_level"
+        },
+        "gain7": {
+          "from": "/l7_level"
+        },
+        "gain8": {
+          "from": "/l8_level"
+        },
+        "gain9": {
+          "from": "/l9_level"
+        },
+        "in1": {
+          "from": "/l1_play_l"
+        },
+        "in10": {
+          "from": "/l10_play_l"
+        },
+        "in11": {
+          "from": "/l11_play_l"
+        },
+        "in12": {
+          "from": "/l12_play_l"
+        },
+        "in13": {
+          "from": "/l13_play_l"
+        },
+        "in2": {
+          "from": "/l2_play_l"
+        },
+        "in3": {
+          "from": "/l3_play_l"
+        },
+        "in4": {
+          "from": "/l4_play_l"
+        },
+        "in5": {
+          "from": "/l5_play_l"
+        },
+        "in6": {
+          "from": "/l6_play_l"
+        },
+        "in7": {
+          "from": "/l7_play_l"
+        },
+        "in8": {
+          "from": "/l8_play_l"
+        },
+        "in9": {
+          "from": "/l9_play_l"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/loops_r",
+      "doc": "Loop bus, right: the 13 loops, each at its busyness level",
+      "inputs": {
+        "gain1": {
+          "from": "/l1_level"
+        },
+        "gain10": {
+          "from": "/l10_level"
+        },
+        "gain11": {
+          "from": "/l11_level"
+        },
+        "gain12": {
+          "from": "/l12_level"
+        },
+        "gain13": {
+          "from": "/l13_level"
+        },
+        "gain2": {
+          "from": "/l2_level"
+        },
+        "gain3": {
+          "from": "/l3_level"
+        },
+        "gain4": {
+          "from": "/l4_level"
+        },
+        "gain5": {
+          "from": "/l5_level"
+        },
+        "gain6": {
+          "from": "/l6_level"
+        },
+        "gain7": {
+          "from": "/l7_level"
+        },
+        "gain8": {
+          "from": "/l8_level"
+        },
+        "gain9": {
+          "from": "/l9_level"
+        },
+        "in1": {
+          "from": "/l1_play_r"
+        },
+        "in10": {
+          "from": "/l10_play_r"
+        },
+        "in11": {
+          "from": "/l11_play_r"
+        },
+        "in12": {
+          "from": "/l12_play_r"
+        },
+        "in13": {
+          "from": "/l13_play_r"
+        },
+        "in2": {
+          "from": "/l2_play_r"
+        },
+        "in3": {
+          "from": "/l3_play_r"
+        },
+        "in4": {
+          "from": "/l4_play_r"
+        },
+        "in5": {
+          "from": "/l5_play_r"
+        },
+        "in6": {
+          "from": "/l6_play_r"
+        },
+        "in7": {
+          "from": "/l7_play_r"
+        },
+        "in8": {
+          "from": "/l8_play_r"
+        },
+        "in9": {
+          "from": "/l9_play_r"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/master_l",
+      "doc": "Master bus, left: grains, loops and mic echo, each at the master volume",
+      "inputs": {
+        "gain1": {
+          "from": "/volume"
+        },
+        "gain2": {
+          "from": "/volume"
+        },
+        "gain3": {
+          "from": "/volume"
+        },
+        "in1": {
+          "from": "/grains_l"
+        },
+        "in2": {
+          "from": "/loops_l"
+        },
+        "in3": {
+          "from": "/mic_echo_l"
+        }
+      }
+    },
+    {
+      "type": "mix",
+      "address": "/master_r",
+      "doc": "Master bus, right: grains, loops and mic echo, each at the master volume",
+      "inputs": {
+        "gain1": {
+          "from": "/volume"
+        },
+        "gain2": {
+          "from": "/volume"
+        },
+        "gain3": {
+          "from": "/volume"
+        },
+        "in1": {
+          "from": "/grains_r"
+        },
+        "in2": {
+          "from": "/loops_r"
+        },
+        "in3": {
+          "from": "/mic_echo_r"
         }
       }
     }
