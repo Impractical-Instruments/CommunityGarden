@@ -25,12 +25,12 @@ The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The
 
 | Address | Value |
 |---|---|
-| `/pipes/knobN/position/in` | 0..1, where in the grain buffer (N = board × 6 + encoder, 0–11) |
-| `/pipes/knobN/grain_size/in` | ms (5–500) |
-| `/pipes/knobN/density/in` | grains per second (1–200) |
-| `/pipes/knobN/spray/in` | ms, random jitter of each grain's start |
-| `/pipes/knobN/level/in` | 0..1 knob amplitude |
-| `/pipes/loopN/level/in` | 0..1 loop amplitude, N = 1–13 |
+| `/knobN_position/in` | 0..1, where in the grain buffer (N = board × 6 + encoder, 0–11) |
+| `/knobN_grain_size/in` | ms (5–500) |
+| `/knobN_density/in` | grains per second (1–200) |
+| `/knobN_spray/in` | ms, random jitter of each grain's start |
+| `/knobN_level/in` | 0..1 knob amplitude |
+| `/loopN_level/in` | 0..1 loop amplitude, N = 1–13 |
 | `/volume/in` | master volume, default 0.25 (−12 dB, as in Max). It sits before the limiter, so the limiter holds the output at −1 dBFS at any volume |
 
 The two sides change together; `test_pipes_control.py` fails if the bridge sends an address the instrument has no pipe for.

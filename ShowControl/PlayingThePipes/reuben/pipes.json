@@ -33,7 +33,7 @@
         "type": "f32_buffer",
         "channel": 1
       },
-      "pipes/knob0/density": {
+      "knob0_density": {
         "type": "f32",
         "default": 1.5,
         "min": 1.0,
@@ -41,33 +41,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob0/grain_size": {
+      "knob0_grain_size": {
         "type": "f32",
         "default": 500.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob0/level": {
+      "knob0_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob0/position": {
+      "knob0_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob0/spray": {
+      "knob0_spray": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob1/density": {
+      "knob1_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -75,33 +75,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob1/grain_size": {
+      "knob1_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob1/level": {
+      "knob1_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob1/position": {
+      "knob1_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob1/spray": {
+      "knob1_spray": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob10/density": {
+      "knob10_density": {
         "type": "f32",
         "default": 1.0,
         "min": 1.0,
@@ -109,33 +109,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob10/grain_size": {
+      "knob10_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob10/level": {
+      "knob10_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob10/position": {
+      "knob10_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob10/spray": {
+      "knob10_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob11/density": {
+      "knob11_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -143,33 +143,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob11/grain_size": {
+      "knob11_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob11/level": {
+      "knob11_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob11/position": {
+      "knob11_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob11/spray": {
+      "knob11_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob2/density": {
+      "knob2_density": {
         "type": "f32",
         "default": 1.0,
         "min": 1.0,
@@ -177,33 +177,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob2/grain_size": {
+      "knob2_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob2/level": {
+      "knob2_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob2/position": {
+      "knob2_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob2/spray": {
+      "knob2_spray": {
         "type": "f32",
         "default": 200.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob3/density": {
+      "knob3_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -211,33 +211,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob3/grain_size": {
+      "knob3_grain_size": {
         "type": "f32",
         "default": 500.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob3/level": {
+      "knob3_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob3/position": {
+      "knob3_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob3/spray": {
+      "knob3_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob4/density": {
+      "knob4_density": {
         "type": "f32",
         "default": 1.0,
         "min": 1.0,
@@ -245,33 +245,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob4/grain_size": {
+      "knob4_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob4/level": {
+      "knob4_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob4/position": {
+      "knob4_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob4/spray": {
+      "knob4_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob5/density": {
+      "knob5_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -279,33 +279,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob5/grain_size": {
+      "knob5_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob5/level": {
+      "knob5_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob5/position": {
+      "knob5_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob5/spray": {
+      "knob5_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob6/density": {
+      "knob6_density": {
         "type": "f32",
         "default": 1.5,
         "min": 1.0,
@@ -313,33 +313,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob6/grain_size": {
+      "knob6_grain_size": {
         "type": "f32",
         "default": 500.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob6/level": {
+      "knob6_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob6/position": {
+      "knob6_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob6/spray": {
+      "knob6_spray": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob7/density": {
+      "knob7_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -347,33 +347,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob7/grain_size": {
+      "knob7_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob7/level": {
+      "knob7_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob7/position": {
+      "knob7_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob7/spray": {
+      "knob7_spray": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob8/density": {
+      "knob8_density": {
         "type": "f32",
         "default": 1.0,
         "min": 1.0,
@@ -381,33 +381,33 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob8/grain_size": {
+      "knob8_grain_size": {
         "type": "f32",
         "default": 400.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob8/level": {
+      "knob8_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob8/position": {
+      "knob8_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob8/spray": {
+      "knob8_spray": {
         "type": "f32",
         "default": 200.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/knob9/density": {
+      "knob9_density": {
         "type": "f32",
         "default": 1.25,
         "min": 1.0,
@@ -415,105 +415,105 @@
         "curve": "exp",
         "unit": "Hz"
       },
-      "pipes/knob9/grain_size": {
+      "knob9_grain_size": {
         "type": "f32",
         "default": 500.0,
         "min": 5.0,
         "max": 500.0,
         "unit": "ms"
       },
-      "pipes/knob9/level": {
+      "knob9_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob9/position": {
+      "knob9_position": {
         "type": "f32",
         "default": 0.25,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/knob9/spray": {
+      "knob9_spray": {
         "type": "f32",
         "default": 300.0,
         "min": 0.0,
         "max": 1000.0,
         "unit": "ms"
       },
-      "pipes/loop1/level": {
+      "loop1_level": {
         "type": "f32",
         "default": 1.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop10/level": {
+      "loop10_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop11/level": {
+      "loop11_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop12/level": {
+      "loop12_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop13/level": {
+      "loop13_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop2/level": {
+      "loop2_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop3/level": {
+      "loop3_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop4/level": {
+      "loop4_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop5/level": {
+      "loop5_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop6/level": {
+      "loop6_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop7/level": {
+      "loop7_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop8/level": {
+      "loop8_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
         "max": 1.0
       },
-      "pipes/loop9/level": {
+      "loop9_level": {
         "type": "f32",
         "default": 0.0,
         "min": 0.0,
@@ -544,16 +544,16 @@
       "doc": "knob 0 grains (scrape1)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob0/density"
+          "from": "/knob0_density"
         },
         "grain_size": {
-          "from": "/pipes/knob0/grain_size"
+          "from": "/knob0_grain_size"
         },
         "position": {
-          "from": "/pipes/knob0/position"
+          "from": "/knob0_position"
         },
         "spray": {
-          "from": "/pipes/knob0/spray"
+          "from": "/knob0_spray"
         },
         "window": "Hann"
       },
@@ -564,7 +564,7 @@
       "address": "/k0_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob0/level"
+          "from": "/knob0_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -598,16 +598,16 @@
       "doc": "knob 1 grains (mallet1)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob1/density"
+          "from": "/knob1_density"
         },
         "grain_size": {
-          "from": "/pipes/knob1/grain_size"
+          "from": "/knob1_grain_size"
         },
         "position": {
-          "from": "/pipes/knob1/position"
+          "from": "/knob1_position"
         },
         "spray": {
-          "from": "/pipes/knob1/spray"
+          "from": "/knob1_spray"
         },
         "window": "Hann"
       },
@@ -618,7 +618,7 @@
       "address": "/k1_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob1/level"
+          "from": "/knob1_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -652,16 +652,16 @@
       "doc": "knob 2 grains (scrape2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob2/density"
+          "from": "/knob2_density"
         },
         "grain_size": {
-          "from": "/pipes/knob2/grain_size"
+          "from": "/knob2_grain_size"
         },
         "position": {
-          "from": "/pipes/knob2/position"
+          "from": "/knob2_position"
         },
         "spray": {
-          "from": "/pipes/knob2/spray"
+          "from": "/knob2_spray"
         },
         "window": "Hann"
       },
@@ -672,7 +672,7 @@
       "address": "/k2_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob2/level"
+          "from": "/knob2_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -706,16 +706,16 @@
       "doc": "knob 3 grains (mallet2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob3/density"
+          "from": "/knob3_density"
         },
         "grain_size": {
-          "from": "/pipes/knob3/grain_size"
+          "from": "/knob3_grain_size"
         },
         "position": {
-          "from": "/pipes/knob3/position"
+          "from": "/knob3_position"
         },
         "spray": {
-          "from": "/pipes/knob3/spray"
+          "from": "/knob3_spray"
         },
         "window": "Hann"
       },
@@ -726,7 +726,7 @@
       "address": "/k3_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob3/level"
+          "from": "/knob3_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -760,16 +760,16 @@
       "doc": "knob 4 grains (modular2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob4/density"
+          "from": "/knob4_density"
         },
         "grain_size": {
-          "from": "/pipes/knob4/grain_size"
+          "from": "/knob4_grain_size"
         },
         "position": {
-          "from": "/pipes/knob4/position"
+          "from": "/knob4_position"
         },
         "spray": {
-          "from": "/pipes/knob4/spray"
+          "from": "/knob4_spray"
         },
         "window": "Hann"
       },
@@ -780,7 +780,7 @@
       "address": "/k4_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob4/level"
+          "from": "/knob4_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -814,16 +814,16 @@
       "doc": "knob 5 grains (flexitone)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob5/density"
+          "from": "/knob5_density"
         },
         "grain_size": {
-          "from": "/pipes/knob5/grain_size"
+          "from": "/knob5_grain_size"
         },
         "position": {
-          "from": "/pipes/knob5/position"
+          "from": "/knob5_position"
         },
         "spray": {
-          "from": "/pipes/knob5/spray"
+          "from": "/knob5_spray"
         },
         "window": "Hann"
       },
@@ -834,7 +834,7 @@
       "address": "/k5_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob5/level"
+          "from": "/knob5_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -868,16 +868,16 @@
       "doc": "knob 6 grains (scrape1)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob6/density"
+          "from": "/knob6_density"
         },
         "grain_size": {
-          "from": "/pipes/knob6/grain_size"
+          "from": "/knob6_grain_size"
         },
         "position": {
-          "from": "/pipes/knob6/position"
+          "from": "/knob6_position"
         },
         "spray": {
-          "from": "/pipes/knob6/spray"
+          "from": "/knob6_spray"
         },
         "window": "Hann"
       },
@@ -888,7 +888,7 @@
       "address": "/k6_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob6/level"
+          "from": "/knob6_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -922,16 +922,16 @@
       "doc": "knob 7 grains (mallet1)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob7/density"
+          "from": "/knob7_density"
         },
         "grain_size": {
-          "from": "/pipes/knob7/grain_size"
+          "from": "/knob7_grain_size"
         },
         "position": {
-          "from": "/pipes/knob7/position"
+          "from": "/knob7_position"
         },
         "spray": {
-          "from": "/pipes/knob7/spray"
+          "from": "/knob7_spray"
         },
         "window": "Hann"
       },
@@ -942,7 +942,7 @@
       "address": "/k7_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob7/level"
+          "from": "/knob7_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -976,16 +976,16 @@
       "doc": "knob 8 grains (scrape2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob8/density"
+          "from": "/knob8_density"
         },
         "grain_size": {
-          "from": "/pipes/knob8/grain_size"
+          "from": "/knob8_grain_size"
         },
         "position": {
-          "from": "/pipes/knob8/position"
+          "from": "/knob8_position"
         },
         "spray": {
-          "from": "/pipes/knob8/spray"
+          "from": "/knob8_spray"
         },
         "window": "Hann"
       },
@@ -996,7 +996,7 @@
       "address": "/k8_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob8/level"
+          "from": "/knob8_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -1030,16 +1030,16 @@
       "doc": "knob 9 grains (mallet2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob9/density"
+          "from": "/knob9_density"
         },
         "grain_size": {
-          "from": "/pipes/knob9/grain_size"
+          "from": "/knob9_grain_size"
         },
         "position": {
-          "from": "/pipes/knob9/position"
+          "from": "/knob9_position"
         },
         "spray": {
-          "from": "/pipes/knob9/spray"
+          "from": "/knob9_spray"
         },
         "window": "Hann"
       },
@@ -1050,7 +1050,7 @@
       "address": "/k9_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob9/level"
+          "from": "/knob9_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -1084,16 +1084,16 @@
       "doc": "knob 10 grains (modular2)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob10/density"
+          "from": "/knob10_density"
         },
         "grain_size": {
-          "from": "/pipes/knob10/grain_size"
+          "from": "/knob10_grain_size"
         },
         "position": {
-          "from": "/pipes/knob10/position"
+          "from": "/knob10_position"
         },
         "spray": {
-          "from": "/pipes/knob10/spray"
+          "from": "/knob10_spray"
         },
         "window": "Hann"
       },
@@ -1104,7 +1104,7 @@
       "address": "/k10_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob10/level"
+          "from": "/knob10_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -1138,16 +1138,16 @@
       "doc": "knob 11 grains (flexitone)",
       "inputs": {
         "density": {
-          "from": "/pipes/knob11/density"
+          "from": "/knob11_density"
         },
         "grain_size": {
-          "from": "/pipes/knob11/grain_size"
+          "from": "/knob11_grain_size"
         },
         "position": {
-          "from": "/pipes/knob11/position"
+          "from": "/knob11_position"
         },
         "spray": {
-          "from": "/pipes/knob11/spray"
+          "from": "/knob11_spray"
         },
         "window": "Hann"
       },
@@ -1158,7 +1158,7 @@
       "address": "/k11_level",
       "inputs": {
         "in": {
-          "from": "/pipes/knob11/level"
+          "from": "/knob11_level"
         },
         "mode": "Smooth",
         "time": 0.02
@@ -1501,7 +1501,7 @@
       "address": "/l1_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop1/level"
+          "from": "/loop1_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1558,7 +1558,7 @@
       "address": "/l2_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop2/level"
+          "from": "/loop2_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1615,7 +1615,7 @@
       "address": "/l3_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop3/level"
+          "from": "/loop3_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1672,7 +1672,7 @@
       "address": "/l4_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop4/level"
+          "from": "/loop4_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1729,7 +1729,7 @@
       "address": "/l5_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop5/level"
+          "from": "/loop5_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1786,7 +1786,7 @@
       "address": "/l6_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop6/level"
+          "from": "/loop6_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1843,7 +1843,7 @@
       "address": "/l7_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop7/level"
+          "from": "/loop7_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1900,7 +1900,7 @@
       "address": "/l8_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop8/level"
+          "from": "/loop8_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -1957,7 +1957,7 @@
       "address": "/l9_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop9/level"
+          "from": "/loop9_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -2014,7 +2014,7 @@
       "address": "/l10_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop10/level"
+          "from": "/loop10_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -2071,7 +2071,7 @@
       "address": "/l11_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop11/level"
+          "from": "/loop11_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -2128,7 +2128,7 @@
       "address": "/l12_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop12/level"
+          "from": "/loop12_level"
         },
         "mode": "Smooth",
         "time": 0.05
@@ -2185,7 +2185,7 @@
       "address": "/l13_level",
       "inputs": {
         "in": {
-          "from": "/pipes/loop13/level"
+          "from": "/loop13_level"
         },
         "mode": "Smooth",
         "time": 0.05

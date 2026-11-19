@@ -5,12 +5,12 @@ plain Python driven by a 10 ms tick (#238). The bridge feeds `on_detents` from
 the Picos and calls `tick` on a timer; reuben gets the results as OSC on the
 instrument's input pipes, each set at `/<pipe name>/in`:
 
-    /pipes/knobN/position/in     0..1     where in the grain buffer (detents since wake)
-    /pipes/knobN/grain_size/in   ms       grain length (and period)
-    /pipes/knobN/density/in      Hz       grains per second
-    /pipes/knobN/spray/in        ms       random jitter of each grain's start
-    /pipes/knobN/level/in        0..1     knob amplitude (fades, velocity volume)
-    /pipes/loopN/level/in        0..1     loop amplitude (state crossfade), N = 1..13
+    /knobN_position/in     0..1     where in the grain buffer (detents since wake)
+    /knobN_grain_size/in   ms       grain length (and period)
+    /knobN_density/in      Hz       grains per second
+    /knobN_spray/in        ms       random jitter of each grain's start
+    /knobN_level/in        0..1     knob amplitude (fades, velocity volume)
+    /loopN_level/in        0..1     loop amplitude (state crossfade), N = 1..13
 
 Those addresses are the contract with ShowControl/PlayingThePipes/reuben/pipes.json:
 both sides change together. Tuning lives in settings.json beside this file.
@@ -35,13 +35,14 @@ LOOPS = 13
 
 
 def knob_address(knob: int, param: str) -> str:
-    # A reuben input pipe named `pipes/knob0/level` is set at `/pipes/knob0/level/in`.
-    return f"/pipes/knob{knob}/{param}/in"
+    # A reuben input pipe named `knob0_level` is set at `/knob0_level/in`. A pipe name is one
+    # address segment: reuben refuses a second `/` in it.
+    return f"/knob{knob}_{param}/in"
 
 
 def loop_address(loop: int) -> str:
     """Loops are numbered 1-13, as in the Max patch and the instrument."""
-    return f"/pipes/loop{loop}/level/in"
+    return f"/loop{loop}_level/in"
 
 
 def lerp(lo: float, hi: float, t: float) -> float:

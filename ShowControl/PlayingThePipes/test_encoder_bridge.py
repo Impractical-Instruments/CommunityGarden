@@ -1,4 +1,4 @@
-"""The encoder bridge: Pico serial lines in, /pipes/knobN/in OSC out, /health (#237),
+"""The encoder bridge: Pico serial lines in, /knobN_<param>/in OSC out, /health (#237),
 and the Dashboard's virtual encoders (#263)."""
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ def test_knob_is_board_times_six_plus_encoder():
 
 
 def test_detents_reach_reuben_as_knob_values_over_osc():
-    """A detent goes through the controller and the control loop out as /pipes/knobN/... OSC."""
+    """A detent goes through the controller and the control loop out as /knobN_... OSC."""
     import pipes_control as pc
 
     rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -71,10 +71,10 @@ def test_detents_reach_reuben_as_knob_values_over_osc():
         pass
     finally:
         rx.close()
-    assert got["/pipes/knob9/position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
-    assert got["/pipes/knob9/level/in"] > 0
-    assert got["/pipes/knob0/level/in"] == 0.0
-    assert "/pipes/loop1/level/in" in got
+    assert got["/knob9_position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
+    assert got["/knob9_level/in"] > 0
+    assert got["/knob0_level/in"] == 0.0
+    assert "/loop1_level/in" in got
 
 
 def test_control_loop_ticks_and_sends_until_stopped():
@@ -367,9 +367,9 @@ def test_a_posted_enc_line_reaches_the_controller_and_goes_out_as_osc():
     out = []
     pc.ChangeSender(lambda a, v: out.append((a, v)), controller.s)(controller.tick(0.01), 0.01)
     got = dict(out)
-    assert got["/pipes/knob9/position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
-    assert got["/pipes/knob9/level/in"] > 0
-    assert got["/pipes/knob0/level/in"] == 0.0
+    assert got["/knob9_position/in"] > 0.25     # board 1 enc 3 = knob 9, turned forward
+    assert got["/knob9_level/in"] > 0
+    assert got["/knob0_level/in"] == 0.0
 
 
 @pytest.mark.parametrize("body", [
