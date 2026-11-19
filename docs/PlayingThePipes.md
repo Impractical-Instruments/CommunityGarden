@@ -17,7 +17,7 @@ Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on the valv
 | `pipes-bridge` | `encoder_bridge.py` | Finds the Picos by USB vendor ID on any port, turns their detents into knob and loop values (`pipes_control.py`, tuned by `settings.json`), and sends them to reuben as OSC every 10 ms. Serves `/health` |
 | `pipes-reuben` | `reuben play reuben/pipes.json --io-map reuben/pipes.profile.json` | The audio engine: plays the instrument on the audio interface the device profile names |
 
-[reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder) into a stereo reverb, 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master.
+[reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder, dry), 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master.
 
 The bridge and reuben talk over OSC on the box itself. Those addresses are not part of the OSC Fabric; they are listed in [osc-fabric.md](osc-fabric.md#playing-the-pipes-the-encoder-bridge-to-reuben). The Element does not yet send `/pipes/activity` to the TreeHouse (see [Open items](#open-items)).
 
@@ -41,7 +41,7 @@ mic in (L, R) → gain → pre-delay (0.5 s left, 0.75 s right) → feedback ech
 - **Which physical inputs are the mic** is set by the device profile's `input` block, not by the instrument.
 - **reuben exits at startup if there is no input device.** `pipes-reuben` then restarts every 5 s until one appears. Silence plus a restart loop in `journalctl -u pipes-reuben` usually means the audio interface is unplugged or the profile names a device that isn't there.
 
-Everything (grains and reverb, loops, mic echo) is summed into the master: a limiter (about 20:1, fast attack), the master volume (`/volume/in`, default 0.25), then a hard clamp at ±1.
+Everything (grains, loops, mic echo) is summed into the master: the master volume (`/volume/in`, default 0.25), a limiter (about 20:1, fast attack, −1 dB), then a hard clamp at ±1. The volume comes before the limiter so the limiter guards the real output at any volume.
 
 ---
 

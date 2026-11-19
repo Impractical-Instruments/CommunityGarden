@@ -13,7 +13,7 @@ The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The
 | `encoder_bridge.py` | Reads the encoder Picos (found by USB vendor ID, any port), feeds their detents to `pipes_control`, and sends its values to reuben as OSC every 10 ms. Serves `GET /health` (Picos, reuben, loop state), and `POST /control/enc` + `GET /state` for the Dashboard's virtual encoder surface. `--fake-encoders` runs it without hardware |
 | `pipes_control.py` | What the Max patch's `knobgrain`/`knobvelocity`/`wakemove`/`ComputeState` did: per-knob velocity, wake/sleep, grain parameters and level; the loop mix state and its preset crossfades |
 | `settings.json` | All of `pipes_control`'s tuning, from the Max patch: velocity smoothing, timeouts, each grain voice's ranges, the 13 loop presets |
-| `reuben/pipes.json` | The reuben instrument: 12 grain voices into a stereo reverb, 13 stereo loops, the mic echo, a limited master. Edit it only through reuben's MCP document verbs (`.mcp.json` at the repo root starts that server) |
+| `reuben/pipes.json` | The reuben instrument: 12 grain voices, 13 stereo loops, the mic echo, and a master of volume, then limiter. Edit it only through reuben's MCP document verbs (`.mcp.json` at the repo root starts that server) |
 
 **Run it on a laptop:** `make pipes` builds reuben, plays `reuben/pipes.json` on the default audio devices (the mic included), and drives it with fake encoders. `REUBEN_PLAY_ARGS="--io-map <profile>"` picks other devices.
 
@@ -31,17 +31,19 @@ The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The
 | `/pipes/knobN/spray/in` | ms, random jitter of each grain's start |
 | `/pipes/knobN/level/in` | 0..1 knob amplitude |
 | `/pipes/loopN/level/in` | 0..1 loop amplitude, N = 1–13 |
-| `/volume/in` | master volume, default 0.25 (−12 dB, as in Max) |
+| `/volume/in` | master volume, default 0.25 (−12 dB, as in Max). It sits before the limiter, so the limiter holds the output at −1 dBFS at any volume |
 
 The two sides change together; `test_pipes_control.py` fails if the bridge sends an address the instrument has no pipe for.
 
 **Where it differs from the Max patch, on purpose:**
 
 - Fixed: a knob woken during its fade-out no longer stays silent; a wake no longer starts with a velocity spike; position holds through the fade-out; every knob counts as active for 20 s (e12 had 2 s).
-- Grains are panned across the stereo field (board 0 left, board 1 right) into a true stereo reverb; in Max they summed to mono.
+- Grains are panned across the stereo field (board 0 left, board 1 right); in Max they summed to mono.
 - The mic's spectral freeze is a feedback echo after the same pre-delay (0.5 s left, 0.75 s right), which keeps the speakers out of the mic.
 - reuben's granulator ranges: density bottoms out at 1 grain/s (two voices rest at 0.625 in Max) and grain size tops out at 500 ms (one voice rests at 600). Max's `delayRandom` (grain onset jitter) maps to reuben's `spray` (start-position jitter).
-- Values Max never saved, and so ran at defaults, are starting guesses to settle at the A/B: reverb room 0.85, damping 0.5, fully wet (the grains have no dry path); the limiter at −1 dB, 20:1, 0.1 ms attack.
+- Values Max never saved, and so ran at defaults, are starting guesses to settle at the A/B: the limiter at −1 dB, 20:1, 0.1 ms attack.
+- The grains play dry. The reverb (`/fx_verb_l`, `/fx_verb_r`: room 0.85, damping 0.5) is still in the instrument but bypassed: fully wet, it cost the grains 5–6 dB.
+- Gain staging: the loops play at sample gain up to 4 and sum into the master with no bus trim (loops 1 and 2 are quiet sources and sit at the maximum, 4). At the default volume, loop 1 alone (the idle state) measures about −34 dBFS RMS; at volume 1, all loops about −17 and all grain voices about −13. The balance is still to be settled by ear.
 - Everything starts at launch; Max waited for someone to click its toggle.
 
 ## Max version (the A/B reference)

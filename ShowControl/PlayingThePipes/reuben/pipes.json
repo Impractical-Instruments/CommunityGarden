@@ -1,7 +1,7 @@
 {
   "format_version": 4,
   "instrument": "pipes",
-  "doc": "Playing the Pipes: twelve encoder-driven grain voices through a stereo reverb, thirteen stereo loops whose levels follow how busy the pipes are, and a live mic echo; reach for it only as the Playing the Pipes show engine, driven by ShowControl/PlayingThePipes/encoder_bridge.py.",
+  "doc": "Playing the Pipes: twelve encoder-driven grain voices (dry; the reverb is bypassed), thirteen stereo loops whose levels follow how busy the pipes are, and a live mic echo, into a volume-then-limiter master; reach for it only as the Playing the Pipes show engine, driven by ShowControl/PlayingThePipes/encoder_bridge.py.",
   "resources": {
     "grain_flexitone": "../Lamplight2026/media/flexitone_clip_1.wav",
     "grain_mallet1": "../Lamplight2026/media/Mallet_Clip_1.wav",
@@ -1458,7 +1458,7 @@
           "from": "/fx_sum_l11"
         },
         "damp": 0.5,
-        "mix": 1.0,
+        "mix": 0.0,
         "room": 0.85
       }
     },
@@ -1470,7 +1470,7 @@
           "from": "/fx_sum_r11"
         },
         "damp": 0.5,
-        "mix": 1.0,
+        "mix": 0.0,
         "room": 0.85
       }
     },
@@ -1479,7 +1479,7 @@
       "address": "/l1_play_l",
       "inputs": {
         "channel": 0.0,
-        "gain": 2.0,
+        "gain": 4.0,
         "gate": 1.0,
         "loop": 1.0
       },
@@ -1490,7 +1490,7 @@
       "address": "/l1_play_r",
       "inputs": {
         "channel": 1.0,
-        "gain": 2.0,
+        "gain": 4.0,
         "gate": 1.0,
         "loop": 1.0
       },
@@ -1536,7 +1536,7 @@
       "address": "/l2_play_l",
       "inputs": {
         "channel": 0.0,
-        "gain": 3.0,
+        "gain": 4.0,
         "gate": 1.0,
         "loop": 1.0
       },
@@ -1547,7 +1547,7 @@
       "address": "/l2_play_r",
       "inputs": {
         "channel": 1.0,
-        "gain": 3.0,
+        "gain": 4.0,
         "gate": 1.0,
         "loop": 1.0
       },
@@ -2505,26 +2505,6 @@
     },
     {
       "type": "mul_f32_signal",
-      "address": "/loops_bus_l",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_l12"
-        },
-        "b": 0.25
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/loops_bus_r",
-      "inputs": {
-        "a": {
-          "from": "/loops_sum_r12"
-        },
-        "b": 0.25
-      }
-    },
-    {
-      "type": "mul_f32_signal",
       "address": "/mic_in_l",
       "inputs": {
         "a": {
@@ -2596,10 +2576,10 @@
       "address": "/master_sum1_l",
       "inputs": {
         "a": {
-          "from": "/fx_verb_l"
+          "from": "/fx_sum_l11.out"
         },
         "b": {
-          "from": "/loops_bus_l"
+          "from": "/loops_sum_l12"
         }
       }
     },
@@ -2621,7 +2601,7 @@
       "inputs": {
         "attack": 0.1,
         "audio": {
-          "from": "/master_sum2_l"
+          "from": "/master_volume_l"
         },
         "ratio": 20.0,
         "release": 50.0,
@@ -2633,7 +2613,7 @@
       "address": "/master_volume_l",
       "inputs": {
         "a": {
-          "from": "/master_limit_l"
+          "from": "/master_sum2_l"
         },
         "b": {
           "from": "/volume"
@@ -2647,7 +2627,7 @@
         "hi": 1.0,
         "lo": -1.0,
         "x": {
-          "from": "/master_volume_l"
+          "from": "/master_limit_l"
         }
       }
     },
@@ -2656,10 +2636,10 @@
       "address": "/master_sum1_r",
       "inputs": {
         "a": {
-          "from": "/fx_verb_r"
+          "from": "/fx_sum_r11.out"
         },
         "b": {
-          "from": "/loops_bus_r"
+          "from": "/loops_sum_r12"
         }
       }
     },
@@ -2681,7 +2661,7 @@
       "inputs": {
         "attack": 0.1,
         "audio": {
-          "from": "/master_sum2_r"
+          "from": "/master_volume_r"
         },
         "ratio": 20.0,
         "release": 50.0,
@@ -2693,7 +2673,7 @@
       "address": "/master_volume_r",
       "inputs": {
         "a": {
-          "from": "/master_limit_r"
+          "from": "/master_sum2_r"
         },
         "b": {
           "from": "/volume"
@@ -2707,7 +2687,7 @@
         "hi": 1.0,
         "lo": -1.0,
         "x": {
-          "from": "/master_volume_r"
+          "from": "/master_limit_r"
         }
       }
     }
