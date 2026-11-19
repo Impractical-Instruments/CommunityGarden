@@ -47,8 +47,8 @@ Between `ShowControl/FlowerBeds` and each `firmware.flowerbeds_controller_<N>` (
 
 | Address | Args | Meaning |
 |---|---|---|
-| `/pipes/knob<N>/<param>/in` | float | One knob's `position`, `grain_size`, `density`, `spray` or `level`; N from 0 |
-| `/pipes/loop<N>/level/in` | float 0–1 | One loop's level; N from 1 |
+| `/knob<N>_<param>/in` | float | One knob's `position`, `grain_size`, `density`, `spray` or `level`; N from 0 |
+| `/loop<N>_level/in` | float 0–1 | One loop's level; N from 1 |
 
 ## When a signal is sent
 
