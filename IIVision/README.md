@@ -3,7 +3,7 @@
 Shared depth-camera computer-vision library. Installed as the `IIVision` package (`pyproject.toml` at the repo root).
 
 - **Public API:** everything exported from `__init__.py`. Import from the package, not from its modules.
-- **Coordinates:** camera space is X right, Y down, Z forward, in metres. World space is X right, Y forward, Z up, in centimetres. `orbbec_to_world()` converts; never mix the two.
+- **Coordinates:** `orbbec_to_world()` converts camera space (metres) to world space (centimetres). The axes are in `docs/agents/conventions.md`.
 
 | Module | What it does |
 |---|---|

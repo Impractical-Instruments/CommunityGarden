@@ -6,9 +6,9 @@ The Element growing out of the base of the TreeHouse. Pipes and conduit with val
 
 > **Not yet run on the box.** The install and deploy path below is built and tested on a dev machine (#239). How reuben reaches the audio interface at boot is still to be confirmed on the box (#235). If #235 changes it, this page and `deploy/pipes-reuben.service` change with it.
 
----
+## Code
 
-## Architecture summary
+### Architecture summary
 
 Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on the valves and switches and send encoder deltas as text lines over USB serial. Two services on the `pipes` host turn those into sound (ADR-0026):
 
@@ -27,9 +27,7 @@ Key references:
 - `ShowControl/PlayingThePipes/README.md`: every file, the bridge-to-instrument contract, and where the instrument differs from the old Max patch
 - `Firmware/PlayingThePipes_EncoderPico/`: Pico firmware
 
----
-
-## Mic path
+### Mic path
 
 The instrument opens a stereo input (logical input channels 0 and 1) and echoes it back into the mix:
 
@@ -43,17 +41,13 @@ mic in (L, R) → gain → pre-delay (0.5 s left, 0.75 s right) → feedback ech
 
 Everything (grains, loops, mic echo) is summed into the master: the master volume (`/volume/in`, default 0.25, applied as the gains of the master `mix` nodes), a limiter (about 20:1, fast attack, −1 dB), then a hard clamp at ±1. The volume comes before the limiter so the limiter guards the real output at any volume.
 
----
-
-## Device profile
+### Device profile
 
 `ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is specific to the box's audio interface and is committed next to the instrument. Format: `vendor/reuben/docs/device-profile.md`.
 
 `pipes-reuben` cannot start without it. `make validate-instruments` skips files named `*.profile.json`.
 
----
-
-## Health (`/health`)
+### Health (`/health`)
 
 `GET http://192.168.1.13:8767/health`, served by `pipes-bridge`. The Dashboard's Playing the Pipes page reads it.
 
@@ -69,9 +63,7 @@ Everything (grains, loops, mic echo) is summed into the master: the master volum
 
 It also carries the loop mix state. `GET /state` returns what the virtual encoder surface draws.
 
----
-
-## Running it on a laptop
+### Running it on a laptop
 
 ```bash
 make pipes            # reuben + the bridge with fake encoders, on the default audio devices (mic included)
@@ -80,13 +72,26 @@ make pipes-surface    # reuben + the bridge + the Dashboard; turn the knobs your
 
 `REUBEN_PLAY_ARGS="--io-map <profile>"` picks other devices. Both need Rust to build reuben (`make reuben`).
 
-### Virtual encoder surface
+#### Virtual encoder surface
 
 The Dashboard's Playing the Pipes page can turn the knobs without the Picos: it posts encoder lines to the bridge, which treats them like Pico turns, mixed with any real ones. Arm it on the page first; it disarms when the tab is hidden or loses focus, and after 5 min idle. It works against the box as well as a laptop.
 
----
+### The Max patch
 
-## Service management
+`ShowControl/PlayingThePipes/Lamplight2026/` is the Max 9 project the reuben instrument was ported from. Max does not run on the box, so it is **not a fallback**: it is the reference for the by-ear A/B, run on a laptop, until the reuben version is signed off (#177). After that it is deleted and the samples in `Lamplight2026/media/` move next to the instrument. Until then the instrument reads its samples from there.
+
+To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's ABL device objects. The patch's `fake_encoder` objects stand in for the Picos.
+
+### Open items
+
+- `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
+- The launch method for `pipes-reuben` is unconfirmed on the box (#235).
+
+## Operations
+
+For whoever is running the Element at a show. A code change rarely needs it.
+
+### Service management
 
 ```bash
 sudo systemctl status pipes-reuben pipes-bridge
@@ -99,9 +104,7 @@ Both units are `Restart=always`, `RestartSec=5`.
 
 How `pipes-reuben` reaches the audio interface: on Ubuntu Desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
 
----
-
-## Deploying code updates
+### Deploying code updates
 
 From the operator laptop on the show LAN:
 
@@ -123,17 +126,7 @@ In each case the installer stops with an error before restarting anything. Do th
 
 Tuning changes (`settings.json`, `reuben/pipes.json`) deploy the same way and need no internet.
 
----
-
-## The Max patch
-
-`ShowControl/PlayingThePipes/Lamplight2026/` is the Max 9 project the reuben instrument was ported from. Max does not run on the box, so it is **not a fallback**: it is the reference for the by-ear A/B, run on a laptop, until the reuben version is signed off (#177). After that it is deleted and the samples in `Lamplight2026/media/` move next to the instrument. Until then the instrument reads its samples from there.
-
-To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's ABL device objects. The patch's `fake_encoder` objects stand in for the Picos.
-
----
-
-## Troubleshooting
+### Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -145,10 +138,3 @@ To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's
 | Audio stops when someone logs in at the desktop | The login session took the audio interface | Record it on #235; restart `pipes-reuben` |
 | Deploy stops at "still Git LFS pointers" | New samples did not arrive | `git lfs pull` on the box with internet (see [Deploying](#deploying-code-updates)) |
 | Deploy stops in `cargo build` | A new crate or toolchain is not on the box | See [Deploying](#deploying-code-updates) |
-
----
-
-## Open items
-
-- `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
-- The launch method for `pipes-reuben` is unconfirmed on the box (#235).
