@@ -4,9 +4,9 @@ Browser-based monitoring for The Community Garden, with controls for the TreeHou
 
 **URL:** http://192.168.1.10:9000 · **Host:** `treehouse` · **Service:** `cg-dashboard`
 
----
+## Code
 
-## Architecture summary
+### Architecture summary
 
 FastAPI + Uvicorn (`serve.py`). Static HTML pages per Element and a health endpoint. No login, no auth — closed show LAN only.
 
@@ -25,9 +25,7 @@ The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(h
 
 Files in `ShowControl/Dashboard/`: `serve.py`, `index.html`, the four Element pages, `network.js` (reads `/api/network`), `log-panel.js`, `dashboard.css`.
 
----
-
-## Endpoints
+### Endpoints
 
 | Method | Path | Notes |
 |---|---|---|
@@ -35,9 +33,7 @@ Files in `ShowControl/Dashboard/`: `serve.py`, `index.html`, the four Element pa
 | `GET` | `/api/network` | `{"elements": {...}}` — the `elements` block of `network.json`. The pages read each Element's `http_port` from it (via `network.js`); none holds a port of its own |
 | `GET` | anything else | Static files from `ShowControl/Dashboard/`; `/` is `index.html` |
 
----
-
-## CLI
+### CLI
 
 ```bash
 python serve.py           # port 9000 (default)
@@ -47,15 +43,15 @@ python serve.py --verbose # DEBUG logging
 
 The service unit (`deploy/dashboard.service`, installed as `cg-dashboard`) runs `python3 serve.py 9000`.
 
----
-
-## Addresses
+### Addresses
 
 The pages get each Element's monitoring port (and, for Pipes, its IP) from `/api/network`, which serves the `elements` block of `ShowControl/network.json` ([keys](osc-fabric.md#networkjson)). If venue addressing changes, edit that file and re-deploy.
 
----
+## Operations
 
-## Troubleshooting
+For whoever is running the Element at a show. A code change rarely needs it.
+
+### Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

@@ -4,9 +4,9 @@ Servo-driven flowers at the entrance Element. Mirrors at flower centres track Vi
 
 **Host:** `flowerbeds` · 192.168.1.11 · **Visualizer:** http://192.168.1.11:8765 · **Service:** `flowerbeds`
 
----
+## Code
 
-## Architecture summary
+### Architecture summary
 
 A depth camera (Orbbec, USB) feeds the IIVision pipeline: background subtraction → blob detection → cross-frame stabilisation (`BlobStabilizer` with EMA smoothing). Stabilised Blob Tracks are passed to the `Coordinator`, which holds one `FlowerModule` per physical module and, inside each, one `FlowerCluster` per servo motor. Each FlowerCluster runs the **Attraction** policy each frame — a weighted sum of proximity, dwell, and inertia — to pick the Visitor it should look at, and produces a `MotorCommand`.
 
@@ -39,16 +39,14 @@ Files in `ShowControl/FlowerBeds/`:
 
 Camera, blob detection and stabilisation are in `IIVision/` (its README has the modules).
 
----
+### Settings — `settings.json`
 
-## Settings — `settings.json`
-
-Layout — `coordinator.modules[]` — written by the layout tool (next section); do not edit positions by hand. Each module has `name`, `registration_point_cm`, `rotation` (pitch/yaw/roll), and `clusters[]`. Each cluster is one motor, with:
+Layout — `coordinator.modules[]` — written by the [layout tool](#layout-tool); do not edit positions by hand. Each module has `name`, `registration_point_cm`, `rotation` (pitch/yaw/roll), and `clusters[]`. Each cluster is one motor, with:
 - `motor_id` — required; must match the ID set on the Dynamixel servo. The layout tool's defaults are sequential placeholders
 - `pos_offset_cm`, `rotation_offset` — relative to the module
 - `yaw_limit_deg` — optional, default 60. The motor command is clamped to ± this, in the cluster's own frame
 
-All positions are world space: X right, Y forward, Z up, in centimetres.
+All positions are world space, in centimetres.
 
 Attraction tuning — `coordinator.attraction`:
 - `influence_radius_cm` — Visitors farther than this are not considered
@@ -66,9 +64,41 @@ Pipeline:
 
 Persisted background calibration: `settings.calibration.npz` (path = `<settings>.calibration.npz`). Loaded on start unless `--recalibrate` or missing/corrupt.
 
----
+### Running `main.py`
 
-## Layout tool
+The service runs `python3 main.py --config settings.json` from `ShowControl/FlowerBeds`. On a dev machine:
+
+```bash
+cd ShowControl/FlowerBeds
+uv run python main.py --mock-camera --no-osc      # no hardware: the fastest way to test a logic change
+uv run --extra camera python main.py              # real camera and controllers; the Orbbec SDK is the `camera` extra
+```
+
+| Flag | Effect |
+|---|---|
+| `--config <path>` | Settings file (default `settings.json`) |
+| `--mock-camera` | Synthetic blob stream (no Orbbec) |
+| `--no-osc` | Don't send motor commands or OSC Fabric reports |
+| `--no-visualizer` | Disable the visualizer server |
+| `--visualizer-port N` | Default 8765 |
+| `--recalibrate` | Ignore saved `.calibration.npz`, rebuild background model |
+| `--verbose` / `-v` | DEBUG logging |
+
+After a change to the pipeline or the Coordinator:
+
+1. Run with `--mock-camera --no-osc` and confirm the log is clean.
+2. Open `http://localhost:8765` and check that blobs, clusters and the camera draw where they should.
+3. If the change touches OSC or servo logic, connect real hardware and check with the layout tool's manual aim (one servo at a time) or `calibrate_motors.py --sweep` (every servo through its limits). No test covers the hardware.
+
+### OSC interface
+
+FlowerBeds sends `/cg/ff/rot` and `/cg/ff/ping` to its servo controllers, reads `/cg/ff/pong` back, and reports `/flowerbeds/activity` to the TreeHouse when the value changes and on a heartbeat, not every frame. It receives nothing else. Arguments and the send rule: [`osc-fabric.md`](osc-fabric.md).
+
+## Operations
+
+For whoever is running the Element at a show. A code change rarely needs it.
+
+### Layout tool
 
 Run on the **operator laptop** (Windows). Visual placement of modules + per-cluster motor verification. Browser GUI; no need to stop the on-host service.
 
@@ -102,37 +132,7 @@ After saving, restart the show:
 ssh flowerbeds "sudo systemctl restart flowerbeds"
 ```
 
----
-
-## Running `main.py`
-
-The service runs `python3 main.py --config settings.json` from `ShowControl/FlowerBeds`. On a dev machine:
-
-```bash
-cd ShowControl/FlowerBeds
-uv run python main.py --mock-camera --no-osc      # no hardware: the fastest way to test a logic change
-uv run --extra camera python main.py              # real camera and controllers; the Orbbec SDK is the `camera` extra
-```
-
-| Flag | Effect |
-|---|---|
-| `--config <path>` | Settings file (default `settings.json`) |
-| `--mock-camera` | Synthetic blob stream (no Orbbec) |
-| `--no-osc` | Don't send motor commands or OSC Fabric reports |
-| `--no-visualizer` | Disable the visualizer server |
-| `--visualizer-port N` | Default 8765 |
-| `--recalibrate` | Ignore saved `.calibration.npz`, rebuild background model |
-| `--verbose` / `-v` | DEBUG logging |
-
-After a change to the pipeline or the Coordinator:
-
-1. Run with `--mock-camera --no-osc` and confirm the log is clean.
-2. Open `http://localhost:8765` and check that blobs, clusters and the camera draw where they should.
-3. If the change touches OSC or servo logic, connect real hardware and check with the layout tool's manual aim (one servo at a time) or `calibrate_motors.py --sweep` (every servo through its limits). No test covers the hardware.
-
----
-
-## Calibrating motors — `calibrate_motors.py`
+### Calibrating motors — `calibrate_motors.py`
 
 No camera. Run it with the `flowerbeds` service stopped, or both will command the motors.
 
@@ -151,15 +151,7 @@ python3 calibrate_motors.py --sweep      # every motor through -limit, 0, +limit
 
 One of `--yaw` or `--sweep` is required.
 
----
-
-## OSC interface
-
-FlowerBeds sends `/cg/ff/rot` and `/cg/ff/ping` to its servo controllers, reads `/cg/ff/pong` back, and reports `/flowerbeds/activity` to the TreeHouse when the value changes and on a heartbeat, not every frame. It receives nothing else. Arguments and the send rule: [`osc-fabric.md`](osc-fabric.md).
-
----
-
-## Boot diagnostics
+### Boot diagnostics
 
 On start (after calibration loads), `main.py` pings every controller (`ControllerBus.diagnose`) and logs:
 
@@ -171,9 +163,7 @@ Configured motor IDs not found on any controller: [42] (these flowers will NOT m
 
 If a motor ID is in the "not found" line, that flower will not move — even though no error is thrown. First place to check when a flower stops responding.
 
----
-
-## Troubleshooting
+### Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|

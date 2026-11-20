@@ -2,7 +2,7 @@
 
 A touring interactive installation that puts visitors inside a world of systems — natural, technological, bureaucratic, and social — and lets them feel those systems respond to their presence.
 
-This file is the glossary: what each word means, so code and docs use one name per thing. Addresses, settings and field lists live with the code and in `docs/`.
+This file is the glossary: what each word means, so code and docs use one name per thing. Addresses, settings, field lists and which file holds what live with the code and in each Element's doc (`docs/<Element>.md`).
 
 ## The installation
 
@@ -23,10 +23,10 @@ The TreeHouse's role: it receives signals from the other Elements and reflects t
 _Avoid_: "controller", "master", "server"
 
 **Garden State**:
-The live signals from all Elements plus the operator's Show Mode and brightness. The TreeHouse's `SignalIntake` collects them from OSC, and the Coordinator passes a snapshot to every Controllable each frame and sends it to the location controllers. It holds raw per-Element values, not an aggregate; each receiver weighs them itself. In code it is the `GardenState` dataclass in `ShowControl/TreeHouse/controllables/base.py`, which is the list of fields.
+The live signals from all Elements plus the operator's Show Mode and brightness. The TreeHouse collects them and passes a snapshot to every Controllable and location controller. It holds raw per-Element values, not an aggregate; each receiver weighs them itself.
 
 **Show Mode**:
-The operator's setting for the TreeHouse: `active`, `dim` or `inactive` (`ShowMode` in `controllables/base.py`). A Garden State field.
+The operator's setting for the TreeHouse: `active`, `dim` or `inactive`. A Garden State field.
 _Avoid_: using "show mode" for anything in FundingCAPTCHA
 
 ## Elements
@@ -61,19 +61,19 @@ _Avoid_: "session", "run", "level" (a Level is one stage within an Arc)
 The spectacular end-of-Arc failure. Deliberately rewarding, so that failing after a long Arc feels like a payoff. After it the kiosk returns to the Screensaver.
 
 **Screensaver**:
-What the kiosk shows between Arcs, drawn by a module in `ScreenSavers/`. It never interrupts an Arc. A Player who stays in the Play Zone for `attract_dwell_s` starts a new Arc.
+What the kiosk shows between Arcs. It never interrupts an Arc. A Player who stays in the Play Zone long enough starts a new Arc.
 _Avoid_: "attract screen", "idle animation", "lobby"
 
 **Game**:
-A set of mechanics (code in `games/`) paired with a Level set. Today the only Game is BodyCaptcha. Each Arc plays one Game, picked by shuffle bag.
+A set of mechanics paired with a Level set. Today the only Game is BodyCaptcha. Each Arc plays one Game, picked by shuffle bag.
 _Avoid_: "game type", "mode"
 
 **Level**:
-One authored puzzle within a Game. For BodyCaptcha: a prompt, an image, a grid size, the `valid_cells` the Player must cover, and a designer-assigned difficulty of 1–5. An Arc draws Levels by shuffle bag from those at the same difficulty as the last one beaten or one step harder.
+One authored puzzle within a Game. For BodyCaptcha: a prompt, an image, a grid size, the cells the Player must cover, and a designer-assigned difficulty of 1–5. An Arc draws Levels by shuffle bag from those at the same difficulty as the last one beaten or one step harder.
 _Avoid_: "round", "stage", "difficulty step"
 
 **Body Grid**:
-The input layer that maps Players' silhouettes to a grid of on/off cells. `BodyGridActivator` (`body_grid.py`) turns a cell on when at least `cell_activation_threshold` of its pixels are foreground inside a Depth Slab. It belongs to no one Game.
+The input layer that maps Players' silhouettes to a grid of on/off cells. A cell turns on when enough of its pixels are foreground inside a Depth Slab. It belongs to no one Game.
 _Avoid_: conflating Body Grid with BodyCaptcha — Body Grid is the input layer; BodyCaptcha is a Game that uses it
 
 **Play Zone**:
@@ -81,11 +81,11 @@ The depth ranges in front of the camera where a Player's pixels count, given as 
 _Avoid_: "detection zone", "active area"
 
 **Depth Slab**:
-One depth band, `near_mm` to `far_mm`, with a `slab_id`. Set in `depth_slabs` in `captcha-settings.json`.
+One depth band, from a near to a far distance, with its own id.
 _Avoid_: "depth layer", "depth band"
 
 **Intensity**:
-A 0–1 value FundingCAPTCHA reports to the TreeHouse while a Game runs: how far the Arc has got toward its Blow-Up. A weighted sum of difficulty and time pressure (`intensity_weights`).
+A 0–1 value FundingCAPTCHA reports to the TreeHouse while a Game runs: how far the Arc has got toward its Blow-Up. A weighted sum of difficulty and time pressure.
 _Avoid_: "difficulty", "score", "engagement level"
 
 **Blow-Up Signal**:
@@ -95,15 +95,15 @@ The one-shot message FundingCAPTCHA sends the TreeHouse when a Blow-Up happens. 
 What the TreeHouse does on a Blow-Up Signal. The Branches recoil. In the location controller firmware, a channel spikes to full and decays; that part is off while the controllers ignore Garden State (ADR-0021).
 
 **Setup**:
-One Shadertoy-style shader piece for the Screen: a folder in `shaders/` holding its GLSL tabs and a `setup.json`.
+One Shadertoy-style shader piece for the Screen: a folder holding its GLSL tabs and its settings.
 _Avoid_: "shader" (a Setup is several), "scene" (that is a Looking Glass term)
 
 **Body**:
-What a Setup sees of the people in front of the kiosk: a texture where red is presence and green is nearness. On the kiosk it comes from the depth camera; in Shadertoy, from `body_painter.glsl` and the mouse.
+What a Setup sees of the people in front of the kiosk: a texture where red is presence and green is nearness. On the kiosk it comes from the depth camera; in Shadertoy, from a mouse-painted stand-in.
 _Avoid_: "silhouette" for the shader input, "mask"
 
 **Playlist**:
-What `playlist_app.py` plays in place of the Game Arc: Setups and videos in one shuffle bag, listed in `playlist.json`.
+What the kiosk plays in place of the Game Arc: Setups and videos in one shuffle bag.
 
 ## FlowerBeds
 
@@ -137,17 +137,17 @@ The five Locations:
 A self-contained miniature room seen through a TreeHouse window.
 
 **Club**:
-The rave diorama. Holds the Club screen, a small display showing rotating messages (`club_screen.py`, ADR-0017).
+The rave diorama. Holds the Club screen, a small display showing rotating messages (ADR-0017).
 
 **Looking Glass**:
-The TreeHouse's shader display, drawn by `looking_glass/renderer.py`. It shows one scene at a time: `bloom`, `fractal`, `mycelium` or `cosmos`.
+The TreeHouse's shader display. It shows one scene at a time: `bloom`, `fractal`, `mycelium` or `cosmos`.
 
 **Controllable**:
-The base class for everything the TreeHouse Pi drives: `update(dt, state)` and `get_state()`. Two exist: the Looking Glass and `BranchController`. The LEDs are not Controllables; the location controllers own them.
+Anything the TreeHouse Pi drives from Garden State each frame. Two exist: the Looking Glass and the Branches. The LEDs are not Controllables; the location controllers own them.
 _Avoid_: "Display"
 
 **Branch**:
-A motorised branch on the TreeHouse roof. A Dynamixel servo drives a lead screw that pushes a wire of leaves out of a housing dressed as a tree branch, so the Branch extends or withers. How many there are is the `branch_controller.motors` list in the TreeHouse `settings.json`. In code all Branches are one `BranchController` (`branches.py`), which maps Garden State to a position per motor.
+A motorised branch on the TreeHouse roof. A Dynamixel servo drives a lead screw that pushes a wire of leaves out of a housing dressed as a tree branch, so the Branch extends or withers. How many there are is a setting.
 _Avoid_: "arm", "limb", "antenna"
 
 **Signal Bag**:
@@ -162,7 +162,7 @@ _Avoid_: "playing", "triggering", "note input"
 ## Shared
 
 **IIVision**:
-The shared computer-vision library: depth camera, background models, blob detection, blob stabilisation, coordinate transforms. FlowerBeds uses the whole pipeline. FundingCAPTCHA uses the camera and a background model for silhouettes, and `BlobStabilizer` for the Playlist's blob tracking (`body_blobs.py`).
+The shared computer-vision library: depth camera, background models, blob detection, blob stabilisation, coordinate transforms. FlowerBeds uses the whole pipeline. FundingCAPTCHA uses the camera and a background model for silhouettes, and blob stabilisation for the Playlist's blob tracking.
 
 **Blob**:
 One detected person, found by depth background subtraction and connected regions.
@@ -177,7 +177,7 @@ The OSC-over-UDP messages between Elements. Any Element may send to any other; t
 The isolated LAN that joins the show computers and controllers: Ethernet, plus WiFi for the location controllers. It has no internet uplink, by design.
 
 **Show Dashboard**:
-The browser monitoring pages an operator opens from a laptop on the Show Network, one page per Element (`ShowControl/Dashboard/`).
+The browser monitoring pages an operator opens from a laptop on the Show Network, one page per Element.
 
 ## Flagged ambiguities
 
