@@ -32,6 +32,6 @@ uv brings the right Python and packages; there is nothing else to install. More 
 | **FlowerBeds** | Servo-driven flowers that follow visitors (depth camera → OSC → Dynamixel) |
 | **TreeHouse** | LED + video effects in a diorama dollhouse structure (Hub for the OSC Fabric) |
 | **FundingCAPTCHA** | Pygame kiosk where Players activate a projected grid with body silhouettes |
-| **Playing the Pipes** | Max music system steered by rotary encoders on physical valves/switches |
+| **Playing the Pipes** | Music system on the reuben audio engine, steered by rotary encoders on physical valves/switches |
 
 The **Show Dashboard** (browser UI for monitoring and mode control) runs on the TreeHouse machine — see [docs/Dashboard.md](docs/Dashboard.md).

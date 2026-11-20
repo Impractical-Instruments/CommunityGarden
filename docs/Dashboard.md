@@ -45,7 +45,7 @@ python serve.py 9001      # custom port
 python serve.py --verbose # DEBUG logging
 ```
 
-The service unit (`deploy/dashboard.service`, installed as `cg-dashboard`) runs `python3 serve.py 9000`. In a dev clone: `uv run python serve.py`.
+The service unit (`deploy/dashboard.service`, installed as `cg-dashboard`) runs `python3 serve.py 9000`.
 
 ---
 
