@@ -4,10 +4,10 @@
 # changed when that is safe, and every test otherwise.
 #
 #   FORCE_PATH        the changed path that matched shader-force-run.txt, or empty
-#   CACHE_KEY         key of the testmon cache restored from main, or empty
+#   CACHE_KEY         key of the testmon cache restored from dev, or empty
 #   TESTMON_DATAFILE  where that cache was restored (testmon reads this variable)
 #
-# The testmon data is recorded on every push to main by testmon-data.yml.
+# The testmon data is recorded on every push to dev by testmon-data.yml.
 # Locally, `make test-fundingcaptcha` runs everything; this script is for CI.
 set -euo pipefail
 
@@ -35,7 +35,7 @@ if [ -n "${FORCE_PATH:-}" ]; then
 fi
 
 if [ -z "${CACHE_KEY:-}" ] || [ ! -s "${TESTMON_DATAFILE:?}" ]; then
-    echo "testmon: selection OFF, running every test: cache cold (no testmon data from main)."
+    echo "testmon: selection OFF, running every test: cache cold (no testmon data from dev)."
     pytest_ok "no tests were collected." "$TESTS" "$DURATIONS"
     exit
 fi
@@ -66,5 +66,5 @@ print(sum(int(s.get("tests", 0)) for s in r.iter("testsuite")))' "$report")
 total=$(tail -n 1 "$collected" | grep -oE '^[0-9]+' || echo "?")
 echo "testmon: selected $ran of $total tests."
 if [ "$ran" -eq 0 ]; then
-    echo "testmon: zero tests selected: no Python code that a FundingCAPTCHA test executed on main has changed, and no force-run path changed."
+    echo "testmon: zero tests selected: no Python code that a FundingCAPTCHA test executed on dev has changed, and no force-run path changed."
 fi

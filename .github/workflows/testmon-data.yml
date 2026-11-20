@@ -1,11 +1,11 @@
 name: Testmon data
 
 # Record which Python code each FundingCAPTCHA test executes, for the
-# fundingcaptcha job in tests.yml to select from. Runs on main because PR runs
-# can only read caches saved on the default branch.
+# fundingcaptcha job in tests.yml to select from. Runs on dev, the default branch and
+# every PR's base, because PR runs can only read caches saved on those two.
 on:
   push:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
 
 permissions:

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fail unless the commit vendor/reuben points at is on reuben's integration
-# branch (dev), so main never pins a commit that can vanish when a reuben
+# branch (dev), so dev (and so main) never pins a commit that can vanish when a reuben
 # branch is deleted. While iterating, the submodule may point anywhere and be
 # deployed from there; this only gates merging. See #177 and #236.
 #

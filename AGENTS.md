@@ -35,5 +35,5 @@ These apply to every task in this repo:
 - [Conventions](docs/agents/conventions.md): coordinates, rotation, logger names. Before writing Python.
 - [Running & testing](docs/agents/running-and-testing.md): uv, the test targets, what CI runs, reuben.
 - [Firmware](docs/agents/firmware.md): before touching anything under `Firmware/`.
-- [Git workflow and issues](docs/agents/git-workflow.md): before committing, opening a PR or filing an issue.
+- [Git workflow and issues](docs/agents/git-workflow.md): before committing, opening a PR or filing an issue. PRs target `dev`, not `main`.
 - [Decision records](docs/adr/README.md): why something is the way it is, and which decisions are still in force.
