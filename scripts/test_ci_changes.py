@@ -31,7 +31,7 @@ ALL      = {"code": True,  "gl": True,  "firmware": True,  "reuben": True}
 
 
 @pytest.mark.parametrize("path", [
-    "docs/agents/firmware.md",
+    "docs/agents/conventions.md",
     "README.md",
     "ShowControl/FundingCAPTCHA/README.md",
     "LICENSE",

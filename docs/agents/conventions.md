@@ -1,7 +1,5 @@
 # Conventions
 
-Each Element's files are listed in its doc (`docs/<Element>.md`); the shared vision library's in [`IIVision/README.md`](../../IIVision/README.md).
-
 ## Coordinate system
 
 **World space** (installation frame): **X=right, Y=forward, Z=up, centimetres** — right-handed.
@@ -41,11 +39,6 @@ Show code logs through `logging`, with one logger name per program so `journalct
 | Dashboard | `dashboard` |
 | OSCFabric | `osc_fabric` |
 | IIVision | `logging.getLogger(__name__)` |
-
-```python
-import logging
-log = logging.getLogger("flower_beds")
-```
 
 - **Show loops and libraries never `print`.** Use `log.info`, `log.warning`, `log.error`.
 - **Tools a person starts by hand may `print` what that person needs at the terminal**, such as the URL to open. Today: the layout tool, the FlowerBeds visualizer, the Dashboard and Pipes health servers, the BodyCaptcha editor, and the scripts under `scripts/`.

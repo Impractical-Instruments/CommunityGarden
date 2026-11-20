@@ -37,7 +37,7 @@ Files in `ShowControl/FlowerBeds/`:
 | `visualizer.py`, `state.py` | The live top-down view on a `ShowWeb.LiveServer` (page in `visualizer_static/`), and the per-frame state it shows |
 | `stop_signal.py` | `StopSignal`: Ctrl+C and SIGTERM end the loop cleanly |
 
-Camera, blob detection and stabilisation are in `IIVision/` (its README has the modules). ADRs: 0007 (OSC Fabric), 0015 (layout tool; supersedes the ArUco auto-layout, ADR-0009).
+Camera, blob detection and stabilisation are in `IIVision/` (its README has the modules).
 
 ---
 
@@ -77,8 +77,6 @@ cd ShowControl\FlowerBeds
 python layout_tool.py
 # http://localhost:8764 (auto-opens)
 ```
-
-In a dev clone, run it as `uv run python layout_tool.py`.
 
 Reads/writes only `coordinator.modules[]` in `settings.json`. Backs up `settings.json.bak` on every save.
 

@@ -32,13 +32,11 @@ State machine (no calibration screen — the depth background is learned continu
 
 Pipeline — Orbbec depth camera → IIVision self-learning background (`AdaptiveBackground`, ADR-0023) → background subtraction → despeckle → silhouette warp → **Body Grid** activator (ADR-0013). The Body Grid maps depth pixels inside configured **Depth Slabs** to a boolean grid of cells; cells go active when `≥ cell_activation_threshold` of their pixels are covered by foreground inside any slab.
 
-Display: pygame `FULLSCREEN | NOFRAME`. Direct DRM (`SDL_VIDEODRIVER=kmsdrm`) — Pi OS Lite, no compositor (ADR-0011).
+Display: pygame `FULLSCREEN | NOFRAME`. Direct DRM (`SDL_VIDEODRIVER=kmsdrm`) — Pi OS Lite, no compositor.
 
 **Games** are in `games/`; [`games/README.md`](../ShowControl/FundingCAPTCHA/games/README.md) has the modules, the `Game` interface and the rules for adding one. BodyCaptcha is the only Game loaded today. Every Game must end in a loss on its own (ADR-0003).
 
 **Screensavers** are listed in `screensavers.json`. Today that is `ScreenSavers/pipes_3d.py`: garden-themed 3D vines. `plugins.py` (`load_screensavers`) loads them.
-
-ADRs: 0003 (Games must self-terminate), 0004 (depth-only touch detection), 0011 (screen calibration + projection), 0012 (unified pygame app), 0013 (silhouette body interaction), 0016 (`--test-input`), 0019 (game UI shell), 0021 (shader player), 0022 (blob records), 0023 (self-learning background).
 
 ---
 
@@ -53,7 +51,7 @@ ADRs: 0003 (Games must self-terminate), 0004 (depth-only touch detection), 0011 
 | `--port N` | Monitoring port (default 8080) |
 | `--levels PATH` | Another BodyCaptcha levels file (default `bodycaptcha-levels.json`) |
 
-The first three are mutually exclusive. In a dev clone: `uv run python app.py --test-input`, from `ShowControl/FundingCAPTCHA`.
+The first three are mutually exclusive. Run from `ShowControl/FundingCAPTCHA`.
 
 Keys at runtime:
 - `R` — reseed the depth background from the next frame (e.g. after moving furniture)
@@ -125,7 +123,7 @@ Level photos are drawn into the grid bounds, whose aspect is `cols/rows`. A phot
 
 A missing or malformed levels file at startup logs a warning and the game runs one built-in default level. A bad file found on a later reload keeps the levels already loaded.
 
-**Level editor.** `python3 bodycaptcha_editor.py` (`uv run python …` in a dev clone), or on macOS double-click `BodyCaptchaEditor.command`. `--levels PATH` edits another file; the window title always shows which. Its CROP ALIGN pad previews the framing the show will render. The code is `bodycaptcha_editor.py` (window, event loop) and `editor/` (`level_model.py`, `views.py`, `widgets.py`, `theme.py`); file reading and writing is `levels.py`, shared with the game.
+**Level editor.** `python3 bodycaptcha_editor.py`, or on macOS double-click `BodyCaptchaEditor.command`. `--levels PATH` edits another file; the window title always shows which. Its CROP ALIGN pad previews the framing the show will render. The code is `bodycaptcha_editor.py` (window, event loop) and `editor/` (`level_model.py`, `views.py`, `widgets.py`, `theme.py`); file reading and writing is `levels.py`, shared with the game.
 
 ---
 
@@ -177,7 +175,7 @@ The kiosk never calls `FabricClient.tick()`, so intensity has no heartbeat: noth
 | Cells flicker on/off | `cell_activation_threshold` too low | Raise it (try 0.40) |
 | Game never escalates | Level set thin or shuffle bag favoring easy | Add Levels at higher `difficulty`; check `intensity_weights` |
 | Game refuses to end | Game lacks self-termination | Audit Game code against ADR-0003 |
-| Projector misaligned | Calibration drift | Re-do screen calibration per ADR-0011 |
+| Silhouette does not line up with the Players | `camera_roi`, or `camera.pos_cm` / `camera.rotation`, no longer match where the camera is mounted | Correct them in `captcha-settings.local.json` |
 | Game relaunches after Esc, can't get a console | `Restart=always` in `captcha.service` | Stop the unit, not the process — see [showtime.md](showtime.md#fundingcaptcha--getting-a-console-on-the-kiosk) |
 | Need to dev away from hardware | — | `uv run python app.py --test-input` — mouse paints depth (ADR-0016) |
 

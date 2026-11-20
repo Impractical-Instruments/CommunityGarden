@@ -2,7 +2,7 @@
 
 ## One way to run Python
 
-On a dev machine and in CI, every Python command runs through [uv](https://docs.astral.sh/uv/). It is the only thing to install: `curl -LsSf https://astral.sh/uv/install.sh | sh` (Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`). uv then sets up `.venv` with the Python in `.python-version` and the exact packages in `uv.lock`, the same on every machine. It installs the `dev` group from `pyproject.toml`: every Element's dependencies and the test tools.
+On a dev machine and in CI, every Python command runs through [uv](https://docs.astral.sh/uv/). It is the only thing to install; `make` prints the install command when it is missing. uv then sets up `.venv` with the Python in `.python-version` and the exact packages in `uv.lock`, the same on every machine. It installs the `dev` group from `pyproject.toml`: every Element's dependencies and the test tools.
 
 - **`make …`** runs through uv already.
 - **Any other Python command:** put `uv run` in front, from anywhere in the repo. Example: `uv run python main.py --mock-camera`. Where a doc says `python3 x.py`, run `uv run python x.py`.
@@ -15,17 +15,15 @@ Python is 3.11 because that is what the show Pis run (Pi OS bookworm). A 3.12+ f
 
 ## Tests
 
+The everyday targets (`make setup`, `test`, `test-fast`, `test-fundingcaptcha`, `test-firmware`, `validate-instruments`) are in [`AGENTS.md`](../../AGENTS.md#test-command). The rest:
+
 ```bash
-make setup                # first time in a clone: .venv, plus the pre-commit hook
-make test                 # all Python tests (pytest: IIVision, ShowControl, scripts)
-make test-fast            # everything except FundingCAPTCHA; seconds
-make test-fundingcaptcha  # FundingCAPTCHA only; minutes with a headless OpenGL context
 uv run pytest IIVision    # any pytest arguments
-make test-firmware        # TreeHouse controller host tests (PlatformIO, run by uv)
 make build-firmware       # compile the signs-of-life, location and self-test firmware
 make reuben               # build the reuben CLI from vendor/reuben (needs Rust)
-make validate-instruments # load-check the Playing the Pipes instruments with that build
 ```
+
+No test covers servos, LEDs or cameras. Each Element's doc (`docs/<Element>.md`) has its no-hardware command and how to check the hardware by hand.
 
 CI runs `test-fast`, the FundingCAPTCHA tests, the two firmware targets and the two reuben targets as separate jobs and skips any the PR cannot affect. `.github/scripts/ci-changes.sh` holds the path rules; a path it does not recognise runs them all.
 
@@ -46,9 +44,3 @@ Shader tests run on software Mesa in CI, where fragment shading is the whole cos
 - **`make pipes-surface`** is the same with no fake encoders, plus the Dashboard: it prints the URL of the Dashboard's virtual encoder surface, where you turn the knobs yourself.
 - **Editing an instrument** goes through reuben's MCP document verbs, never by hand: `.mcp.json` at the repo root starts reuben's MCP server (`vendor/reuben/scripts/reuben-mcp.sh`) in Claude Code sessions here. Read reuben's `docs/agents/authoring.md` first.
 - **Changing reuben:** work in `vendor/reuben` on a branch there (its own `AGENTS.md` applies), push it to the reuben repo, and commit the new submodule commit here. You can deploy and test from any reuben commit, but CI's `reuben-pin` check blocks merging until that commit is on reuben's `dev` branch (its integration branch; `main` there is the release branch). `.github/scripts/check-reuben-pin.sh` runs the same check locally.
-
-## Verifying changes
-
-- **Logic:** run the tests above. `make test-fast` covers everything but FundingCAPTCHA in seconds.
-- **An Element without hardware:** each Element's doc (`docs/<Element>.md`) has its commands and flags. For FlowerBeds, from `ShowControl/FlowerBeds/`: `uv run python main.py --config settings.json --mock-camera --no-osc`.
-- **Hardware:** no test covers servos, LEDs or cameras. The Element's doc says how to check them by hand.

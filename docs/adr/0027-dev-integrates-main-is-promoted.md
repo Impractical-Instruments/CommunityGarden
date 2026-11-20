@@ -25,4 +25,23 @@ reuben, which this repo vendors at `vendor/reuben`, already worked differently: 
 
 - Nothing reaches `main`, or a show machine that pulls, until someone runs the promotion.
 - Each clone has to run `git remote set-head origin -a` once, or `origin/HEAD` keeps resolving to `main`.
-- If `main` ever diverges, recovery needs an admin; see [git-workflow.md](../agents/git-workflow.md#if-main-diverges).
+- If `main` ever diverges, recovery needs an admin; see [If `main` diverges](#if-main-diverges) below.
+
+## The promotion App (admin setup)
+
+`promote.yml` pushes as a GitHub App, because `main`'s ruleset lets only that App's bypass entry update it. It is the same App the reuben repo promotes with. To set it up on another repo, or to rotate its key:
+
+1. **Install** the App on the repo: Org settings → Developer settings → GitHub Apps → the App → Install App → Configure → Repository access. It needs only **Contents: Read and write**.
+2. **Secrets:** `PROMOTE_APP_ID` holds the App's **Client ID** (`Iv23…`, from its General page; the workflow passes it as `client-id`), and `PROMOTE_APP_PRIVATE_KEY` holds a private key's `.pem`. A key cannot be read back out of another repo's secrets; generate a new one on the App's page if needed. An App can have several active keys, so this breaks no other repo.
+3. **Bypass:** add the App to the `main` ruleset's bypass list with *Always allow*. It is the only bypass entry. `main`'s ruleset deliberately has no "require a pull request" rule, which would block the promotion push.
+
+All three are admin-only: an agent can neither read nor set secrets, nor read or edit a ruleset's bypass list.
+
+## If `main` diverges
+
+Promotion fails with *Cannot fast-forward* when something landed on `main` other than by promotion. Merging `main` back into `dev` cannot fix it: `dev` takes only squash-merged PRs, so the merge commit never reaches `dev` and `main`'s tip stays unreachable. Instead:
+
+1. re-land whatever went onto `main` as an ordinary PR into `dev` (cherry-pick it), then
+2. an admin moves `main` back to a commit on `dev`. That is a non-fast-forward push, which `main`'s ruleset blocks, so it needs the ruleset briefly disabled.
+
+Step 2 is admin-only. An agent hands it off rather than improvising.

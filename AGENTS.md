@@ -28,12 +28,12 @@ These apply to every task in this repo:
 
 ## Docs
 
-- [Repo map](docs/repo-map.md): where anything is. Read it before searching.
+- Directory indexes: [ShowControl](ShowControl/README.md), [Firmware](Firmware/README.md), [IIVision](IIVision/README.md), [scripts](scripts/README.md). Tests sit beside the code as `test_*.py`; there is no top-level `tests/`.
 - [Glossary](CONTEXT.md): what a term means, and which words to avoid. Read it before naming anything.
 - Element docs: [FlowerBeds](docs/FlowerBeds.md), [TreeHouse](docs/TreeHouse.md), [FundingCAPTCHA](docs/FundingCAPTCHA.md), [Playing the Pipes](docs/PlayingThePipes.md), [Dashboard](docs/Dashboard.md). Read the one you are changing: its files, flags, settings and how to check it.
 - [OSC addresses](docs/osc-fabric.md): before sending, receiving or renaming any OSC message, or touching `network.json`.
 - [Conventions](docs/agents/conventions.md): coordinates, rotation, logger names. Before writing Python.
 - [Running & testing](docs/agents/running-and-testing.md): uv, the test targets, what CI runs, reuben.
-- [Firmware](docs/agents/firmware.md): before touching anything under `Firmware/`.
+- [Firmware](Firmware/README.md): before touching anything under `Firmware/`.
 - [Git workflow and issues](docs/agents/git-workflow.md): before committing, opening a PR or filing an issue. PRs target `dev`, not `main`.
 - [Decision records](docs/adr/README.md): why something is the way it is, and which decisions are still in force.

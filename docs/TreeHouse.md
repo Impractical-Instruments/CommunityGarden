@@ -19,15 +19,6 @@ The TreeHouse is the **Hub** of the OSC Fabric: `osc_server.py` receives the Ele
 
 Display rendering — both screens run under a single `weston` compositor started by `main.py` (ADR-0018). Each screen is a child asyncio subprocess with exponential backoff. The renderers use `pygame + moderngl` against SDL2 with `SDL_VIDEODRIVER=wayland`. Output assignment is by resolution match against `pygame.display.get_desktop_sizes()`.
 
-Key references:
-- ADR-0005 — branch controller USB serial
-- ADR-0006 — two-tier Controllable hierarchy
-- ADR-0007 — OSC Fabric schema
-- ADR-0008 — GardenState → display expression mapping
-- ADR-0017 — Club diorama rave screen
-- ADR-0018 — pygame/weston dual-display
-- ADR-0020 — ESP32-S3 location controllers (supersedes ADR-0010)
-
 Files in `ShowControl/TreeHouse/`:
 
 | File | What it holds |
@@ -79,27 +70,7 @@ If both `--no-renderer` and `--no-club-screen` are given, weston is not started.
 
 ## Compositor + weston.ini
 
-Single `weston` instance, both HDMI outputs declared in `ShowControl/TreeHouse/deploy/weston.ini`:
-
-```ini
-[core]
-idle-time=0
-shell=desktop-shell.so
-
-[shell]
-panel-location=none
-background-type=color
-background-color=0xff000000
-locking=false
-
-[output]
-name=HDMI-A-1
-mode=1024x600
-
-[output]
-name=HDMI-A-2
-mode=800x480
-```
+Single `weston` instance. `ShowControl/TreeHouse/deploy/weston.ini` declares both HDMI outputs and their modes (`HDMI-A-1` at 1024x600, `HDMI-A-2` at 800x480).
 
 If only one screen is connected, weston still starts. The renderer that can't match its resolution falls back to index 0 with a warning in the journal.
 
