@@ -5,6 +5,8 @@
 
 *Note, 2026-11-18: decided and built (#177, #236–#239), but not yet run on the show box. Decision 6 (how reuben reaches the audio interface at boot) is the part still to be confirmed there (#235).*
 
+*Note, 2026-11-20: decision 5 says reuben `main`. The CI check (`.github/scripts/check-reuben-pin.sh`) requires the pinned commit to be on reuben `dev`, its integration branch; `main` there is the release branch.*
+
 ## Context
 
 The Playing the Pipes audio engine was a Max 9 patch on a Windows mini PC. Max was opened by hand after boot; it could not run as a service, so the health endpoint could be green while there was no sound. The patch depended on a third-party package and on Max 9's bundled devices, the two encoder Picos needed their COM ports pinned in Device Manager, and nothing about the patch could be tested in CI. The box was the only show machine that was not Linux, so it had its own provisioning, its own service manager (NSSM) and a manual deploy.
