@@ -43,10 +43,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libegl1 libegl-mesa0 libgl1-mesa-dri libgl1
 
       # No data is restored first: every test runs and is recorded from scratch.
-      # GALLIUM_OVERRIDE_CPU_CAPS=avx: llvmpipe without AVX-512 (#243); keep in step with tests.yml.
       - name: Run every FundingCAPTCHA test and record its dependencies
         env:
-          GALLIUM_OVERRIDE_CPU_CAPS: avx
           TESTMON_DATAFILE: .testmondata
         run: python3 -m pytest ShowControl/FundingCAPTCHA --testmon -v --durations=25
 

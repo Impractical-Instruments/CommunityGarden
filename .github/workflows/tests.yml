@@ -150,12 +150,8 @@ jobs:
           key: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('uv.lock') }}-${{ github.sha }}
           restore-keys: testmon-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('uv.lock') }}-
 
-      # GALLIUM_OVERRIDE_CPU_CAPS=avx: llvmpipe compiles shaders without AVX-512 (#243).
-      # On some Intel Xeon runners its AVX-512 code for rainbow_poop's Image never returns.
-      # Keep in step with testmon-data.yml.
       - name: Run tests
         env:
-          GALLIUM_OVERRIDE_CPU_CAPS: avx
           FORCE_PATH: ${{ needs.changes.outputs.force }}
           CACHE_KEY: ${{ steps.testmon.outputs.cache-matched-key }}
           TESTMON_DATAFILE: .testmondata

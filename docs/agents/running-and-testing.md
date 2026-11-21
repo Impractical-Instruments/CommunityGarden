@@ -35,8 +35,6 @@ A test that runs for 120 s has hung: pytest prints every thread's stack and ends
 
 Shader tests run on software Mesa in CI, where fragment shading is the whole cost. `ShowControl/FundingCAPTCHA/shader_test_rig.py` holds the shared rig and sets `Renderer.defer_image = True`: frames skip the Image pass, and `read_image()` (or `Rig.image()`) calls `draw_deferred_image()` to draw the last frame's Image only when a test reads it. Build a Setup's tests on that rig, keep them in the Setup's folder (`shaders/<setup>/test_<setup>.py`), and read the Image only through it. To time the tests locally as CI does, force llvmpipe with `LIBGL_ALWAYS_SOFTWARE=1 __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json`; without these, EGL may pick a hardware GPU.
 
-Both CI jobs that run these tests set `GALLIUM_OVERRIDE_CPU_CAPS=avx`, which makes llvmpipe compile shaders without AVX-512. On some of GitHub's Intel Xeon runners (Platinum 8573C, 6975P-C), llvmpipe's AVX-512 code for `rainbow_poop`'s Image pass never returns (Mesa 26.0.8, LLVM 21.1.8; #243), so a test that draws it hung on those runners and passed on the others. Set the same variable if the tests hang on llvmpipe on an AVX-512 machine. If a shader test hangs only on some runners, compare the `Model name` from `lscpu` on a hung and a passing one first.
-
 ## reuben (Playing the Pipes audio engine)
 
 [reuben](https://github.com/Impractical-Instruments/reuben) is a git submodule at `vendor/reuben`, built from source so it can be changed in place while working here (#177). `make setup` checks it out; after a pull that moves it, run `git submodule update --init --recursive`.
