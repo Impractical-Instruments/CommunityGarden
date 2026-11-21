@@ -82,3 +82,21 @@ def test_log_records_reach_a_logs_client(server):
         logger.removeHandler(handler)
     assert entry["level"] == "INFO"
     assert entry["msg"] == "hello dashboard"
+
+
+def test_a_status_poll_logs_nothing(server, caplog):
+    # The Dashboard polls /health every 2 s; a log line per poll would bury the kiosk's own.
+    _, port, _ = server
+    with caplog.at_level(logging.INFO):
+        _get(port, "/health")
+        time.sleep(0.2)                        # the server logs after it has answered
+    assert [r.getMessage() for r in caplog.records] == []
+
+
+def test_status_is_readable_from_the_dashboard_origin(server):
+    # The Dashboard page comes from another port, so its fetch of /health is cross-origin:
+    # without this header the browser refuses to hand the page the JSON.
+    _, port, _ = server
+    for path in ("/health", "/"):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=2) as r:
+            assert r.headers["Access-Control-Allow-Origin"] == "*"

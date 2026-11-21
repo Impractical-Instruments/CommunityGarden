@@ -134,7 +134,7 @@ The kiosk never calls `FabricClient.tick()`, so intensity has no heartbeat: noth
 
 | Path | What it does |
 |---|---|
-| `GET /health` (or `/`) | The last status: `{"state": "screensaver" \| "game", "fg_pixels": N}`, or `{"state": "error", "error": …}` when the camera has failed |
+| `GET /health` (or `/`) | The last status: `{"state": "screensaver" \| "game", "fg_pixels": N}`, or `{"state": "error", "error": …}` when the camera has failed. `state` is `"starting"` until the kiosk's loop begins, and `fg_pixels` is absent until a camera frame arrives in the current state. Sent with `Access-Control-Allow-Origin: *` so the Dashboard page, served from another port, can read it |
 | `WS /logs` | Every log record as `{"ts", "level", "msg"}` |
 | `/api/restart` | Back to a clean Screensaver; the camera restarts and relearns its background |
 
