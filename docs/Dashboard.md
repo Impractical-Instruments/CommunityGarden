@@ -24,7 +24,7 @@ The other pages are status and logs only:
 - **FlowerBeds:** the visualizer's own page at `/`, in a frame, above the log panel.
 - **FundingCAPTCHA:** the kiosk's `/health`, polled every 2 s (kiosk reachable or not, state, foreground pixel count, and the camera error when there is one), above the log panel. The kiosk serves JSON and a log socket and no page of its own, so nothing is framed. The page does not call `/api/restart`.
 
-The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`.
+The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`, or for the kiosk by `FundingCAPTCHA/monitor.py`.
 
 Files in `ShowControl/Dashboard/`: `serve.py`, `index.html`, the four Element pages, `network.js` (reads `/api/network`), `log-panel.js`, `dashboard.css`.
 

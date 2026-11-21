@@ -90,7 +90,8 @@ def test_a_status_poll_logs_nothing(server, caplog):
     with caplog.at_level(logging.INFO):
         _get(port, "/health")
         time.sleep(0.2)                        # the server logs after it has answered
-    assert [r.getMessage() for r in caplog.records] == []
+    # Only the websockets library's records: the server's own start-up line can land here too.
+    assert [r.getMessage() for r in caplog.records if "websockets" in r.name] == []
 
 
 def test_status_is_readable_from_the_dashboard_origin(server):
