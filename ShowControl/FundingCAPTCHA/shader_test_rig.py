@@ -79,8 +79,8 @@ def glsl_consts(setup_dir: Path) -> Consts:
             name, expr = (x.strip() for x in d.split("=", 1))
             try:
                 out[name] = _evaluate(ast.parse(expr, mode="eval").body, out)
-            except (ValueError, SyntaxError):
-                pass                                        # an array or a palette, not a number a test could read
+            except (ValueError, SyntaxError, TypeError):
+                pass                                        # an array, a palette or vector arithmetic: not a number a test could read
     return out
 
 

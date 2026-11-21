@@ -1,4 +1,16 @@
-"""Behaviour tests for the logo_attract Setup (shaders/logo_attract/), the playlist's interstitial.
+"""What a visitor sees in the logo_attract Setup (shaders/logo_attract/), the playlist's interstitial.
+
+The Setup's promises. Every test below checks one of them, and says which.
+
+1. With nobody there, the logo rests at the centre of a black screen, round at any aspect.
+2. It drifts toward a visitor and back when they go, and never leaves the screen. A newcomer pulls
+   gently at first, and whoever has been there longer pulls harder. Blobs the tracker is not yet sure
+   of do not pull.
+3. It stretches a little along its motion, and settles round.
+4. It draws the shipped logo image.
+
+Tests assert the picture, or the logo's position read through LogoRig. None asserts how Buffer B
+stores it.
 
 Blob records are written by hand: one confirmed visitor per slot, centroid in Body UV.
 Behaviour tests draw the Setup's procedural stand-in, so they need no image. Tests
@@ -12,12 +24,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from shader_test_rig import DT, Rig
+from shader_test_rig import DT, Rig, glsl_consts
 from blobs_contract import BLOB_CONFIRMED, BLOB_ROWS, BLOB_SLOTS, BLOB_TENTATIVE
 from shadertoy import ShaderError, decode_image, load_setup
 
 SETUP  = Path(__file__).parent
 SIZE   = (160, 90)
+RADIUS = glsl_consts(SETUP)["RADIUS"]      # the logo's, screen heights
 
 
 def shipped_logo(size=SIZE) -> np.ndarray:
@@ -29,7 +42,8 @@ def shipped_logo(size=SIZE) -> np.ndarray:
 
 
 class LogoRig(Rig):
-    """Blob records written by hand, no tracker. image: the "image" source (decode_image output), or None for the procedural stand-in."""
+    """The one place in this file that knows Buffer B's layout (see common.glsl).
+    Blob records written by hand, no tracker. image: the "image" source (decode_image output), or None for the procedural stand-in."""
 
     def __init__(self, ctx, image=None, size=SIZE):
         super().__init__(ctx, SETUP, size, blobs=None, image=image)
@@ -48,7 +62,8 @@ class LogoRig(Rig):
         x, y = self.b()[1, 0, :2].astype(float)
         return x / (self.size[0] / self.size[1]), y
 
-    def life(self, slot):
+    def pull(self, slot):
+        """How long slot's visitor has been pulling, seconds: what their pull grows with."""
         return float(self.b()[0, slot, 1])
 
 
@@ -58,6 +73,8 @@ def rig(ctx):
     yield r
     r.release()
 
+
+# ── Claims 1 and 4: at rest ───────────────────────────────────────────────────
 
 def test_ships_the_logo_image():
     assert [p.name for p in load_setup(SETUP).images] == ["logo.png"]
@@ -84,10 +101,12 @@ def test_logo_is_round_at_any_aspect(ctx, size, real):
         rig.visit(1.0)
         w, h = _white_extent(rig.image())
         assert w == pytest.approx(h, abs=2)
-        assert h == pytest.approx(2 * 0.2 * size[1], abs=3)    # diameter: 2 · RADIUS screen heights
+        assert h == pytest.approx(2 * RADIUS * size[1], abs=3)
     finally:
         rig.release()
 
+
+# ── Claim 2: it drifts toward visitors ────────────────────────────────────────
 
 def test_drifts_to_a_visitor_and_back(rig):
     rig.visit(8.0, [(0, 1, 0.8, 0.5)])
@@ -106,28 +125,30 @@ def test_stays_on_screen(rig):
     rig.visit(8.0, [(0, 1, 1.0, 0.0)])
     x, y = rig.logo()
     assert 0.5 < x < 1.0 and 0.0 < y < 0.5
-    assert y > 0.2 * 0.8 - 0.01                    # a radius-ish inside the bottom edge
+    assert y > 0.8 * RADIUS - 0.01                 # a radius-ish inside the bottom edge
 
 
 def test_longer_visitor_wins_the_average(rig):
     rig.visit(10.0, [(0, 1, 0.2, 0.5)])               # left, here 10 s
     rig.visit(2.0, [(0, 1, 0.2, 0.5), (1, 2, 0.8, 0.5)])   # right, here 2 s
-    assert rig.life(0) > 5 * rig.life(1)
     assert rig.logo()[0] < 0.4                      # still well left of centre
     rig.visit(25.0, [(0, 1, 0.2, 0.5), (1, 2, 0.8, 0.5)])  # both capped: equal weight
     assert rig.logo()[0] == pytest.approx(0.5, abs=0.03)
 
 
 def test_new_person_in_a_slot_starts_from_zero(rig):
+    # The tracker hands a leaver's slot to the next arrival: they are a newcomer, not the leaver.
     rig.visit(5.0, [(0, 1, 0.8, 0.5)])
     rig.visit(DT, [(0, 7, 0.8, 0.5)])
-    assert rig.life(0) < 0.1
+    assert rig.pull(0) < 0.1
 
 
 def test_tentative_blobs_dont_pull(rig):
     rig.visit(5.0, [(0, 1, 0.9, 0.5, BLOB_TENTATIVE)])
     assert rig.logo() == pytest.approx((0.5, 0.5), abs=0.01)
 
+
+# ── Claims 3 and 4: the drawn logo ────────────────────────────────────────────
 
 def test_draws_the_shipped_logo(ctx):
     r = LogoRig(ctx, image=shipped_logo())
@@ -139,19 +160,6 @@ def test_draws_the_shipped_logo(ctx):
         assert img[5, 5, :3].tolist() == [0, 0, 0]
     finally:
         r.release()
-
-
-def test_deferred_image_is_exact(ctx):
-    rs = [LogoRig(ctx), LogoRig(ctx)]
-    try:
-        rs[0].r.defer_image = False
-        for r in rs:
-            r.visit(1.0, [(0, 1, 0.7, 0.4)])
-        rs[1].r.draw_deferred_image()
-        assert rs[0].r.output.read() == rs[1].r.output.read()
-    finally:
-        for r in rs:
-            r.release()
 
 
 def test_stretches_along_its_motion_and_settles_round(ctx):

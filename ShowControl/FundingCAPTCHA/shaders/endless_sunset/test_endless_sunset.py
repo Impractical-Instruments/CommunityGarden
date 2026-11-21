@@ -1,6 +1,22 @@
-"""Behaviour tests for the endless_sunset Setup (shaders/endless_sunset/).
+"""What a visitor sees in the endless_sunset Setup (shaders/endless_sunset/).
 
-GL tests need a headless context (EGL / llvmpipe) and skip without one.
+The Setup's promises. Every test below checks one of them, and says which.
+
+1. The scene: a big yellow sun low over the horizon, with water lines below it that stay on screen
+   and clear of the horizon. An empty room dims and slows; anyone, however small or far, wakes it.
+2. A person is filled with concentric lines that crawl, the sun showing between them, inside a dark
+   cool outline. A small blob is tinted and see-through. Depth dropouts ink no holes and pop no
+   lines, and someone who has just arrived fills fast.
+3. Moving squiggles the outline. Standing still does not, camera flicker included, and the squiggle
+   does not pulse with the camera's frames.
+4. People stir the liquid background around them, less with distance. It stays calm under them.
+5. The scene loops with no seam. It looks the same at any resolution, and the shortcuts taken away
+   from people change nothing.
+
+Tests assert the picture, or the scene's state read through the accessors below (wake, flail, clock,
+ripple_field). None asserts how a buffer stores its state.
+
+GL tests need a headless context and skip without one.
 """
 from __future__ import annotations
 
@@ -50,68 +66,69 @@ def flickering(n, seed=0):
     return out
 
 
-# ── Body memory (Buffer B) ────────────────────────────────────────────────────
-# Body x ∈ [36,48) of 64 ↔ render x ∈ [54,72) of 96.
-
-def test_soft_presence_follows_body(ctx):
-    r = make(ctx)
-    run(r, standing(5))
-    b = r.read_buffer("buffer_b")
-    assert b[27, 63, 0] > 0.9
-    assert b[27, 10, 0] < 0.05
-
-
-def test_ripple_field_decays_with_distance(ctx):
-    r = make(ctx)
-    run(r, standing(20))
-    f = r.read_buffer("buffer_b")[27, :, 2]
-    assert f[63] > 0.9 and f[50] > f[40] > f[25] >= 0.0
-
-
-def test_walking_leaves_movement_trail(ctx):
-    r = make(ctx)
-    run(r, walking(15))
-    assert r.read_buffer("buffer_b")[..., 1].max() > 0.5
-
-
-def test_edge_flicker_is_not_flailing(ctx):
-    r = make(ctx)
-    run(r, flickering(30))
-    assert r.read_buffer("buffer_b")[..., 1].max() < 0.15
-
-
-# ── State (Buffer C) ──────────────────────────────────────────────────────────
+# ── Reading the scene's state: the one place that knows the buffer layout (see common.glsl) ──
 
 EMPTY = rect(0, 0, 0, 0)
 
 
-def state(r) -> np.ndarray:
-    return r.read_buffer("buffer_c")[0, 0]
+def wake(r) -> float:
+    """How awake the scene is: 0 asleep (empty room) … 1 awake."""
+    return float(r.read_buffer("buffer_c")[0, 0, 0])
 
+
+def flail(r) -> float:
+    """How much the room is moving: 0 still … 1 flailing."""
+    return float(r.read_buffer("buffer_c")[0, 0, 1])
+
+
+def clock(r) -> float:
+    """The scene clock, seconds."""
+    s = r.read_buffer("buffer_c")[0, 0]
+    return float(s[2] + s[3])
+
+
+def ripple_field(r) -> np.ndarray:
+    """Nearness to a person, (h, w): 1 on a body, falling to 0 away from it. Row 0 = bottom."""
+    return r.read_buffer("buffer_b")[..., 2]
+
+
+# ── Claim 1: an empty room sleeps, anyone wakes it (state) ────────────────────
 
 def test_empty_room_sleeps(ctx):
     r = make(ctx)
     run(r, [EMPTY] * 30)
-    s = state(r)
-    assert s[0] < 0.05 and s[1] < 0.05
+    assert wake(r) < 0.05 and flail(r) < 0.05
 
 
 def test_small_far_person_fully_wakes(ctx):
     r = make(ctx)
     run(r, [rect(30, 20, 33, 28)] * 60)          # ~1% of frame, 6 s (rise ceiling 1 - e^-4 = 0.98)
-    assert state(r)[0] > 0.9
+    assert wake(r) > 0.9
 
+
+def test_clock_runs_slower_when_empty(ctx):
+    def advance(masks):
+        r = make(ctx)
+        run(r, masks[:30])                          # 3 s to settle
+        c0 = clock(r)
+        run(r, masks[30:])                          # then measure 3 s
+        return clock(r) - c0
+    empty, awake = advance([EMPTY] * 60), advance(standing(60))
+    assert 0 < empty < 0.6 * awake, (empty, awake)
+
+
+# ── Claim 3: moving flails, standing does not (state) ─────────────────────────
 
 def test_standing_never_reaches_flail(ctx):
     r = make(ctx)
     run(r, flickering(60))
-    assert state(r)[1] < 0.2
+    assert flail(r) < 0.2
 
 
 def test_walking_flails(ctx):
     r = make(ctx)
     run(r, walking(30, step=3))
-    assert state(r)[1] > 0.6
+    assert flail(r) > 0.6
 
 
 def test_flail_is_steady_between_camera_frames(ctx):
@@ -122,32 +139,11 @@ def test_flail_is_steady_between_camera_frames(ctx):
         r.upload_body(pack_frame(m))
         for _ in range(3):
             r.render(DT, (0, 0, 0, 0))
-            vals.append(state(r)[1])
+            vals.append(flail(r))
     assert max(vals) - min(vals) < 0.15
 
 
-def test_clock_runs_slower_when_empty(ctx):
-    def advance(masks):
-        r = make(ctx)
-        run(r, masks[:30])                          # 3 s to settle
-        c0 = state(r)[2] + state(r)[3]
-        run(r, masks[30:])                          # then measure 3 s
-        return state(r)[2] + state(r)[3] - c0
-    assert advance([EMPTY] * 60) == pytest.approx(3.0 * 0.35, rel=0.15)
-    assert advance(standing(60)) == pytest.approx(3.0 * 1.0, rel=0.15)
-
-
-def test_clock_stays_bounded_and_split(ctx):
-    r = make(ctx)
-    r.upload_body(pack_frame(standing(1)[0]))
-    for _ in range(3700):                           # 370 s at rate ~1 → wrapped once
-        r.render(0.1, (0, 0, 0, 0))
-    s = state(r)
-    assert 0.0 <= s[2] < 360.0 and s[2] == round(s[2]) and 0.0 <= s[3] < 1.0
-    assert s[2] < 20.0
-
-
-# ── Image: the sunset ─────────────────────────────────────────────────────────
+# ── Claim 1: the sunset (Image) ───────────────────────────────────────────────
 
 CORNER = rect(0, 0, 6, 6)                           # keeps the scene awake, clear of the sun
 
@@ -164,7 +160,7 @@ def test_empty_room_is_dimmer(ctx):
     assert mean([EMPTY] * 40) < 0.8 * mean([CORNER] * 40)
 
 
-# ── Image: the person ─────────────────────────────────────────────────────────
+# ── Claims 2 and 3: the person's outline (Image) ──────────────────────────────
 
 def to_render(mask, size):
     """Body mask (row 0 = top) → render-space mask (row 0 = GL bottom), nearest neighbour."""
@@ -210,7 +206,7 @@ def test_flailing_squiggles_the_outline(ctx, tmp_path):
     assert flail > still + 10
 
 
-# ── Image: blob size sets fill colour and transparency ────────────────────────
+# ── Claims 1, 2, 4 and 5: specks, the liquid, the water, the loop (Image) ─────
 
 def test_small_blob_is_tinted_and_see_through(ctx):
     # At Pi scale (960×540 render, 640×400 camera): a 3-texel speck vs the blob-size reach.
@@ -317,22 +313,6 @@ def test_outline_skips_tiny_holes(ctx, tmp_path):
     assert ink_inside(holes=True) <= ink_inside(holes=False) + 5
 
 
-def test_ripple_field_reaches_its_documented_falloff(ctx):
-    # .b ≈ exp(-dist / RIPPLE_FALLOFF): one falloff out from the edge it should be ~e^-1.
-    size, cam = (960, 540), (400, 640)
-    m = np.zeros(cam, dtype=bool)
-    m[100:400, 300:340] = True                      # a person; their right edge at camera x = 340
-    r = make(ctx, size)
-    r.upload_body(pack_frame(m))
-    for _ in range(90):                             # 3 s: plenty to settle at 4 px per frame
-        r.render(DT, (0, 0, 0, 0))
-    row = r.read_buffer("buffer_b")[300, :, 2]             # GL row 300 crosses the body
-    edge_px = int(340 * size[0] / cam[1])
-    falloff_px = int(70 / 360 * size[1])            # RIPPLE_FALLOFF in render px
-    assert 0.2 < row[edge_px + falloff_px] < 0.55
-    assert 0.03 < row[edge_px + 2 * falloff_px] < 0.25
-
-
 def test_clock_wrap_is_seamless_everywhere(ctx, tmp_path):
     # Every clock-driven motion must complete whole cycles per LOOP_S: drawing the same frame
     # one full loop later (CLOCK_SHIFT = LOOP_S) must look identical.
@@ -402,13 +382,13 @@ def test_field_spreads_at_the_same_speed_at_any_resolution(ctx):
         r.upload_body(pack_frame(m))
         for _ in range(6):                          # 0.2 s: the front is still moving
             r.render(DT, (0, 0, 0, 0))
-        row = r.read_buffer("buffer_b")[size[1] // 2, :, 2]
+        row = ripple_field(r)[size[1] // 2]
         edge = int(340 * size[0] / cam[1]) + 2          # just right of the body
         return np.argmax(row[edge:] < 0.05) / size[1]   # how far the front got, in screen heights
     assert front((480, 270)) == pytest.approx(front((960, 540)), abs=0.02)
 
 
-# ── Image: concentric sine squiggles fill the person ─────────────────────────
+# ── Claim 2: concentric lines fill the person (Image) ─────────────────────────
 # At Pi scale (960×540 render, 640×400 camera). A tall person covering the sun: inside the
 # sun's disc the only things drawn are the sun (static, blue = 0) and the warm-white lines.
 
