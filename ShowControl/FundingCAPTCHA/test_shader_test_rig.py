@@ -47,6 +47,7 @@ def test_the_shipped_setups_constants_are_readable():
 def test_rect_is_clipped_to_the_top_and_left_edges():
     m = rect(-3, -3, 2, 2)
     assert m.shape == BODY[::-1] and m.sum() == 4 and m[0, 0] and not m[2, 2]
+    assert not rect(-12, 8, -2, 36).any() and not rect(4, -9, 8, -1).any()   # wholly off the frame: empty
 
 
 def test_mask_builders_make_one_mask_per_camera_frame():

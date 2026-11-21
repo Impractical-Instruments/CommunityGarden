@@ -123,10 +123,10 @@ FundingCAPTCHA sends two signals to the TreeHouse and receives none. Arguments: 
 
 | Address | Meaning |
 |---|---|
-| `/captcha/intensity` | Arc progress toward Blow-Up: a weighted sum (`bodycaptcha.intensity_weights`) of difficulty and time pressure. Sent during a Game only, when it changes, at most every 0.1 s (`OSC_INTERVAL_S` in `kiosk.py`) |
+| `/captcha/intensity` | Arc progress toward Blow-Up: a weighted sum (`bodycaptcha.intensity_weights`) of difficulty and time pressure. 0 whenever no Arc is running. Sent when it changes and again on the Fabric heartbeat, in both states; during a Game a change goes out at most every 0.1 s (`OSC_INTERVAL_S` in `kiosk.py`) |
 | `/captcha/blowup` | Sent once when an Arc ends in a Blow-Up |
 
-The kiosk never calls `FabricClient.tick()`, so intensity has no heartbeat: nothing is sent in the Screensaver, and after an Arc the TreeHouse holds the last value until its dead-sender timeout sets it to 0.
+`Kiosk.tick()` calls `FabricClient.tick(dt)` every frame, so intensity is sent again every `heartbeat_interval_s` (`network.json`) even when it has not changed: 0 through the Screensaver, the Game's value during an Arc. When an Arc ends, with or without a Blow-Up, the kiosk reports 0 in the same frame, after `/captcha/blowup` if there is one. Not yet watched on the TreeHouse hardware.
 
 ### Monitoring server
 
@@ -134,7 +134,7 @@ The kiosk never calls `FabricClient.tick()`, so intensity has no heartbeat: noth
 
 | Path | What it does |
 |---|---|
-| `GET /health` (or `/`) | The last status: `{"state": "screensaver" \| "game", "fg_pixels": N}`, or `{"state": "error", "error": …}` when the camera has failed |
+| `GET /health` (or `/`) | The last status: `{"state": "screensaver" \| "game", "fg_pixels": N}`, or `{"state": "error", "error": …}` when the camera has failed. `state` is `"starting"` until the kiosk's loop begins, and `fg_pixels` is absent until a camera frame arrives in the current state. Sent with `Access-Control-Allow-Origin: *` so the Dashboard page, served from another port, can read it |
 | `WS /logs` | Every log record as `{"ts", "level", "msg"}` |
 | `/api/restart` | Back to a clean Screensaver; the camera restarts and relearns its background |
 

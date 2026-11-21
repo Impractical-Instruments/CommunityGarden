@@ -3,7 +3,7 @@
 Show dashboard — FastAPI server for the static dashboard pages.
 
 The pages talk to each Element's own monitoring port from the browser; this
-server relays nothing. It serves the ports from network.json at /api/network,
+server relays nothing. It serves the Elements' addresses from network.json at /api/network,
 so the pages hold no addresses of their own.
 
 Usage:

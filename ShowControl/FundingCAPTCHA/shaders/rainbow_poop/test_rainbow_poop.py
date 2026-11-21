@@ -38,6 +38,7 @@ class RainbowRig(Rig):
         super().__init__(ctx, SETUP, size)
         self.hits: list[tuple[float, int]] = []          # (time, slot) of every new splat
         self.misses: list[float] = []                     # time of every new ground splat
+        self.drops: list[tuple[float, int]] = []         # (time, slot) of every poop dropped
         self._watching = True
 
     def run(self, masks, frames_per_camera=3, watch=True):
@@ -51,6 +52,8 @@ class RainbowRig(Rig):
         for k in range(8):
             if b[4, k * 8, 2] == 0:                       # age 0: landed this frame
                 self.hits.append((self.t, k))
+            if b[3, k, 0] > 0.5 and b[3, k, 3] == 0:      # falling, age 0: dropped this frame
+                self.drops.append((self.t, k))
         if b[5, 0, 2] == 0:
             self.misses.append(self.t)
 
@@ -117,21 +120,21 @@ def test_cadence_is_about_every_five_seconds(ctx):
     assert not rig.misses
 
 
-@pytest.mark.skip(reason="#214: fails on a real GPU, passes on llvmpipe; disabled until fixed")
 def test_poop_falls_slowly_from_the_top(ctx):
     rig = RainbowRig(ctx)
-    seen, ys = 0.0, []
+    ys = []
     for k in range(60):
         rig.run(flickering(1, seed=k))                    # a fresh flicker each camera frame
         if rig.falling():
-            seen = max(seen, rig.drop(0)[3])
             ys.append(rig.poop(0)[1])
         if rig.hits:
             break
     assert rig.hits and ys
     assert ys[0] > 0.98                                   # it starts at the top of the sky
-    assert seen > 1.0                                     # and takes over a second to arrive
-    assert abs(seen - FALL_S) < 0.3
+    # Timed to the render frame. (The age in drop(0), read once per camera frame, misses up to the last 0.1 s.)
+    fall = rig.hits[0][0] - rig.drops[0][0]
+    assert fall > 1.0                                     # and takes over a second to arrive
+    assert abs(fall - FALL_S) < 0.3
 
 
 def test_two_people_both_get_hit(ctx):
@@ -234,7 +237,11 @@ def test_new_person_in_a_reused_slot_starts_clean(ctx):
 # ── Dodging ───────────────────────────────────────────────────────────────────
 
 def dodge(rig):
-    """Walk right at 1 px per camera frame until a poop drops, then back left at 2 px until it lands."""
+    """Walk right at 1 px per camera frame until a poop drops, then back left at 2 px until it lands.
+
+    The way back goes on out of the frame: the Body is narrower than the walk, and a walker who stopped
+    at its edge would stand still under a homing poop for seconds and be hit.
+    """
     x = 4
     for _ in range(45):
         x += 1
@@ -244,7 +251,7 @@ def dodge(rig):
     else:
         pytest.fail("nothing dropped")
     for _ in range(int((SPAWN_Y - 0.1) / FALL_SPEED * 10) + 15):   # a miss falls to their feet
-        x = max(x - 2, 0)
+        x -= 2
         rig.run([rect(x, 8, x + 10, 36)])
         if not rig.falling():
             break
@@ -310,7 +317,6 @@ def test_falling_poop_is_drawn(ctx):
     assert colourful(rig.image()[r - 10:r + 10, max(c - 12, 0):c + 12]).sum() > 10
 
 
-@pytest.mark.skip(reason="#214: fails on a real GPU, passes on llvmpipe; disabled until fixed")
 def test_ground_puddle_is_drawn_at_the_feet(ctx):
     rig = RainbowRig(ctx, BIG)
     dodge(rig)
@@ -332,3 +338,8 @@ def test_state_stays_bounded_with_huge_steps(ctx):
     rig.run([EMPTY] * 3)
     b = rig.b()
     assert np.isfinite(b).all() and np.abs(b).max() <= 99.0
+
+
+def test_buffer_b_draws_no_random_number_from_the_sin_hash():
+    # hash11() returns unrelated values on different GPUs (#214), and CI runs only one renderer.
+    assert "hash11" not in (SETUP / "buffer_b.glsl").read_text()
