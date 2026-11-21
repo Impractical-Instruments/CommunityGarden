@@ -13,7 +13,7 @@ Show machines use the same `.venv`, `uv.lock` and Python. An Element's installer
 
 Two Elements still install with system pip (`PYTHON_DEPS=pip` in their `install.sh`): TreeHouse and FundingCAPTCHA. PyPI's pygame bundles its own SDL, which has no KMSDRM video driver (FundingCAPTCHA's display uses it) and is untested on TreeHouse's weston display. They move once that is checked on their hardware.
 
-Python is 3.11 because that is what the show Pis run (Pi OS bookworm). A 3.12+ feature would pass on a laptop and fail at the show. Change `.python-version` when the Pis move to a newer Pi OS.
+Python is 3.11 because the Pis on system pip (TreeHouse, FundingCAPTCHA) run Pi OS bookworm, whose Python is 3.11. A 3.12+ feature would pass on a laptop and fail there. The machines on uv get 3.11 from uv whatever their OS ships (the `pipes` Pi is on Debian 13, with Python 3.13). Change `.python-version` once no show machine is on system pip, or when those Pis move to a newer Pi OS.
 
 ## Tests
 

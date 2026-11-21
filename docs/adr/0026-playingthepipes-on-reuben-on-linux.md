@@ -7,6 +7,8 @@
 
 *Note, 2026-11-20: decision 5 says reuben `main`. The CI check (`.github/scripts/check-reuben-pin.sh`) requires the pinned commit to be on reuben `dev`, its integration branch; `main` there is the release branch.*
 
+*Note, 2026-11-21: decision 2 says Ubuntu Desktop on a mini PC. The box is a Raspberry Pi 5 running Raspberry Pi OS with desktop on Debian 13. Everything else in decision 2 holds: systemd units, `deploy/install.sh`, `scripts/deploy.sh`. Decision 6 carries over unchanged, since that image runs PipeWire in the user's session the same way.*
+
 ## Context
 
 The Playing the Pipes audio engine was a Max 9 patch on a Windows mini PC. Max was opened by hand after boot; it could not run as a service, so the health endpoint could be green while there was no sound. The patch depended on a third-party package and on Max 9's bundled devices, the two encoder Picos needed their COM ports pinned in Device Manager, and nothing about the patch could be tested in CI. The box was the only show machine that was not Linux, so it had its own provisioning, its own service manager (NSSM) and a manual deploy.
@@ -25,7 +27,7 @@ reuben is our own open-source audio engine (Impractical-Instruments/reuben): a h
 
 5. **reuben is a submodule at `vendor/reuben`, built from source, on the box too.** No release binaries. While iterating, the submodule can point at any commit; a PR merges only if the pinned commit is on reuben `main` (CI check). A deploy pushes the pinned commit to the box over ssh, so the box never fetches reuben from GitHub.
 
-6. **Two system units, with reuben pointed at the service user's PipeWire.** `pipes-reuben` and `pipes-bridge` run as `ii`. On Ubuntu Desktop PipeWire owns the audio interface and runs in a user's session, so the installer enables lingering for `ii` (its session starts at boot with nobody logged in) and `pipes-reuben` reaches it through `XDG_RUNTIME_DIR`.
+6. **Two system units, with reuben pointed at the service user's PipeWire.** `pipes-reuben` and `pipes-bridge` run as `ii`. On the desktop OS (see the 2026-11-21 note) PipeWire owns the audio interface and runs in a user's session, so the installer enables lingering for `ii` (its session starts at boot with nobody logged in) and `pipes-reuben` reaches it through `XDG_RUNTIME_DIR`.
 
 7. **The mic's spectral freeze became a pre-delay plus a feedback echo.** reuben has nothing like Max's `spectraltime~`. The mic goes through a pre-delay (0.5 s left, 0.75 s right) into a feedback delay. The pre-delay is what prevents feedback through the speakers.
 

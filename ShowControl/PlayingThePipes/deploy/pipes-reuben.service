@@ -2,7 +2,7 @@
 Description=Playing the Pipes audio engine (reuben)
 Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/main/docs/PlayingThePipes.md
 # Placeholders (@...@) are filled in by deploy/install.sh.
-# The box runs Ubuntu Desktop, where PipeWire owns the audio interface and runs
+# The box runs Raspberry Pi OS with desktop, where PipeWire owns the audio interface and runs
 # in the service user's own systemd session. install.sh enables lingering, so
 # that session (and PipeWire) starts at boot with nobody logged in; this unit
 # waits for it and reaches it through XDG_RUNTIME_DIR.

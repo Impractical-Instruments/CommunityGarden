@@ -13,7 +13,7 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 | `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays, 5× location controllers (WiFi, below) |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
-| `pipes` | 192.168.1.13 | Ubuntu Desktop (mini PC) | Playing the Pipes | 2× Pi Pico (USB serial), audio interface (speakers + mic) |
+| `pipes` | 192.168.1.13 | Raspberry Pi 5, Raspberry Pi OS with desktop (Debian 13, arm64) | Playing the Pipes | 2× Pi Pico (USB serial), audio interface (speakers + mic) |
 
 OpenRB-150 servo controllers (FlowerBeds firmware) sit on the show LAN at 192.168.1.50 / .51 — separate from the show computers.
 
@@ -33,7 +33,7 @@ Every address here comes from `ShowControl/network.json`; if the two disagree, t
 
 ## Common Linux Pi setup
 
-Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). The `pipes` mini PC has its own section: [Playing the Pipes host provisioning](#playing-the-pipes-host-provisioning). Service user is `ii` by default.
+Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). The `pipes` Pi builds reuben from source, so it has its own section: [Playing the Pipes host provisioning](#playing-the-pipes-host-provisioning). Service user is `ii` by default.
 
 ### 1. Image + first boot
 
@@ -189,19 +189,18 @@ Plug projector via HDMI before first start; pygame picks up the active output au
 
 ## Playing the Pipes host provisioning
 
-`pipes` is a mini PC running **Ubuntu Desktop**, not a Pi. It builds the reuben audio engine from source, so it needs Rust as well as Python.
+`pipes` is a Raspberry Pi 5 running Raspberry Pi OS **with desktop** on Debian 13 (trixie), arm64. Unlike the other Pis it needs the desktop image: that is what brings PipeWire, which `pipes-reuben` plays through. It builds the reuben audio engine from source, so it needs Rust as well as Python.
 
 > These steps have not yet been run on the box. #235 is the first run; it records what had to change.
 
 ### 1. OS + first boot
 
-1. Install Ubuntu Desktop (current LTS). Create the user `ii`.
-2. Set the static IP from the [hardware inventory](#hardware-inventory) on the wired interface (Settings → Network, or `nmcli`).
-3. `sudo apt update && sudo apt upgrade`, then `sudo apt install openssh-server git git-lfs curl`.
+1. Flash Raspberry Pi OS with desktop (64-bit, trixie) with Raspberry Pi Imager. In its settings, set the hostname, create the user `ii`, and enable SSH.
+2. Set the static IP from the [hardware inventory](#hardware-inventory) on the wired interface (`nmcli`, or the desktop's network menu).
+3. `sudo apt update && sudo apt upgrade`, then `sudo apt install git git-lfs curl`.
 4. Make it behave like a show machine:
-   - Settings → Power: turn off automatic suspend and screen blank.
-   - Software & Updates → Updates: set automatic updates to never, so nothing restarts or changes mid-show.
-   - `sudo apt remove modemmanager`: it grabs the encoder Picos' serial ports.
+   - `sudo raspi-config` → Display Options → Screen Blanking: off.
+   - `sudo apt remove modemmanager` if it is installed: it grabs the encoder Picos' serial ports.
 
 ### 2. Clone repo, with samples and reuben
 

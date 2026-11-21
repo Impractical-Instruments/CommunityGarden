@@ -7,7 +7,7 @@ The show-control software: one directory per Element, plus what they share.
 | `FlowerBeds/` | Depth camera to servo flowers | `flowerbeds` Pi | `docs/FlowerBeds.md` |
 | `TreeHouse/` | The Hub: collects Garden State, drives the Looking Glass, Branches and location controllers | `treehouse` Pi | `docs/TreeHouse.md` |
 | `FundingCAPTCHA/` | The kiosk game | `captcha` Pi | `docs/FundingCAPTCHA.md` |
-| `PlayingThePipes/` | The music engine: a reuben instrument and the encoder bridge that drives it | `pipes` mini PC | `docs/PlayingThePipes.md` |
+| `PlayingThePipes/` | The music engine: a reuben instrument and the encoder bridge that drives it | `pipes` Pi | `docs/PlayingThePipes.md` |
 | `Dashboard/` | Browser monitoring pages | `treehouse` Pi | `docs/Dashboard.md` |
 | `ShowWeb/` | Shared package: `LiveServer`, the `/health`, `/ws` and `/logs` server behind the FlowerBeds and TreeHouse visualizers | FlowerBeds, TreeHouse | `ShowWeb/live.py` |
 | `OSCFabric/` | Shared package: sends Element signals to the TreeHouse; reads `network.json` | every Element | its README |

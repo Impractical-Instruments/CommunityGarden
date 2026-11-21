@@ -2,7 +2,7 @@
 
 The Element growing out of the base of the TreeHouse. Pipes and conduit with valves and switches; Visitors operate the controls to **steer** a music engine via **Tiller Control** (not direct note triggering).
 
-**Host:** `pipes` · 192.168.1.13 (Ubuntu Desktop) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
+**Host:** `pipes` · 192.168.1.13 (Raspberry Pi 5, Raspberry Pi OS with desktop, Debian 13) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
 
 > **Not yet run on the box.** The install and deploy path below is built and tested on a dev machine (#239). How reuben reaches the audio interface at boot is still to be confirmed on the box (#235). If #235 changes it, this page and `deploy/pipes-reuben.service` change with it.
 
@@ -102,7 +102,7 @@ journalctl -u pipes-reuben -u pipes-bridge -f
 
 Both units are `Restart=always`, `RestartSec=5`.
 
-How `pipes-reuben` reaches the audio interface: on Ubuntu Desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
+How `pipes-reuben` reaches the audio interface: on Raspberry Pi OS with desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
 
 ### Attaching an editor
 
