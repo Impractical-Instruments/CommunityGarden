@@ -6,7 +6,7 @@
     monitor.set_status({"state": "screensaver"})
 
 One port serves:
-  GET /health (or /)   the last status payload, as JSON
+  GET /health (or /)   the last status payload, as JSON (CORS open, for the Dashboard)
   WS  /logs            every log record, as {"ts", "level", "msg"}
   any path in `commands`   calls it, answers {"ok": true}
 
@@ -23,6 +23,11 @@ import time
 from typing import Any, Callable
 
 log = logging.getLogger("captcha.monitor")
+
+# websockets logs every HTTP response and closed connection at INFO. The Dashboard polls
+# /health every 2 s, so those lines would bury the kiosk's own in the journal and in /logs.
+_ws_log = logging.getLogger("captcha.monitor.websockets")
+_ws_log.setLevel(logging.WARNING)
 
 
 class MonitoringServer:
@@ -55,7 +60,7 @@ class MonitoringServer:
 
         async def _serve() -> None:
             async with ws_serve(self._ws_handler, "0.0.0.0", self._port,
-                                process_request=self._process_request):
+                                process_request=self._process_request, logger=_ws_log):
                 log.info("Monitoring on 0.0.0.0:%d  (WS /logs  GET /health  %s)",
                          self._port, "  ".join(self._commands) or "no commands")
                 await asyncio.Future()
@@ -74,10 +79,10 @@ class MonitoringServer:
         from websockets.datastructures import Headers
         from websockets.http11 import Response
 
-        def _json(body: bytes) -> Any:
+        def _json(body: bytes, *extra: tuple[str, str]) -> Any:
             return Response(200, "OK",
                             Headers([("Content-Type", "application/json"),
-                                     ("Content-Length", str(len(body)))]),
+                                     ("Content-Length", str(len(body))), *extra]),
                             body)
 
         path = request.path
@@ -87,7 +92,10 @@ class MonitoringServer:
             self._commands[path]()
             return _json(b'{"ok":true}')
         if path in ("/", "/health"):
-            return _json(json.dumps(self._status).encode())
+            # The Dashboard page is served from another port, so a browser hands it
+            # this JSON only if the response allows other origins.
+            return _json(json.dumps(self._status).encode(),
+                         ("Access-Control-Allow-Origin", "*"))
         return Response(404, "Not Found", Headers([("Content-Length", "0")]), b"")
 
     async def _send_log(self, msg: str) -> None:
