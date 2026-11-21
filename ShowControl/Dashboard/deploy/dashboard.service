@@ -7,7 +7,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 
 [Service]
 WorkingDirectory=@REPO_ROOT@/ShowControl/Dashboard
-ExecStart=/usr/bin/python3 serve.py 9000
+ExecStart=@REPO_ROOT@/.venv/bin/python serve.py 9000
 Restart=always
 RestartSec=5
 User=@SERVICE_USER@

@@ -29,6 +29,9 @@ ldconfig
 # ── Python dependencies, systemd unit, enable + restart ───────────────────────
 # numpy and scipy from apt are faster on Pi/ARM
 apt-get install -y python3-numpy python3-scipy 2>/dev/null || true
+# System pip, not uv: PyPI's pygame bundles an SDL without the KMSDRM video driver,
+# which captcha.service uses (SDL_VIDEODRIVER=kmsdrm). Move when that is solved.
+PYTHON_DEPS=pip
 install_element fundingcaptcha,camera captcha
 
 # ── Private show content (optional) ───────────────────────────────────────────

@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 # One extra per Element: everything its entry points import beyond the base.
-# Install with: pip install -e ".[<element>]" from the repo root.
+# A show machine's installer syncs its Element's extras with uv (scripts/lib/install-element.sh).
 [project.optional-dependencies]
 vision = [
     "numpy>=1.24",
@@ -61,7 +61,7 @@ camera = [
 
 # Development and CI: `make` and `uv run` install this group into .venv by default,
 # from uv.lock. Every Element's extra, so no test skips for a missing module and any
-# Element runs locally, plus the test tools. Show machines use the extras above instead.
+# Element runs locally, plus the test tools. Show machines sync only their Element's extras, with --no-dev.
 [dependency-groups]
 dev = [
     "communitygarden[flowerbeds,treehouse,dashboard,fundingcaptcha,pipes]",

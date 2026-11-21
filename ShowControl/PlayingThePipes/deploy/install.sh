@@ -80,6 +80,28 @@ if [ ! -f "$PROFILE" ]; then
     echo "   pipes-reuben will restart in a loop until the box's device profile is committed there."
 fi
 
+# ── Structure channel token ───────────────────────────────────────────────────
+# pipes-reuben listens for reuben-editor beyond loopback, which reuben allows only
+# with a token. It is made once here and kept across deploys, so an editor's token
+# stays good; delete the file and redeploy to rotate it. It never enters the repo.
+# Readable by the service user, so `make pipes-editor` can fetch it over ssh.
+# PIPES_REUBEN_ENV_FILE is overridden only by scripts/test_install_element.py.
+ENV_FILE="${PIPES_REUBEN_ENV_FILE:-/etc/community-garden/pipes-reuben.env}"
+STRUCTURE_PORT="$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1]))["elements"]["pipes"]["reuben_structure_port"])' "$REPO_ROOT/ShowControl/network.json")"
+token=""
+if [ -f "$ENV_FILE" ]; then
+    token="$(sed -n 's/^REUBEN_STRUCTURE_TOKEN=//p' "$ENV_FILE")"
+fi
+if [ -z "$token" ]; then
+    echo "→ Making the structure channel token..."
+    token="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+fi
+mkdir -p "$(dirname "$ENV_FILE")"
+(umask 027 && printf 'REUBEN_STRUCTURE_TOKEN=%s\nPIPES_STRUCTURE_ADDR=0.0.0.0:%s\n' "$token" "$STRUCTURE_PORT" > "$ENV_FILE.new")
+chown "root:$SERVICE_USER" "$ENV_FILE.new"
+mv "$ENV_FILE.new" "$ENV_FILE"
+echo "   written: $ENV_FILE"
+
 # ── Python dependencies, systemd units, enable + restart ──────────────────────
 install_element pipes pipes-reuben pipes-bridge
 install_done Health 8767

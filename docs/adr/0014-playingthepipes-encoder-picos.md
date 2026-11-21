@@ -2,7 +2,7 @@
 
 **Status:** Accepted and amended by [ADR-0026](0026-playingthepipes-on-reuben-on-linux.md)
 
-*Note, 2026-11-18: the Picos and the `/enc` line are unchanged. Everything on the other end of the USB cable changed ([ADR-0026](0026-playingthepipes-on-reuben-on-linux.md)): the host is a Linux mini PC, not Windows, and `ShowControl/PlayingThePipes/encoder_bridge.py` reads the Picos in place of Max `serial` objects. It finds them by USB vendor ID, so no port is pinned, and it merges the two boards.*
+*Note, 2026-11-18: the Picos and the `/enc` line are unchanged. Everything on the other end of the USB cable changed ([ADR-0026](0026-playingthepipes-on-reuben-on-linux.md)): the host is Linux, not Windows (a Raspberry Pi 5; see ADR-0026's 2026-11-21 note), and `ShowControl/PlayingThePipes/encoder_bridge.py` reads the Picos in place of Max `serial` objects. It finds them by USB vendor ID, so no port is pinned, and it merges the two boards.*
 
 ## Context
 

@@ -2,9 +2,9 @@
 
 The Element growing out of the base of the TreeHouse. Pipes and conduit with valves and switches; Visitors operate the controls to **steer** a music engine via **Tiller Control** (not direct note triggering).
 
-**Host:** `pipes` · 192.168.1.13 (Ubuntu Desktop) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
+**Host:** `pipes` · 192.168.1.13 (Raspberry Pi 5, Raspberry Pi OS with desktop, Debian 13) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
 
-> **Not yet run on the box.** The install and deploy path below is built and tested on a dev machine (#239). How reuben reaches the audio interface at boot is still to be confirmed on the box (#235). If #235 changes it, this page and `deploy/pipes-reuben.service` change with it.
+> **Installed and playing on the box since 2026-11-21**, including after a reboot with nobody logged in over ssh (#235). Still to confirm: that a desktop login does not take the audio interface. If #235 changes how reuben reaches the audio interface, this page and `deploy/pipes-reuben.service` change with it.
 
 ## Code
 
@@ -15,7 +15,7 @@ Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on the valv
 | Service | What it runs | What it does |
 |---|---|---|
 | `pipes-bridge` | `encoder_bridge.py` | Finds the Picos by USB vendor ID on any port, turns their detents into knob and loop values (`pipes_control.py`, tuned by `settings.json`), and sends them to reuben as OSC every 10 ms. Serves `/health` |
-| `pipes-reuben` | `reuben play reuben/pipes.json --io-map reuben/pipes.profile.json` | The audio engine: plays the instrument on the audio interface the device profile names |
+| `pipes-reuben` | `reuben play reuben/pipes.json --io-map reuben/pipes.profile.json --structure-addr 0.0.0.0:<port>` | The audio engine: plays the instrument on the audio interface the device profile names. Its structure channel is open to the LAN with a token, so an editor can [attach](#attaching-an-editor) |
 
 [reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder, dry), 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master.
 
@@ -43,7 +43,7 @@ Everything (grains, loops, mic echo) is summed into the master: the master volum
 
 ### Device profile
 
-`ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is specific to the box's audio interface and is committed next to the instrument. Format: `vendor/reuben/docs/device-profile.md`.
+`ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is committed next to the instrument. Today it is `{}`: PipeWire's default output and input, the same devices `make pipes` uses. Name the show's audio interface in it once that is settled, so a change of PipeWire default cannot move the sound. Format: `vendor/reuben/docs/device-profile.md`.
 
 `pipes-reuben` cannot start without it. `make validate-instruments` skips files named `*.profile.json`.
 
@@ -85,7 +85,7 @@ To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's
 ### Open items
 
 - `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
-- The launch method for `pipes-reuben` is unconfirmed on the box (#235).
+- Unconfirmed on the box: whether a desktop login takes the audio interface from `pipes-reuben` (#235).
 
 ## Operations
 
@@ -102,7 +102,21 @@ journalctl -u pipes-reuben -u pipes-bridge -f
 
 Both units are `Restart=always`, `RestartSec=5`.
 
-How `pipes-reuben` reaches the audio interface: on Ubuntu Desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
+How `pipes-reuben` reaches the audio interface: on Raspberry Pi OS with desktop, PipeWire owns the interface and runs in the `ii` user's own systemd session. `install.sh` enables lingering for `ii` (`loginctl enable-linger`), so that session starts at boot with nobody logged in, and the unit points reuben at it through `XDG_RUNTIME_DIR`. `ii` is in the `audio` group (the interface) and `dialout` (the Picos' `/dev/ttyACM*`).
+
+### Attaching an editor
+
+`reuben-editor` on a laptop can attach to the running engine to tune the instrument live. Edits go to the box's `reuben/pipes.json`; commit them from the box, or redo them in a clone, or the next deploy overwrites them.
+
+```bash
+make pipes-editor                         # PIPES_HOST=<ssh host> if the box isn't the `pipes` ssh alias
+```
+
+It reads the token from the box over ssh and attaches to `reuben_structure_port` from `network.json`. The first run builds the editor (minutes).
+
+- **The token** is in `/etc/community-garden/pipes-reuben.env` on the box, readable by root and `ii`. `install.sh` makes it on the first deploy and keeps it after that. To rotate it, delete the file and redeploy.
+- **The link is unencrypted**, token included. Use it only on the show LAN or another network you trust. Over an untrusted network, use an SSH tunnel: `ssh -N -L 9124:127.0.0.1:9124 pipes`, then attach to `127.0.0.1:9124`.
+- Closing the editor, or losing the link, never stops the engine.
 
 ### Deploying code updates
 
@@ -136,5 +150,8 @@ Tuning changes (`settings.json`, `reuben/pipes.json`) deploy the same way and ne
 | A Pico is plugged in but never connects | Something else holds the port, usually ModemManager | `sudo apt remove modemmanager`, replug |
 | Audio is fine, encoders do nothing | Bridge is not reaching reuben, or the knobs are asleep | Check `/health`; turn a knob and watch `last_event_age_s` reset; try the virtual encoder surface |
 | Audio stops when someone logs in at the desktop | The login session took the audio interface | Record it on #235; restart `pipes-reuben` |
+| `pipes-reuben` fails at once, `journalctl` names `pipes-reuben.env` | The token file is missing | Run the installer; it makes it |
+| Deploy stops at "no uv for ii" | uv is not installed for the service user | As that user, with internet: `curl -LsSf https://astral.sh/uv/install.sh \| sh`, then rerun |
+| Deploy stops in `uv sync` | A new package is not in uv's cache and the box is offline | Rerun the installer once with internet |
 | Deploy stops at "still Git LFS pointers" | New samples did not arrive | `git lfs pull` on the box with internet (see [Deploying](#deploying-code-updates)) |
 | Deploy stops in `cargo build` | A new crate or toolchain is not on the box | See [Deploying](#deploying-code-updates) |

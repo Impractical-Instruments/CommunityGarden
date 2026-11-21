@@ -13,7 +13,7 @@ For per-element detail (flags, settings, visualizers, architecture), see the ele
 | `treehouse` | 192.168.1.10 | Pi OS Lite (Pi 5) | TreeHouse + Dashboard | 1× branch controller (USB), 2× HDMI displays, 5× location controllers (WiFi, below) |
 | `flowerbeds` | 192.168.1.11 | Pi OS Lite | FlowerBeds | Orbbec depth camera (USB) |
 | `captcha` | 192.168.1.12 | Pi OS Lite | FundingCAPTCHA | Orbbec depth camera (USB), short-throw laser projector (HDMI) |
-| `pipes` | 192.168.1.13 | Ubuntu Desktop (mini PC) | Playing the Pipes | 2× Pi Pico (USB serial), audio interface (speakers + mic) |
+| `pipes` | 192.168.1.13 | Raspberry Pi 5, Raspberry Pi OS with desktop (Debian 13, arm64) | Playing the Pipes | 2× Pi Pico (USB serial), audio interface (speakers + mic) |
 
 OpenRB-150 servo controllers (FlowerBeds firmware) sit on the show LAN at 192.168.1.50 / .51 — separate from the show computers.
 
@@ -33,7 +33,7 @@ Every address here comes from `ShowControl/network.json`; if the two disagree, t
 
 ## Common Linux Pi setup
 
-Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). The `pipes` mini PC has its own section: [Playing the Pipes host provisioning](#playing-the-pipes-host-provisioning). Service user is `ii` by default.
+Repeat per Pi (FlowerBeds, FundingCAPTCHA, TreeHouse). The `pipes` Pi builds reuben from source, so it has its own section: [Playing the Pipes host provisioning](#playing-the-pipes-host-provisioning). Service user is `ii` by default.
 
 ### 1. Image + first boot
 
@@ -51,9 +51,17 @@ git clone https://github.com/Impractical-Instruments/CommunityGarden.git
 
 This is the default path. The installers work from wherever the repo is cloned (they fill the path into each systemd unit). `scripts/deploy.sh` expects `~/CommunityGarden` on the show machine; for any other location, set `CG_REMOTE_REPO` when running it.
 
-### 3. Install element service
+### 3. uv
 
-Run the per-element installer once. Each `install.sh` handles apt packages, pip deps, systemd unit, enable + restart; the shared steps are in `scripts/lib/install-element.sh`. This first run needs internet for the apt and pip downloads. Later runs (every `deploy.sh`) do not, unless a dependency was added.
+As `ii` (not root), install [uv](https://docs.astral.sh/uv/). The installers use it to set up the Python and packages in `uv.lock`:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 4. Install element service
+
+Run the per-element installer once. Each `install.sh` handles apt packages, Python deps (uv; TreeHouse and FundingCAPTCHA still use system pip), systemd unit, enable + restart; the shared steps are in `scripts/lib/install-element.sh`. This first run needs internet for the apt packages, the Python download and the packages. Later runs (every `deploy.sh`) do not, unless a dependency was added.
 
 ```bash
 sudo bash scripts/install-services.sh FlowerBeds
@@ -65,7 +73,7 @@ sudo bash scripts/install-services.sh TreeHouse Dashboard
 
 Each Pi normally runs one element. TreeHouse host also runs `cg-dashboard`.
 
-### 4. LAN deploy bootstrap
+### 5. LAN deploy bootstrap
 
 After the initial clone, allow `scripts/deploy.sh` (run from the operator laptop) to push code over the show LAN:
 
@@ -93,7 +101,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 If Orbbec has different idProduct, vendor rule ships in the SDK:
 
 ```bash
-python3 -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__))"
+~/CommunityGarden/.venv/bin/python -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__))"
 # Copy the .rules file from there to /etc/udev/rules.d/, reload.
 ```
 
@@ -181,19 +189,18 @@ Plug projector via HDMI before first start; pygame picks up the active output au
 
 ## Playing the Pipes host provisioning
 
-`pipes` is a mini PC running **Ubuntu Desktop**, not a Pi. It builds the reuben audio engine from source, so it needs Rust as well as Python.
+`pipes` is a Raspberry Pi 5 running Raspberry Pi OS **with desktop** on Debian 13 (trixie), arm64. Unlike the other Pis it needs the desktop image: that is what brings PipeWire, which `pipes-reuben` plays through. It builds the reuben audio engine from source, so it needs Rust as well as Python.
 
-> These steps have not yet been run on the box. #235 is the first run; it records what had to change.
+> First run on the box: 2026-11-21 (#235). Beyond the steps as first written, it needed uv (step 3) and a device profile (step 4).
 
 ### 1. OS + first boot
 
-1. Install Ubuntu Desktop (current LTS). Create the user `ii`.
-2. Set the static IP from the [hardware inventory](#hardware-inventory) on the wired interface (Settings → Network, or `nmcli`).
-3. `sudo apt update && sudo apt upgrade`, then `sudo apt install openssh-server git git-lfs curl`.
+1. Flash Raspberry Pi OS with desktop (64-bit, trixie) with Raspberry Pi Imager. In its settings, set the hostname, create the user `ii`, and enable SSH.
+2. Set the static IP from the [hardware inventory](#hardware-inventory) on the wired interface (`nmcli`, or the desktop's network menu).
+3. `sudo apt update && sudo apt upgrade`, then `sudo apt install git git-lfs curl`.
 4. Make it behave like a show machine:
-   - Settings → Power: turn off automatic suspend and screen blank.
-   - Software & Updates → Updates: set automatic updates to never, so nothing restarts or changes mid-show.
-   - `sudo apt remove modemmanager`: it grabs the encoder Picos' serial ports.
+   - `sudo raspi-config` → Display Options → Screen Blanking: off.
+   - `sudo apt remove modemmanager` if it is installed: it grabs the encoder Picos' serial ports.
 
 ### 2. Clone repo, with samples and reuben
 
@@ -205,11 +212,12 @@ git lfs install && git lfs pull --include "ShowControl/PlayingThePipes/Lamplight
 git submodule update --init
 ```
 
-### 3. Rust
+### 3. Rust and uv
 
-As `ii` (not root), install rustup, then let it fetch the toolchain and crates reuben pins:
+As `ii` (not root), install uv (for `pipes-bridge`) and rustup, then let rustup fetch the toolchain and crates reuben pins:
 
 ```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . ~/.cargo/env
 cd ~/CommunityGarden/vendor/reuben && cargo fetch
@@ -227,7 +235,7 @@ sudo bash scripts/install-services.sh PlayingThePipes
 
 This installs the build packages (`libasound2-dev`, `build-essential`, `pkg-config`), adds `ii` to the `audio` and `dialout` groups, enables lingering for `ii`, builds reuben, and installs and starts `pipes-reuben` and `pipes-bridge`. The first reuben build is the slow part.
 
-Then run [LAN deploy bootstrap](#4-lan-deploy-bootstrap) as on the Pis.
+Then run [LAN deploy bootstrap](#5-lan-deploy-bootstrap) as on the Pis.
 
 ### 6. Check
 
@@ -347,4 +355,4 @@ nmcli con mod "Wired connection 1" ipv4.method auto
 
 ### FlowerBeds layout tool
 
-The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: Python + `pip install -e ".[flowerbeds]"` from the repo root.
+The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: uv; run it with `uv run` as in the layout tool's docs.

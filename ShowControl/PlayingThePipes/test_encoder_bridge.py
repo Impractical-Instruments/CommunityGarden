@@ -453,7 +453,7 @@ def test_config_comes_from_network_json():
 
 
 def test_reuben_ports_match_what_reuben_play_binds():
-    """`reuben play` has no flags for these ports, so network.json must hold its defaults."""
+    """The bridge and every local reuben client use reuben's default ports, so network.json must hold them."""
     reuben = Path(__file__).resolve().parents[2] / "vendor" / "reuben" / "crates"
     osc_rs = reuben / "reuben-native" / "src" / "osc.rs"
     wire_rs = reuben / "reuben-api" / "src" / "engine" / "wire.rs"

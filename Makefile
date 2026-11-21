@@ -1,4 +1,4 @@
-.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments pipes pipes-surface
+.PHONY: setup test test-fast test-fundingcaptcha test-firmware build-firmware uv cargo reuben validate-instruments pipes pipes-surface pipes-editor
 
 CONTROLLERS := Firmware/TreeHouse_Controllers
 
@@ -99,3 +99,16 @@ pipes-surface: reuben uv
 	trap 'kill $$rp $$dp 2>/dev/null' EXIT INT TERM; \
 	echo "Virtual encoder surface: http://127.0.0.1:$(DASHBOARD_PORT)/playingthepipes.html?pipes=127.0.0.1:$$pipes_port"; \
 	$(RUN) python ShowControl/PlayingThePipes/encoder_bridge.py
+
+# reuben-editor on this machine, attached to pipes-reuben on the box over the LAN. PIPES_HOST is an
+# ssh host (default: the `pipes` alias scripts/deploy.sh uses). The token is read from the box over
+# ssh on each run, never stored here; install.sh makes it. The link is unencrypted: trusted LAN only.
+PIPES_HOST ?= pipes
+PIPES_REUBEN_ENV := /etc/community-garden/pipes-reuben.env
+pipes-editor: cargo uv
+	@port=$$($(RUN) python -c "from OSCFabric.config import load_network_config as n; print(n()['elements']['pipes']['reuben_structure_port'])") || exit 1; \
+	host=$$(ssh -G $(PIPES_HOST) | awk '$$1 == "hostname" {print $$2}'); \
+	token=$$(ssh $(PIPES_HOST) "sed -n 's/^REUBEN_STRUCTURE_TOKEN=//p' $(PIPES_REUBEN_ENV)"); \
+	[ -n "$$token" ] || { echo "No token from $(PIPES_HOST):$(PIPES_REUBEN_ENV). Deploy Playing the Pipes there first."; exit 1; }; \
+	echo "Attaching to $$host:$$port"; \
+	cd $(REUBEN_DIR) && REUBEN_STRUCTURE_TOKEN=$$token cargo run --release -p reuben-editor -- --attach $$host:$$port
