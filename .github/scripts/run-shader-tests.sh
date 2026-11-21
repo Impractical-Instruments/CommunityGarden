@@ -6,6 +6,7 @@
 #   FORCE_PATH        the changed path that matched shader-force-run.txt, or empty
 #   CACHE_KEY         key of the testmon cache restored from dev, or empty
 #   TESTMON_DATAFILE  where that cache was restored (testmon reads this variable)
+#   GL_BUDGET_S       seconds a pytest run may take before the job fails (default 480)
 #
 # The testmon data is recorded on every push to dev by testmon-data.yml.
 # Locally, `make test-fundingcaptcha` runs everything; this script is for CI.
@@ -14,17 +15,28 @@ set -euo pipefail
 TESTS=ShowControl/FundingCAPTCHA
 # The slowest tests in every log, so a slow new test is seen when it lands (#203).
 DURATIONS=--durations=25
+# The time budget (#249). A full run takes 3 to 5 minutes on a hosted runner; at 8 the suite has
+# grown by half again or more. Make the slow tests in the durations list cheaper, or drop tests
+# that do not check something a visitor sees. Raise the budget only as a decision, in its own PR.
+BUDGET_S=${GL_BUDGET_S:-480}
 
 # pytest exits 5 when it runs no tests; that is not a failure.
 # $1 is what to log in that case (nothing if empty).
+# A run that takes longer than BUDGET_S fails, whatever its tests did.
 pytest_ok() {
-    local why=$1 rc=0
+    local why=$1 rc=0 start=$SECONDS took
     shift
     python3 -m pytest "$@" || rc=$?
+    took=$((SECONDS - start))
     if [ "$rc" -eq 5 ]; then
         [ -z "$why" ] || echo "testmon: zero tests ran: $why"
-        return 0
+        rc=0
     fi
+    if [ "$took" -gt "$BUDGET_S" ]; then
+        echo "::error::The FundingCAPTCHA tests took ${took} s; the budget is ${BUDGET_S} s. See the slowest durations above."
+        return 1
+    fi
+    echo "time budget: ${took} s of ${BUDGET_S} s."
     return "$rc"
 }
 
