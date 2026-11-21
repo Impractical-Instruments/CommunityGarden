@@ -15,8 +15,10 @@ Per-Element pages (`flowerbeds.html`, `treehouse.html`, `fundingcaptcha.html`, `
 **Which host a page asks.** Every page gets an Element's base URL from `elementBase(id)` in `network.js`, and no page builds one itself (a test fails if a page reads its own hostname). `elementBase` picks, in order:
 
 1. `?<id>=host:port` in the page's URL, where `<id>` is the Element's key in `network.json`: `?pipes=127.0.0.1:<port>` is what `make pipes-surface` prints.
-2. If the Dashboard was opened on `localhost`, `127.0.0.1` or `[::1]`: that host with the Element's `http_port`. A development machine runs its Elements beside the Dashboard.
+2. If the Dashboard was opened on a loopback name (`localhost`, any `127.x.x.x`, `[::1]`): that host with the Element's `http_port`. A development machine runs its Elements beside the Dashboard.
 3. Otherwise the Element's own `ip` and `http_port`. On the Show Network the Dashboard is on the `treehouse` host and the other Elements are not.
+
+So a development machine's Dashboard opened by its LAN address (the URL `serve.py` prints can be one) asks the Show Network addresses. Open it on `localhost`, or name each Element in the URL as in 1.
 
 The Dashboard server never talks to Elements: everything is browser → Element directly. Two Elements have controls:
 
@@ -60,6 +62,6 @@ For whoever is running the Element at a show. A code change rarely needs it.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Dashboard unreachable | `cg-dashboard` down or host network down | `sudo systemctl status cg-dashboard` on the treehouse host |
-| Element shows offline though running | The Element's `ip` or `http_port` in `network.json` is not where it is listening, or that address is unreachable from the browser. A Dashboard opened on `localhost` asks `localhost`, not the Element's IP (see "Which host a page asks") | Open the Element's own monitoring URL directly (`http://<element ip>:<http_port>/health`). If that answers, fix the Element's entry in `network.json` and re-deploy; open the Dashboard by the `treehouse` host's IP, not `localhost` |
+| Element shows offline though running | The page asks the Element's `ip` and `http_port` from `network.json` (see "Which host a page asks"). Either the Element is listening somewhere else, or that address is unreachable from the browser. A Dashboard opened on `localhost` asks `localhost` instead | Open `http://<ip>:<http_port>/health` with the Element's values from `network.json`. If it answers, the browser can reach the Element: check the Dashboard was opened by the `treehouse` host's IP, not `localhost`. If it does not, find the address the Element is really on; if that differs from `network.json`, fix the entry and re-deploy |
 | Pipes surface turns nothing | Not armed, or the bridge is unreachable | Arm it on the page (it disarms when the tab loses focus); check the bridge's `/health` and the note beside the arm button |
 | TreeHouse mode buttons do nothing | TreeHouse visualizer unreachable from the browser | The page posts to `http://<treehouse ip>:8766/control/show/mode`; check the `treehouse` service is up |

@@ -1,4 +1,4 @@
-"""The Dashboard server hands the pages their ports; the pages hold none."""
+"""The Dashboard server hands the pages each Element's address; the pages hold none."""
 from __future__ import annotations
 
 import json
@@ -33,12 +33,19 @@ def test_no_page_hardcodes_a_port():
         assert not found, f"{page.name} hardcodes {sorted(found)}; read it from /api/network"
 
 
+def test_no_page_or_script_holds_an_element_ip():
+    ips = {el["ip"] for el in NETWORK["elements"].values()}
+    for page in sorted(DIR.glob("*.html")) + sorted(DIR.glob("*.js")):
+        found = sorted(ip for ip in ips if ip in page.read_text())
+        assert not found, f"{page.name} hardcodes {found}; get it from elementBase() in network.js"
+
+
 def test_no_page_builds_an_element_url_from_its_own_hostname():
     """Elements run on their own hosts; only network.js may ask where the Dashboard was loaded from."""
     for page in sorted(DIR.glob("*.html")) + sorted(DIR.glob("*.js")):
         if page.name == "network.js":
             continue
-        found = re.findall(r"location\s*\.\s*host(?:name)?\b", page.read_text())
+        found = re.findall(r"location\s*\.\s*(?:host(?:name)?|origin|href)\b|document\.domain", page.read_text())
         assert not found, f"{page.name} uses {found[0]}; get the Element's URL from elementBase() in network.js"
 
 
@@ -83,7 +90,7 @@ def test_element_base_is_the_elements_own_address_on_the_show_network():
 
 
 @needs_node
-@pytest.mark.parametrize("host", ["localhost", "127.0.0.1"])
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "127.0.1.1", "[::1]"])
 def test_element_base_is_the_local_host_when_the_dashboard_is_opened_locally(host):
     assert element_bases(f"http://{host}:9000/index.html") == {
         name: f"http://{host}:{el['http_port']}" for name, el in NETWORK["elements"].items()

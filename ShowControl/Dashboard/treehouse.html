@@ -89,6 +89,7 @@ let BASE;   // the TreeHouse's base URL, from network.json; set at the bottom be
 
 async function ctrlPost(url, body = {}) {
   try {
+    if (!BASE) throw new Error('no address for the TreeHouse yet');
     await fetch(`${BASE}${url}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

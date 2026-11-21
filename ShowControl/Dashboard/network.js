@@ -2,8 +2,12 @@
 // serves at /api/network. No page holds an address of its own (AGENTS.md constraint 3),
 // and no page works one out for itself: elementBase() is the one way.
 
-// A Dashboard opened on one of these is a development machine with its Elements beside it.
-const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
+// A Dashboard opened on a loopback name is a development machine with its Elements beside it.
+// Any 127.x counts: serve.py prints the machine's own name, which Debian resolves to 127.0.1.1.
+function openedLocally() {
+  const host = location.hostname;
+  return host === 'localhost' || host === '[::1]' || /^127(\.\d{1,3}){3}$/.test(host);
+}
 
 let elementsRequest = null;
 
@@ -28,7 +32,7 @@ async function elementBase(id) {
   if (override) return `http://${override}`;
   const el = (await networkElements())[id];
   if (!el || !el.http_port) throw new Error(`network.json has no http_port for "${id}"`);
-  if (LOCAL_HOSTS.includes(location.hostname)) return `http://${location.hostname}:${el.http_port}`;
+  if (openedLocally()) return `http://${location.hostname}:${el.http_port}`;
   if (!el.ip) throw new Error(`network.json has no ip for "${id}"`);
   return `http://${el.ip}:${el.http_port}`;
 }
