@@ -4,7 +4,7 @@ The Element growing out of the base of the TreeHouse. Pipes and conduit with val
 
 **Host:** `pipes` · 192.168.1.13 (Raspberry Pi 5, Raspberry Pi OS with desktop, Debian 13) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
 
-> **Installed and playing on the box since 2026-11-21.** Still to confirm there (#235): sound after a reboot with nobody logged in, and that a desktop login does not take the audio interface. If #235 changes how reuben reaches the audio interface, this page and `deploy/pipes-reuben.service` change with it.
+> **Installed and playing on the box since 2026-11-21**, including after a reboot with nobody logged in over ssh (#235). Still to confirm: that a desktop login does not take the audio interface. If #235 changes how reuben reaches the audio interface, this page and `deploy/pipes-reuben.service` change with it.
 
 ## Code
 
@@ -85,7 +85,7 @@ To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's
 ### Open items
 
 - `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
-- Sound after a reboot with nobody logged in is unconfirmed on the box (#235).
+- Unconfirmed on the box: whether a desktop login takes the audio interface from `pipes-reuben` (#235).
 
 ## Operations
 
