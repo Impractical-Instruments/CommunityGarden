@@ -191,7 +191,7 @@ Plug projector via HDMI before first start; pygame picks up the active output au
 
 `pipes` is a Raspberry Pi 5 running Raspberry Pi OS **with desktop** on Debian 13 (trixie), arm64. Unlike the other Pis it needs the desktop image: that is what brings PipeWire, which `pipes-reuben` plays through. It builds the reuben audio engine from source, so it needs Rust as well as Python.
 
-> These steps have not yet been run on the box. #235 is the first run; it records what had to change.
+> First run on the box: 2026-11-21 (#235). Beyond the steps as first written, it needed uv (step 3) and a device profile (step 4).
 
 ### 1. OS + first boot
 

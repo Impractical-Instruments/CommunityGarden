@@ -4,7 +4,7 @@ The Element growing out of the base of the TreeHouse. Pipes and conduit with val
 
 **Host:** `pipes` · 192.168.1.13 (Raspberry Pi 5, Raspberry Pi OS with desktop, Debian 13) · **Health:** http://192.168.1.13:8767/health · **Services:** `pipes-reuben`, `pipes-bridge` (systemd)
 
-> **Not yet run on the box.** The install and deploy path below is built and tested on a dev machine (#239). How reuben reaches the audio interface at boot is still to be confirmed on the box (#235). If #235 changes it, this page and `deploy/pipes-reuben.service` change with it.
+> **Installed and playing on the box since 2026-11-21.** Still to confirm there (#235): sound after a reboot with nobody logged in, and that a desktop login does not take the audio interface. If #235 changes how reuben reaches the audio interface, this page and `deploy/pipes-reuben.service` change with it.
 
 ## Code
 
@@ -43,7 +43,7 @@ Everything (grains, loops, mic echo) is summed into the master: the master volum
 
 ### Device profile
 
-`ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is specific to the box's audio interface and is committed next to the instrument. Format: `vendor/reuben/docs/device-profile.md`.
+`ShowControl/PlayingThePipes/reuben/pipes.profile.json` tells reuben which audio device to open and which of its channels are the speakers and the mic. It is committed next to the instrument. Today it is `{}`: PipeWire's default output and input, the same devices `make pipes` uses. Name the show's audio interface in it once that is settled, so a change of PipeWire default cannot move the sound. Format: `vendor/reuben/docs/device-profile.md`.
 
 `pipes-reuben` cannot start without it. `make validate-instruments` skips files named `*.profile.json`.
 
@@ -85,7 +85,7 @@ To open it: Max 9, the Grainflow package from Max's Package Manager, and Max 9's
 ### Open items
 
 - `/pipes/activity` is not implemented. The TreeHouse's `GardenState.pipes_activity` is always 0. The bridge already knows how busy the pipes are (it drives the loop mix from it), so it is the place to send it from.
-- The launch method for `pipes-reuben` is unconfirmed on the box (#235).
+- Sound after a reboot with nobody logged in is unconfirmed on the box (#235).
 
 ## Operations
 

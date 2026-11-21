@@ -7,7 +7,7 @@
 
 *Note, 2026-11-20: decision 5 says reuben `main`. The CI check (`.github/scripts/check-reuben-pin.sh`) requires the pinned commit to be on reuben `dev`, its integration branch; `main` there is the release branch.*
 
-*Note, 2026-11-21: decision 2 says Ubuntu Desktop on a mini PC. The box is a Raspberry Pi 5 running Raspberry Pi OS with desktop on Debian 13. Everything else in decision 2 holds: systemd units, `deploy/install.sh`, `scripts/deploy.sh`. Decision 6 carries over unchanged, since that image runs PipeWire in the user's session the same way.*
+*Note, 2026-11-21: decision 2 says Ubuntu Desktop on a mini PC. The box is a Raspberry Pi 5 running Raspberry Pi OS with desktop on Debian 13. Everything else in decision 2 holds: systemd units, `deploy/install.sh`, `scripts/deploy.sh`. Decision 6 carries over unchanged, since that image runs PipeWire in the user's session the same way. The box now plays from the service; sound after a reboot with nobody logged in is still to confirm (#235).*
 
 ## Context
 
