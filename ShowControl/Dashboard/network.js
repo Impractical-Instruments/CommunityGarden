@@ -3,7 +3,7 @@
 // and no page works one out for itself: elementBase() is the one way.
 
 // A Dashboard opened on a loopback name is a development machine with its Elements beside it.
-// Any 127.x counts: serve.py prints the machine's own name, which Debian resolves to 127.0.1.1.
+// Any 127.x counts: serve.py prints the address of the machine's own name, 127.0.1.1 on Debian.
 function openedLocally() {
   const host = location.hostname;
   return host === 'localhost' || host === '[::1]' || /^127(\.\d{1,3}){3}$/.test(host);
