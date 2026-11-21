@@ -51,9 +51,7 @@
 </main>
 <script src="network.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
-
-// Keys of `elements` in network.json; each gets its http_port below.
+// Keys of `elements` in network.json; each gets its base URL below.
 const ELEMENTS = [
   { id: 'flowerbeds' },
   { id: 'treehouse' },
@@ -77,7 +75,8 @@ function fmtUptime(ms) {
 async function checkElement(el) {
   let online = false;
   try {
-    const resp = await fetch(`http://${HOST}:${el.port}/health`, {
+    if (!el.base) throw new Error(`no address for ${el.id}`);
+    const resp = await fetch(`${el.base}/health`, {
       signal: AbortSignal.timeout(2000),
     });
     online = resp.ok;
@@ -107,11 +106,13 @@ function tick() {
   ELEMENTS.forEach(el => checkElement(el));
 }
 
-elementPorts().then(ports => {
-  ELEMENTS.forEach(el => { el.port = ports[el.id]; });
+// An Element with no address stays offline; the others are still checked.
+Promise.all(ELEMENTS.map(el =>
+  elementBase(el.id).then(base => { el.base = base; }).catch(e => console.error(e))
+)).then(() => {
   tick();
   setInterval(tick, 2000);
-}).catch(e => console.error(e));
+});
 setInterval(updateUptimes, 1000);
 </script>
 </body>

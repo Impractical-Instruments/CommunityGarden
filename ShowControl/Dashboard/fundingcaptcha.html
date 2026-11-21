@@ -45,7 +45,7 @@
 <script src="network.js"></script>
 <script src="log-panel.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
+let HOST;   // the Element's own host, from network.json; set below with PORT
 let PORT;   // from network.json; set below before anything connects
 
 const STATUS_POLL_MS = 2000;
@@ -76,7 +76,9 @@ async function pollStatus() {
   }
 }
 
-elementPort('captcha').then(port => {
+elementBase('captcha').then(base => {
+  const { hostname, port } = new URL(base);
+  HOST = hostname;
   PORT = port;
   pollStatus();
   setInterval(pollStatus, STATUS_POLL_MS);
