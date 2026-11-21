@@ -39,7 +39,6 @@ Between `ShowControl/FlowerBeds` and each `firmware.flowerbeds_controller_<N>` (
 | `/cg/ff/rot` | int motor ID, float degrees | `controllers.py` to every controller | Aim one motor. Sent every frame; a controller ignores IDs it does not own. The sign is flipped on send (software is counter-clockwise positive) |
 | `/cg/ff/ping` | none | `diag.py` to one controller | Ask for status |
 | `/cg/ff/pong` | int controller ID, int baud, int servo count, string servo IDs, int packets received, int packets dropped, int last motor ID, float last degrees | controller to whoever pinged | Status reply |
-| `/cg/ff/hb` | same as `/cg/ff/pong` | controller, broadcast once a second | Status heartbeat. Nothing in this repo listens for it |
 
 ## Playing the Pipes: the encoder bridge to reuben
 
