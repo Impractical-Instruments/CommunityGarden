@@ -12,8 +12,27 @@
   <h1>Funding CAPTCHA</h1>
 </nav>
 <div class="detail-body">
-  <iframe id="frame" class="content-frame" src=""></iframe>
-  <div class="log-section">
+
+  <!-- The kiosk's /health (FundingCAPTCHA/monitor.py): whatever Kiosk last gave monitor.set_status. -->
+  <div class="th-status">
+    <div class="th-row">
+      <div class="th-field">
+        <label>Kiosk</label>
+        <span class="log-conn" id="fc-kiosk">connecting…</span>
+      </div>
+      <div class="th-field">
+        <label>State</label>
+        <span id="fc-state">—</span>
+      </div>
+      <div class="th-field">
+        <label>Foreground pixels</label>
+        <span id="fc-fg">—</span>
+      </div>
+    </div>
+    <div class="th-displays log-error" id="fc-error"></div>
+  </div>
+
+  <div class="log-section log-section-fill">
     <div class="log-header">
       <span>Logs</span>
       <span class="log-conn" id="log-conn">connecting…</span>
@@ -29,9 +48,38 @@
 const HOST = window.location.hostname || 'localhost';
 let PORT;   // from network.json; set below before anything connects
 
+const STATUS_POLL_MS = 2000;
+
+function show(id, text, cls) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  if (cls !== undefined) el.className = 'log-conn ' + cls;
+}
+
+// GET /health is the kiosk's last status: {"state": "starting" | "screensaver" | "game", "fg_pixels": N},
+// or {"state": "error", "error": …} when the camera has failed. fg_pixels is absent until a camera
+// frame arrives in the current state.
+async function pollStatus() {
+  try {
+    const resp = await fetch(`http://${HOST}:${PORT}/health`, { signal: AbortSignal.timeout(2000) });
+    if (!resp.ok) throw new Error(`/health: HTTP ${resp.status}`);
+    const status = await resp.json();
+    const failed = status.state === 'error';
+    show('fc-kiosk', failed ? 'error' : 'ok', failed ? 'disconnected' : 'connected');
+    show('fc-state', status.state || '—');
+    show('fc-fg', status.fg_pixels == null ? '—' : status.fg_pixels.toLocaleString());
+    show('fc-error', failed ? String(status.error || 'no error text') : '');
+  } catch (_) {
+    show('fc-kiosk', 'unreachable', 'disconnected');
+    ['fc-state', 'fc-fg'].forEach(id => show(id, '—'));
+    show('fc-error', '');
+  }
+}
+
 elementPort('captcha').then(port => {
   PORT = port;
-  document.getElementById('frame').src = `http://${HOST}:${PORT}/touch-test.html`;
+  pollStatus();
+  setInterval(pollStatus, STATUS_POLL_MS);
   connectLogs(HOST, PORT);
 }).catch(e => console.error(e));
 </script>

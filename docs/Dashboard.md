@@ -19,9 +19,12 @@ The Dashboard server never talks to Elements: everything is browser → Element 
 - **TreeHouse:** the page posts to the TreeHouse visualizer's `/control/*` routes (show mode, Looking Glass scene, Blow-Up trigger).
 - **Playing the Pipes:** a virtual encoder surface posts `/enc BOARD ENC DELTA` lines to the encoder bridge's `/control/enc`, turning the knobs the way the Picos do, and draws the bridge's `/state` (knob levels and positions, loop levels, mix state). It loads **disarmed**; arm it on the page. It disarms itself when the tab is hidden or loses focus, and after 5 min without a turn. Add `?pipes=host:port` to the URL to reach a bridge other than the one in `network.json` (a laptop running `make pipes-surface`).
 
-The other pages are status and logs only.
+The other pages are status and logs only:
 
-The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`.
+- **FlowerBeds:** the visualizer's own page at `/`, in a frame, above the log panel.
+- **FundingCAPTCHA:** the kiosk's `/health`, polled every 2 s (kiosk reachable or not, state, foreground pixel count, and the camera error when there is one), above the log panel. The kiosk serves JSON and a log socket and no page of its own, so nothing is framed. The page does not call `/api/restart`.
+
+The log panel on the Element pages is one script, `log-panel.js` (`connectLogs(host, port)`); each page includes it and supplies the `log-panel`, `log-lines` and `log-conn` elements. The `/logs` socket it reads is served by `ShowWeb.LiveServer`, or for the kiosk by `FundingCAPTCHA/monitor.py`.
 
 Files in `ShowControl/Dashboard/`: `serve.py`, `index.html`, the four Element pages, `network.js` (reads `/api/network`), `log-panel.js`, `dashboard.css`.
 
