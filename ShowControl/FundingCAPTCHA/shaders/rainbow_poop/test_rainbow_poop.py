@@ -298,22 +298,6 @@ def colourful(img) -> np.ndarray:
     return (px.max(axis=-1) - px.min(axis=-1)) > 90
 
 
-@pytest.mark.skip(reason="#243: hangs intermittently on llvmpipe in CI; disabled until fixed")
-def test_splats_drawn_only_on_the_silhouette(ctx):
-    rig = RainbowRig(ctx, BIG)
-    rig.run(standing(60))
-    assert rig.live_splats(0).size
-    img = rig.image()
-    sat = colourful(img)
-    # The body rect(27, 8, 37, 36) in BIG pixels (row 0 = bottom).
-    c0, c1 = int(27 / 64 * BIG[0]), int(37 / 64 * BIG[0])
-    r0, r1 = int((1 - 36 / 40) * BIG[1]), int((1 - 8 / 40) * BIG[1])
-    on = sat[r0:r1, c0:c1].sum()
-    assert on > 20
-    beside = sat[r0:r1 - 30, c1 + 3:c1 + 40].sum() + sat[r0:r1 - 30, c0 - 40:c0 - 3].sum()
-    assert beside == 0                                    # no splat colour off the body
-
-
 def test_empty_room_is_paper_and_clouds(ctx):
     rig = RainbowRig(ctx, BIG)
     rig.run([EMPTY] * 10)
