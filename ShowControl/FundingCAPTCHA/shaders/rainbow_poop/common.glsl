@@ -109,7 +109,17 @@ vec4 sGround(sampler2D s, int j) { return texelFetch(s, ivec2(j, 5), 0); }
 #define toUv(sh)     ((sh) * iResolution.y / iResolution.xy)
 
 // ── Noise ─────────────────────────────────────────────────────────────────────
+// hash11 is for the look only (Image). sin() of the same argument differs between GL implementations
+// in its last digits, and × 43758 turns that into an unrelated result: hash11(1.37) is 0.94 on llvmpipe
+// and 0.21 on an NVIDIA RTX 4060 (#214). Anything that decides what happens uses rand().
 float hash11(float n) { return fract(sin(n * 127.1 + 311.7) * 43758.5453); }
+uint  mix32(uint x) { x ^= x >> 16u; x *= 0x7feb352du; x ^= x >> 15u; x *= 0x846ca68bu; return x ^ (x >> 16u); }
+// 0–1 from three integers, the same on every GL implementation: integer arithmetic is exact.
+// `salt` tells apart the draws made from the same a and b (the R_* below).
+float rand(int a, int b, int salt) {
+    return float(mix32(uint(a) + mix32(uint(b) + mix32(uint(salt)))) >> 8u) / 16777216.0;
+}
+const int R_FIRST = 1, R_NEXT = 2, R_AIM = 3, R_PHASE = 4, R_SPLAT = 5, R_SINK = 6, R_GROUND = 7;
 float vnoise(float x) {                  // value noise, −1…1
     float i = floor(x), f = fract(x);
     return mix(hash11(i), hash11(i + 1.0), f * f * (3.0 - 2.0 * f)) * 2.0 - 1.0;

@@ -16,6 +16,15 @@ float DITHER;
 float tick(float x, float dt) { return min(x + floor(dt / AGE_Q + DITHER) * AGE_Q, T_CLAMP); }
 float quant(float x) { return floor(x / AGE_Q + 0.5) * AGE_Q; }
 
+// Whether the Body is present at `uv`: read at the centre of the texel that holds it, where the
+// linear filter returns that texel alone. Read at `uv` itself, a point on a texel edge is 0.5 give
+// or take the implementation's weight precision, and `> 0.5` there was true on an NVIDIA GPU and
+// false on llvmpipe (#214).
+bool bodyAt(vec2 uv) {
+    vec2 n = vec2(textureSize(BODY, 0));
+    return texture(BODY, (floor(uv * n) + 0.5) / n).r > 0.5;
+}
+
 // ── Who is there ──────────────────────────────────────────────────────────────
 // The record in slot k carries a different person than SLOT k remembers (or none).
 bool isFresh(int k) {
@@ -74,8 +83,8 @@ Poop poopStep(int k, float dt) {
     Poop o;
     o.poop = sPoop(B, k); o.drop = sDrop(B, k); o.hitSlot = -1; o.ground = false; o.at = vec2(0.0);
     if (drops(k)) {
-        float aim = AIM_SPREAD * (2.0 * hash11(recIdn(BLOBS, k).x * 3.7 + iTime * 1.3) - 1.0);
-        o.poop = vec4(dropX(k, aim), SPAWN_Y, 6.2832 * hash11(iTime * 2.9 + float(k)), aim);
+        float aim = AIM_SPREAD * (2.0 * rand(k, iFrame, R_AIM) - 1.0);
+        o.poop = vec4(dropX(k, aim), SPAWN_Y, 6.2832 * rand(k, iFrame, R_PHASE), aim);
         o.drop = vec4(1.0, recBox(BLOBS, k).y, recIdn(BLOBS, k).x, 0.0);
         return o;
     }
@@ -96,7 +105,7 @@ Poop poopStep(int k, float dt) {
         age += h;
         vec2 uv = toUv(poopAt(o.poop, age));
         bool onScreen = uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0;
-        if (onScreen && texture(BODY, uv).r > 0.5) {
+        if (onScreen && bodyAt(uv)) {
             int m = slotAt(uv, k);
             if (m >= 0) { o.hitSlot = m; o.at = uv; o.poop = vec4(0.0); o.drop = vec4(0.0); return o; }
         }
@@ -114,9 +123,9 @@ vec4 slotNext(int k, float dt) {
     vec4 idn = recIdn(BLOBS, k);
     float here = isHere(idn.y) ? 1.0 : 0.0;
     if (isFresh(k))
-        return vec4(isState(idn.y, S_EMPTY) ? 0.0 : idn.x, quant(FIRST_BOMB_S + FIRST_JITTER * hash11(idn.x * 1.37)), here, 0.0);
+        return vec4(isState(idn.y, S_EMPTY) ? 0.0 : idn.x, quant(FIRST_BOMB_S + FIRST_JITTER * rand(int(idn.x + 0.5), 0, R_FIRST)), here, 0.0);
     vec4 s = sSlot(B, k);
-    if (drops(k)) s.y = quant(BOMB_EVERY_S + BOMB_JITTER_S * (2.0 * hash11(iTime * 7.7 + float(k)) - 1.0));
+    if (drops(k)) s.y = quant(BOMB_EVERY_S + BOMB_JITTER_S * (2.0 * rand(k, iFrame, R_NEXT) - 1.0));
     else if (isState(idn.y, S_CONFIRMED)) s.y = max(-tick(-s.y, dt), -10.0);
     s.z = here > 0.5 ? 1.0 : max(s.z - dt / LEAVE_FADE_S, 0.0);
     return s;
@@ -132,7 +141,7 @@ vec4 measure(int k) {
     for (int j = 0; j < ANCHOR_NY; j++)
         for (int i = 0; i < ANCHOR_NX; i++) {
             vec2 uv = b.xy + span * (vec2(i, j) + 0.5) / vec2(ANCHOR_NX, ANCHOR_NY);
-            float on = step(0.5, texture(BODY, uv).r);
+            float on = bodyAt(uv) ? 1.0 : 0.0;
             sum += on * uv; n += on;
         }
     if (n < 6.0) return vec4((box.x + box.z) * 0.5, (box.y + box.w) * 0.5, max(box.w - box.y, 0.05), 0.0);
@@ -160,8 +169,8 @@ vec4 splatNext(int k, int j, float dt) {
         }
         vec4 an = anchorNext(k, dt);
         vec2 q  = (toScreen(p.at) - toScreen(an.xy)) / max(an.z, 0.05);
-        float seed = hash11(iTime * 13.7 + float(k) * 3.1 + float(i));
-        return vec4(q.x, q.y - SPLAT_SINK - SINK_SPREAD * hash11(seed * 91.0), 0.0, seed);
+        int from = k * SLOTS + i;
+        return vec4(q.x, q.y - SPLAT_SINK - SINK_SPREAD * rand(from, iFrame, R_SINK), 0.0, rand(from, iFrame, R_SPLAT));
     }
     if (fresh) return DEAD;
     vec4 s = sSplat(B, k, j);
@@ -173,7 +182,7 @@ vec4 groundNext(int j, float dt) {
     for (int i = 0; i < SLOTS; i++) {
         Poop p = poopStep(i, dt);
         if (!p.ground) continue;
-        if (j == 0) return vec4(p.at, 0.0, hash11(iTime * 5.3 + float(i)));
+        if (j == 0) return vec4(p.at, 0.0, rand(i, iFrame, R_GROUND));
         vec4 g = sGround(B, j - 1);
         g.z = tick(g.z, dt);
         return g;

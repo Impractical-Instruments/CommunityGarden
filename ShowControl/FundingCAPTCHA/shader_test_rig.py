@@ -89,7 +89,7 @@ def glsl_consts(setup_dir: Path) -> Consts:
 def rect(x0, y0, x1, y1, body=BODY) -> np.ndarray:
     """bool mask (h, w) of a Body, row 0 = top, with the rectangle set; clipped to the Body's top and left edges."""
     m = np.zeros(body[::-1], dtype=bool)
-    m[max(y0, 0):y1, max(x0, 0):x1] = True
+    m[max(y0, 0):max(y1, 0), max(x0, 0):max(x1, 0)] = True     # a negative end would count from the far edge
     return m
 
 
