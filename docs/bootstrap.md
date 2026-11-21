@@ -51,9 +51,17 @@ git clone https://github.com/Impractical-Instruments/CommunityGarden.git
 
 This is the default path. The installers work from wherever the repo is cloned (they fill the path into each systemd unit). `scripts/deploy.sh` expects `~/CommunityGarden` on the show machine; for any other location, set `CG_REMOTE_REPO` when running it.
 
-### 3. Install element service
+### 3. uv
 
-Run the per-element installer once. Each `install.sh` handles apt packages, pip deps, systemd unit, enable + restart; the shared steps are in `scripts/lib/install-element.sh`. This first run needs internet for the apt and pip downloads. Later runs (every `deploy.sh`) do not, unless a dependency was added.
+As `ii` (not root), install [uv](https://docs.astral.sh/uv/). The installers use it to set up the Python and packages in `uv.lock`:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### 4. Install element service
+
+Run the per-element installer once. Each `install.sh` handles apt packages, Python deps (uv; TreeHouse and FundingCAPTCHA still use system pip), systemd unit, enable + restart; the shared steps are in `scripts/lib/install-element.sh`. This first run needs internet for the apt packages, the Python download and the packages. Later runs (every `deploy.sh`) do not, unless a dependency was added.
 
 ```bash
 sudo bash scripts/install-services.sh FlowerBeds
@@ -65,7 +73,7 @@ sudo bash scripts/install-services.sh TreeHouse Dashboard
 
 Each Pi normally runs one element. TreeHouse host also runs `cg-dashboard`.
 
-### 4. LAN deploy bootstrap
+### 5. LAN deploy bootstrap
 
 After the initial clone, allow `scripts/deploy.sh` (run from the operator laptop) to push code over the show LAN:
 
@@ -93,7 +101,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 If Orbbec has different idProduct, vendor rule ships in the SDK:
 
 ```bash
-python3 -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__))"
+~/CommunityGarden/.venv/bin/python -c "import pyorbbecsdk2, os; print(os.path.dirname(pyorbbecsdk2.__file__))"
 # Copy the .rules file from there to /etc/udev/rules.d/, reload.
 ```
 
@@ -205,11 +213,12 @@ git lfs install && git lfs pull --include "ShowControl/PlayingThePipes/Lamplight
 git submodule update --init
 ```
 
-### 3. Rust
+### 3. Rust and uv
 
-As `ii` (not root), install rustup, then let it fetch the toolchain and crates reuben pins:
+As `ii` (not root), install uv (for `pipes-bridge`) and rustup, then let rustup fetch the toolchain and crates reuben pins:
 
 ```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . ~/.cargo/env
 cd ~/CommunityGarden/vendor/reuben && cargo fetch
@@ -227,7 +236,7 @@ sudo bash scripts/install-services.sh PlayingThePipes
 
 This installs the build packages (`libasound2-dev`, `build-essential`, `pkg-config`), adds `ii` to the `audio` and `dialout` groups, enables lingering for `ii`, builds reuben, and installs and starts `pipes-reuben` and `pipes-bridge`. The first reuben build is the slow part.
 
-Then run [LAN deploy bootstrap](#4-lan-deploy-bootstrap) as on the Pis.
+Then run [LAN deploy bootstrap](#5-lan-deploy-bootstrap) as on the Pis.
 
 ### 6. Check
 
@@ -347,4 +356,4 @@ nmcli con mod "Wired connection 1" ipv4.method auto
 
 ### FlowerBeds layout tool
 
-The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: Python + `pip install -e ".[flowerbeds]"` from the repo root.
+The operator laptop also runs the FlowerBeds layout GUI (Windows, browser-based). See [FlowerBeds.md → Layout tool](FlowerBeds.md#layout-tool) for usage. Requirements: uv; run it with `uv run` as in the layout tool's docs.

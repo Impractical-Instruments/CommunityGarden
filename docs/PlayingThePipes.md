@@ -151,5 +151,7 @@ Tuning changes (`settings.json`, `reuben/pipes.json`) deploy the same way and ne
 | Audio is fine, encoders do nothing | Bridge is not reaching reuben, or the knobs are asleep | Check `/health`; turn a knob and watch `last_event_age_s` reset; try the virtual encoder surface |
 | Audio stops when someone logs in at the desktop | The login session took the audio interface | Record it on #235; restart `pipes-reuben` |
 | `pipes-reuben` fails at once, `journalctl` names `pipes-reuben.env` | The token file is missing | Run the installer; it makes it |
+| Deploy stops at "no uv for ii" | uv is not installed for the service user | As that user, with internet: `curl -LsSf https://astral.sh/uv/install.sh \| sh`, then rerun |
+| Deploy stops in `uv sync` | A new package is not in uv's cache and the box is offline | Rerun the installer once with internet |
 | Deploy stops at "still Git LFS pointers" | New samples did not arrive | `git lfs pull` on the box with internet (see [Deploying](#deploying-code-updates)) |
 | Deploy stops in `cargo build` | A new crate or toolchain is not on the box | See [Deploying](#deploying-code-updates) |

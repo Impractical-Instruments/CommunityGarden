@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # deploy.sh — push the laptop's current branch to a show machine over the
-# show LAN and run the per-element install.sh (pip install + service restart).
+# show LAN and run the per-element install.sh (Python deps + service restart).
 #
 # Use this at the venue when show machines have no internet (the standard
 # show workflow). See docs/showtime.md → "Deploying code updates".

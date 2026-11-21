@@ -20,5 +20,8 @@ ln -sf /lib/aarch64-linux-gnu/libEGL.so.1 /lib/aarch64-linux-gnu/libEGL.so
 ln -sf /lib/aarch64-linux-gnu/libGL.so.1  /lib/aarch64-linux-gnu/libGL.so
 ldconfig
 
+# System pip, not uv, until uv's pygame and moderngl are checked on this hardware:
+# from PyPI they bring their own SDL, not the Pi's, and the display runs on weston.
+PYTHON_DEPS=pip
 install_element treehouse treehouse
 install_done Viz 8766

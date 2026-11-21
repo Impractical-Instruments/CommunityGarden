@@ -6,10 +6,12 @@ On a dev machine and in CI, every Python command runs through [uv](https://docs.
 
 - **`make …`** runs through uv already.
 - **Any other Python command:** put `uv run` in front, from anywhere in the repo. Example: `uv run python main.py --mock-camera`. Where a doc says `python3 x.py`, run `uv run python x.py`.
-- **Never** `pip install`, activate a venv, or call `.venv/bin/python` directly.
+- **Never** `pip install`, activate a venv, or call `.venv/bin/python` directly. (A show machine's systemd units are the exception: they run `.venv/bin/python`. See below.)
 - **Changing dependencies:** edit `pyproject.toml`, then run `uv lock` and commit `uv.lock` with it. CI fails if the two disagree.
 
-Show machines (the Pis and the Pipes PC) don't use this. They install an Element's extra with their system pip; see `docs/bootstrap.md`.
+Show machines use the same `.venv`, `uv.lock` and Python. An Element's installer runs `uv sync --locked --no-dev --inexact --extra <element>` as the service user (`scripts/lib/install-element.sh`), so the box gets only that Element's extras and no test tools. It tries offline first, from uv's cache, and goes online only for something not cached yet. The units start `.venv/bin/python` directly, so nothing syncs at boot. Don't run plain `uv run` on a show machine: it would install the whole dev group. uv must be installed for the service user once, with internet; see `docs/bootstrap.md`.
+
+Two Elements still install with system pip (`PYTHON_DEPS=pip` in their `install.sh`): TreeHouse and FundingCAPTCHA. PyPI's pygame bundles its own SDL, which has no KMSDRM video driver (FundingCAPTCHA's display uses it) and is untested on TreeHouse's weston display. They move once that is checked on their hardware.
 
 Python is 3.11 because that is what the show Pis run (Pi OS bookworm). A 3.12+ feature would pass on a laptop and fail at the show. Change `.python-version` when the Pis move to a newer Pi OS.
 

@@ -4,6 +4,7 @@
 #
 #   . "$(dirname "$0")/../../../scripts/lib/install-element.sh"
 #   ...Element-specific steps (apt packages, udev rules)...
+#   PYTHON_DEPS=pip    # only an Element that cannot use uv yet; say why beside it
 #   install_element <extras> <service>...
 #   install_done <label> <port>
 #
@@ -36,10 +37,53 @@ render_unit() {
         "$1"
 }
 
+# find_uv
+# Print the service user's uv. CG_UV is set only by scripts/test_install_element.py.
+find_uv() {
+    local home candidate candidates
+    if [ -n "${CG_UV:-}" ]; then
+        candidates=("$CG_UV")
+    else
+        home="$(getent passwd "$SERVICE_USER" | cut -d: -f6)"
+        candidates=("$home/.local/bin/uv" "$home/.cargo/bin/uv" "$(command -v uv || true)")
+    fi
+    for candidate in "${candidates[@]}"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# uv_sync <extras>
+# The repo's .venv, as the service user, from uv.lock: the Python in .python-version
+# and exactly the locked packages, the same as CI. No dev group: only this Element's
+# extras. --inexact so a second Element on the same machine keeps the first's packages.
+# Offline first, from uv's cache, since show machines usually have no internet; online
+# only when something new is not cached yet.
+uv_sync() {
+    local uv extra list args=(sync --locked --no-dev --inexact)
+    if ! uv="$(find_uv)"; then
+        echo "Error: no uv for $SERVICE_USER. Install it as $SERVICE_USER (needs internet):" >&2
+        echo "  curl -LsSf https://astral.sh/uv/install.sh | sh" >&2
+        return 1
+    fi
+    IFS=, read -ra list <<< "$1"
+    for extra in "${list[@]}"; do
+        args+=(--extra "$extra")
+    done
+    if ! sudo -u "$SERVICE_USER" -H "$uv" --directory "$REPO_ROOT" "${args[@]}" --offline; then
+        echo "   Not everything is in uv's cache; trying online..."
+        sudo -u "$SERVICE_USER" -H "$uv" --directory "$REPO_ROOT" "${args[@]}"
+    fi
+}
+
 # install_element <extras> <service>...
 #   extras   pyproject.toml extras for this Element, e.g. "flowerbeds,camera"
 #   service  systemd unit name without .service, e.g. "cg-dashboard"
-# Installs the Python dependencies, writes each unit from the *.service files in
+# Installs the Python dependencies (uv_sync, or system pip when the Element set
+# PYTHON_DEPS=pip), writes each unit from the *.service files in
 # deploy/, then enables and restarts them in the order given.
 #
 # One service: deploy/ holds one *.service file, under any name. Several: each
@@ -70,9 +114,13 @@ install_element() {
     fi
 
     echo "→ Installing Python dependencies..."
-    # --no-build-isolation: build with the system setuptools. An isolated build
-    # downloads setuptools from PyPI, which fails on the show LAN (no internet).
-    pip3 install --break-system-packages --no-build-isolation -e "$REPO_ROOT[$extras]"
+    if [ "${PYTHON_DEPS:-uv}" = pip ]; then
+        # --no-build-isolation: build with the system setuptools. An isolated build
+        # downloads setuptools from PyPI, which fails on the show LAN (no internet).
+        pip3 install --break-system-packages --no-build-isolation -e "$REPO_ROOT[$extras]"
+    else
+        uv_sync "$extras"
+    fi
 
     echo "→ Installing systemd unit(s)..."
     # SYSTEMD_UNIT_DIR is overridden only by scripts/test_install_element.py.

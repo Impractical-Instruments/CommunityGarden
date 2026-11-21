@@ -7,7 +7,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 
 [Service]
 WorkingDirectory=@REPO_ROOT@/ShowControl/PlayingThePipes
-ExecStart=/usr/bin/python3 encoder_bridge.py
+ExecStart=@REPO_ROOT@/.venv/bin/python encoder_bridge.py
 Restart=always
 RestartSec=5
 User=@SERVICE_USER@

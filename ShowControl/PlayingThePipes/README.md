@@ -60,4 +60,4 @@ The two sides change together; `test_pipes_control.py` fails if the bridge sends
 
 **Encoder input:** `/enc BOARD ENC DELTA` lines from `Firmware/PlayingThePipes_EncoderPico/` (ADR-0014).
 
-**Python:** `pip install -e ".[pipes]"` from the repo root covers `encoder_bridge.py` and `pipes_control.py`.
+**Python:** the `pipes` extra in `pyproject.toml` covers `encoder_bridge.py` and `pipes_control.py`. On the box, `install.sh` syncs it into `.venv` with uv, and `pipes-bridge` runs `.venv/bin/python`.

@@ -7,7 +7,7 @@ Documentation=https://github.com/Impractical-Instruments/CommunityGarden/blob/ma
 
 [Service]
 WorkingDirectory=@REPO_ROOT@/ShowControl/FlowerBeds
-ExecStart=/usr/bin/python3 main.py --config settings.json
+ExecStart=@REPO_ROOT@/.venv/bin/python main.py --config settings.json
 Restart=always
 RestartSec=5
 User=@SERVICE_USER@
