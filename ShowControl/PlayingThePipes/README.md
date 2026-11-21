@@ -4,7 +4,7 @@ The show-control side of Playing the Pipes. It runs on the `pipes` host (Linux).
 
 The show is moving from a Max patch to [reuben](../../vendor/reuben) (#177). The Max patch stays here as the reference for the A/B until the reuben version is signed off; Max does not run on the box.
 
-**On the box:** `deploy/install.sh` builds reuben from `vendor/reuben` and installs two systemd services, `pipes-reuben` (the instrument, with the device profile `reuben/pipes.profile.json`) and `pipes-bridge`. `scripts/deploy.sh pipes PlayingThePipes` pushes this repo and the pinned reuben commit, then runs it. What a deploy without internet cannot carry is listed at the top of `install.sh`.
+**On the box:** `deploy/install.sh` builds reuben from `vendor/reuben` and installs two systemd services, `pipes-reuben` (the instrument, with the device profile `reuben/pipes.profile.json`) and `pipes-bridge`. `pipes-reuben` opens reuben's structure channel to the LAN with a token kept on the box, so `make pipes-editor` can attach an editor from a laptop. `scripts/deploy.sh pipes PlayingThePipes` pushes this repo and the pinned reuben commit, then runs it. What a deploy without internet cannot carry is listed at the top of `install.sh`.
 
 ## reuben version
 

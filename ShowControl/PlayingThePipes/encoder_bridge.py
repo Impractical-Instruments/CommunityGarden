@@ -40,8 +40,9 @@ each knob's awake/level/position, the loop levels and the mix state.
 
 Tuning comes from settings.json beside this file. Ports come from ShowControl/network.json, elements.pipes: http_port (health),
 reuben_osc_port (reuben's OSC input) and reuben_structure_port (liveness). The
-two reuben ports must equal what `reuben play` binds: its defaults, 9000 and
-9124, since play has no flag to change them.
+two reuben ports must equal reuben's defaults, 9000 and 9124. play has no flag
+for its OSC port, and the bridge reaches the structure channel on loopback, which
+pipes-reuben's 0.0.0.0 bind (deploy/pipes-reuben.service) includes.
 
 Usage (from the repo root):
   uv run python ShowControl/PlayingThePipes/encoder_bridge.py

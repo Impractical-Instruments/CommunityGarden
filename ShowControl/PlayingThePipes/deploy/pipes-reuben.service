@@ -12,7 +12,12 @@ Wants=user@@SERVICE_UID@.service
 [Service]
 WorkingDirectory=@REPO_ROOT@/ShowControl/PlayingThePipes
 # reuben/pipes.profile.json is the device profile for this box's audio interface.
-ExecStart="@REPO_ROOT@/vendor/reuben/target/release/reuben" play reuben/pipes.json --io-map reuben/pipes.profile.json
+# The structure channel listens on every interface, so reuben-editor on another
+# machine can attach (make pipes-editor). Beyond loopback reuben demands a token.
+# install.sh writes both into the EnvironmentFile: the token made once on the box,
+# the port from network.json. Without the file the unit fails rather than starting.
+EnvironmentFile=/etc/community-garden/pipes-reuben.env
+ExecStart="@REPO_ROOT@/vendor/reuben/target/release/reuben" play reuben/pipes.json --io-map reuben/pipes.profile.json --structure-addr ${PIPES_STRUCTURE_ADDR}
 # reuben exits at startup when there is no input device. The restart loop covers
 # a USB interface that enumerates late, or PipeWire not being ready yet.
 Restart=always

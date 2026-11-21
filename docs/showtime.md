@@ -32,7 +32,7 @@ Every host runs systemd units with `Restart=always RestartSec=5`.
 | `treehouse` | treehouse | `ShowControl/TreeHouse/main.py` | location controllers (WiFi), branch motor, 2× HDMI |
 | `captcha` | captcha | `ShowControl/FundingCAPTCHA/app.py` | Orbbec cam, projector |
 | `cg-dashboard` | treehouse | `ShowControl/Dashboard/serve.py` | none |
-| `pipes-reuben` | pipes | `reuben play ShowControl/PlayingThePipes/reuben/pipes.json` | audio interface (speakers + mic) |
+| `pipes-reuben` | pipes | `reuben play ShowControl/PlayingThePipes/reuben/pipes.json` (structure channel on the LAN, token-guarded) | audio interface (speakers + mic) |
 | `pipes-bridge` | pipes | `ShowControl/PlayingThePipes/encoder_bridge.py` | 2× encoder Pico (USB) |
 
 Power-on order is independent — services retry until hardware comes up.

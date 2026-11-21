@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
 import re
 import shutil
@@ -25,7 +26,7 @@ ELEMENTS = {
 UNITS = [(element, unit) for element, (units, _) in sorted(ELEMENTS.items()) for unit in units]
 # Every command an installer runs that needs root or a real show machine.
 STUBBED = ["pip3", "systemctl", "apt-get", "usermod", "ln", "ldconfig", "udevadm", "git", "hostname",
-           "loginctl", "sudo"]
+           "loginctl", "sudo", "chown"]
 
 
 def _clone_at(root: Path, element: str) -> Path:
@@ -38,6 +39,7 @@ def _clone_at(root: Path, element: str) -> Path:
         # It builds the reuben submodule with the service user's cargo; stand in for both.
         (root / "vendor" / "reuben").mkdir(parents=True)
         (root / "vendor" / "reuben" / "Cargo.toml").touch()
+        shutil.copy(REPO_ROOT / "ShowControl" / "network.json", root / "ShowControl" / "network.json")
         installer.write_text(installer.read_text().replace('"$USER_HOME/.cargo/bin/cargo"', "/bin/true"))
     return installer
 
@@ -58,10 +60,16 @@ def _run(installer: Path, tmp_path: Path, fail: str | None = None) -> tuple[Path
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "SUDO_USER": getpass.getuser(),
         "SYSTEMD_UNIT_DIR": str(unit_dir),
+        "PIPES_REUBEN_ENV_FILE": str(_env_file(tmp_path)),
     }
     env.pop("PRIVATE_ASSETS_REPO", None)
     done = subprocess.run(["bash", str(installer)], env=env, capture_output=True, text=True)
     return unit_dir, log.read_text().splitlines(), done.returncode
+
+
+def _env_file(tmp_path: Path) -> Path:
+    """Where pipes-reuben's EnvironmentFile goes in a test run."""
+    return tmp_path / "etc" / "community-garden" / "pipes-reuben.env"
 
 
 @pytest.mark.parametrize("element", sorted(ELEMENTS))
@@ -114,6 +122,45 @@ def test_pipes_failed_build_leaves_the_services_untouched(tmp_path):
     assert status != 0
     assert not any(line.startswith(("systemctl", "pip3")) for line in log)
     assert list(unit_dir.iterdir()) == []
+
+
+def _env(path: Path) -> dict[str, str]:
+    return dict(line.split("=", 1) for line in path.read_text().splitlines())
+
+
+def test_pipes_writes_the_structure_channel_token_and_address(tmp_path):
+    _, log, status = _run(_clone_at(tmp_path / "Garden", "PlayingThePipes"), tmp_path)
+
+    assert status == 0
+    env_file = _env_file(tmp_path)
+    port = json.loads((REPO_ROOT / "ShowControl" / "network.json").read_text())["elements"]["pipes"]["reuben_structure_port"]
+    env = _env(env_file)
+    assert env["PIPES_STRUCTURE_ADDR"] == f"0.0.0.0:{port}"
+    assert re.fullmatch(r"[0-9a-f]{32}", env["REUBEN_STRUCTURE_TOKEN"])
+    assert env_file.stat().st_mode & 0o777 == 0o640, "the token must not be world-readable"
+    assert f"chown root:{getpass.getuser()} {env_file}.new" in log
+    assert log.index(f"chown root:{getpass.getuser()} {env_file}.new") < log.index("systemctl daemon-reload")
+
+
+def test_pipes_keeps_the_token_across_deploys(tmp_path):
+    env_file = _env_file(tmp_path)
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("REUBEN_STRUCTURE_TOKEN=0123456789abcdef0123456789abcdef\nPIPES_STRUCTURE_ADDR=0.0.0.0:1\n")
+
+    _, _, status = _run(_clone_at(tmp_path / "Garden", "PlayingThePipes"), tmp_path)
+
+    assert status == 0
+    env = _env(env_file)
+    assert env["REUBEN_STRUCTURE_TOKEN"] == "0123456789abcdef0123456789abcdef"
+    assert env["PIPES_STRUCTURE_ADDR"] != "0.0.0.0:1", "the address follows network.json on every deploy"
+
+
+def test_pipes_reuben_unit_reads_the_installers_environment_file():
+    unit = (REPO_ROOT / "ShowControl" / "PlayingThePipes" / "deploy" / "pipes-reuben.service").read_text()
+    installer = (REPO_ROOT / "ShowControl" / "PlayingThePipes" / "deploy" / "install.sh").read_text()
+    path = re.search(r"^EnvironmentFile=(\S+)$", unit, flags=re.M).group(1)
+    assert f'PIPES_REUBEN_ENV_FILE:-{path}}}' in installer
+    assert "--structure-addr ${PIPES_STRUCTURE_ADDR}" in unit
 
 
 def test_pipes_refuses_a_sample_that_is_still_an_lfs_pointer(tmp_path):
