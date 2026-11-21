@@ -104,9 +104,11 @@ class FakeFabric:
     def __init__(self, *args):
         self.reports: list[tuple] = []
         self.events: list[str] = []
+        self.ticks: list[float] = []
 
     def report(self, name, value): self.reports.append((name, value))
     def send_event(self, name): self.events.append(name)
+    def tick(self, dt): self.ticks.append(dt)
 
 
 class Rig:
@@ -394,15 +396,32 @@ def test_intensity_reports_are_throttled_to_ten_hertz(rig):
             yield
         sent = len(r.fabric.reports) - baseline
         assert 5 <= sent <= 7, sent
-        assert all(name == "intensity" and value == 0.5 for name, value in r.fabric.reports)
+        assert all(name == "intensity" and value == 0.5
+                   for name, value in r.fabric.reports[baseline:])
     rig.run(script)
 
 
-def test_no_intensity_is_reported_while_a_screensaver_runs(rig):
+def test_only_zero_intensity_is_reported_while_a_screensaver_runs(rig):
     def script(r):
         for _ in range(10):
             yield
-        assert r.fabric.reports == []
+        assert r.fabric.reports
+        assert set(r.fabric.reports) == {("intensity", 0.0)}
+    rig.run(script)
+
+
+def test_the_fabric_heartbeat_is_ticked_every_frame_in_both_states(rig):
+    def script(r):
+        yield
+        yield
+        in_screensaver = len(r.fabric.ticks)
+        assert in_screensaver >= 1
+        yield from _into_game(r)
+        before = len(r.fabric.ticks)
+        yield
+        yield
+        assert len(r.fabric.ticks) - before >= 1
+        assert all(dt == r.tick_ms / 1000.0 for dt in r.fabric.ticks)
     rig.run(script)
 
 
