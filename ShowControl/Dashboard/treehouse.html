@@ -83,14 +83,13 @@
 <script src="network.js"></script>
 <script src="log-panel.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
-let PORT;   // from network.json; set at the bottom before anything connects
+let BASE;   // the TreeHouse's base URL, from network.json; set at the bottom before anything connects
 
 // ── Control helpers ──────────────────────────────────────────────────────────
 
 async function ctrlPost(url, body = {}) {
   try {
-    await fetch(`http://${HOST}:${PORT}${url}`, {
+    await fetch(`${BASE}${url}`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body),
@@ -126,8 +125,7 @@ function updateActiveStates(s) {
 const wsConn = document.getElementById('ws-conn');
 
 function connectState() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${HOST}:${PORT}/ws`);
+  const ws = new WebSocket(`${BASE.replace(/^http/, 'ws')}/ws`);
 
   ws.onopen  = () => { wsConn.textContent = 'connected'; wsConn.className = 'log-conn connected'; };
   ws.onclose = () => { wsConn.textContent = 'reconnecting…'; wsConn.className = 'log-conn disconnected'; setTimeout(connectState, 2000); };
@@ -158,10 +156,11 @@ function connectState() {
   };
 }
 
-elementPort('treehouse').then(port => {
-  PORT = port;
+elementBase('treehouse').then(base => {
+  BASE = base;
+  const { hostname, port } = new URL(base);
   connectState();
-  connectLogs(HOST, PORT);
+  connectLogs(hostname, port);
 }).catch(e => console.error(e));
 </script>
 </body>

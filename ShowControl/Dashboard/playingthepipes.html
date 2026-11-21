@@ -68,6 +68,7 @@
   </div>
 
 </div>
+<script src="network.js"></script>
 <script>
 // Field naming: test_encoder_bridge.py's drift test reads this page for `health.<field>`
 // (/health), `snap.<field>` (/state), `layout.<field>` (/state's layout) and
@@ -82,18 +83,8 @@ const IDLE_DISARM_MS = 5 * 60 * 1000;
 
 // ── Where the bridge is ──────────────────────────────────────────────────────
 
-// ?pipes=host:port reaches a bridge somewhere else (a laptop: make pipes-surface);
-// otherwise the pipes host and port come from network.json via serve.py (AGENTS.md constraint 3).
-async function pipesBase() {
-  const override = new URLSearchParams(location.search).get('pipes');
-  if (override) return `http://${override}`;
-  const resp = await fetch('/api/network');
-  if (!resp.ok) throw new Error(`/api/network: HTTP ${resp.status}`);
-  const pipes = ((await resp.json()).elements || {}).pipes;
-  if (!pipes || !pipes.ip || !pipes.http_port) throw new Error('network.json has no ip/http_port for "pipes"');
-  return `http://${pipes.ip}:${pipes.http_port}`;
-}
-
+// ?pipes=host:port reaches a bridge somewhere else (a laptop: make pipes-surface); otherwise
+// the pipes host and port come from network.json. Both are elementBase() in network.js.
 let BASE;
 
 // ── Status row (/health) ─────────────────────────────────────────────────────
@@ -346,7 +337,7 @@ window.addEventListener('blur', () => disarm('disarmed: window lost focus'));
 
 // ── Start ────────────────────────────────────────────────────────────────────
 
-pipesBase().then(base => {
+elementBase('pipes').then(base => {
   BASE = base;
   pollHealth();
   setInterval(pollHealth, HEALTH_POLL_MS);

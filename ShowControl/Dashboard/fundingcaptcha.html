@@ -26,10 +26,12 @@
 <script src="network.js"></script>
 <script src="log-panel.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
+let HOST;   // the Element's own host, from network.json; set below with PORT
 let PORT;   // from network.json; set below before anything connects
 
-elementPort('captcha').then(port => {
+elementBase('captcha').then(base => {
+  const { hostname, port } = new URL(base);
+  HOST = hostname;
   PORT = port;
   document.getElementById('frame').src = `http://${HOST}:${PORT}/touch-test.html`;
   connectLogs(HOST, PORT);

@@ -26,13 +26,10 @@
 <script src="network.js"></script>
 <script src="log-panel.js"></script>
 <script>
-const HOST = window.location.hostname || 'localhost';
-let PORT;   // from network.json; set below before anything connects
-
-elementPort('flowerbeds').then(port => {
-  PORT = port;
-  document.getElementById('frame').src = `http://${HOST}:${PORT}/`;
-  connectLogs(HOST, PORT);
+elementBase('flowerbeds').then(base => {
+  const { hostname, port } = new URL(base);
+  document.getElementById('frame').src = `${base}/`;
+  connectLogs(hostname, port);
 }).catch(e => console.error(e));
 </script>
 </body>
