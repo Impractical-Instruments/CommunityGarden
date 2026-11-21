@@ -7,7 +7,6 @@ Arduino sketch for the OpenRB-150 (SAMD21) boards that drive the FlowerBeds Dyna
 - **Protocol** (OSC over UDP, on the board's `osc_port`):
   - `/cg/ff/rot [int motor_id, float degrees]` — aim one servo. A cross-layer contract with `ShowControl/FlowerBeds` (AGENTS.md constraint 2).
   - `/cg/ff/ping` — replies `/cg/ff/pong` with the scan result and packet counters. `ShowControl/FlowerBeds/diag.py` reads it.
-  - `/cg/ff/hb` — the same status, broadcast once a second on port 9100.
 - **Addresses:** `config.h` is generated from `network.json` by `scripts/hooks/firmware_config_gen.py`. Do not edit it or write addresses in the sketch.
 
 ## Flashing

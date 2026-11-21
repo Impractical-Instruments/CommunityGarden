@@ -41,12 +41,7 @@ const uint16_t localPort = CG_OSC_PORT;   // the port you will SEND OSC TO
 EthernetUDP Udp;
 const int ETH_CS_PIN = 5;
 
-// --- Diagnostic state ---
-// Broadcast destination for 1Hz heartbeat. Layout tool + main.py listen here.
-const IPAddress HB_BROADCAST(255, 255, 255, 255);
-const uint16_t HB_PORT = 9100;
-const unsigned long HB_INTERVAL_MS = 1000;
-
+// --- Diagnostic state, reported in /cg/ff/pong ---
 uint32_t pktRxCount   = 0;     // successfully parsed OSC messages
 uint32_t pktDropCount = 0;     // packets that failed OSC parse
 int      lastMotorId  = -1;    // last /cg/ff/rot motor id we acted on
@@ -54,22 +49,13 @@ float    lastMotorDeg = 0.0f;  // last /cg/ff/rot value we acted on
 int32_t  scanBaud     = 0;     // Dynamixel bus baud rate selected at boot scan
 uint8_t  foundCount   = 0;     // number of servos detected on bus
 char     foundIdsCsv[256] = ""; // comma-separated list of detected servo IDs
-unsigned long lastHbMs = 0;
 
 void setup() {
   scanForServos();
   setUpOsc();
-  lastHbMs = millis();
 }
 
 void loop() {
-  // ---- diagnostic heartbeat (1Hz broadcast on HB_PORT) ----
-  const unsigned long now = millis();
-  if (now - lastHbMs >= HB_INTERVAL_MS) {
-    lastHbMs = now;
-    sendStatus(HB_BROADCAST, HB_PORT, "/cg/ff/hb");
-  }
-
   int packetSize = Udp.parsePacket();
   if (packetSize <= 0) return;
 
@@ -103,7 +89,7 @@ void loop() {
 }
 
 // Build + send the diagnostic OSC payload to (dest, port) under `addr`.
-// Used for both periodic /cg/ff/hb broadcast and /cg/ff/pong unicast reply.
+// Used for the /cg/ff/pong reply to whoever sent /cg/ff/ping.
 void sendStatus(IPAddress dest, uint16_t port, const char* addr) {
   OSCMessage out(addr);
   out.add((int32_t)mac[5]);          // ctrl_id from MAC last byte (unique per board)
