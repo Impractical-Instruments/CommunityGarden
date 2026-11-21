@@ -9,6 +9,8 @@
     "grain_modular2": "../Lamplight2026/media/Cmdlr2_Clip_2.wav",
     "grain_scrape1": "../Lamplight2026/media/scrape_clip_1.wav",
     "grain_scrape2": "../Lamplight2026/media/scrape_clip_2.wav",
+    "grain_voice": "patches/grain_voice.json",
+    "limiter": "patches/limiter.json",
     "loop1": "../Lamplight2026/media/tone.50.wav",
     "loop10": "../Lamplight2026/media/bass.ArpMagnet.wav",
     "loop11": "../Lamplight2026/media/G.mdlr2.wav",
@@ -21,7 +23,9 @@
     "loop6": "../Lamplight2026/media/Mallet.vfm.wav",
     "loop7": "../Lamplight2026/media/percRhythm1.wav",
     "loop8": "../Lamplight2026/media/vfm.mouth.wav",
-    "loop9": "../Lamplight2026/media/KickHat.wav"
+    "loop9": "../Lamplight2026/media/KickHat.wav",
+    "mic_echo": "patches/mic_echo.json",
+    "stereo_loop": "patches/stereo_loop.json"
   },
   "interface": {
     "inputs": {
@@ -528,520 +532,16 @@
     },
     "outputs": {
       "main_l": {
-        "from": "/master_clamp_l",
+        "from": "/limit_l.out",
         "channel": 0
       },
       "main_r": {
-        "from": "/master_clamp_r",
+        "from": "/limit_r.out",
         "channel": 1
       }
     }
   },
   "nodes": [
-    {
-      "type": "granulator",
-      "address": "/k0_grain",
-      "doc": "knob 0 grains (scrape1)",
-      "inputs": {
-        "density": {
-          "from": "/knob0_density"
-        },
-        "grain_size": {
-          "from": "/knob0_grain_size"
-        },
-        "position": {
-          "from": "/knob0_position"
-        },
-        "spray": {
-          "from": "/knob0_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_scrape1"
-    },
-    {
-      "type": "m2s",
-      "address": "/k0_level",
-      "inputs": {
-        "in": {
-          "from": "/knob0_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k0_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k0_grain"
-        },
-        "pan": -0.75
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k1_grain",
-      "doc": "knob 1 grains (mallet1)",
-      "inputs": {
-        "density": {
-          "from": "/knob1_density"
-        },
-        "grain_size": {
-          "from": "/knob1_grain_size"
-        },
-        "position": {
-          "from": "/knob1_position"
-        },
-        "spray": {
-          "from": "/knob1_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_mallet1"
-    },
-    {
-      "type": "m2s",
-      "address": "/k1_level",
-      "inputs": {
-        "in": {
-          "from": "/knob1_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k1_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k1_grain"
-        },
-        "pan": -0.614
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k2_grain",
-      "doc": "knob 2 grains (scrape2)",
-      "inputs": {
-        "density": {
-          "from": "/knob2_density"
-        },
-        "grain_size": {
-          "from": "/knob2_grain_size"
-        },
-        "position": {
-          "from": "/knob2_position"
-        },
-        "spray": {
-          "from": "/knob2_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_scrape2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k2_level",
-      "inputs": {
-        "in": {
-          "from": "/knob2_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k2_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k2_grain"
-        },
-        "pan": -0.477
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k3_grain",
-      "doc": "knob 3 grains (mallet2)",
-      "inputs": {
-        "density": {
-          "from": "/knob3_density"
-        },
-        "grain_size": {
-          "from": "/knob3_grain_size"
-        },
-        "position": {
-          "from": "/knob3_position"
-        },
-        "spray": {
-          "from": "/knob3_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_mallet2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k3_level",
-      "inputs": {
-        "in": {
-          "from": "/knob3_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k3_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k3_grain"
-        },
-        "pan": -0.341
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k4_grain",
-      "doc": "knob 4 grains (modular2)",
-      "inputs": {
-        "density": {
-          "from": "/knob4_density"
-        },
-        "grain_size": {
-          "from": "/knob4_grain_size"
-        },
-        "position": {
-          "from": "/knob4_position"
-        },
-        "spray": {
-          "from": "/knob4_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_modular2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k4_level",
-      "inputs": {
-        "in": {
-          "from": "/knob4_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k4_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k4_grain"
-        },
-        "pan": -0.205
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k5_grain",
-      "doc": "knob 5 grains (flexitone)",
-      "inputs": {
-        "density": {
-          "from": "/knob5_density"
-        },
-        "grain_size": {
-          "from": "/knob5_grain_size"
-        },
-        "position": {
-          "from": "/knob5_position"
-        },
-        "spray": {
-          "from": "/knob5_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_flexitone"
-    },
-    {
-      "type": "m2s",
-      "address": "/k5_level",
-      "inputs": {
-        "in": {
-          "from": "/knob5_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k5_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k5_grain"
-        },
-        "pan": -0.068
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k6_grain",
-      "doc": "knob 6 grains (scrape1)",
-      "inputs": {
-        "density": {
-          "from": "/knob6_density"
-        },
-        "grain_size": {
-          "from": "/knob6_grain_size"
-        },
-        "position": {
-          "from": "/knob6_position"
-        },
-        "spray": {
-          "from": "/knob6_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_scrape1"
-    },
-    {
-      "type": "m2s",
-      "address": "/k6_level",
-      "inputs": {
-        "in": {
-          "from": "/knob6_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k6_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k6_grain"
-        },
-        "pan": 0.068
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k7_grain",
-      "doc": "knob 7 grains (mallet1)",
-      "inputs": {
-        "density": {
-          "from": "/knob7_density"
-        },
-        "grain_size": {
-          "from": "/knob7_grain_size"
-        },
-        "position": {
-          "from": "/knob7_position"
-        },
-        "spray": {
-          "from": "/knob7_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_mallet1"
-    },
-    {
-      "type": "m2s",
-      "address": "/k7_level",
-      "inputs": {
-        "in": {
-          "from": "/knob7_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k7_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k7_grain"
-        },
-        "pan": 0.205
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k8_grain",
-      "doc": "knob 8 grains (scrape2)",
-      "inputs": {
-        "density": {
-          "from": "/knob8_density"
-        },
-        "grain_size": {
-          "from": "/knob8_grain_size"
-        },
-        "position": {
-          "from": "/knob8_position"
-        },
-        "spray": {
-          "from": "/knob8_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_scrape2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k8_level",
-      "inputs": {
-        "in": {
-          "from": "/knob8_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k8_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k8_grain"
-        },
-        "pan": 0.341
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k9_grain",
-      "doc": "knob 9 grains (mallet2)",
-      "inputs": {
-        "density": {
-          "from": "/knob9_density"
-        },
-        "grain_size": {
-          "from": "/knob9_grain_size"
-        },
-        "position": {
-          "from": "/knob9_position"
-        },
-        "spray": {
-          "from": "/knob9_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_mallet2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k9_level",
-      "inputs": {
-        "in": {
-          "from": "/knob9_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k9_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k9_grain"
-        },
-        "pan": 0.477
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k10_grain",
-      "doc": "knob 10 grains (modular2)",
-      "inputs": {
-        "density": {
-          "from": "/knob10_density"
-        },
-        "grain_size": {
-          "from": "/knob10_grain_size"
-        },
-        "position": {
-          "from": "/knob10_position"
-        },
-        "spray": {
-          "from": "/knob10_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_modular2"
-    },
-    {
-      "type": "m2s",
-      "address": "/k10_level",
-      "inputs": {
-        "in": {
-          "from": "/knob10_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k10_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k10_grain"
-        },
-        "pan": 0.614
-      }
-    },
-    {
-      "type": "granulator",
-      "address": "/k11_grain",
-      "doc": "knob 11 grains (flexitone)",
-      "inputs": {
-        "density": {
-          "from": "/knob11_density"
-        },
-        "grain_size": {
-          "from": "/knob11_grain_size"
-        },
-        "position": {
-          "from": "/knob11_position"
-        },
-        "spray": {
-          "from": "/knob11_spray"
-        },
-        "window": "Hann"
-      },
-      "sample": "grain_flexitone"
-    },
-    {
-      "type": "m2s",
-      "address": "/k11_level",
-      "inputs": {
-        "in": {
-          "from": "/knob11_level"
-        },
-        "mode": "Smooth",
-        "time": 0.02
-      }
-    },
-    {
-      "type": "pan",
-      "address": "/k11_pan",
-      "inputs": {
-        "audio": {
-          "from": "/k11_grain"
-        },
-        "pan": 0.75
-      }
-    },
     {
       "type": "reverb",
       "address": "/fx_verb_l",
@@ -1067,875 +567,180 @@
       }
     },
     {
-      "type": "sample",
-      "address": "/l1_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 4.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop1"
-    },
-    {
-      "type": "sample",
-      "address": "/l1_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 4.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop1"
-    },
-    {
-      "type": "m2s",
-      "address": "/l1_level",
-      "inputs": {
-        "in": {
-          "from": "/loop1_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l2_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 4.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop2"
-    },
-    {
-      "type": "sample",
-      "address": "/l2_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 4.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop2"
-    },
-    {
-      "type": "m2s",
-      "address": "/l2_level",
-      "inputs": {
-        "in": {
-          "from": "/loop2_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l3_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop3"
-    },
-    {
-      "type": "sample",
-      "address": "/l3_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop3"
-    },
-    {
-      "type": "m2s",
-      "address": "/l3_level",
-      "inputs": {
-        "in": {
-          "from": "/loop3_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l4_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop4"
-    },
-    {
-      "type": "sample",
-      "address": "/l4_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop4"
-    },
-    {
-      "type": "m2s",
-      "address": "/l4_level",
-      "inputs": {
-        "in": {
-          "from": "/loop4_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l5_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop5"
-    },
-    {
-      "type": "sample",
-      "address": "/l5_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop5"
-    },
-    {
-      "type": "m2s",
-      "address": "/l5_level",
-      "inputs": {
-        "in": {
-          "from": "/loop5_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l6_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 1.2,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop6"
-    },
-    {
-      "type": "sample",
-      "address": "/l6_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 1.2,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop6"
-    },
-    {
-      "type": "m2s",
-      "address": "/l6_level",
-      "inputs": {
-        "in": {
-          "from": "/loop6_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l7_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.5,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop7"
-    },
-    {
-      "type": "sample",
-      "address": "/l7_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.5,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop7"
-    },
-    {
-      "type": "m2s",
-      "address": "/l7_level",
-      "inputs": {
-        "in": {
-          "from": "/loop7_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l8_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop8"
-    },
-    {
-      "type": "sample",
-      "address": "/l8_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 1.0,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop8"
-    },
-    {
-      "type": "m2s",
-      "address": "/l8_level",
-      "inputs": {
-        "in": {
-          "from": "/loop8_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l9_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.5,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop9"
-    },
-    {
-      "type": "sample",
-      "address": "/l9_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.5,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop9"
-    },
-    {
-      "type": "m2s",
-      "address": "/l9_level",
-      "inputs": {
-        "in": {
-          "from": "/loop9_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l10_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.3,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop10"
-    },
-    {
-      "type": "sample",
-      "address": "/l10_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.3,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop10"
-    },
-    {
-      "type": "m2s",
-      "address": "/l10_level",
-      "inputs": {
-        "in": {
-          "from": "/loop10_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l11_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop11"
-    },
-    {
-      "type": "sample",
-      "address": "/l11_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop11"
-    },
-    {
-      "type": "m2s",
-      "address": "/l11_level",
-      "inputs": {
-        "in": {
-          "from": "/loop11_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l12_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.2,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop12"
-    },
-    {
-      "type": "sample",
-      "address": "/l12_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.2,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop12"
-    },
-    {
-      "type": "m2s",
-      "address": "/l12_level",
-      "inputs": {
-        "in": {
-          "from": "/loop12_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "sample",
-      "address": "/l13_play_l",
-      "inputs": {
-        "channel": 0.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop13"
-    },
-    {
-      "type": "sample",
-      "address": "/l13_play_r",
-      "inputs": {
-        "channel": 1.0,
-        "gain": 0.4,
-        "gate": 1.0,
-        "loop": 1.0
-      },
-      "sample": "loop13"
-    },
-    {
-      "type": "m2s",
-      "address": "/l13_level",
-      "inputs": {
-        "in": {
-          "from": "/loop13_level"
-        },
-        "mode": "Smooth",
-        "time": 0.05
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/mic_in_l",
-      "inputs": {
-        "a": {
-          "from": "/mic_l"
-        },
-        "b": 0.5
-      }
-    },
-    {
-      "type": "delay",
-      "address": "/mic_predelay_l",
-      "inputs": {
-        "audio": {
-          "from": "/mic_in_l"
-        },
-        "feedback": 0.0,
-        "mix": 1.0,
-        "time": 0.5
-      }
-    },
-    {
-      "type": "delay",
-      "address": "/mic_echo_l",
-      "inputs": {
-        "audio": {
-          "from": "/mic_predelay_l"
-        },
-        "feedback": 0.45,
-        "mix": 0.6,
-        "time": 0.6
-      }
-    },
-    {
-      "type": "mul_f32_signal",
-      "address": "/mic_in_r",
-      "inputs": {
-        "a": {
-          "from": "/mic_r"
-        },
-        "b": 0.5
-      }
-    },
-    {
-      "type": "delay",
-      "address": "/mic_predelay_r",
-      "inputs": {
-        "audio": {
-          "from": "/mic_in_r"
-        },
-        "feedback": 0.0,
-        "mix": 1.0,
-        "time": 0.75
-      }
-    },
-    {
-      "type": "delay",
-      "address": "/mic_echo_r",
-      "inputs": {
-        "audio": {
-          "from": "/mic_predelay_r"
-        },
-        "feedback": 0.45,
-        "mix": 0.6,
-        "time": 0.6
-      }
-    },
-    {
-      "type": "compressor",
-      "address": "/master_limit_l",
-      "inputs": {
-        "attack": 0.1,
-        "audio": {
-          "from": "/master_l"
-        },
-        "ratio": 20.0,
-        "release": 50.0,
-        "threshold": -1.0
-      }
-    },
-    {
-      "type": "clamp_f32_signal",
-      "address": "/master_clamp_l",
-      "inputs": {
-        "hi": 1.0,
-        "lo": -1.0,
-        "x": {
-          "from": "/master_limit_l"
-        }
-      }
-    },
-    {
-      "type": "compressor",
-      "address": "/master_limit_r",
-      "inputs": {
-        "attack": 0.1,
-        "audio": {
-          "from": "/master_r"
-        },
-        "ratio": 20.0,
-        "release": 50.0,
-        "threshold": -1.0
-      }
-    },
-    {
-      "type": "clamp_f32_signal",
-      "address": "/master_clamp_r",
-      "inputs": {
-        "hi": 1.0,
-        "lo": -1.0,
-        "x": {
-          "from": "/master_limit_r"
-        }
-      }
-    },
-    {
       "type": "mix",
       "address": "/grains_l",
-      "doc": "Grain bus, left: the 12 voices, each at its knob level",
+      "doc": "Grain bus, left: the 12 knob voices, summed (each voice applies its own level)",
       "inputs": {
-        "gain1": {
-          "from": "/k0_level"
-        },
-        "gain10": {
-          "from": "/k9_level"
-        },
-        "gain11": {
-          "from": "/k10_level"
-        },
-        "gain12": {
-          "from": "/k11_level"
-        },
-        "gain2": {
-          "from": "/k1_level"
-        },
-        "gain3": {
-          "from": "/k2_level"
-        },
-        "gain4": {
-          "from": "/k3_level"
-        },
-        "gain5": {
-          "from": "/k4_level"
-        },
-        "gain6": {
-          "from": "/k5_level"
-        },
-        "gain7": {
-          "from": "/k6_level"
-        },
-        "gain8": {
-          "from": "/k7_level"
-        },
-        "gain9": {
-          "from": "/k8_level"
-        },
         "in1": {
-          "from": "/k0_pan.left"
+          "from": "/knob0.left"
         },
         "in10": {
-          "from": "/k9_pan.left"
+          "from": "/knob9.left"
         },
         "in11": {
-          "from": "/k10_pan.left"
+          "from": "/knob10.left"
         },
         "in12": {
-          "from": "/k11_pan.left"
+          "from": "/knob11.left"
         },
         "in2": {
-          "from": "/k1_pan.left"
+          "from": "/knob1.left"
         },
         "in3": {
-          "from": "/k2_pan.left"
+          "from": "/knob2.left"
         },
         "in4": {
-          "from": "/k3_pan.left"
+          "from": "/knob3.left"
         },
         "in5": {
-          "from": "/k4_pan.left"
+          "from": "/knob4.left"
         },
         "in6": {
-          "from": "/k5_pan.left"
+          "from": "/knob5.left"
         },
         "in7": {
-          "from": "/k6_pan.left"
+          "from": "/knob6.left"
         },
         "in8": {
-          "from": "/k7_pan.left"
+          "from": "/knob7.left"
         },
         "in9": {
-          "from": "/k8_pan.left"
+          "from": "/knob8.left"
         }
       }
     },
     {
       "type": "mix",
       "address": "/grains_r",
-      "doc": "Grain bus, right: the 12 voices, each at its knob level",
+      "doc": "Grain bus, right: the 12 knob voices, summed (each voice applies its own level)",
       "inputs": {
-        "gain1": {
-          "from": "/k0_level"
-        },
-        "gain10": {
-          "from": "/k9_level"
-        },
-        "gain11": {
-          "from": "/k10_level"
-        },
-        "gain12": {
-          "from": "/k11_level"
-        },
-        "gain2": {
-          "from": "/k1_level"
-        },
-        "gain3": {
-          "from": "/k2_level"
-        },
-        "gain4": {
-          "from": "/k3_level"
-        },
-        "gain5": {
-          "from": "/k4_level"
-        },
-        "gain6": {
-          "from": "/k5_level"
-        },
-        "gain7": {
-          "from": "/k6_level"
-        },
-        "gain8": {
-          "from": "/k7_level"
-        },
-        "gain9": {
-          "from": "/k8_level"
-        },
         "in1": {
-          "from": "/k0_pan.right"
+          "from": "/knob0.right"
         },
         "in10": {
-          "from": "/k9_pan.right"
+          "from": "/knob9.right"
         },
         "in11": {
-          "from": "/k10_pan.right"
+          "from": "/knob10.right"
         },
         "in12": {
-          "from": "/k11_pan.right"
+          "from": "/knob11.right"
         },
         "in2": {
-          "from": "/k1_pan.right"
+          "from": "/knob1.right"
         },
         "in3": {
-          "from": "/k2_pan.right"
+          "from": "/knob2.right"
         },
         "in4": {
-          "from": "/k3_pan.right"
+          "from": "/knob3.right"
         },
         "in5": {
-          "from": "/k4_pan.right"
+          "from": "/knob4.right"
         },
         "in6": {
-          "from": "/k5_pan.right"
+          "from": "/knob5.right"
         },
         "in7": {
-          "from": "/k6_pan.right"
+          "from": "/knob6.right"
         },
         "in8": {
-          "from": "/k7_pan.right"
+          "from": "/knob7.right"
         },
         "in9": {
-          "from": "/k8_pan.right"
+          "from": "/knob8.right"
         }
       }
     },
     {
       "type": "mix",
       "address": "/loops_l",
-      "doc": "Loop bus, left: the 13 loops, each at its busyness level",
+      "doc": "Loop bus, left: the 13 loops, summed (each loop applies its own busyness level)",
       "inputs": {
-        "gain1": {
-          "from": "/l1_level"
-        },
-        "gain10": {
-          "from": "/l10_level"
-        },
-        "gain11": {
-          "from": "/l11_level"
-        },
-        "gain12": {
-          "from": "/l12_level"
-        },
-        "gain13": {
-          "from": "/l13_level"
-        },
-        "gain2": {
-          "from": "/l2_level"
-        },
-        "gain3": {
-          "from": "/l3_level"
-        },
-        "gain4": {
-          "from": "/l4_level"
-        },
-        "gain5": {
-          "from": "/l5_level"
-        },
-        "gain6": {
-          "from": "/l6_level"
-        },
-        "gain7": {
-          "from": "/l7_level"
-        },
-        "gain8": {
-          "from": "/l8_level"
-        },
-        "gain9": {
-          "from": "/l9_level"
-        },
         "in1": {
-          "from": "/l1_play_l"
+          "from": "/loop1.left"
         },
         "in10": {
-          "from": "/l10_play_l"
+          "from": "/loop10.left"
         },
         "in11": {
-          "from": "/l11_play_l"
+          "from": "/loop11.left"
         },
         "in12": {
-          "from": "/l12_play_l"
+          "from": "/loop12.left"
         },
         "in13": {
-          "from": "/l13_play_l"
+          "from": "/loop13.left"
         },
         "in2": {
-          "from": "/l2_play_l"
+          "from": "/loop2.left"
         },
         "in3": {
-          "from": "/l3_play_l"
+          "from": "/loop3.left"
         },
         "in4": {
-          "from": "/l4_play_l"
+          "from": "/loop4.left"
         },
         "in5": {
-          "from": "/l5_play_l"
+          "from": "/loop5.left"
         },
         "in6": {
-          "from": "/l6_play_l"
+          "from": "/loop6.left"
         },
         "in7": {
-          "from": "/l7_play_l"
+          "from": "/loop7.left"
         },
         "in8": {
-          "from": "/l8_play_l"
+          "from": "/loop8.left"
         },
         "in9": {
-          "from": "/l9_play_l"
+          "from": "/loop9.left"
         }
       }
     },
     {
       "type": "mix",
       "address": "/loops_r",
-      "doc": "Loop bus, right: the 13 loops, each at its busyness level",
+      "doc": "Loop bus, right: the 13 loops, summed (each loop applies its own busyness level)",
       "inputs": {
-        "gain1": {
-          "from": "/l1_level"
-        },
-        "gain10": {
-          "from": "/l10_level"
-        },
-        "gain11": {
-          "from": "/l11_level"
-        },
-        "gain12": {
-          "from": "/l12_level"
-        },
-        "gain13": {
-          "from": "/l13_level"
-        },
-        "gain2": {
-          "from": "/l2_level"
-        },
-        "gain3": {
-          "from": "/l3_level"
-        },
-        "gain4": {
-          "from": "/l4_level"
-        },
-        "gain5": {
-          "from": "/l5_level"
-        },
-        "gain6": {
-          "from": "/l6_level"
-        },
-        "gain7": {
-          "from": "/l7_level"
-        },
-        "gain8": {
-          "from": "/l8_level"
-        },
-        "gain9": {
-          "from": "/l9_level"
-        },
         "in1": {
-          "from": "/l1_play_r"
+          "from": "/loop1.right"
         },
         "in10": {
-          "from": "/l10_play_r"
+          "from": "/loop10.right"
         },
         "in11": {
-          "from": "/l11_play_r"
+          "from": "/loop11.right"
         },
         "in12": {
-          "from": "/l12_play_r"
+          "from": "/loop12.right"
         },
         "in13": {
-          "from": "/l13_play_r"
+          "from": "/loop13.right"
         },
         "in2": {
-          "from": "/l2_play_r"
+          "from": "/loop2.right"
         },
         "in3": {
-          "from": "/l3_play_r"
+          "from": "/loop3.right"
         },
         "in4": {
-          "from": "/l4_play_r"
+          "from": "/loop4.right"
         },
         "in5": {
-          "from": "/l5_play_r"
+          "from": "/loop5.right"
         },
         "in6": {
-          "from": "/l6_play_r"
+          "from": "/loop6.right"
         },
         "in7": {
-          "from": "/l7_play_r"
+          "from": "/loop7.right"
         },
         "in8": {
-          "from": "/l8_play_r"
+          "from": "/loop8.right"
         },
         "in9": {
-          "from": "/l9_play_r"
+          "from": "/loop9.right"
         }
       }
     },
@@ -1960,7 +765,7 @@
           "from": "/loops_l"
         },
         "in3": {
-          "from": "/mic_echo_l"
+          "from": "/echo_l.out"
         }
       }
     },
@@ -1985,8 +790,573 @@
           "from": "/loops_r"
         },
         "in3": {
-          "from": "/mic_echo_r"
+          "from": "/echo_r.out"
         }
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/echo_l",
+      "doc": "Mic echo, left",
+      "inputs": {
+        "in": {
+          "from": "/mic_l"
+        },
+        "predelay": 0.5
+      },
+      "patch": "mic_echo"
+    },
+    {
+      "type": "subpatch",
+      "address": "/echo_r",
+      "doc": "Mic echo, right",
+      "inputs": {
+        "in": {
+          "from": "/mic_r"
+        },
+        "predelay": 0.75
+      },
+      "patch": "mic_echo"
+    },
+    {
+      "type": "subpatch",
+      "address": "/limit_l",
+      "doc": "Master limiter, left",
+      "inputs": {
+        "in": {
+          "from": "/master_l"
+        }
+      },
+      "patch": "limiter"
+    },
+    {
+      "type": "subpatch",
+      "address": "/limit_r",
+      "doc": "Master limiter, right",
+      "inputs": {
+        "in": {
+          "from": "/master_r"
+        }
+      },
+      "patch": "limiter"
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob0",
+      "doc": "knob 0 grains (scrape1)",
+      "inputs": {
+        "density": {
+          "from": "/knob0_density"
+        },
+        "grain_size": {
+          "from": "/knob0_grain_size"
+        },
+        "level": {
+          "from": "/knob0_level"
+        },
+        "pan": -0.75,
+        "position": {
+          "from": "/knob0_position"
+        },
+        "spray": {
+          "from": "/knob0_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_scrape1"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob1",
+      "doc": "knob 1 grains (mallet1)",
+      "inputs": {
+        "density": {
+          "from": "/knob1_density"
+        },
+        "grain_size": {
+          "from": "/knob1_grain_size"
+        },
+        "level": {
+          "from": "/knob1_level"
+        },
+        "pan": -0.614,
+        "position": {
+          "from": "/knob1_position"
+        },
+        "spray": {
+          "from": "/knob1_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_mallet1"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob2",
+      "doc": "knob 2 grains (scrape2)",
+      "inputs": {
+        "density": {
+          "from": "/knob2_density"
+        },
+        "grain_size": {
+          "from": "/knob2_grain_size"
+        },
+        "level": {
+          "from": "/knob2_level"
+        },
+        "pan": -0.477,
+        "position": {
+          "from": "/knob2_position"
+        },
+        "spray": {
+          "from": "/knob2_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_scrape2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob3",
+      "doc": "knob 3 grains (mallet2)",
+      "inputs": {
+        "density": {
+          "from": "/knob3_density"
+        },
+        "grain_size": {
+          "from": "/knob3_grain_size"
+        },
+        "level": {
+          "from": "/knob3_level"
+        },
+        "pan": -0.341,
+        "position": {
+          "from": "/knob3_position"
+        },
+        "spray": {
+          "from": "/knob3_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_mallet2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob4",
+      "doc": "knob 4 grains (modular2)",
+      "inputs": {
+        "density": {
+          "from": "/knob4_density"
+        },
+        "grain_size": {
+          "from": "/knob4_grain_size"
+        },
+        "level": {
+          "from": "/knob4_level"
+        },
+        "pan": -0.205,
+        "position": {
+          "from": "/knob4_position"
+        },
+        "spray": {
+          "from": "/knob4_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_modular2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob5",
+      "doc": "knob 5 grains (flexitone)",
+      "inputs": {
+        "density": {
+          "from": "/knob5_density"
+        },
+        "grain_size": {
+          "from": "/knob5_grain_size"
+        },
+        "level": {
+          "from": "/knob5_level"
+        },
+        "pan": -0.068,
+        "position": {
+          "from": "/knob5_position"
+        },
+        "spray": {
+          "from": "/knob5_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_flexitone"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob6",
+      "doc": "knob 6 grains (scrape1)",
+      "inputs": {
+        "density": {
+          "from": "/knob6_density"
+        },
+        "grain_size": {
+          "from": "/knob6_grain_size"
+        },
+        "level": {
+          "from": "/knob6_level"
+        },
+        "pan": 0.068,
+        "position": {
+          "from": "/knob6_position"
+        },
+        "spray": {
+          "from": "/knob6_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_scrape1"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob7",
+      "doc": "knob 7 grains (mallet1)",
+      "inputs": {
+        "density": {
+          "from": "/knob7_density"
+        },
+        "grain_size": {
+          "from": "/knob7_grain_size"
+        },
+        "level": {
+          "from": "/knob7_level"
+        },
+        "pan": 0.205,
+        "position": {
+          "from": "/knob7_position"
+        },
+        "spray": {
+          "from": "/knob7_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_mallet1"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob8",
+      "doc": "knob 8 grains (scrape2)",
+      "inputs": {
+        "density": {
+          "from": "/knob8_density"
+        },
+        "grain_size": {
+          "from": "/knob8_grain_size"
+        },
+        "level": {
+          "from": "/knob8_level"
+        },
+        "pan": 0.341,
+        "position": {
+          "from": "/knob8_position"
+        },
+        "spray": {
+          "from": "/knob8_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_scrape2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob9",
+      "doc": "knob 9 grains (mallet2)",
+      "inputs": {
+        "density": {
+          "from": "/knob9_density"
+        },
+        "grain_size": {
+          "from": "/knob9_grain_size"
+        },
+        "level": {
+          "from": "/knob9_level"
+        },
+        "pan": 0.477,
+        "position": {
+          "from": "/knob9_position"
+        },
+        "spray": {
+          "from": "/knob9_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_mallet2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob10",
+      "doc": "knob 10 grains (modular2)",
+      "inputs": {
+        "density": {
+          "from": "/knob10_density"
+        },
+        "grain_size": {
+          "from": "/knob10_grain_size"
+        },
+        "level": {
+          "from": "/knob10_level"
+        },
+        "pan": 0.614,
+        "position": {
+          "from": "/knob10_position"
+        },
+        "spray": {
+          "from": "/knob10_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_modular2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/knob11",
+      "doc": "knob 11 grains (flexitone)",
+      "inputs": {
+        "density": {
+          "from": "/knob11_density"
+        },
+        "grain_size": {
+          "from": "/knob11_grain_size"
+        },
+        "level": {
+          "from": "/knob11_level"
+        },
+        "pan": 0.75,
+        "position": {
+          "from": "/knob11_position"
+        },
+        "spray": {
+          "from": "/knob11_spray"
+        }
+      },
+      "patch": "grain_voice",
+      "bind": {
+        "sample": "grain_flexitone"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop1",
+      "doc": "loop 1",
+      "inputs": {
+        "gain": 4.0,
+        "level": {
+          "from": "/loop1_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop1"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop2",
+      "doc": "loop 2",
+      "inputs": {
+        "gain": 4.0,
+        "level": {
+          "from": "/loop2_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop2"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop3",
+      "doc": "loop 3",
+      "inputs": {
+        "gain": 1.0,
+        "level": {
+          "from": "/loop3_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop3"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop4",
+      "doc": "loop 4",
+      "inputs": {
+        "gain": 1.0,
+        "level": {
+          "from": "/loop4_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop4"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop5",
+      "doc": "loop 5",
+      "inputs": {
+        "gain": 0.4,
+        "level": {
+          "from": "/loop5_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop5"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop6",
+      "doc": "loop 6",
+      "inputs": {
+        "gain": 1.2,
+        "level": {
+          "from": "/loop6_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop6"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop7",
+      "doc": "loop 7",
+      "inputs": {
+        "gain": 0.5,
+        "level": {
+          "from": "/loop7_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop7"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop8",
+      "doc": "loop 8",
+      "inputs": {
+        "gain": 1.0,
+        "level": {
+          "from": "/loop8_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop8"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop9",
+      "doc": "loop 9",
+      "inputs": {
+        "gain": 0.5,
+        "level": {
+          "from": "/loop9_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop9"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop10",
+      "doc": "loop 10",
+      "inputs": {
+        "gain": 0.3,
+        "level": {
+          "from": "/loop10_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop10"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop11",
+      "doc": "loop 11",
+      "inputs": {
+        "gain": 0.4,
+        "level": {
+          "from": "/loop11_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop11"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop12",
+      "doc": "loop 12",
+      "inputs": {
+        "gain": 0.2,
+        "level": {
+          "from": "/loop12_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop12"
+      }
+    },
+    {
+      "type": "subpatch",
+      "address": "/loop13",
+      "doc": "loop 13",
+      "inputs": {
+        "gain": 0.4,
+        "level": {
+          "from": "/loop13_level"
+        }
+      },
+      "patch": "stereo_loop",
+      "bind": {
+        "sample": "loop13"
       }
     }
   ]

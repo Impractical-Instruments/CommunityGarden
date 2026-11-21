@@ -1,0 +1,98 @@
+{
+  "format_version": 4,
+  "instrument": "stereo_loop",
+  "doc": "One Playing the Pipes background loop: its stereo `sample` looping from launch at sample `gain`, at a smoothed `level`; nest one per loop and bind `sample` to that loop's file.",
+  "resources": {
+    "sample": "../../Lamplight2026/media/tone.50.wav"
+  },
+  "interface": {
+    "inputs": {
+      "gain": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 0.0,
+        "max": 4.0
+      },
+      "level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      }
+    },
+    "outputs": {
+      "left": {
+        "from": "/vca_l",
+        "channel": 0
+      },
+      "right": {
+        "from": "/vca_r",
+        "channel": 1
+      }
+    }
+  },
+  "nodes": [
+    {
+      "type": "sample",
+      "address": "/play_l",
+      "inputs": {
+        "channel": 0.0,
+        "gain": {
+          "from": "/gain"
+        },
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "sample"
+    },
+    {
+      "type": "sample",
+      "address": "/play_r",
+      "inputs": {
+        "channel": 1.0,
+        "gain": {
+          "from": "/gain"
+        },
+        "gate": 1.0,
+        "loop": 1.0
+      },
+      "sample": "sample"
+    },
+    {
+      "type": "m2s",
+      "address": "/level_smooth",
+      "doc": "Smooths the loop level through the mix crossfades",
+      "inputs": {
+        "in": {
+          "from": "/level"
+        },
+        "mode": "Smooth",
+        "time": 0.05
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/vca_l",
+      "inputs": {
+        "a": {
+          "from": "/play_l"
+        },
+        "b": {
+          "from": "/level_smooth"
+        }
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/vca_r",
+      "inputs": {
+        "a": {
+          "from": "/play_r"
+        },
+        "b": {
+          "from": "/level_smooth"
+        }
+      }
+    }
+  ]
+}

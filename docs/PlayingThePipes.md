@@ -17,7 +17,7 @@ Two Pi Pico microcontrollers (ADR-0014) read rotary encoders mounted on the valv
 | `pipes-bridge` | `encoder_bridge.py` | Finds the Picos by USB vendor ID on any port, turns their detents into knob and loop values (`pipes_control.py`, tuned by `settings.json`), and sends them to reuben as OSC every 10 ms. Serves `/health` |
 | `pipes-reuben` | `reuben play reuben/pipes.json --io-map reuben/pipes.profile.json --structure-addr 0.0.0.0:<port>` | The audio engine: plays the instrument on the audio interface the device profile names. Its structure channel is open to the LAN with a token, so an editor can [attach](#attaching-an-editor) |
 
-[reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder, dry), 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master.
+[reuben](../vendor/reuben) is our audio engine, a git submodule at `vendor/reuben`, built from source on the box. The instrument is `ShowControl/PlayingThePipes/reuben/pipes.json`: 12 grain voices (one per encoder, dry), 13 stereo loops whose levels follow how busy the pipes are, the mic echo, and a limited master. Each voice, loop, echo side and limiter side is a nested child from `reuben/patches/`.
 
 The bridge and reuben talk over OSC on the box itself. Those addresses are not part of the OSC Fabric; they are listed in [osc-fabric.md](osc-fabric.md#playing-the-pipes-the-encoder-bridge-to-reuben). The Element does not yet send `/pipes/activity` to the TreeHouse (see [Open items](#open-items)).
 
@@ -106,7 +106,7 @@ How `pipes-reuben` reaches the audio interface: on Raspberry Pi OS with desktop,
 
 ### Attaching an editor
 
-`reuben-editor` on a laptop can attach to the running engine to tune the instrument live. Edits go to the box's `reuben/pipes.json`; commit them from the box, or redo them in a clone, or the next deploy overwrites them.
+`reuben-editor` on a laptop can attach to the running engine to tune the instrument live. Edits go to the box's `reuben/pipes.json`, or to a child in `reuben/patches/`, where one edit changes all 12 grain voices or all 13 loops. Commit them from the box, or redo them in a clone, or the next deploy overwrites them.
 
 ```bash
 make pipes-editor                         # PIPES_HOST=<ssh host> if the box isn't the `pipes` ssh alias

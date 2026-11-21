@@ -1,0 +1,65 @@
+{
+  "format_version": 4,
+  "instrument": "mic_echo",
+  "doc": "One side of the Playing the Pipes mic echo: halve the mic, pre-delay it by `predelay` so the speakers' sound has ended before it can reach the mic, then a feedback echo; nest one per side, with a different pre-delay on each.",
+  "interface": {
+    "inputs": {
+      "in": {
+        "type": "f32_buffer"
+      },
+      "predelay": {
+        "type": "f32",
+        "default": 0.5,
+        "min": 0.001,
+        "max": 2.0,
+        "unit": "s"
+      }
+    },
+    "outputs": {
+      "out": {
+        "from": "/echo"
+      }
+    }
+  },
+  "nodes": [
+    {
+      "type": "mul_f32_signal",
+      "address": "/trim",
+      "doc": "Mic gain into the echo",
+      "inputs": {
+        "a": {
+          "from": "/in"
+        },
+        "b": 0.5
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/pre",
+      "doc": "Pre-delay: keeps the speakers out of the mic. Do not shorten without testing on the real speakers.",
+      "inputs": {
+        "audio": {
+          "from": "/trim"
+        },
+        "feedback": 0.0,
+        "mix": 1.0,
+        "time": {
+          "from": "/predelay"
+        }
+      }
+    },
+    {
+      "type": "delay",
+      "address": "/echo",
+      "doc": "Feedback echo (stands in for Max's spectral freeze)",
+      "inputs": {
+        "audio": {
+          "from": "/pre"
+        },
+        "feedback": 0.45,
+        "mix": 0.6,
+        "time": 0.6
+      }
+    }
+  ]
+}

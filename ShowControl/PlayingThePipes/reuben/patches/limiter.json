@@ -1,0 +1,45 @@
+{
+  "format_version": 4,
+  "instrument": "limiter",
+  "doc": "One side of the Playing the Pipes master limiter: a 20:1 compressor at -1 dB with a fast attack, then a hard clamp at ±1; nest one per output channel, last before the output.",
+  "interface": {
+    "inputs": {
+      "in": {
+        "type": "f32_buffer"
+      }
+    },
+    "outputs": {
+      "out": {
+        "from": "/clamp"
+      }
+    }
+  },
+  "nodes": [
+    {
+      "type": "compressor",
+      "address": "/limit",
+      "doc": "About 20:1 at -1 dB, fast attack: starting guesses to settle at the A/B",
+      "inputs": {
+        "attack": 0.1,
+        "audio": {
+          "from": "/in"
+        },
+        "ratio": 20.0,
+        "release": 50.0,
+        "threshold": -1.0
+      }
+    },
+    {
+      "type": "clamp_f32_signal",
+      "address": "/clamp",
+      "doc": "Hard clamp at ±1 after the limiter",
+      "inputs": {
+        "hi": 1.0,
+        "lo": -1.0,
+        "x": {
+          "from": "/limit"
+        }
+      }
+    }
+  ]
+}

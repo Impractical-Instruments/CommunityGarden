@@ -1,0 +1,120 @@
+{
+  "format_version": 4,
+  "instrument": "grain_voice",
+  "doc": "One Playing the Pipes knob voice: a granulator over its `sample`, at a smoothed `level`, panned to stereo; nest one per knob and bind `sample` to that knob's clip.",
+  "resources": {
+    "sample": "../../Lamplight2026/media/scrape_clip_1.wav"
+  },
+  "interface": {
+    "inputs": {
+      "density": {
+        "type": "f32",
+        "default": 1.0,
+        "min": 1.0,
+        "max": 200.0,
+        "curve": "exp",
+        "unit": "Hz"
+      },
+      "grain_size": {
+        "type": "f32",
+        "default": 400.0,
+        "min": 5.0,
+        "max": 500.0,
+        "unit": "ms"
+      },
+      "level": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "pan": {
+        "type": "f32",
+        "default": 0.0,
+        "min": -1.0,
+        "max": 1.0
+      },
+      "position": {
+        "type": "f32",
+        "default": 0.25,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "spray": {
+        "type": "f32",
+        "default": 0.0,
+        "min": 0.0,
+        "max": 1000.0,
+        "unit": "ms"
+      }
+    },
+    "outputs": {
+      "left": {
+        "from": "/panner.left",
+        "channel": 0
+      },
+      "right": {
+        "from": "/panner.right",
+        "channel": 1
+      }
+    }
+  },
+  "nodes": [
+    {
+      "type": "granulator",
+      "address": "/grain",
+      "inputs": {
+        "density": {
+          "from": "/density"
+        },
+        "grain_size": {
+          "from": "/grain_size"
+        },
+        "position": {
+          "from": "/position"
+        },
+        "spray": {
+          "from": "/spray"
+        },
+        "window": "Hann"
+      },
+      "sample": "sample"
+    },
+    {
+      "type": "m2s",
+      "address": "/level_smooth",
+      "doc": "Smooths the knob level so a step never clicks",
+      "inputs": {
+        "in": {
+          "from": "/level"
+        },
+        "mode": "Smooth",
+        "time": 0.02
+      }
+    },
+    {
+      "type": "mul_f32_signal",
+      "address": "/vca",
+      "inputs": {
+        "a": {
+          "from": "/grain"
+        },
+        "b": {
+          "from": "/level_smooth"
+        }
+      }
+    },
+    {
+      "type": "pan",
+      "address": "/panner",
+      "inputs": {
+        "audio": {
+          "from": "/vca"
+        },
+        "pan": {
+          "from": "/pan"
+        }
+      }
+    }
+  ]
+}
