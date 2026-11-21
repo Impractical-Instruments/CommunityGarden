@@ -413,14 +413,15 @@ def test_only_zero_intensity_is_reported_while_a_screensaver_runs(rig):
 def test_the_fabric_heartbeat_is_ticked_every_frame_in_both_states(rig):
     def script(r):
         yield
-        yield
-        in_screensaver = len(r.fabric.ticks)
-        assert in_screensaver >= 1
+        before = len(r.fabric.ticks)
+        for _ in range(4):
+            yield
+        assert len(r.fabric.ticks) - before == 4            # Screensaver: one per frame
         yield from _into_game(r)
         before = len(r.fabric.ticks)
-        yield
-        yield
-        assert len(r.fabric.ticks) - before >= 1
+        for _ in range(4):
+            yield
+        assert len(r.fabric.ticks) - before == 4            # Game: one per frame
         assert all(dt == r.tick_ms / 1000.0 for dt in r.fabric.ticks)
     rig.run(script)
 
