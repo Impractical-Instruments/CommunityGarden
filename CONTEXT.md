@@ -85,7 +85,7 @@ One depth band, from a near to a far distance, with its own id.
 _Avoid_: "depth layer", "depth band"
 
 **Intensity**:
-A 0–1 value FundingCAPTCHA reports to the TreeHouse while a Game runs: how far the Arc has got toward its Blow-Up. A weighted sum of difficulty and time pressure.
+A 0–1 value FundingCAPTCHA reports to the TreeHouse: how far the Arc has got toward its Blow-Up, and 0 between Arcs. During an Arc, a weighted sum of difficulty and time pressure.
 _Avoid_: "difficulty", "score", "engagement level"
 
 **Blow-Up Signal**:

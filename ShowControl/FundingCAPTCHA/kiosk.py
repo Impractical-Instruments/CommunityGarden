@@ -36,7 +36,7 @@ WHITE = (255, 255, 255)
 
 FPS = 30
 SAVER_DWELL     = 120.0     # seconds a screensaver runs before the next one
-OSC_INTERVAL_S  = 0.1       # intensity goes to the TreeHouse at most this often
+OSC_INTERVAL_S  = 0.1       # a Game's intensity is reported to the TreeHouse at most this often
 
 
 class AppState(Enum):
@@ -139,6 +139,11 @@ class Kiosk:
         elif self.state == AppState.GAME:
             self.tick_game(dt)
 
+        # Heartbeat: the Fabric sends intensity again every heartbeat_interval_s, in
+        # every state, or the TreeHouse takes the kiosk for dead (docs/osc-fabric.md).
+        if self.fabric:
+            self.fabric.tick(dt)
+
         # Test-input overlay
         if self.paint:
             self.paint.draw_overlay(self.screen, self.width, self.height)
@@ -161,6 +166,10 @@ class Kiosk:
     # ── SCREENSAVER ───────────────────────────────────────────────────────────
 
     def tick_screensaver(self, dt: float) -> None:
+        # No Arc, so intensity is 0. The Fabric sends it on change and then on its heartbeat.
+        if self.fabric:
+            self.fabric.report("intensity", 0.0)
+
         self.saver_elapsed += dt
         if self.saver_elapsed >= SAVER_DWELL:
             self._next_saver()
@@ -207,11 +216,16 @@ class Kiosk:
 
         if status.finished:
             log.info("Arc ended — returning to screensaver")
-            if self.fabric and status.blewup:
-                self.fabric.send_event("blowup")
+            if self.fabric:
+                if status.blewup:
+                    self.fabric.send_event("blowup")
+                # The Arc is over: 0 at once, past the throttle, so it is the first
+                # intensity the TreeHouse gets after the Blow-Up Signal.
+                self.fabric.report("intensity", 0.0)
             self.state = AppState.SCREENSAVER
             self._next_saver()
             self.monitor.set_status({"state": "screensaver"})
+            return
 
         now = time.monotonic()
         if now - self.t_last_osc >= OSC_INTERVAL_S and self.fabric:
