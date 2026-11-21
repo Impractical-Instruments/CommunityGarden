@@ -19,6 +19,9 @@ Mouse controls in Buffer A: **hold left button** = a person at the cursor · **h
 ## Rules (so it runs on the Pi)
 
 - Read the Body with `texture()` and normalised UVs, never `texelFetch` — on the Pi it's camera resolution. (Blob records are the exception: always `texelFetch`.)
+- What decides an outcome (a hit, a countdown, who is chosen) must not depend on the GPU, or the tests, which CI runs on software Mesa, say nothing about the Pi (#214; `rainbow_poop` is the worked example):
+  - Random numbers: hash integers (`iFrame`, a slot, an id) in `uint` arithmetic. `fract(sin(x) * 43758.5453)` returns unrelated values on different GPUs; keep it for the look only.
+  - A yes/no read of the Body (`> 0.5`): sample the centre of the texel, `(floor(uv * n) + 0.5) / n` with `n = vec2(textureSize(ch, 0))`. A filtered read on a texel edge lands either side of 0.5.
 - Only `.r` and `.g` of the Body mean anything. On the Pi the camera's square view is stretched to the screen, so people look wider than the painter's.
 - Buffers are 16-bit float on the Pi (Shadertoy uses 32-bit). Keep stored values small: past ~2048, whole numbers start rounding. Store positions as UVs (0–1), not pixels.
 - `HW_PERFORMANCE` is 0 on the Pi — the low-quality branch.
