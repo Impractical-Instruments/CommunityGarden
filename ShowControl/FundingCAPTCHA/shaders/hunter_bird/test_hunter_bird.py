@@ -1,8 +1,26 @@
-"""Behaviour tests for the hunter_bird Setup (shaders/hunter_bird/).
+"""What a visitor sees in the hunter_bird Setup (shaders/hunter_bird/).
 
-Records come from the real BodyBlobs tracker run on synthetic masks with a
-fake clock (camera 10 Hz, render 30 Hz), so record noise is realistic.
-GL tests need a headless context (EGL / llvmpipe) and skip without one.
+The Setup's promises. Every test below checks one of them, and says which.
+
+1. An empty room is a paper clearing under a canopy, seen through a bird's two drowsy eyes. No reticle.
+2. A person is a white figure in an ink outline, hatched low. The bird's field notes box them: ink
+   brackets once the tracker is sure of them, slate dashes before. Walking leaves footprints that
+   fade; standing leaves none.
+3. The bird watches whoever moves. A mover becomes the target: a yellow tag, the reticle on them,
+   the eyes wide. Freeze and it loses you, and squints. A newcomer makes it blink and the leaves shiver.
+4. Flail and it locks on and strikes: the view narrows to the iris, a stamp lands on you and fades,
+   and the bird looks smug, then drowsy. Walking about never gets you struck, however briskly, and
+   nor does standing still while the camera's box around you jitters.
+5. Each person is struck once, and a new person is fair game. Only people the tracker is sure of,
+   and has not struck, are targets. A flailer takes the target from a walker, and one dropped camera
+   frame does not lose the lock.
+6. A long stall leaves the scene sane.
+
+Tests assert the picture, or the bird's state read through HunterRig. None asserts how Buffer B
+stores it. Lid levels are compared with each other, never with a copy of the shader's numbers.
+
+Records come from the real BodyBlobs tracker run on synthetic masks with a fake clock (camera 10 Hz,
+render 30 Hz), so record noise is realistic. GL tests need a headless context and skip without one.
 """
 from __future__ import annotations
 
@@ -12,59 +30,71 @@ import numpy as np
 import pytest
 
 from body_blobs import BlobConfig
-from shader_test_rig import DT, EMPTY, Rig, flailing, flickering, pack_frame, rect, standing, walking
+from shader_test_rig import DT, EMPTY, Rig, flailing, flickering, glsl_consts, pack_frame, rect, standing, walking
 from blobs_contract import BLOB_ROWS, BLOB_SLOTS
 
 SETUP = Path(__file__).parent
-SIZE  = (128, 72)                         # render; ≥ 96 wide for the PRINT row
+K = glsl_consts(SETUP)
+SIZE  = (128, 72)                         # render; ≥ 96 wide for the footprints' row
 
 
 class HunterRig(Rig):
-    """Buffer B layout: see common.glsl."""
+    """The one place in this file that knows Buffer B's layout (see common.glsl)."""
 
     def __init__(self, ctx, size=SIZE, blobs=None):
         kw = {} if blobs is None else {"blobs": blobs}
         super().__init__(ctx, SETUP, size, **kw)
 
-    def slot(self, k):  return self.b()[0, k]             # id, motion, interest, stamped
-    def head(self, k):  return self.b()[2, k]             # last print x, y, side, since
-    def attn(self):     return self.b()[3, 0]             # target+1, lock, since strike, id struck
-    def reticle(self):  return self.b()[3, 1]             # x, y, radius, alpha
-    def mood(self):     return self.b()[3, 2]             # lids, shiver, anchor x, y
-    def blink(self):    return self.b()[3, 3]             # since blink, idle countdown, all-stamped s
-    def stamp(self):    return self.b()[3, 4]             # x, y
-    def prints(self):   return self.b()[4, :8 * 12]       # x, y, age, angle
+    def target(self):
+        """The slot the bird is watching, or None."""
+        t = int(self.b()[3, 0, 0])
+        return t - 1 if t else None
 
+    def lock(self) -> float:
+        """How far the bird has locked on to its target: 0 … 1, and it strikes at 1."""
+        return float(self.b()[3, 0, 1])
 
-# ── Task 1: per-slot state ────────────────────────────────────────────────────
+    def since_strike(self) -> float:
+        """Seconds since the last strike."""
+        return float(self.b()[3, 0, 2])
 
-def test_walking_has_motion(ctx):
-    rig = HunterRig(ctx)
-    rig.run(walking(20))
-    assert rig.slot(0)[1] > 0.3
+    def struck_id(self) -> int:
+        """The tracker id of the last person struck, or 0 if nobody has been."""
+        return int(self.b()[3, 0, 3])
 
+    def struck_slots(self):
+        """The slots whose person has been struck."""
+        return [k for k in range(8) if self.b()[0, k, 3] == 1]
 
-def test_flickering_still_person_has_no_motion(ctx):     # Review Focus 1
-    rig = HunterRig(ctx)
-    rig.run(flickering(40))
-    assert rig.slot(0)[1] < 0.05
+    def reticle(self):
+        """The reticle as drawn: x, y (Body UV), radius, alpha."""
+        return self.b()[3, 1]
 
+    def lids(self) -> float:
+        """How far the eyes are open: 0 shut … 1 wide."""
+        return float(self.b()[3, 2, 0])
 
-def test_interest_rises_with_motion_and_drains_still(ctx):
-    rig = HunterRig(ctx)
-    rig.run(walking(30))
-    hi = rig.slot(0)[2]
-    rig.run([walking(31)[-1]] * 40)
-    assert hi > 0.5 and rig.slot(0)[2] < hi - 0.5
+    def shiver(self) -> float:
+        """How hard the leaves are shivering: 0 … 1."""
+        return float(self.b()[3, 2, 1])
 
+    def blink_time(self) -> float:
+        """Seconds into the current blink; negative while one is on its way."""
+        return float(self.b()[3, 3, 0])
 
-def test_tentative_has_no_motion_or_interest(ctx):
-    rig = HunterRig(ctx)
-    rig.run(walking(2))                                   # still tentative (min_confirm_frames 4)
-    assert rig.slot(0)[1] == 0 and rig.slot(0)[2] == 0
+    def stamp(self):
+        """Where the stamp landed: x, y (Body UV)."""
+        return self.b()[3, 4, :2]
 
+    def footprints(self):
+        """The footprints still showing, one row each: x, y (Body UV), age s, angle."""
+        p = self.b()[4, :8 * K["PRINTS"]]
+        return p[p[:, 2] < K["PRINT_LIFE_S"]]
 
-# ── Task 2: attention ─────────────────────────────────────────────────────────
+    def box(self, k=0):
+        """The tracker's box round slot k's person: x0, y0, x1, y1 (Body UV). What the shader is given."""
+        return self.blobs.records(now=self.t)[0, k]
+
 
 LEFT, RIGHT = (4, 8, 14, 36), (48, 8, 58, 36)
 
@@ -88,96 +118,197 @@ def still(n, at):
     return [rect(*at)] * n
 
 
-def stamped_slot(rig):
-    hits = [k for k in range(8) if rig.slot(k)[3] == 1]
-    assert len(hits) == 1, hits
-    return hits[0]
-
-
-def slot_of_id(rig, ident):
-    return next(k for k in range(8) if rig.slot(k)[0] == ident)
-
+# ── Claims 3 and 4: who the bird watches, and who it strikes (state) ──────────
 
 def test_flailing_becomes_target_and_strikes(ctx):
     rig = HunterRig(ctx)
     rig.run(flailing(45))                                 # 4.5 s
-    a = rig.attn()
-    assert a[3] == 1                                      # id 1 struck
-    assert rig.slot(0)[3] == 1                            # stamped
+    assert rig.struck_id() == 1 and rig.struck_slots() == [0]
 
 
 def test_walking_alone_never_strikes(ctx):
     rig = HunterRig(ctx)
     rig.run(walking(60))
-    assert rig.attn()[3] == 0 and rig.attn()[1] < 1
+    assert rig.struck_id() == 0 and rig.lock() < 1
 
 
-def test_freezing_loses_the_bird(ctx):                     # Review Focus 1
+def test_brisk_walking_never_strikes(ctx):
+    rig = HunterRig(ctx)
+    rig.run(walking(100, step=2))                         # ~0.56 screen heights/s for 10 s
+    assert rig.struck_id() == 0 and rig.lock() < 0.2
+
+
+def test_freezing_loses_the_bird(ctx):
     rig = HunterRig(ctx)
     rig.run(walking(30))
-    assert rig.attn()[0] == 1
-    rig.run(flickering(40))                               # a flickering still person: target dropped
-    assert rig.attn()[0] == 0
+    assert rig.target() == 0
+    rig.run(flickering(40))                               # still, but for the camera's flicker
+    assert rig.target() is None
 
 
-def test_strike_once_per_person(ctx):                      # Review Focus 2
+def test_tentative_person_is_not_watched(ctx):
+    rig = HunterRig(ctx)
+    rig.run(flailing(2))                                  # the tracker is not yet sure of them
+    assert rig.target() is None
+
+
+# ── Claim 5: once each, and who can be a target (state) ───────────────────────
+
+def test_strike_once_per_person(ctx):
     rig = HunterRig(ctx)
     rig.run(flailing(45))
-    struck_at = rig.attn()[2]
-    rig.run(flailing(90))
-    a = rig.attn()
-    assert a[0] == 0 and rig.slot(0)[2] == 0              # ignored after the stamp, despite flailing
-    assert a[2] > struck_at + 8.5                         # and never struck again
+    struck_at = rig.since_strike()
+    rig.run(flailing(90))                                 # 9 s more of flailing
+    assert rig.target() is None                           # ignored after the stamp
+    assert rig.since_strike() > struck_at + 8.5           # and never struck again
 
 
-def test_reused_slot_resets_stamp(ctx):                     # Review Focus 2
+def test_a_new_person_is_struck_anew(ctx):
     rig = HunterRig(ctx)
     rig.run(flailing(45))
-    rig.run([EMPTY] * 30)                                 # leaves; lost; slot frees
-    assert rig.slot(0)[0] == 0
-    rig.run(flailing(45))
-    assert rig.slot(0)[0] == 2 and rig.slot(0)[3] == 1    # new id, stamped anew
+    assert rig.struck_id() == 1
+    rig.run([EMPTY] * 30)                                 # they leave; the tracker forgets them
+    assert rig.struck_slots() == []
+    rig.run(flailing(45))                                 # someone new, in the same place
+    assert rig.struck_id() == 2
 
 
-def test_only_confirmed_unstamped_can_be_target(ctx):      # Review Focus 4
+def test_a_struck_person_is_passed_over_for_someone_else(ctx):
     rig = HunterRig(ctx)
-    rig.run(flailing(2))                                  # tentative: never a target
-    assert rig.attn()[0] == 0 and rig.slot(0)[2] == 0
-    rig = HunterRig(ctx)
-    rig.run(both(flailing(45, x=10), still(45, RIGHT)))   # the left one is stamped
-    done = stamped_slot(rig)
+    rig.run(both(flailing(45, x=10), still(45, RIGHT)))   # the left one is struck
+    (done,) = rig.struck_slots()
     rig.run(both(flailing(30, x=10), pacing(30, RIGHT)))  # left keeps flailing, right paces
-    a = rig.attn()
-    assert a[0] != 0 and a[0] - 1 != done
-    assert rig.slot(int(a[0]) - 1)[3] == 0
+    assert rig.target() not in (None, done)
+    assert rig.target() not in rig.struck_slots()
 
 
-def test_mood(ctx):
+def test_flailer_steals_target_from_moving_walker(ctx):
+    rig = HunterRig(ctx)
+    rig.run(both(walking(30, step=1)[:30], still(30, RIGHT)))
+    walker = rig.target()
+    assert walker is not None
+    moving = [rect(4 + (k % 12), 8, 14 + (k % 12), 36) for k in range(40)]   # keeps walking on the left
+    rig.run(both(moving, flailing(40, x=48)))
+    flailer = 1 - walker
+    assert rig.target() == flailer or flailer in rig.struck_slots()          # stolen (or already struck)
+
+
+def test_target_keeps_lock_through_a_dropped_frame(ctx):   # mask flicker with a rival present
+    rig = HunterRig(ctx)
+    flail = flailing(40, x=12)
+    walk = [rect(40 + (k % 12), 8, 50 + (k % 12), 36) for k in range(40)]
+    rig.run(both(flail[:18], walk[:18]))
+    assert rig.struck_id() == 0 and rig.lock() > 0.2       # flailer targeted, not yet struck
+    tgt, before = rig.target(), rig.lock()
+    rig.run([walk[18]])                                    # the flailer's blob is missed once
+    rig.run(both(flail[19:21], walk[19:21]))
+    assert rig.target() == tgt and (rig.lock() > before - 0.1 or rig.struck_id() != 0), (before, rig.lock())
+
+
+# ── Claims 3 and 4 at the shipped scale: 480 × 480 masks and the default tracker ──
+
+class BigRig(HunterRig):
+    def __init__(self, ctx):
+        super().__init__(ctx, blobs=BlobConfig())
+
+
+def jittery_still(n, k, seed=0):
+    """A still person at 480 × 480 whose every box side jitters by ±k px each camera frame."""
+    rng = np.random.default_rng(seed)
+    out = []
+    for _ in range(n):
+        j = rng.integers(-k, k + 1, 4)
+        m = np.zeros((480, 480), bool)
+        m[100 + j[1]:400 + j[3], 200 + j[0]:280 + j[2]] = True
+        out.append(m)
+    return out
+
+
+def big_walker(n, px_per_frame, stride, x0=40, legs_hz=2.0):
+    """480 × 480: an 80 × 300 person walking right whose box widens by up to
+    `stride` px as the legs swing apart, twice per gait cycle (camera 10 Hz)."""
+    out = []
+    for k in range(n):
+        x = x0 + px_per_frame * k
+        w = 80 + stride * abs(np.sin(np.pi * legs_hz * k / 10.0))
+        m = np.zeros((480, 480), bool)
+        m[100:400, max(int(x), 0):min(int(x + w), 480)] = True
+        out.append(m)
+    return out
+
+
+def big_flailer(n, arm, one_sided=False, cx=240):
+    """480 × 480: an 80 × 300 person standing still, arms swinging out by `arm` px
+    (one arm only if one_sided, so the centroid wobbles too)."""
+    out = []
+    for k in range(n):
+        out_now = k % 5 in (1, 2, 3)
+        left = arm * out_now * (not one_sided)
+        right = arm * out_now
+        m = np.zeros((480, 480), bool)
+        m[100:400, cx - 40:cx + 40] = True
+        m[150:180, cx - 40 - left:cx + 40 + right] = True      # arms at shoulder height
+        out.append(m)
+    return out
+
+
+def test_still_person_with_box_jitter_escapes(ctx):
+    rig = BigRig(ctx)
+    rig.run(jittery_still(60, 6))
+    assert rig.target() is None and rig.struck_id() == 0
+
+
+# (4, 40): a slow walk with a short stride. (8, 80): the most box motion a walker makes.
+@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 80)])
+def test_striding_walker_never_strikes(ctx, speed, stride):
+    rig = BigRig(ctx)
+    n = min(60, int((480 - 40 - 80 - stride) / speed))     # stay inside the frame
+    rig.run(big_walker(n, speed, stride))
+    assert rig.struck_id() == 0 and rig.lock() < 0.3, (rig.t, rig.lock())
+
+
+@pytest.mark.parametrize("one_sided", [False, True])
+def test_big_flailer_strikes(ctx, one_sided):
+    rig = BigRig(ctx)
+    rig.run(big_flailer(50, 60, one_sided))                # 5 s
+    assert rig.struck_id() != 0
+
+
+# ── Claims 1, 3 and 4: the bird's mood (state; drawn in the Image tests below) ──
+
+def test_eyes_are_drowsy_when_empty_wide_on_a_target_and_squint_when_it_freezes(ctx):
     rig = HunterRig(ctx)
     rig.run([EMPTY] * 30)
-    assert abs(rig.mood()[0] - 0.42) < 0.06               # drowsy
+    drowsy = rig.lids()
     rig.run(walking(30))
-    assert rig.attn()[0] != 0 and rig.mood()[0] > 0.9     # hunting: wide
+    assert rig.target() is not None
+    wide = rig.lids()
     rig.run(flickering(50))
-    assert rig.attn()[0] == 0
-    assert abs(rig.mood()[0] - 0.7) < 0.03                # suspicious squint
+    assert rig.target() is None
+    squint = rig.lids()
+    assert drowsy + 0.1 < squint < wide - 0.1, (drowsy, squint, wide)
+    assert wide > 0.9
 
 
-def test_smug_after_strike_then_drowsy_when_all_stamped(ctx):
+def test_smug_after_strike_then_drowsy_when_all_struck(ctx):
     rig = HunterRig(ctx)
+    rig.run([EMPTY] * 30)
+    drowsy = rig.lids()
     rig.run(flailing(45))
-    since = rig.attn()[2]
-    assert since < 3.2 and rig.mood()[0] >= 0.58 - 0.05
-    rig.run(flailing(90))                                 # everyone present is stamped
-    assert abs(rig.mood()[0] - 0.42) < 0.06
+    assert rig.struck_id() != 0 and rig.since_strike() < 3.2
+    smug = rig.lids()
+    assert smug > drowsy + 0.05, (drowsy, smug)           # a little more open than drowsy
+    rig.run(flailing(90))                                 # everyone present has been struck
+    assert rig.lids() < smug - 0.05, (smug, rig.lids())   # drowsy again; a drowsy lid droops a little
+    assert abs(rig.lids() - drowsy) < 0.1, (drowsy, rig.lids())
 
 
-def test_blink_scheduled_for_new_id(ctx):
+def test_newcomer_makes_the_leaves_shiver_and_a_blink_come(ctx):
     rig = HunterRig(ctx)
     rig.run([EMPTY] * 3)
-    rig.run(standing(1), frames_per_camera=1)             # the id appears this frame
-    assert -0.16 < rig.blink()[0] < 0.0
-    assert rig.mood()[1] > 0.9                            # leaves shiver
+    rig.run(standing(1), frames_per_camera=1)             # they appear this frame
+    assert rig.shiver() > 0.9
+    assert rig.blink_time() < 0                           # a blink is on its way
 
 
 def test_reticle_follows_target_and_hides_when_empty(ctx):
@@ -185,60 +316,57 @@ def test_reticle_follows_target_and_hides_when_empty(ctx):
     rig.run([EMPTY] * 10)
     assert rig.reticle()[3] < 0.02
     rig.run(walking(30))
-    r = rig.reticle()
+    r, box = rig.reticle(), rig.box()
     assert r[3] > 0.9
-    box = rig.blobs.records(now=rig.t)[0, 0]
-    assert abs(r[0] - (box[0] + box[2]) / 2) < 0.08
-    assert abs(r[1] - (box[3] - 0.3 * (box[3] - box[1]))) < 0.08
+    assert abs(r[0] - (box[0] + box[2]) / 2) < 0.08       # on them, across ...
+    assert abs(r[1] - (box[3] - 0.3 * (box[3] - box[1]))) < 0.08   # ... and at chest height
 
 
 def test_stamp_lands_on_target(ctx):
     rig = HunterRig(ctx)
     rig.run(flailing(45))
-    box = rig.blobs.records(now=rig.t)[0, 0]
-    s = rig.stamp()
+    s, box = rig.stamp(), rig.box()
     assert abs(s[0] - (box[0] + box[2]) / 2) < 0.02 and abs(s[1] - (box[1] + box[3]) / 2) < 0.02
 
 
-def test_state_stays_bounded_when_idle(ctx):               # Review Focus 3
-    rig = HunterRig(ctx)
-    rig.r.render(200.0, (0, 0, 0, 0))                     # one huge dt
-    rig.run([EMPTY] * 3)
-    rig.r.render(200.0, (0, 0, 0, 0))
-    rig.run([EMPTY] * 3)
-    assert np.isfinite(rig.b()).all() and np.abs(rig.b()).max() <= 99.0
-
-
-# ── Task 3: footprints ────────────────────────────────────────────────────────
-
-PRINT_LIFE_S = 4.0
-
+# ── Claim 2: footprints (state) ───────────────────────────────────────────────
 
 def test_walking_leaves_prints(ctx):
     rig = HunterRig(ctx)
     rig.run(walking(30))
-    p = rig.prints()
-    fresh = p[p[:, 2] < PRINT_LIFE_S]
-    assert len(fresh) >= 6
-    box = rig.blobs.records(now=rig.t)[0, 0]
-    assert (fresh[:, 1] < box[1] + 0.02).all()            # at the bottom of the box
-    assert len(set(np.round(fresh[:, 1], 3))) >= 2        # alternating sides
+    prints = rig.footprints()
+    assert len(prints) >= 6
+    assert (prints[:, 1] < rig.box()[1] + 0.02).all()     # at the person's feet
+    assert len(set(np.round(prints[:, 1], 3))) >= 2       # left foot, right foot
 
 
 def test_standing_leaves_no_prints(ctx):
     rig = HunterRig(ctx)
     rig.run(flickering(30))
-    assert (rig.prints()[:, 2] >= PRINT_LIFE_S).all()
+    assert len(rig.footprints()) == 0
 
 
 def test_prints_age_out(ctx):
     rig = HunterRig(ctx)
     rig.run(walking(30))
     rig.run([EMPTY] * 50)
-    assert (rig.prints()[:, 2] >= PRINT_LIFE_S).all()
+    assert len(rig.footprints()) == 0
 
 
-# ── Task 4: the world ─────────────────────────────────────────────────────────
+# ── Claim 6: a long stall ─────────────────────────────────────────────────────
+
+def test_a_long_stall_leaves_the_scene_sane(ctx):
+    rig = HunterRig(ctx)
+    rig.r.render(200.0, (0, 0, 0, 0))                     # one huge dt
+    rig.run([EMPTY] * 3)
+    rig.r.render(200.0, (0, 0, 0, 0))
+    rig.run([EMPTY] * 3)
+    assert np.isfinite(rig.b()).all()
+    assert rig.target() is None and rig.struck_id() == 0 and len(rig.footprints()) == 0
+    assert rig.reticle()[3] < 0.02
+
+
+# ── Claims 1 and 2: the world and the people in it (Image) ────────────────────
 # Image tests render larger, so pen widths (sized in screen heights) are ≥ 1 px.
 
 BIG = (320, 180)
@@ -258,9 +386,9 @@ def to_px(u, v, size=BIG):
     return int(v * size[1]), int(u * size[0])
 
 
-# The eyes at no lock (common.glsl: EYE_R, EYE_SEP, EYE_LENS, EYE_Y), in BIG pixels.
-EYE_R, EYE_SEP, EYE_LENS = BIG[1] * 150 / 360, BIG[1] * 150 / 360, 1.25
-EYE_ROW = BIG[1] // 2
+# The eyes at no lock, in BIG pixels.
+EYE_R, EYE_SEP, EYE_LENS = BIG[1] * K["EYE_R"], BIG[1] * K["EYE_SEP"], K["EYE_LENS"]
+EYE_ROW = int(BIG[1] * K["EYE_Y"])
 EYE_COLS = (int(BIG[0] / 2 - EYE_SEP), int(BIG[0] / 2 + EYE_SEP))     # left, right eye centres
 
 
@@ -310,7 +438,7 @@ def test_canopy_stays_in_its_band(ctx):
     assert top and any(not near(p, "paper", 12) for p in top)   # the canopy, through the tops of the eyes
 
 
-# ── Task 5: field notes and attention ─────────────────────────────────────────
+# ── Claims 2, 3 and 4: field notes, the tag, the stamp, the reticle (Image) ───
 
 def fake_records(box, state, ident=7, vel=(0.0, 0.0), age=0.0):
     """One record in slot 0: box (x0, y0, x1, y1) Body UV. No Body behind it, so only notes draw."""
@@ -358,8 +486,8 @@ def test_tentative_box_is_slate_and_dashed(ctx):
 def test_target_tag_is_yellow(ctx):
     rig = HunterRig(ctx, BIG)
     rig.run(walking(30))
-    assert rig.attn()[0] == 1
-    box = rig.blobs.records(now=rig.t)[0, 0]
+    assert rig.target() == 0
+    box = rig.box()
     r1, c1 = to_px(box[2], box[3])
     patch = rig.image()[r1 - 25:r1 + 2, c1 - 4:c1 + 30]
     assert count(patch, "yellow", 30) > 10
@@ -369,14 +497,14 @@ def test_stamp_appears_after_strike_then_clears(ctx):
     rig = HunterRig(ctx, BIG)
     for m in flailing(60):
         rig.run([m])
-        if rig.attn()[3] == 1:
+        if rig.struck_id() == 1:
             break
-    assert rig.attn()[3] == 1
+    assert rig.struck_id() == 1
     rig.run(flailing(5))                                  # 0.5 s after the strike
-    sr, sc = to_px(*rig.stamp()[:2])
+    sr, sc = to_px(*rig.stamp())
     assert count(rig.image()[sr - 25:sr + 25, sc - 25:sc + 25], "rust") > 30
     rig.run(flailing(40))                                 # 4.5 s after: gone
-    sr, sc = to_px(*rig.stamp()[:2])
+    sr, sc = to_px(*rig.stamp())
     assert count(rig.image()[sr - 25:sr + 25, sc - 25:sc + 25], "rust") == 0
 
 
@@ -394,7 +522,7 @@ def test_reticle_drawn_on_target(ctx):
     assert count(rig.image()[rr - 30:rr + 30, rc - 30:rc + 30], "rust") > 20
 
 
-# ── Task 6: the eye ───────────────────────────────────────────────────────────
+# ── Claims 1, 3 and 4: the eyes (Image) ───────────────────────────────────────
 
 def lid_patch(rig):
     """Pixels 0.3 H above the left eye's centre: under the lid when drowsy, in view when wide."""
@@ -417,7 +545,7 @@ def test_lids_drowsy_when_empty(ctx):
 def test_lids_open_on_target(ctx):
     rig = HunterRig(ctx, BIG)
     rig.run(walking(30))
-    assert rig.mood()[0] > 0.9
+    assert rig.lids() > 0.9
     patch = lid_patch(rig)
     assert bluish(patch) == 0 and all(near(p, "paper", 12) for p in patch.reshape(-1, 4))
 
@@ -433,14 +561,14 @@ def iris_patch(rig):
 def test_iris_band_narrows_view_on_lock(ctx):
     rig = HunterRig(ctx, BIG)
     rig.run(flailing(9))
-    assert rig.attn()[1] < 0.2
+    assert rig.lock() < 0.2
     patch = iris_patch(rig)
     assert count(patch, "yellow", 30) == 0 and bluish(patch) == 0   # world at lock 0
     for m in flailing(60)[9:]:
         rig.run([m])
-        if rig.attn()[1] > 0.9:
+        if rig.lock() > 0.9:
             break
-    assert rig.attn()[1] > 0.9
+    assert rig.lock() > 0.9
     patch = iris_patch(rig)
     assert count(patch, "yellow", 30) + bluish(patch) > 10            # iris band or socket
 
@@ -453,117 +581,11 @@ def test_lids_shut_during_blink(ctx):
         r, c = int(BIG[1] * 0.65), EYE_COLS[1]
         return img[r - 3:r + 3, c - 8:c + 8]
     render_records(rig, rec, frames=2)
-    assert -0.16 < rig.blink()[0] < 0.0                   # scheduled
+    assert rig.blink_time() < 0                           # a blink is on its way
     assert bluish(right_eye()) == 0
     for _ in range(15):
         render_records(rig, rec, frames=1)
-        if 0.1 < rig.blink()[0] < 0.22:                   # mid-blink: the lids are nearly shut
+        if 0.1 < rig.blink_time() < 0.22:                 # mid-blink: the lids are nearly shut
             assert bluish(right_eye()) > 5
             return
     pytest.fail("no blink")
-
-
-# ── Review fixes ──────────────────────────────────────────────────────────────
-
-def test_brisk_walking_never_strikes(ctx):                 # "walking about never does" (spec)
-    rig = HunterRig(ctx)
-    rig.run(walking(100, step=2))                         # ~0.56 screen heights/s for 10 s
-    assert rig.attn()[3] == 0 and rig.attn()[1] < 0.2
-
-
-def test_flailer_steals_target_from_moving_walker(ctx):
-    rig = HunterRig(ctx)
-    rig.run(both(walking(30, step=1)[:30], still(30, RIGHT)))
-    walker = int(rig.attn()[0]) - 1
-    assert walker >= 0
-    moving = [rect(4 + (k % 12), 8, 14 + (k % 12), 36) for k in range(40)]   # keeps walking on the left
-    rig.run(both(moving, flailing(40, x=48)))
-    a = rig.attn()
-    assert a[0] - 1 not in (walker, -1) or a[3] == rig.slot(1 - walker)[0]   # stolen (or already stamped)
-
-
-class BigRig(HunterRig):
-    """The shipped scale: 480 × 480 masks (camera_roi) and the default BlobConfig."""
-
-    def __init__(self, ctx):
-        super().__init__(ctx, blobs=BlobConfig())
-
-
-def jittery_still(n, k, seed=0):
-    """A still person at 480 × 480 whose every box side jitters by ±k px each camera frame."""
-    rng = np.random.default_rng(seed)
-    out = []
-    for _ in range(n):
-        j = rng.integers(-k, k + 1, 4)
-        m = np.zeros((480, 480), bool)
-        m[100 + j[1]:400 + j[3], 200 + j[0]:280 + j[2]] = True
-        out.append(m)
-    return out
-
-
-def test_still_person_with_box_jitter_escapes(ctx):        # Review Focus 1, with the box breathing
-    rig = BigRig(ctx)
-    rig.run(jittery_still(60, 6))
-    s = rig.slot(0)
-    assert s[1] < 0.2 and s[2] < 0.25 and rig.attn()[0] == 0 and rig.attn()[3] == 0
-
-
-# ── Adversarial review fixes ──────────────────────────────────────────────────
-
-def big_walker(n, px_per_frame, stride, x0=40, legs_hz=2.0):
-    """480 × 480: an 80 × 300 person walking right whose box widens by up to
-    `stride` px as the legs swing apart, twice per gait cycle (camera 10 Hz)."""
-    out = []
-    for k in range(n):
-        x = x0 + px_per_frame * k
-        w = 80 + stride * abs(np.sin(np.pi * legs_hz * k / 10.0))
-        m = np.zeros((480, 480), bool)
-        m[100:400, max(int(x), 0):min(int(x + w), 480)] = True
-        out.append(m)
-    return out
-
-
-def big_flailer(n, arm, one_sided=False, cx=240):
-    """480 × 480: an 80 × 300 person standing still, arms swinging out by `arm` px
-    (one arm only if one_sided, so the centroid wobbles too)."""
-    out = []
-    for k in range(n):
-        out_now = k % 5 in (1, 2, 3)
-        left = arm * out_now * (not one_sided)
-        right = arm * out_now
-        m = np.zeros((480, 480), bool)
-        m[100:400, cx - 40:cx + 40] = True
-        m[150:180, cx - 40 - left:cx + 40 + right] = True      # arms at shoulder height
-        out.append(m)
-    return out
-
-
-# (4, 40): just above DRIFT_WALK, the drift gate's edge. (8, 80): the most box motion. Faster walkers close the gate
-# fully whatever their stride; every other case tried left the lock at exactly 0.
-@pytest.mark.parametrize("speed,stride", [(4, 40), (8, 80)])
-def test_striding_walker_never_strikes(ctx, speed, stride):  # "walking about never does" (spec)
-    rig = BigRig(ctx)
-    n = min(60, int((480 - 40 - 80 - stride) / speed))     # stay inside the frame
-    rig.run(big_walker(n, speed, stride))
-    assert rig.attn()[3] == 0 and rig.attn()[1] < 0.3, (rig.t, rig.attn())
-
-
-@pytest.mark.parametrize("one_sided", [False, True])
-def test_big_flailer_strikes(ctx, one_sided):              # "flail and it locks on and strikes"
-    rig = BigRig(ctx)
-    rig.run(big_flailer(50, 60, one_sided))                # 5 s
-    assert rig.attn()[3] != 0
-
-
-def test_target_keeps_lock_through_a_dropped_frame(ctx):   # mask flicker with a rival present
-    rig = HunterRig(ctx)
-    flail = flailing(40, x=12)
-    walk = [rect(40 + (k % 12), 8, 50 + (k % 12), 36) for k in range(40)]
-    rig.run(both(flail[:18], walk[:18]))
-    a = rig.attn()
-    assert a[3] == 0 and a[1] > 0.2, a                     # flailer targeted, not yet struck
-    tgt, before = int(a[0]) - 1, a[1]
-    rig.run([walk[18]])                                    # the flailer's blob is missed once
-    rig.run(both(flail[19:21], walk[19:21]))
-    a = rig.attn()
-    assert int(a[0]) - 1 == tgt and (a[1] > before - 0.1 or a[3] != 0), (before, a)
